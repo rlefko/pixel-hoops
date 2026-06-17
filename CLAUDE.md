@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Pixel Hoops is an 8-bit basketball shooting game built with React Native (Expo) and TypeScript. The game uses a hold-to-charge, release-to-shoot mechanic with compounding difficulty and meta-progression. Full concept details in [docs/game-concept.md](docs/game-concept.md). Target platforms: iOS and Android.
+Pixel Hoops is an 8-bit basketball shooting game built with React Native (Expo v56) and TypeScript. The game uses a hold-to-charge, release-to-shoot mechanic with compounding difficulty and meta-progression. Full concept details in [docs/game-concept.md](docs/game-concept.md). Target platforms: iOS and Android.
 
 ## Git Workflow
 
@@ -14,18 +14,16 @@ Pixel Hoops is an 8-bit basketball shooting game built with React Native (Expo) 
 
 ## Development Commands
 
-These commands use the project's dev tooling. Run from the repo root.
+Run from the repo root.
 
 | Task | Command |
 |------|---------|
 | Install dependencies | `npm install` |
 | Start development server | `npx expo start` |
-| Build for iOS | `npx expo run:ios` |
-| Build for Android | `npx expo run:android` |
+| Build for iOS | `npx expo start --ios` |
+| Build for Android | `npx expo start --android` |
 | Lint (oxlint) | `npx oxlint` |
-| Typecheck (tsgo) | `npx tsgo check` |
-
-> Update commands as the project scaffolding is created. The CI pipeline will require lint, typecheck, and build to pass.
+| Typecheck (tsgo) | `npx tsgo --project tsconfig.json` |
 
 ## Code Review Before Commits
 
@@ -51,4 +49,4 @@ Every PR must pass:
 2. **tsgo check** — type checking
 3. **build** — successful production build
 
-CI config should live in `.github/workflows/` and be triggered on pull requests to `main`.
+CI config lives in `.github/workflows/` and triggers on pull requests to `main`.
