@@ -16,14 +16,14 @@ Pixel Hoops is an 8-bit basketball shooting game built with React Native (Expo v
 
 Run from the repo root.
 
-| Task | Command |
-|------|---------|
-| Install dependencies | `npm install` |
-| Start development server | `npx expo start` |
-| Build for iOS | `npx expo start --ios` |
-| Build for Android | `npx expo start --android` |
-| Lint (oxlint) | `npx oxlint` |
-| Typecheck (tsgo) | `npx tsgo --project tsconfig.json` |
+| Task                     | Command                            |
+| ------------------------ | ---------------------------------- |
+| Install dependencies     | `npm install`                      |
+| Start development server | `npx expo start`                   |
+| Build for iOS            | `npx expo start --ios`             |
+| Build for Android        | `npx expo start --android`         |
+| Lint (oxlint)            | `npx oxlint`                       |
+| Typecheck (tsgo)         | `npx tsgo --project tsconfig.json` |
 
 ## Code Review Before Commits
 

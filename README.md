@@ -31,13 +31,13 @@ Run on device with the Expo Go app or build for iOS/Android.
 
 ## Development Commands
 
-| Task | Command |
-|------|---------|
-| Start dev server | `npx expo start` |
-| Run on iOS | `npx expo start --ios` |
-| Run on Android | `npx expo start --android` |
-| Lint | `npx oxlint` |
-| Typecheck | `npx tsgo --project tsconfig.json` |
+| Task             | Command                            |
+| ---------------- | ---------------------------------- |
+| Start dev server | `npx expo start`                   |
+| Run on iOS       | `npx expo start --ios`             |
+| Run on Android   | `npx expo start --android`         |
+| Lint             | `npx oxlint`                       |
+| Typecheck        | `npx tsgo --project tsconfig.json` |
 
 ## Game Concept
 
