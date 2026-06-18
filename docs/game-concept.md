@@ -29,11 +29,11 @@ Shoot → Score or Miss → Earn Coins → Upgrade → Repeat
 
 ### Scoring System
 
-| Event | Points | Coins |
-|-------|--------|-------|
-| Regular basket | 1 base | 1 + streak bonus |
-| Moneyball (rare random event on shot, ~8% chance per attempt once streak >= 3) | 3x base | 3x regular |
-| Three-point range upgrade active | 2x base | 2x regular |
+| Event                                                                          | Points  | Coins            |
+| ------------------------------------------------------------------------------ | ------- | ---------------- |
+| Regular basket                                                                 | 1 base  | 1 + streak bonus |
+| Moneyball (rare random event on shot, ~8% chance per attempt once streak >= 3) | 3x base | 3x regular       |
+| Three-point range upgrade active                                               | 2x base | 2x regular       |
 
 Streak multiplier: each consecutive basket adds +0.5x to points earned on that shot. A streak of 5 means 3.5x multiplier per basket. No decay -- streaks only grow until broken.
 
@@ -43,10 +43,10 @@ The hoop moves **between shots**, never during a ball's flight. This is intentio
 
 Movement direction follows a weighted random selection before each shot:
 
-| Selection | Action |
-|-----------|--------|
-| Roll 0 (33% base) | Hoop shifts up by move_amount pixels |
-| Roll 1 (33% base) | No movement |
+| Selection         | Action                                 |
+| ----------------- | -------------------------------------- |
+| Roll 0 (33% base) | Hoop shifts up by move_amount pixels   |
+| Roll 1 (33% base) | No movement                            |
 | Roll 2 (33% base) | Hoop shifts down by move_amount pixels |
 
 If the new position would push the hoop off-screen, it clamps to the nearest valid position instead. This edge case is hidden from the player -- they see a "blocked" direction but not the clamping itself.
@@ -54,7 +54,7 @@ If the new position would push the hoop off-screen, it clamps to the nearest val
 The **move_amount** (in pixels) scales with current streak:
 
 | Current Streak | move_amount |
-|----------------|-------------|
+| -------------- | ----------- |
 | 0              | 0           |
 | 1 - 4          | 5           |
 | 5 - 9          | 10          |
@@ -85,6 +85,7 @@ Based on Csikszentmihalyi's flow theory, the game targets all eight dimensions:
 ### Near-Miss Effect Engineering
 
 When a shot hits the rim and bounces out:
+
 - The ball has a subtle wobble animation emphasizing how close it was to going in
 - A brief "so close" visual flash appears for 150ms
 - Screen shake intensity scales inversely with distance from center -- closer misses produce stronger shakes
@@ -108,12 +109,14 @@ This follows Skinner's variable ratio reinforcement schedule -- the strongest pr
 Two tracks of permanent progression operate simultaneously:
 
 **Meta-upgrades (purchased with earned coins)**:
+
 - Larger hoop (+4px radius, stackable up to +16px)
 - Slower shot clock decay (-0.5s per level, max 3s reduction)
 - More precise power meter (+2% accuracy per level, max +8%)
 - Shot counter persistence (retain shot indicator during streak transition animations)
 
 **Collection unlocks**:
+
 - New courts (street courts, arena courts, iconic venues) at specific coin thresholds
 - Ball variants (classic orange, black/gold, rainbow glitch effect)
 - Rim textures (chrome, gold, ice)
@@ -153,13 +156,13 @@ Achievement cards are designed to be incomplete by default:
 
 - **Music**: Single looping 8-bit melody (4 channels maximum: lead, harmony, bass, noise). Tempo increases subtly with streak count (starts at 120 BPM, peaks at 160 BPM at streak 10+).
 - **SFX catalog**:
-    - Power charge ramp: rising tone pitch during hold (frequency scales with charge level)
-    - Swish: white noise burst filtered to sound like net swoosh
-    - Rim hit: short metallic click with resonant decay (~200ms)
-    - Moneyball: ascending 3-note fanfare (C-E-G chord, 8-bit square wave)
-    - Miss: descending tone pair (G-F#, 150ms each)
-    - Streak milestone (every 5): brief crowd cheer sample (8-bit downsampled)
-    - Upgrade purchase: satisfying coin clink + confirmation chime
+  - Power charge ramp: rising tone pitch during hold (frequency scales with charge level)
+  - Swish: white noise burst filtered to sound like net swoosh
+  - Rim hit: short metallic click with resonant decay (~200ms)
+  - Moneyball: ascending 3-note fanfare (C-E-G chord, 8-bit square wave)
+  - Miss: descending tone pair (G-F#, 150ms each)
+  - Streak milestone (every 5): brief crowd cheer sample (8-bit downsampled)
+  - Upgrade purchase: satisfying coin clink + confirmation chime
 
 ### Haptic Feedback
 
@@ -188,6 +191,7 @@ Achievement cards are designed to be incomplete by default:
 ### Streak Showcase
 
 At every multiple of 5 (streak 5, 10, 15...), a brief celebration interrupts normal gameplay:
+
 - Screen flashes gold for 500ms
 - A "STREAK [N]" banner scrolls up from bottom in pixel font
 - Power meter briefly resets to fully charged as a visual reward
