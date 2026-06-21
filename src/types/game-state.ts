@@ -4,13 +4,10 @@ import type { CardId, GameCard } from './card';
 // --- Constants ---
 
 /** Total number of quarters in a basketball game. */
-export const TOTAL_Quarters = 4;
+export const TOTAL_QUARTERS = 4;
 
 /** Maximum energy pool available at the start of each game. */
 export const MAX_ENERGY = 10;
-
-/** Energy regenerated per quarter (when drawing a new card). */
-export const ENERGY_PER_QUARTER = 2;
 
 /** Cards drawn into the opening hand at tournament start. */
 export const HAND_SIZE = 4;
