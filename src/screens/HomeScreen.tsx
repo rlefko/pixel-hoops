@@ -25,6 +25,12 @@ export default function HomeScreen() {
                  >
                      Start Tournament
                  </Text>
+                 <Text
+                    style={styles.howToButton}
+                    onPress={() => router.push('/modal')}
+                 >
+                     How to Play
+                 </Text>
              </View>
 
              <Text style={styles.tagline}>8-bit arcade energy. One-thumb strategy.</Text>
@@ -78,6 +84,14 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,213,79,0.1)',
          borderWidth: 2,
          borderColor: '#FFD54F',
+     },
+    howToButton: {
+         fontSize: 14,
+        color: '#aaa',
+        textAlign: 'center',
+        paddingVertical: 12,
+        marginTop: 16,
+         letterSpacing: 1,
      },
     tagline: {
         fontSize: 10,

@@ -1,12 +1,12 @@
 import { useState, useCallback } from 'react';
 import type { Player } from '@/types/player';
 import type { CardId } from '@/types/card';
-import type { GameState, GameResult } from '@/types/game-state';
+import type { GameState, GameResult, QuarterOutcome } from '@/types/game-state';
 import { TOTAL_QUARTERS, MAX_ENERGY, HAND_SIZE } from '@/types/game-state';
 import { buildStartingDeck } from '@/game/deck';
 import { generateOpponent } from '@/game/tournament';
-import { pickAIDefensiveCard } from '@/game/ai';
-import { resolveOffense } from '@/game/resolution';
+import { pickAIDefensiveCard, pickAIOffensiveCard } from '@/game/ai';
+import { resolveOffense, resolveOpponentOffense } from '@/game/resolution';
 import { CARD_STAT_MAP, COUNTER_STAT_MAP } from '@/types/card';
 
 // ---------------------------------------------------------------------------
@@ -105,7 +105,7 @@ export function useTournament(player: Player) {
             const ourStat = prev.player.stats[statKey];
             const theirCounterStat = prev.opponent.stats[counterStatKey];
 
-            // Resolve the play
+            // Resolve the player's possession (you attack, opponent defends)
             const outcome = resolveOffense(
                 selectedCard.id as CardId,
                 aiDefensiveCard as CardId,
@@ -115,6 +115,37 @@ export function useTournament(player: Player) {
                 selectedCard.energyCost,
             );
 
+             // Opponent's possession (they attack, you defend). The player auto-defends
+             // with a defensive card from hand if they have one, otherwise scrambles on
+             // raw stats with a generic zone read.
+            const aiOffensiveCard = pickAIOffensiveCard(prev.opponentScore - prev.yourScore);
+            const defenseCard = prev.hand.find(c => c.category === 'defense');
+            const yourDefenseCard: CardId = (defenseCard?.id as CardId) ?? 'zone-defense';
+            const theirStatKey = CARD_STAT_MAP[aiOffensiveCard];
+            const yourCounterStatKey = COUNTER_STAT_MAP[aiOffensiveCard];
+            const theirOffenseStat = prev.opponent.stats[theirStatKey];
+            const yourCounterStat = prev.player.stats[yourCounterStatKey];
+            const opponentOutcome = resolveOpponentOffense(
+                aiOffensiveCard,
+                yourDefenseCard,
+                theirOffenseStat,
+                yourCounterStat,
+            );
+
+             // Merge both possessions into a single quarter outcome record.
+            const combined: QuarterOutcome = {
+                 ...outcome,
+                opponentPoints: opponentOutcome.opponentPoints,
+                opponentOffense: {
+                    theirCard: aiOffensiveCard,
+                    yourDefenseCard,
+                    successRate: opponentOutcome.successRate,
+                    succeeded: opponentOutcome.succeeded,
+                    result: opponentOutcome.result,
+                    points: opponentOutcome.opponentPoints,
+                 },
+             };
+
             return {
                 ...prev,
                  // Remove played card from hand immediately (it will be refilled on advance)
@@ -123,10 +154,10 @@ export function useTournament(player: Player) {
                 energy: Math.max(0, prev.energy - selectedCard.energyCost),
                 resolving: true,
                 selectedCardUuid: null,
-                 // Update scores based on outcome
-                yourScore: prev.yourScore + outcome.pointsAwarded,
-                opponentScore: prev.opponentScore + outcome.opponentPoints,
-                outcomes: [...prev.outcomes, outcome],
+                 // Update scores based on both possessions this quarter
+                yourScore: prev.yourScore + combined.pointsAwarded,
+                opponentScore: prev.opponentScore + combined.opponentPoints,
+                outcomes: [...prev.outcomes, combined],
              };
          });
 

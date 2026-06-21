@@ -1,5 +1,10 @@
 import type { CardId, SpecialCardId } from '@/types/card';
 import type { QuarterResult, QuarterOutcome } from '@/types/game-state';
+import {
+    getPointsForCard,
+    resolveOutcomeLabel,
+    applyDefensiveAdjustments,
+} from '@/game/scoring';
 
 // ---------------------------------------------------------------------------
 // Core resolution formula
@@ -57,94 +62,48 @@ export function resolveOffense(
      }
 
     let succeeded = roll(successRate);
+    let points = 0;
 
     if (succeeded) {
-        let points = 0;
-        let result: QuarterResult = 'score';
+         // Base value comes from the card catalog (single source of truth).
+        points = getPointsForCard(yourCard);
 
         switch (yourCard) {
-            case 'three-pointer':
-                 // Shooting% vs opponent athleticism — success scores 3 points
-                points = 3;
-                result = 'score';
-                break;
-            case 'bank-shot':
-                points = 2;
-                result = 'score';
-                break;
             case 'step-back':
-                 // Step-back has slightly higher variance but still 2 points
-                points = roll(successRate + 5) ? 2 : 0;
-                if (points === 0) {
-                    result = 'miss';
+                 // Higher-variance jumper: a second roll can still rim out.
+                if (!roll(successRate + 5)) {
                     succeeded = false;
-                 } else {
-                    result = 'score';
+                    points = 0;
                  }
                 break;
             case 'crossover':
-                 // Drive success: points + chance of foul (free throws = +1 bonus)
-                points = 2;
+                 // A blow-by can draw a foul for a bonus free throw.
                 if (roll(successRate - 20)) {
-                    points += 1; // Foul called → free throw
-                    result = 'score';
-                 } else {
-                    result = 'score';
+                    points += 1;
                  }
                 break;
-            case 'behind-back':
-                points = 1; // Lower base but assist-style play is reliable
-                result = 'score';
-                break;
-            case 'alley-oop':
-            case 'poster-dunk':
-                points = 2;
-                result = 'score';
-                break;
-            default:
-                result = 'miss';
          }
 
-        return {
-            yourCard,
-            opponentCard,
-            successRate,
-            succeeded: true,
-            result,
-            pointsAwarded: points,
-            opponentPoints: 0,
-         };
-    } else {
-         // Offensive play failed — determine the type of failure
-        let result: QuarterResult = 'miss';
-
-        switch (opponentCard) {
-            case 'zone-defense':
-                 // Zone defense prevents easy baskets
-                result = 'block';
-                break;
-            case 'pressure-trap':
-                 // Pressure trap causes turnovers on failed drives
-                if (yourCard === 'crossover' || yourCard === 'behind-back') {
-                    result = 'turnover';
-                 } else {
-                    result = 'miss';
-                 }
-                break;
-            default:
-                result = 'miss'; // Swish attempt missed the rim
+         // Beating a gambling pressure trap leaves an open lane for an easy bucket
+         // (+1). Mirrors applyDefensiveAdjustments so the reward is symmetric on
+         // both offense and defense, per the concept doc.
+        if (succeeded && opponentCard === 'pressure-trap') {
+            points += 1;
          }
-
-        return {
-            yourCard,
-            opponentCard,
-            successRate,
-            succeeded: false,
-            result,
-            pointsAwarded: 0,
-            opponentPoints: 0,
-         };
      }
+
+     // Label depends on BOTH cards (e.g. miss vs zone reads as a block).
+    const result: QuarterResult = resolveOutcomeLabel(yourCard, opponentCard, succeeded);
+
+    return {
+        yourCard,
+        opponentCard,
+        successRate,
+        succeeded,
+        result,
+        pointsAwarded: succeeded ? points : 0,
+        opponentPoints: 0,
+     };
 }
 
 // ---------------------------------------------------------------------------
@@ -159,65 +118,26 @@ export function resolveOpponentOffense(
     yourCounterStat: number,
 ): QuarterOutcome {
     const successRate = calculateSuccessRate(theirStat, yourCounterStat);
-    let succeeded = roll(successRate);
+    const succeeded = roll(successRate);
 
-    if (succeeded) {
-        let points = 0;
-        let result: QuarterResult = 'score';
+     // Opponent earns their card's value only if they beat your defense; the
+     // defensive adjustment then decides the final points + arcade callout.
+    const earnedPoints = succeeded ? getPointsForCard(theirCard) : 0;
+    const { adjustedPoints, result } = applyDefensiveAdjustments(
+        earnedPoints,
+        yourCard,
+        !succeeded, // your defense succeeded iff their attack failed
+    );
 
-        switch (theirCard) {
-            case 'three-pointer':
-                points = 3;
-                break;
-            case 'bank-shot':
-            case 'step-back':
-            case 'crossover':
-                points = 2;
-                break;
-            case 'behind-back':
-                points = 1;
-                break;
-            case 'alley-oop':
-            case 'poster-dunk':
-                points = 2;
-                break;
-            default:
-                result = 'miss';
-         }
-
-        return {
-            yourCard,
-            opponentCard: theirCard,
-            successRate,
-            succeeded: true,
-            result,
-            pointsAwarded: 0, // Opponent scoring doesn't add to our "pointsAwarded"
-            opponentPoints: points,
-         };
-     } else {
-        let result: QuarterResult = 'miss';
-
-        switch (yourCard) {
-            case 'zone-defense':
-                result = 'turnover';
-                break;
-            case 'pressure-trap':
-                result = 'steal';
-                break;
-            default:
-                result = 'block';
-         }
-
-        return {
-            yourCard,
-            opponentCard: theirCard,
-            successRate,
-            succeeded: false,
-            result,
-            pointsAwarded: 0,
-            opponentPoints: 0,
-         };
-     }
+    return {
+        yourCard,
+        opponentCard: theirCard,
+        successRate,
+        succeeded,
+        result,
+        pointsAwarded: 0, // Opponent scoring doesn't add to our "pointsAwarded"
+        opponentPoints: adjustedPoints,
+     };
 }
 
 // ---------------------------------------------------------------------------

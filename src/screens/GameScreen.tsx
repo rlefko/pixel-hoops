@@ -147,6 +147,9 @@ export default function GameScreen() {
                       {gameState.outcomes.map((o, i) => (
                            <Text key={i} style={styles.outcomeLine}>
                              Q{i + 1}: {o.yourCard.toUpperCase()} → {o.result.toUpperCase()} (+{o.pointsAwarded})
+                             {o.opponentOffense
+                                 ? `  |  OPP ${o.opponentOffense.theirCard.toUpperCase()} (+${o.opponentOffense.points})`
+                                 : ''}
                           </Text>
                        ))}
                    </View>

@@ -28,6 +28,25 @@ export type QuarterResult =
 
 // --- Quarter resolution record ---
 
+/**
+ * The opponent's offensive possession within a quarter: they attack, the player
+ * defends. Optional on QuarterOutcome so legacy one-way outcomes stay valid.
+ */
+export interface OpponentPossession {
+  /** The offensive card the opponent AI attacked with. */
+  theirCard: CardId;
+  /** The defensive card the player responded with (real or scramble). */
+  yourDefenseCard: CardId;
+  /** Calculated success rate before RNG roll (0–100). */
+  successRate: number;
+  /** Whether the opponent's attack beat the player's defense. */
+  succeeded: boolean;
+  /** Visual outcome type shown to the player for this possession. */
+  result: QuarterResult;
+  /** Points the opponent scored on this possession. */
+  points: number;
+}
+
 export interface QuarterOutcome {
   /** The offensive card played by the player. */
   yourCard: CardId;
@@ -41,8 +60,10 @@ export interface QuarterOutcome {
   result: QuarterResult;
   /** Points added to the player's score this quarter. */
   pointsAwarded: number;
-  /** Points awarded to the opponent this quarter (from a defensive miscue). */
+  /** Points awarded to the opponent this quarter (their offensive possession). */
   opponentPoints: number;
+  /** The opponent's offensive possession this quarter (they attack, you defend). */
+  opponentOffense?: OpponentPossession;
 }
 
 // --- Full game state ---
