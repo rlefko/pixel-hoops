@@ -2,11 +2,11 @@ import { useState, useCallback } from 'react';
 import type { Player } from '@/types/player';
 import type { CardId } from '@/types/card';
 import type { GameState, GameResult, QuarterOutcome } from '@/types/game-state';
-import { TOTAL_Quarters, MAX_ENERGY, HAND_SIZE } from '@/types/game-state';
+import { TOTAL_QUARTERS, MAX_ENERGY, HAND_SIZE } from '@/types/game-state';
 import { buildStartingDeck } from '@/game/deck';
 import { generateOpponent } from '@/game/tournament';
-import { pickAIDefensiveCard } from '@/game/ai';
-import { resolveOffense, calculateSuccessRate } from '@/game/resolution';
+import { pickAIDefensiveCard, pickAIOffensiveCard } from '@/game/ai';
+import { resolveOffense, resolveOpponentOffense } from '@/game/resolution';
 import { CARD_STAT_MAP, COUNTER_STAT_MAP } from '@/types/card';
 
 // ---------------------------------------------------------------------------
@@ -61,7 +61,6 @@ export interface TournamentActions {
  */
 export function useTournament(player: Player) {
     const [state, setState] = useState<GameState>(() => createInitialState(player));
-    const [pendingOutcome, setPendingOutcome] = useState<QuarterOutcome | null>(null);
 
     /** Start the game (set isPlaying and begin quarter 1). */
     const startGame = useCallback(() => {
@@ -106,8 +105,8 @@ export function useTournament(player: Player) {
             const ourStat = prev.player.stats[statKey];
             const theirCounterStat = prev.opponent.stats[counterStatKey];
 
-            // Resolve the play
-            const outcome: QuarterOutcome = resolveOffense(
+            // Resolve the player's possession (you attack, opponent defends)
+            const outcome = resolveOffense(
                 selectedCard.id as CardId,
                 aiDefensiveCard as CardId,
                 ourStat,
@@ -115,6 +114,37 @@ export function useTournament(player: Player) {
                 prev.energy,
                 selectedCard.energyCost,
             );
+
+             // Opponent's possession (they attack, you defend). The player auto-defends
+             // with a defensive card from hand if they have one, otherwise scrambles on
+             // raw stats with a generic zone read.
+            const aiOffensiveCard = pickAIOffensiveCard(prev.opponentScore - prev.yourScore);
+            const defenseCard = prev.hand.find(c => c.category === 'defense');
+            const yourDefenseCard: CardId = (defenseCard?.id as CardId) ?? 'zone-defense';
+            const theirStatKey = CARD_STAT_MAP[aiOffensiveCard];
+            const yourCounterStatKey = COUNTER_STAT_MAP[aiOffensiveCard];
+            const theirOffenseStat = prev.opponent.stats[theirStatKey];
+            const yourCounterStat = prev.player.stats[yourCounterStatKey];
+            const opponentOutcome = resolveOpponentOffense(
+                aiOffensiveCard,
+                yourDefenseCard,
+                theirOffenseStat,
+                yourCounterStat,
+            );
+
+             // Merge both possessions into a single quarter outcome record.
+            const combined: QuarterOutcome = {
+                 ...outcome,
+                opponentPoints: opponentOutcome.opponentPoints,
+                opponentOffense: {
+                    theirCard: aiOffensiveCard,
+                    yourDefenseCard,
+                    successRate: opponentOutcome.successRate,
+                    succeeded: opponentOutcome.succeeded,
+                    result: opponentOutcome.result,
+                    points: opponentOutcome.opponentPoints,
+                 },
+             };
 
             return {
                 ...prev,
@@ -124,47 +154,25 @@ export function useTournament(player: Player) {
                 energy: Math.max(0, prev.energy - selectedCard.energyCost),
                 resolving: true,
                 selectedCardUuid: null,
-                 // Update scores based on outcome
-                yourScore: prev.yourScore + outcome.pointsAwarded,
-                opponentScore: prev.opponentScore + outcome.opponentPoints,
-                outcomes: [...prev.outcomes, outcome],
+                 // Update scores based on both possessions this quarter
+                yourScore: prev.yourScore + combined.pointsAwarded,
+                opponentScore: prev.opponentScore + combined.opponentPoints,
+                outcomes: [...prev.outcomes, combined],
              };
          });
 
-         // Set pending outcome for the resolution flash display
-        const card = state.hand.find(c => c.uuid === state.selectedCardUuid);
-        if (card) {
-            const statKey = CARD_STAT_MAP[card.id as CardId];
-            const counterStatKey = COUNTER_STAT_MAP[card.id as CardId];
-            const ourStat = state.player.stats[statKey];
-            const theirCounterStat = state.opponent.stats[counterStatKey];
-            const successRate = calculateSuccessRate(ourStat, theirCounterStat);
-
-             // We need to resolve here too for the flash... but we can't access the new state in setState callback synchronously.
-             // Instead, store a copy of the outcome-like data for the flash to display.
-            setPendingOutcome({
-                yourCard: card.id as CardId,
-                opponentCard: pickAIDefensiveCard(state.opponentScore - state.yourScore) as CardId,
-                successRate,
-                succeeded: false, // Will be updated after actual resolution
-                result: 'miss', // Placeholder — real value comes from the setState above
-                pointsAwarded: 0,
-                opponentPoints: 0,
-             });
-         }
-     }, [state]);
+     }, []);
 
     /** Advance to the next quarter after resolution animation finishes. */
     const advanceQuarter = useCallback(() => {
         setState(prev => {
-            if (prev.currentQuarter >= TOTAL_Quarters) {
+            if (prev.currentQuarter >= TOTAL_QUARTERS) {
                  // Game is over — show result
                 return {
                     ...prev,
                     gameOver: true,
                     isPlaying: false,
                     resolving: false,
-                     pendingOutcome: null,
                  };
              }
 
@@ -195,7 +203,6 @@ export function useTournament(player: Player) {
                 energy: Math.min(MAX_ENERGY, prev.energy + 2),
                 resolving: false,
                 selectedCardUuid: null,
-                 pendingOutcome: null,
                  yourScore: prev.yourScore + andOneBonus,
                  // And-One doesn't give opponent extra points
              };
@@ -262,7 +269,6 @@ export function useTournament(player: Player) {
 
     return {
         gameState: state,
-        pendingOutcome,
         actions: { startGame, selectCard, playQuarter, advanceQuarter, useTimeout, endGame },
     };
 }

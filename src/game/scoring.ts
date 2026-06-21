@@ -1,60 +1,51 @@
 import type { QuarterResult } from '@/types/game-state';
 import type { CardId } from '@/types/card';
+import { CARD_DEFS } from '@/constants/cards';
 
 // ---------------------------------------------------------------------------
 // Points awarded per offensive card on success
 // ---------------------------------------------------------------------------
 
-/** Return base points for an offensive card (if it succeeds). */
+/**
+ * Base points for a card on a successful play. Reads from CARD_DEFS so the card
+ * catalog stays the single source of truth: add a card there and scoring follows.
+ */
 export function getPointsForCard(cardId: CardId): number {
-    switch (cardId) {
-        case 'three-pointer': return 3;
-        case 'bank-shot':
-        case 'step-back':
-        case 'crossover':
-        case 'alley-oop':
-        case 'poster-dunk': return 2;
-        case 'behind-back': return 1;
-            // Defensive and special cards don't award points directly
-        case 'zone-defense':
-        case 'pressure-trap':
-        case 'timeout':
-        case 'hustle-play':
-        case 'and-one': return 0;
-    }
+    return CARD_DEFS[cardId].pointsOnSuccess;
 }
 
 // ---------------------------------------------------------------------------
 // Quarter result — outcome label from resolution data
 // ---------------------------------------------------------------------------
 
-/** Derive the QuarterResult string for display purposes. */
+/**
+ * Derive the QuarterResult for a resolved possession. The label depends on BOTH
+ * the attacking card and the defending card: the same miss reads as a block
+ * against zone defense but a turnover against a pressure trap, so callers must
+ * pass the defender's card to get the correct arcade callout.
+ */
 export function resolveOutcomeLabel(
-    cardId: CardId,
+    attackCard: CardId,
+    defenseCard: CardId,
     succeeded: boolean,
 ): QuarterResult {
-    if (cardId === 'and-one' && succeeded) return 'and-one';
+    if (succeeded) {
+        return attackCard === 'and-one' ? 'and-one' : 'score';
+    }
 
-    switch (cardId) {
-        case 'three-pointer':
-        case 'bank-shot':
-        case 'step-back':
-            return succeeded ? 'score' : 'miss';
-        case 'crossover':
-            // Drive: success = score, miss could be turnover if pressure trap
-            return succeeded ? 'score' : 'turnover';
-        case 'behind-back':
-            return succeeded ? 'score' : 'miss';
-        case 'alley-oop':
-        case 'poster-dunk':
-            // Dunks: success = score, miss with zone-defense = block
-            return succeeded ? 'score' : 'block';
+    // Failed attack — the defender's card decides how the failure reads.
+    switch (defenseCard) {
         case 'zone-defense':
+            // Zone walls off the rim — failed drives and shots read as blocks.
+            return 'block';
         case 'pressure-trap':
-            // Defensive cards don't score for the player — handled by resolveOpponentOffense
-            return 'turnover';
+            // Pressure traps strip ball-handlers: drives/passes become turnovers,
+            // jumpers just clank off the rim.
+            return attackCard === 'crossover' || attackCard === 'behind-back'
+                ? 'turnover'
+                : 'miss';
         default:
-            return succeeded ? 'score' : 'miss';
+            return 'miss';
     }
 }
 
@@ -63,9 +54,13 @@ export function resolveOutcomeLabel(
 // ---------------------------------------------------------------------------
 
 /**
- * Calculate how many points the opponent scores when they successfully break through defense.
- * The base depends on what card the opponent played (handled by resolveOpponentOffense).
- * This helper just does any post-resolution adjustments.
+ * Adjust an opponent's earned points based on how the player defended, and label
+ * the possession for the arcade callout.
+ *
+ * Stopping them (defense succeeded) yields 0 points, but the callout depends on
+ * the card: a pressure trap reads as a STEAL, a zone as a TURNOVER, anything else
+ * as a BLOCK. Getting beaten yields points; a beaten pressure trap leaks an extra
+ * easy bucket (+1) because gambling for the steal left the lane wide open.
  */
 export function applyDefensiveAdjustments(
     opponentPoints: number,
@@ -73,25 +68,21 @@ export function applyDefensiveAdjustments(
     playerSucceeded: boolean,
 ): { adjustedPoints: number; result: QuarterResult } {
     if (playerSucceeded) {
-        return { adjustedPoints: 0, result: 'turnover' };
+        switch (playerCard) {
+            case 'pressure-trap':
+                return { adjustedPoints: 0, result: 'steal' };
+            case 'zone-defense':
+                return { adjustedPoints: 0, result: 'turnover' };
+            default:
+                return { adjustedPoints: 0, result: 'block' };
+        }
     }
 
-    // Player's defense failed — opponent gets the points they earned
-    let result: QuarterResult = 'score';
-
-    switch (playerCard) {
-        case 'zone-defense':
-            // Even on zone failure, it's a controlled bucket
-            result = 'score';
-            break;
-        case 'pressure-trap':
-            if (playerSucceeded === false) {
-                // Pressure trap beaten → easy layup for opponent
-                opponentPoints += 1;
-                result = 'score';
-            }
-            break;
+    // Player's defense was beaten — opponent scores what they earned.
+    if (playerCard === 'pressure-trap') {
+        // Gambling for the steal and losing leaves an open lane: +1 easy bucket.
+        return { adjustedPoints: opponentPoints + 1, result: 'score' };
     }
 
-    return { adjustedPoints: opponentPoints, result };
+    return { adjustedPoints: opponentPoints, result: 'score' };
 }

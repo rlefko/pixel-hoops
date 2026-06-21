@@ -61,6 +61,14 @@ export function ResolutionFlash({ outcome }: ResolutionFlashProps) {
                         {outcome.pointsAwarded > 0 ? (
                             <Text style={styles.plusPoints}>+{outcome.pointsAwarded}</Text>
                         ) : null}
+                        {outcome.opponentOffense ? (
+                            <Text style={styles.opponentLine}>
+                                {`OPP ${FLASH_MESSAGES[outcome.opponentOffense.result] ?? '...'}`}
+                                {outcome.opponentOffense.points > 0
+                                    ? ` +${outcome.opponentOffense.points}`
+                                    : ''}
+                            </Text>
+                        ) : null}
                     </>
                 )}
             </View>
@@ -105,5 +113,12 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#FFD54F',
         marginTop: 4,
+    },
+    opponentLine: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        color: '#EF5350',
+        marginTop: 8,
+        letterSpacing: 1,
     },
 });

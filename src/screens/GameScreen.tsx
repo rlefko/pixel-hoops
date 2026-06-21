@@ -8,7 +8,7 @@ import { QuarterIndicator } from '@/components/game/QuarterIndicator';
 import { EnergyBar } from '@/components/game/EnergyBar';
 import { ResolutionFlash } from '@/components/game/ResolutionFlash';
 import { useTournament } from '@/hooks/useTournament';
-import { TOTAL_Quarters } from '@/types/game-state';
+import { TOTAL_QUARTERS } from '@/types/game-state';
 
 /** Full playable game screen — one complete 4-quarter basketball game. */
 export default function GameScreen() {
@@ -76,7 +76,7 @@ export default function GameScreen() {
          <View style={styles.container}>
               {/* Top HUD: Quarter | Score | Energy */}
              <View style={styles.hud}>
-                 <QuarterIndicator current={gameState.currentQuarter} total={TOTAL_Quarters} />
+                 <QuarterIndicator current={gameState.currentQuarter} total={TOTAL_QUARTERS} />
                  <ScoreBug yourScore={gameState.yourScore} opponentScore={gameState.opponentScore} />
                  <EnergyBar current={gameState.energy} max={10} />
               </View>
@@ -147,6 +147,9 @@ export default function GameScreen() {
                       {gameState.outcomes.map((o, i) => (
                            <Text key={i} style={styles.outcomeLine}>
                              Q{i + 1}: {o.yourCard.toUpperCase()} → {o.result.toUpperCase()} (+{o.pointsAwarded})
+                             {o.opponentOffense
+                                 ? `  |  OPP ${o.opponentOffense.theirCard.toUpperCase()} (+${o.opponentOffense.points})`
+                                 : ''}
                           </Text>
                        ))}
                    </View>
