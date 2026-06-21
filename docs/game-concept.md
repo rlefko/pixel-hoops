@@ -2,227 +2,367 @@
 
 ## Overview
 
-Pixel Hoops is an 8-bit basketball shooting game for mobile. Hold to charge power, release to shoot, and make consecutive free throws before a moving hoop beats you. The core loop is simple enough to play with one hand; the depth comes from compounding difficulty and meta-progression.
+Pixel Hoops is a card-driven basketball roguelike for mobile. You build a roster of 8-bit pixel players with unique stats and abilities, then send them into procedurally-generated tournament brackets where every match is decided by tactical card play. Win games to advance. Recruit defeated opponents. Build the ultimate underground team.
 
 > "The best casual games are deceptive: simple on the surface, deep underneath." -- Daniel Ammann, Flappy Bird creator
 
 ## Design Pillars
 
-1. **One-thumb playable** -- every action requires a single long press and release
-2. **Instant restart** -- from decision to tap after a miss takes less than one second
-3. **Skill-based with uncertainty** -- physics are consistent so skill matters, but randomness prevents pattern memorization
-4. **Compounding progression** -- you always leave with something (coins, unlocks) regardless of how long the run lasted
-5. **8-bit aesthetic throughout** -- pixel art sprites, 8-bit sound effects, CRT-style scanline overlay
+1. **One-thumb strategy** -- every action is tap-to-play, no timing or reflexes needed
+2. **Instant restart** -- from loss to "try again" takes under 5 seconds (Archero pattern)
+3. **Meaningful death** -- every run leaves you with something permanent (players recruited, training earned) so no session feels wasted
+4. **Compounding roster growth** -- your team evolves across runs; each player gains stats and unlocks abilities
+5. **NBA Jam arcade energy** -- bright retro sports entertainment, crowd hype, "and-one" callouts, exaggerated pixel animations
+
+## Psychological Research Foundation
+
+This concept is built on findings from the roguelike genre's most successful games:
+
+- **Balatro** ($15 price, 150+ jokers, zero instructional writing): reached 50 million users in its first week. Its success comes from exponential scaling (target scores multiply 1.5x-2x per phase), hidden mathematical interactions between modifiers that create emergent strategy, and a design where losses feel like player miscalculations not unfair randomness (eJAW analysis).
+- **Vampire Survivors** (Bafta Best Game 2023): near-miss effect engineered like casino mechanics -- runs failing just before the 30-minute threshold feel "almost successful" and trigger immediate retries. Level-ups every ~23 seconds maintain constant engagement without breaking flow (The Conversation analysis).
+- **Archero** (Habby): pioneered one-thumb portrait-mode roguelite design with instant restart under 5 seconds, first XP orb spawning at game start for interaction within 0-5 seconds, and the "unfolding formula" -- lock RPG systems behind gradual day-by-day unlocks rather than dumping them all at once (mobile gamereport analysis).
+
+These games share a DNA: short runs → permanent progression → slightly easier next run → repeat. No run is ever wasted.
 
 ## Core Gameplay Loop
 
 ```
-Shoot → Score or Miss → Earn Coins → Upgrade → Repeat
+Build Roster → Enter Tournament → Play Card Battles → Win Games → Recruit Opponents → Repeat
 ```
 
-### The Shoot Mechanic
+### Run Structure
 
-- Player holds a charged power meter (vertical bar on the left side of screen)
-- Release at any height to shoot -- higher charge = flatter, faster arc; lower charge = higher parabolic arc
-- The ball follows simulated projectile motion with gravity and spin
-- Swish = points. Rim hit that bounces in = points. Rim hit that bounces out = miss (run ends)
+Each run starts from the main menu as a fresh tournament bracket (5-7 opponents with procedurally-generated rosters). Between runs you use earned resources to permanently upgrade your home roster.
 
-### Scoring System
+The tournament is structured in rounds:
 
-| Event                                                                          | Points  | Coins            |
-| ------------------------------------------------------------------------------ | ------- | ---------------- |
-| Regular basket                                                                 | 1 base  | 1 + streak bonus |
-| Moneyball (rare random event on shot, ~8% chance per attempt once streak >= 3) | 3x base | 3x regular       |
-| Three-point range upgrade active                                               | 2x base | 2x regular       |
+- **Round 1**: Weakest opponent -- easy tutorial through core mechanics
+- **Rounds 2-4**: Mid-tier opponents with increasing tactical complexity
+- **Rounds 5-7**: Elite opponents requiring optimized deck synergy (tournament finals and championship)
 
-Streak multiplier: each consecutive basket adds +0.5x to points earned on that shot. A streak of 5 means 3.5x multiplier per basket. No decay -- streaks only grow until broken.
+Each round = one full game against an opponent. Win the most quarters to advance. Lose once and your run ends (permadeath for that tournament -- but your players return home to the roster with progress).
 
-### The Moving Hoop (Core Tension Mechanic)
+### The Card System
 
-The hoop moves **between shots**, never during a ball's flight. This is intentional: it creates predictability within each shot while demanding adaptive skill across attempts.
+Every player has a deck of basketball cards representing offensive and defensive plays. During a game, you draw cards from your hand each quarter and play them strategically against your opponent's defense.
 
-Movement direction follows a weighted random selection before each shot:
+#### Player Stats (4 Core Attributes)
 
-| Selection         | Action                                 |
-| ----------------- | -------------------------------------- |
-| Roll 0 (33% base) | Hoop shifts up by move_amount pixels   |
-| Roll 1 (33% base) | No movement                            |
-| Roll 2 (33% base) | Hoop shifts down by move_amount pixels |
+| Stat            | What it Does                                             | Example Cards Using It                   |
+| --------------- | -------------------------------------------------------- | ---------------------------------------- |
+| **Shooting%**   | Base accuracy of shot plays                              | 3-POINTER, BANK SHOT, STEP-BACK          |
+| **Speed**       | Evasion and crossover power                              | Crossover drive, behind-back pass, steal |
+| **Athleticism** | Power plays and dunking ability                          | Alley-oop, poster dunk, block            |
+| **Clutch**      | Performance in close quarters (ties favor higher clutch) | Free throw pressure, buzzer-beater play  |
 
-If the new position would push the hoop off-screen, it clamps to the nearest valid position instead. This edge case is hidden from the player -- they see a "blocked" direction but not the clamping itself.
+Each player starts with a base stat of 5 across all attributes. Stats range from 3 to 10 (cap per character). The higher your relevant stat relative to the opponent's defense, the more likely your card succeeds and the bigger the payoff.
 
-The **move_amount** (in pixels) scales with current streak:
+#### Card Types
 
-| Current Streak | move_amount |
-| -------------- | ----------- |
-| 0              | 0           |
-| 1 - 4          | 5           |
-| 5 - 9          | 10          |
-| 10 - 14        | 18          |
-| 15+            | 28          |
+**Offensive Cards** (attack in your quarter):
 
-The visual change is smooth: the hoop slides to its new position over 300ms with a slight bounce effect. The shot clock timer (if active) ticks down during this transition.
+- **Shoot**: Attempt a shot. Resolution uses your Shooting% vs opponent's Shot Block stat. Success = 2 or 3 points based on card type.
+- **Drive**: Attack with Speed-based plays. High-risk/high-reward -- may result in a foul (free throws), assist, or turnover if opponent outspeeds you.
+- **Dunk**: High-power Athleticism plays. Guaranteed scoring but uses up your "energy" pool for the quarter. Opponent's Rim Block stat determines block chance.
 
-### Shot Clock Pressure
+**Defensive Cards** (respond to opponent's attack):
 
-At streak >= 8, a shot clock appears in the top-right corner showing 10 seconds remaining. The visual design intensifies with streak: background color shifts from cool blue (streak 0-3) through purple (4-7) to deep red/orange (8+) with pulsing border glow. At streak >= 5, rim bounces out are highlighted with a brief screen shake and impact vibration.
+- **Zone Defense**: Reduces opponent scoring by matching Ath vs Opp Ath. If you win the comparison, they get a turnover instead of points.
+- **Pressure Trap**: Speed-based defensive plays. May result in steal (flips quarter), foul call against them, or being beaten for easy basket if outspeeded.
 
-## Psychological Design
+**Special Cards** (one-time use per game):
 
-### Flow State Architecture
+- **Timeout**: Reroll your hand for next quarter
+- **Hustle Play**: Sacrifice energy to guarantee a stat comparison bonus
+- **And-One**: Successful offensive play that carries into the next quarter as momentum (automatic point at start)
 
-Based on Csikszentmihalyi's flow theory, the game targets all eight dimensions:
+#### How a Quarter Works
 
-1. **Unambiguous objectives** -- make the basket. One goal. No secondary menus mid-game.
-2. **Rapid feedback** -- instant result after every shot (swish audio + visual celebration or miss animation) within 0.5 seconds
-3. **Uninterrupted concentration** -- no pop-ups, ads interrupt gameplay, or hidden menus. Settings accessible only from main menu.
-4. **Difficulty calibrated to skill** -- move_amount scales with streak so players must constantly develop new spatial awareness. The hoop starts perfectly still (streak 0) and becomes a puzzle within seconds.
-5. **Action-awareness merging** -- hold and release become automatic reflexes after ~3 runs. No conscious thought required during shooting.
-6. **Deep concentration** -- the moving hoop forces full attention. Partial peripheral awareness of rim position becomes part of the skill.
-7. **Time distortion** -- flow state compresses perceived time. Players report "just one more shot" turns into minutes without noticing.
-8. **Autotelic engagement** -- the game is rewarding for its own sake. No mandatory external rewards (no forced ad breaks, no energy timers).
+1. Both players draw from their deck (you get 4 cards, opponent draws face-down)
+2. You reveal your offensive card first
+3. Opponent's AI reveals its defensive card
+4. Stats resolve: your Shooting% vs their Block stat determines success probability
+5. Outcome resolves with arcade-style visual feedback (pixel dunk animation, swish, crowd cheer)
+6. Next quarter begins with updated score and energy levels
 
-### Near-Miss Effect Engineering
+The entire quarter sequence takes ~8-12 seconds. A full game is 4 quarters (~30-48 seconds of active play). The "unfolding formula" from mobile roguelike UX research applies: start with hypercasual simplicity (one card type early), then gradually introduce RPG systems, equipment upgrades, and strategic depth over multiple days of play rather than overwhelming new players.
 
-When a shot hits the rim and bounces out:
+### Example Game Flow
 
-- The ball has a subtle wobble animation emphasizing how close it was to going in
-- A brief "so close" visual flash appears for 150ms
-- Screen shake intensity scales inversely with distance from center -- closer misses produce stronger shakes
-- Audio pitch on rim bounce rises slightly as proximity to center increases (subconscious positive signal)
+```
+QUARTER 1 (you vs opponent "Tank McRebound"):
+  Your hand: [3-POINTER] [CROSSOVER] [ALLEY-OOP] [FREE THROW PRESSURE]
+  You play: CROSSOVER (Speed 7)
+  Opponent plays: ZONE DEFENSE (Speed 5)
+  Resolution: Your Speed wins → drive to basket → foul called! → FREE THROWS awarded
 
-Research shows near-misses activate the same reward pathways as actual wins in fMRI studies. This is the primary driver of "one more try" behavior.
+QUARTER 2:
+  Your hand: [STEP-BACK] [BLOCK] [DUNK] [HUSTLE PLAY]
+  You play: DUNK (Athleticism 8, cost: 3 energy)
+  Opponent plays: RIM BLOCK (Block stat 6)
+  Resolution: Athletics win → SMASH IT!! → crowd goes wild
 
-### Variable Reward Schedule
+QUARTER 3:
+  ... opponent closes gap through clutch plays ...
 
-Despite a deterministic scoring structure, variable rewards are built into the game loop:
+QUARTER 4:
+  You lead by 2 points. Opponent has higher Clutch. Final quarter is nail-biter.
+```
 
-- **Moneyball events** (8% chance after streak >= 3): unpredictable bonus multiplier with distinct fanfare
-- **Rim bounces**: some shots that look like misses actually bank in -- this occasional reversal of expectations creates dopamine spikes
-- **Coin drop patterns**: coins scatter unpredictably on made baskets, creating a mini-collection moment
-- **Unlock frequency**: players cannot predict exactly when they will earn enough for the next upgrade. The gap is always "just one more run"
+## Meta-Progression (Between Runs)
 
-This follows Skinner's variable ratio reinforcement schedule -- the strongest predictor of compulsive behavior in operant conditioning research.
+### Roster Building
 
-### Compounding Progression Systems
+When you defeat an opponent in a run, they have a chance to join your roster permanently. Each recruited player brings unique stats, visual design, and starting abilities:
 
-Two tracks of permanent progression operate simultaneously:
+- **Base stat generation**: Opponents' stats scale with tournament round. Defeating Round 3 opponents gives you players with higher base stats (6-7 range).
+- **Recruit cost**: Higher-stat players cost more "reputation" to recruit. You earn reputation based on how far you advance in the tournament each run.
+- **Player variety**: Each opponent type plays differently -- a speedy point guard, a towering center, a clutch shooter. Building a balanced roster from diverse recruits creates meaningful team synergy decisions.
 
-**Meta-upgrades (purchased with earned coins)**:
+### Player Training
 
-- Larger hoop (+4px radius, stackable up to +16px)
-- Slower shot clock decay (-0.5s per level, max 3s reduction)
-- More precise power meter (+2% accuracy per level, max +8%)
-- Shot counter persistence (retain shot indicator during streak transition animations)
+Players earn training XP during games even when your run ends. Between runs you spend XP to permanently improve their stats:
 
-**Collection unlocks**:
+| Resource             | Earned By                                | Spent On                                                          |
+| -------------------- | ---------------------------------------- | ----------------------------------------------------------------- |
+| **Coins**            | Winning quarters, tournament advancement | Card upgrades, equipment purchases                                |
+| **Reputation**       | Tournament round reached                 | Recruiting new opponents as roster players                        |
+| **Training XP**      | Playing games (even losses)              | Upgrading player base stats (Shooting%, Speed, Athletics, Clutch) |
+| **Player Fragments** | Defeating high-tier opponents            | Unlocking special abilities for existing roster players           |
 
-- New courts (street courts, arena courts, iconic venues) at specific coin thresholds
-- Ball variants (classic orange, black/gold, rainbow glitch effect)
-- Rim textures (chrome, gold, ice)
-- Celebrations (confetti burst, crowd cheer, flash photo) unlock based on streak milestones
+### Equipment System
 
-Progression guarantees that every session produces tangible advancement. This eliminates the psychological weight of "wasted time" after a short run.
+Players can equip accessories that modify their stats during runs:
 
-### Loss Aversion Mechanics
+- **Sneakers**: +2 Speed OR +1 All stats (multiple tiers, stackable across your roster)
+- **Headband**: +3% Shooting accuracy per point of Shooting% on player
+- **Wristband**: +2 Clutch rating (becomes more valuable as tournament rounds increase)
+- **Jersey Number**: +1 to all stats (unique visual design, each number has a retro aesthetic)
 
-The pain of losing a streak is designed to feel motivating rather than punishing:
+Equipment is purchased between runs with coins and persists across all future runs. This creates the "meta-progression" pattern that Balatro and Vampire Survivors perfected: small stat increments accumulate into massive power gains over time, masking true mathematical progression while eliminating the feeling of wasted attempts (eJAW analysis of Balatro design).
 
-- Streak counter glows brighter as it grows, making loss visually painful
-- Each level's coin cost has a "90% complete" visual indicator showing progress toward the next unlock
-- After any miss, a summary screen shows exact coins earned during that run (never shows only total)
-- Streak insurance items (purchasable, limited stock per day) let players save a streak of 3+ baskets with one tap
+### Player Ability Unlocks
 
-### Zeigarnik Effect in Collection System
+As players gain Training XP, they unlock special abilities that add new cards to your in-game deck:
 
-Achievement cards are designed to be incomplete by default:
+- **Level 1**: Basic plays only
+- **Level 5**: First special card unlocked (varies by player position)
+- **Level 10**: Second ability + stat boost
+- **Level 15**: Signature move (unique ability specific to that player character)
+- **Level 20**: Ultimate -- one-time use per game, game-changing effect
 
-- Players start with no cards visible; each achievement has a grayed-out silhouette
-- Completing an achievement triggers a distinct sound and animation that cannot be dismissed until the card is viewed
-- Cards have no numerical progress -- only complete or not. This binary state creates closure urgency
-- The "collections" page shows empty slots prominently, making incompleteness visually unavoidable
+Example: A speed-based point guard might unlock "Behind-Back Pass" at level 5, "No-Look Dime" at level 10, and "Point God Mode" (unlimited energy for 2 quarters) at level 20.
 
-## Retro Aesthetic Specification
+## Difficulty Design
 
-### Visual Design
+### Within-Run Scaling (The Exponential Curve)
 
-- **Resolution**: 160x144 pixels rendered at native resolution (no upscaling). Each "pixel" is visible but crisp.
-- **Color palette**: Limited to 32 colors per scene. Primary game screen uses: deep blue background, white court lines, orange ball, red rim with white net.
-- **Sprites**: All characters and objects are hand-drawn at 8x8 or 16x16 pixel grids.
-- **Animation**: Ball rotation is a simple 4-frame spin cycle. Rim bounce uses a single deformation frame (rim stretches outward 3px then springs back). Net swings on made baskets with a 2-frame sine wave approximation.
-- **CRT effect**: Subtle scanline overlay at 10% opacity covering the full screen. No bloom, no anti-aliasing, pure pixel-perfect rendering.
+Opponent stats scale with tournament round. This is not linear -- it compounds like Balatro's ante system:
 
-### Audio Design
+| Round | Opponent Avg Stats                                 | Special Mechanics Introduced       |
+| ----- | -------------------------------------------------- | ---------------------------------- |
+| 1     | 4-5                                                | None -- full tutorialization       |
+| 2     | 5                                                  | Zone defenseAI becomes aggressive  |
+| 3     | 5.5                                                | Opponent plays 2-card combos       |
+| 4     | 6.5                                                | "Pressure" quarters (time-limited) |
+| 5     | 7.5                                                | Special cards in opponent hand     |
+| 6     | 8+                                                 | Multi-card synergies, elite AI     |
+| 7     | 9+ (Championship) Boss-level with unique abilities |
 
-- **Music**: Single looping 8-bit melody (4 channels maximum: lead, harmony, bass, noise). Tempo increases subtly with streak count (starts at 120 BPM, peaks at 160 BPM at streak 10+).
-- **SFX catalog**:
-  - Power charge ramp: rising tone pitch during hold (frequency scales with charge level)
-  - Swish: white noise burst filtered to sound like net swoosh
-  - Rim hit: short metallic click with resonant decay (~200ms)
-  - Moneyball: ascending 3-note fanfare (C-E-G chord, 8-bit square wave)
-  - Miss: descending tone pair (G-F#, 150ms each)
-  - Streak milestone (every 5): brief crowd cheer sample (8-bit downsampled)
-  - Upgrade purchase: satisfying coin clink + confirmation chime
+This exponential progression mirrors Balatro's approach: target scores multiply by roughly 1.5x-2x per phase, creating a silent but escalating pressure curve that forces players to internalize rising difficulty without explicit warnings (eJAW analysis). The key principle from successful roguelike design: "difficulty comes from known mechanics rather than opaque systems" so losses feel like calculation errors, not unfair RNG.
 
-### Haptic Feedback
+### Between-Run Softening (Vampire Survivors Pattern)
 
-- Power charge ramp: very subtle vibration ticks at 25%, 50%, 75% thresholds
-- Made basket: single strong pulse synchronized with swish audio
-- Rim hit: triple-burst micro-vibration matching the ball impact rhythm (3 quick pulses, ~50ms each)
-- Miss/streak broken: one long moderate vibration (100ms)
+Small meta-progression bonuses make the next run slightly easier:
 
-## Session Design
+- Recruited players with base 6+ stats immediately boost your team's average competitiveness
+- Equipment purchases reduce difficulty (higher speed = more dodge chance = fewer turnovers)
+- Training XP spent on home roster carries forward, meaning every hour invested permanently lowers the barrier to deeper tournament runs
 
-### Default Run
+This "monotonically decreasing" difficulty curve is the signature of successful roguelites: hardest at the start, gets progressively easier over time as your investment compounds.
 
-- No time limit (unless shot clock active at streak >= 8)
-- Run ends on first rim miss (ball bounces out)
-- Coins earned = sum of coins from all baskets in that run
-- High score and total lifetime coins persist across sessions
+## Mobile UX Design Patterns
 
-### Daily Challenge Mode
+### Session Length and Pacing
 
-- One free daily challenge per calendar day
-- Fixed handicap applied to all players equally (e.g., "Make 8 baskets with hoop moving 20px each shot")
-- Global leaderboard showing best streaks from the past 7 days
-- Reset at midnight local time -- creates urgency without forced engagement
-- Completing a daily challenge awards bonus coins and achievement progress
+Successful mobile roguelike runs fall in the **5-20 minute window**, fitting naturally into commute, lunch break, or bedtime play patterns (mobile gamereport 2024 analysis). Each game is ~30-48 seconds. A full tournament run of 5 games takes approximately 4 minutes -- easily completable in a single sitting with room for multiple attempts.
 
-### Streak Showcase
+### Instant Restart
 
-At every multiple of 5 (streak 5, 10, 15...), a brief celebration interrupts normal gameplay:
+Players should be able to jump back into gameplay in **5 seconds or less** with zero tutorial text (Habby's "unfolding formula"). First card interaction happens on game start so the first action occurs within 0-5 seconds of launching the app. Visual teaching works faster than text-based tutorials.
 
-- Screen flashes gold for 500ms
-- A "STREAK [N]" banner scrolls up from bottom in pixel font
-- Power meter briefly resets to fully charged as a visual reward
-- Play continues normally after the celebration (no game pause)
+### One-Thumb Portrait Mode
 
-This leverages milestone psychology -- players stay engaged not just for the next basket but specifically to reach the next round-number celebration.
-
-## UI Layout
+Archero pioneered the portrait-mode, one-thumb roguelite formula: tap-to-play cards positioned in a natural thumb zone at the bottom of the screen. No joystick required -- all input is single-tap card selection and discard. The UI places interactive elements within easy thumb reach:
 
 ```
 ┌─────────────────────┐
-│   STREAK: 0         │  ← Streak counter + score multiplier top-left
-│   HIGH: 12          │  ← Lifetime best streak
-├──────────┬──────────┤
-│ ║║       |    O     │  ← Left: power meter (vertical bar)
-│ ║║       |   /|\    │  ← Center/Right: player sprite, ball, hoop
-│  ▓▓      |   / \    │
-│          |          │
-│          |          │  ← Court background with pixel texture
-├──────────┴──────────┤
-│  COINS: 47         │  ← Coin count bottom-right
-│  [SHOP] [CHALLENGE]│  ← Two buttons at bottom (settings accessed via menu)
+│  QUARTER: 3/4       │   ← Quarter progress top-center
+│  YOU: 28  OPP: 31   │   ← Score display with pixel score bug
+│  ENERGY: |||        │   ← Energy bar (used for power plays)
+├─────────────────────┤
+│                     │
+│    BASKETBALL       │   ← Court visualization area
+│    COURT SCENE      │   ← Pixel animation of current play
+│                     │
+├─────────────────────┤
+│ [3-PT] [CROSS] ...  │   ← Hand of cards in thumb zone (bottom)
+│ [DUNK] [BLK] [TIME] │
 └─────────────────────┘
 ```
 
-The UI is minimal during active gameplay. Only the streak counter, coin total, and power meter are visible mid-run. All secondary screens (shop, achievements, daily challenge results) appear between runs only.
+### The Unfolding Formula
 
-## Technical Notes for Implementation
+Popularized by Habby (Archero, Survivor.io): start with hypercasual simplicity so one-button or one-thumb controls are immediately accessible. Lock RPG elements, equipment systems, and deeper mechanics behind gradual unlocks -- let players focus on core gameplay first for multiple days before introducing complexity. Slowly shift attention from mastering gameplay to RPG progression as engagement deepens.
 
-- **Physics**: Simple projectile motion with gravity constant `9.8 m/s^2` scaled to pixel units
-- **Collision detection**: Circle-to-circle (ball radius vs rim radius at left and right rim positions)
-- **Rim bounce resolution**: If ball velocity after rim collision has an inward horizontal component AND the center is within rim width tolerance, ball continues toward net. Otherwise it bounces outward (miss).
-- **Hoop position state**: Stored in a single mutable integer variable per run that updates between shots. Not accessible to physics calculations during active flight.
-- **Power meter**: Linear mapping from hold duration to charge percentage. Clamped 0-100%. Visual fill bar synced at 60fps.
+## NBA Jam Arcade Energy
+
+### Visual Design
+
+- **Resolution**: 160x144 pixels rendered at native resolution (no upscaling). Each "pixel" is visible but crisp on modern screens.
+- **Color palette**: Limited to 32 colors per scene, vibrant arcade sports tones -- bright orange court with white lines, neon crowd lighting, saturated player jerseys.
+- **Court variety**: Each tournament round plays out on a different arena (underground gym, packed stadium, championship coliseum). Visual progression through the bracket creates natural sense of advancement.
+- **Crowd rendering**: 8-bit pixel crowd fills the background with color-coded teams (home = team colors, away = opponent colors). Crowd density and animation intensity scale with score margin and quarter proximity.
+
+### Arcade Animations
+
+- **Dunks**: Full 8-frame sequence showing drive, jump, slam, rim bounce -- exaggerated for comic effect
+- **Steals**: Quick swipe animation with "SWIPED!!!" text overlay in pixel font
+- **Block**: Giant hand swatting ball into crowd, crowd goes wild (screen shake + flash)
+- **Free throws**: Tight shot on rim, tension music rises, crowd holds breath (visualized by crowd going silent for 2 seconds then erupting)
+- **Player defeat/elimination**: Arcade-style "ELIMINATED!" or "GAME OVER" screen with dramatic pixel fireworks and opponent portrait
+
+### Audio Design
+
+- **Music**: Upbeat 8-bit chiptune soundtrack per arena. Tempo increases subtly as game goes to final quarters (starts at 120 BPM, peaks at 150 BPM in quarter 4).
+- **Voice samples**: 8-bit downsampled "AND-ONE!", "BUZZER BEATER!", "STEAL!" for key moments -- reminiscent of classic arcade sports callouts.
+- **SFX catalog**:
+  - Card play: satisfying card flip + swoosh sound matching the play type
+  - Successful shot: net swish (bright tone) vs rim bounce (muted metallic clang)
+  - Turnover: low thud with crowd "AWWW" (8-bit downsampled)
+  - Steal/block: crowd eruption sound with screen rumble vibration
+  - Quarter end: referee whistle + score update chime
+  - Tournament victory: full victory fanfare with retro sports melody
+
+### Haptic Feedback
+
+- Card play: single sharp tap confirming action selection
+- Successful shot: strong pulse synced with swish audio and visual flash
+- Steal/block: triple-burst micro-vibration (3 quick pulses, ~50ms each) matching the impact rhythm
+- Turnover/miss: one long moderate vibration (100ms) -- conveys "bummer" without frustration
+- Buzzer beater: escalating rumble that peaks at shot release
+
+## Competitive and Social Systems
+
+### Daily Tournament
+
+One free daily tournament for all players. Fixed handicap applied equally to everyone (e.g., "All opponents +2 Speed this week"). Global leaderboard showing best round reached from the past 7 days. Resets at midnight local time -- creates urgency without forced engagement. Completing a daily tournament awards bonus coins, reputation, and player fragments.
+
+### Weekly Challenges
+
+Progressive objectives that span an entire week:
+
+- "Win 5 games total"
+- "Score 50 points using only Speed cards"
+- "Recruit 3 new players in one run"
+
+Each challenge has tiered rewards -- partial completion earns something, full completion unlocks exclusive cosmetic equipment (jersey designs, court themes). This follows the Zeigarnik Effect: incomplete objectives create psychological tension that drives return engagement.
+
+### Season Structure
+
+Beyond individual runs and daily challenges, Pixel Hoops features seasonal progression:
+
+- Each season lasts 4 weeks with a unique theme (e.g., "Underground Summer," "Winter Classic")
+- Season rewards unlock at specific tier levels through continuous play
+- Visual unlocks (new arena themes, crowd packs, player silhouette designs) alongside meaningful stat boosts
+
+This mirrors Game of Runs' seasonal meta-progression: "lose, improve, and come back stronger in a new season" -- giving players long-term motivation beyond individual run outcomes.
+
+## Player Archetypes
+
+Players fall into natural basketball archetypes that affect their base stats and available card pools:
+
+| Archetype      | Stats                | Playstyle                     | Example Signature Ability                                  |
+| -------------- | -------------------- | ----------------------------- | ---------------------------------------------------------- |
+| Point Guard    | Speed > others       | Pace, passes, precision shots | "Point God" -- unlimited energy for 2 quarters             |
+| Shooting Guard | Shooting% > others   | Range, accuracy, clutch       | "Ice in Veins" -- +50% Shooting% for free throws           |
+| Small Forward  | Balanced             | Versatile all-around          | "Two-Way Player" -- defensive card counts as attack too    |
+| Power Forward  | Athleticism > others | Dunks, rebounds, blocks       | "Posterize" -- dunk that cannot be blocked, +1 extra point |
+| Center         | Athletics + Clutch   | Paint dominance, rim control  | "The Wall" -- auto-blocks one shot per quarter             |
+
+When recruiting opponents, players come pre-built with archetype distributions. A high-level Point Guard recruit will give you Speed-based cards and strong base stats in that category, while also bringing unique abilities you may not have unlocked yet. This creates strategic depth: do you recruit another sharpshooter to build a shooting-focused team, or diversify your roster for matchup flexibility?
+
+## UI/UX Layout During Gameplay
+
+```
+┌─────────────────────┐
+│  QUARTER: 3/4       │   ← Quarter progress top-center
+│  YOU: 28  OPP: 31   │   ← Score display with pixel score bug
+│  ENERGY: |||        │   ← Energy bar (used for power plays)
+├─────────────────────┤
+│                     │
+│    [COURT SCENE]    │   ← Center area: pixel basketball animation
+│    vs OPPONENT      │   ← Shows current play in progress
+│                     │
+├─────────────────────┤
+│                     │
+│  [3-PT] [CROSS] ... │   ← Bottom thumb zone: your hand of cards
+│  [DUNK] [BLK] [TMO] │      Tap to select, drag to discard
+└─────────────────────┘
+```
+
+The UI is designed for one-thumb play: card hand occupies the bottom third of the screen (thumb zone), game action occupies the center two-thirds. Quarter progress and score at top (visible but not requiring attention). No menus or secondary screens interrupt active gameplay.
+
+## Run End Summary Screen
+
+When a run ends (tournament loss), the summary screen shows:
+
+1. **Tournament result**: "Round 3 Exit" with opponent name and record
+2. **Stats earned this run**: coins, reputation, XP -- all three shown prominently
+3. **Recruitment results**: any defeated players who joined your roster (with stat blocks)
+4. **Next session prompt**: immediate "Play Again" button centered and large
+
+The critical UX principle from mobile roguelike research: the gap from loss to "try again" should be under 5 seconds. No text walls, no menu navigation -- just a clear summary with one big button to jump back in immediately. This mirrors Archero's instant restart pattern which achieves 94% tutorial completion vs. the industry average of 60-70%.
+
+## Technical Design Notes
+
+### Card Resolution Math
+
+Card outcomes use transparent probability resolution:
+
+- Base success rate = your relevant stat / (your stat + opponent's counter stat) \* 100
+- Example: Your Shooting% (8) vs Opponent Block (5) → 8/(8+5) \* 100 = **61.5%** base chance to score
+- Equipment and abilities modify these stats before resolution (e.g., Headband adds +3% Shooting → now 64.3%)
+- The probability is displayed as a percentage on the card play -- "61% to score" -- giving the player actionable information without hiding randomness
+
+### Deck Construction Between Runs
+
+Before each tournament run, players choose which 20 cards to bring from their full collection:
+
+- You may have 50+ cards unlocked across all roster players
+- Choose exactly 20 for this run
+- This deck selection is a strategic choice (like building a Slay the Spire deck before entering a floor)
+- Cards from different archetypes create synergies: Speed cards with Speed-focused players, Shooting cards with high-Shooting% players
+
+This creates the "strategic depth within short sessions" pattern that Archero demonstrates with 100+ skills and emergent synergies -- ensuring no two runs feel identical even with the same roster.
+
+### Procedural Tournament Generation
+
+Each tournament bracket is procedurally generated:
+
+- Opponent names drawn from randomized pool (streetball player names, fictional pros)
+- Opponent stats scaled to round but with variance (not all Round 3 opponents have identical stats)
+- Opponent card pools built around their archetype and stats (high Speed players use drive/crossover cards; high Athletics players favor dunk/block plays)
+- Visual presentation varies (different jersey colors, court types, crowd themes)
+
+This procedural generation solves the "content treadmill problem" -- algorithmic variety is essentially free content that keeps runs feeling fresh across hundreds of attempts. It mirrors the pattern identified in successful mobile roguelikes: "algorithmic generation + casual art + persistent unlock trees" creating near-infinite replayability from minimal hand-authored assets (robin-guo.com analysis).
+
+## Session Length Targets
+
+| Run Type     | Active Play Time | Restart Delay   |
+| ------------ | ---------------- | --------------- |
+| Single game  | 30-48 seconds    | Under 5 seconds |
+| Tournament   | 2.5 - 4 minutes  | Under 5 seconds |
+| Full bracket | 6 - 8 minutes    | Under 5 seconds |
+
+These targets align with the successful mobile roguelike sweet spot: sessions that respect the platform by fitting into natural break points (commute, lunch, bedtime) while keeping restart friction near zero so the "just one more tournament" compulsion stays active.
