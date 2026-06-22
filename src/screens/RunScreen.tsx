@@ -44,6 +44,7 @@ export default function RunScreen() {
           core={model.core}
           onChoose={actions.chooseNode}
           onQuit={actions.endRun}
+          onOpenLineup={actions.openLineupBuilder}
         />
       );
     case 'pregame':
@@ -119,7 +120,8 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
     'Your Squad',
     model.core.roster.starters,
     model.gamePlan,
-    palette.homeTeam
+    palette.homeTeam,
+    palette.homeTeamAccent
   );
   return (
     <View style={styles.container}>

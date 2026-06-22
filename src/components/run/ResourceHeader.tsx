@@ -1,0 +1,102 @@
+import { View, StyleSheet } from 'react-native';
+import { Text } from '@/components/StyledText';
+import { Pop } from '@/components/fx';
+import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
+import { CoinIcon, StarIcon } from './PixelIcons';
+import type { RunRewards } from '@/types/run-map';
+
+/**
+ * The run HUD: title, run progress, and clearly labeled resources. Replaces the
+ * cryptic "10c / 1rep" line so the player knows coins are spent at the shop and
+ * reputation is their run score. Values pop when they change after a win.
+ */
+
+interface ResourceHeaderProps {
+  rewards: RunRewards;
+  round: number;
+  totalRounds: number;
+}
+
+function Pill({
+  icon,
+  value,
+  label,
+}: {
+  icon: React.ReactNode;
+  value: number;
+  label: string;
+}) {
+  return (
+    <Pop trigger={value} style={styles.pill}>
+      {icon}
+      <Text style={styles.pillValue}>{value}</Text>
+      <Text style={styles.pillLabel}>{label}</Text>
+    </Pop>
+  );
+}
+
+export function ResourceHeader({ rewards, round, totalRounds }: ResourceHeaderProps) {
+  return (
+    <View style={styles.header}>
+      <View style={styles.left}>
+        <Text style={styles.title}>THE RUN</Text>
+        <Text style={styles.round}>
+          ROUND {round}/{totalRounds}
+        </Text>
+      </View>
+      <View style={styles.right}>
+        <Pill icon={<CoinIcon size={12} color={palette.gold} />} value={rewards.coins} label="COINS" />
+        <Pill icon={<StarIcon size={12} color={palette.gold} />} value={rewards.reputation} label="REP" />
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: space(4),
+    paddingTop: space(8),
+    paddingBottom: space(2),
+  },
+  left: {
+    gap: space(1),
+  },
+  title: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.label,
+    color: palette.gold,
+  },
+  round: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
+  right: {
+    flexDirection: 'row',
+    gap: space(2),
+  },
+  pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(1),
+    paddingHorizontal: space(2),
+    paddingVertical: space(1),
+    backgroundColor: palette.bgPanel,
+    borderWidth: BORDER.thin,
+    borderColor: palette.gold + '55',
+    borderRadius: RADIUS.chip,
+  },
+  pillValue: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.ink,
+  },
+  pillLabel: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
+});

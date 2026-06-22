@@ -130,8 +130,35 @@ differs from the default. `.env` is gitignored; never commit the key. Team color
 in `nba-teams.json` are maintained by hand (the ratings API does not provide
 reliable brand colors).
 
+## 5. Map polish, team colors, and game juice
+
+A second visual pass made navigation legible and the sim lively.
+
+- **Pokelike run map.** `RunMapView` was rebuilt as a themed court: an
+  `ArenaBackdrop` (hardwood planks, a court frame, a crowd band), node tiles
+  (`MapNodeTile`) with per-type 8-bit icons (`PixelIcons`), and dotted paths
+  (`DottedPath`) that occupy only the gap between tiles so edges never cross a
+  node. Combat tiles preview their opponent's franchise color and abbreviation
+  via `previewOpponent` (deterministic, matches the team the game actually
+  builds). The position marker and a start banner live in board headroom so they
+  never clip, resources are labeled (coins / rep / round), and a `RosterStrip`
+  shows the player's five starters (tap to open the lineup builder). Geometry
+  lives in `map-geometry.ts`.
+- **Team secondary colors.** `NbaTeam.secondaryHex` now flows through `Team`
+  (`accentHex`): jersey trim on `PixelPlayer`, score-bug accent bars, and the
+  court theme. The player's squad uses a brand gold accent (`homeTeamAccent`).
+- **Opponent-themed court.** `courtThemeFor` (with the `color.ts` helpers) tints
+  the floor and lines to the opponent franchise (the arena host), keeping the
+  floor dark and falling back to the house orange when a secondary is too close
+  to the floor to read. Unit-tested in `src/theme/__tests__`.
+- **Game juice.** A ball arcs from shooter to rim on makes (`BallFlight`),
+  particle bursts fire per event type (`ParticleBurst`: confetti on threes and
+  and-ones, debris on dunks, cool on blocks and steals, team sparks on makes),
+  and a rim/net ripple lands with the basket (`RimRipple`). All reuse the
+  `feel/` reanimated primitives and honor `reducedMotion`.
+
 ## Deferred (see roadmap)
 
-Full tweened shot flight and dunk/block animation frames, complete per-franchise
-real rosters and a full 2,500-player import, era-based power tiers, and a richer
-crowd/audio pass.
+Hand-drawn sprite sheets, a reactive crowd, multi-frame dunk and block animation
+frames, complete per-franchise real rosters and a full 2,500-player import,
+era-based power tiers, and an audio pass.
