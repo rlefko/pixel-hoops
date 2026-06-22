@@ -1,17 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
 import { createRNG, deriveSeed } from '@/game/rng';
-import { buildStartingRoster, generateOpponentTeam } from '@/game/tournament';
+import {
+  buildStartingRoster,
+  generateOpponentTeam,
+  planForRoster,
+} from '@/game/tournament';
 import { buildTeam } from '@/game/lineup';
 import { simulateGame } from '@/game/simulation';
 import type { SimResult } from '@/types/sim';
 import type { Roster } from '@/types/roster';
 import type { Team } from '@/types/team';
-import {
-  DEFAULT_GAME_PLAN,
-  type GamePlan,
-  type Focus,
-  type Pace,
-} from '@/types/tactics';
+import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
 import { palette } from '@/theme';
 
 /**
@@ -28,26 +27,6 @@ export type SimPhase = 'pregame' | 'replaying' | 'final' | 'runover';
 function freshRunSeed(): string {
   // Date.now is fine in app runtime (only the workflow sandbox forbids it).
   return `run-${Date.now()}`;
-}
-
-/** Opponents play to their roster: guard-heavy shoots and runs, big-heavy grinds inside. */
-function planForRoster(roster: Roster): GamePlan {
-  let guards = 0;
-  let bigs = 0;
-  for (const rp of roster.starters) {
-    if (rp.position === 'PG' || rp.position === 'SG') guards += 1;
-    else if (rp.position === 'PF' || rp.position === 'C') bigs += 1;
-  }
-  let focus: Focus = 'balanced';
-  let pace: Pace = 'balanced';
-  if (guards > bigs) {
-    focus = 'outside';
-    pace = 'fast';
-  } else if (bigs > guards) {
-    focus = 'inside';
-    pace = 'slow';
-  }
-  return { pace, focus, starPlayerIndex: null };
 }
 
 export interface SimGameState {
