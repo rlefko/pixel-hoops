@@ -70,3 +70,8 @@ export interface SimResult {
   /** Echoed seed, so a result can be re-simulated identically. */
   seed: number | string;
 }
+
+/** A made basket (points scored): a successful shot or an and-one. */
+export function isMadeShot(e: SimEvent): boolean {
+  return e.result === 'score' || e.result === 'and-one';
+}

@@ -68,7 +68,7 @@ Sequenced roughly by player impact.
 3. **Crunch-time decisions.** Pause the replay at a close Q4 boundary for one high-leverage tactical call, then resume. The engine already supports this hook.
 4. **Defeated-opponent recruiting + resume-in-progress-run.** Recruit a player from a beaten team; save/resume an interrupted run.
 5. **Audio and SFX.** Chiptune per arena, downsampled arcade callouts, and event sound effects synced to the existing haptics.
-6. **Sprite art and particles.** Hand-drawn players and court (beyond the procedural sprites shipped in PR5), a reactive crowd, multi-frame dunk and block animations, and particle bursts.
+6. **Sprite art and particles.** Particle bursts, ball flight, rim/net ripple, the pokelike map redesign, team secondary colors, and opponent-themed courts shipped in PR6 (see visual-and-data.md). Still ahead: hand-drawn players and court (beyond the procedural sprites), a reactive crowd, and multi-frame dunk and block animations.
 7. **Deeper synergies and archetypes.** Expand the synergy rules and signature abilities described in the concept doc.
 8. **Retire the legacy modes** (card game, quick sim) once the run mode is the default and proven.
 

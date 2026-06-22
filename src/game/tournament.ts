@@ -265,14 +265,19 @@ function fakePlayerAt(
 }
 
 /**
- * A round-scaled opponent: a real NBA franchise identity (name + color) staffed
+ * A round-scaled opponent: a real NBA franchise identity (name + colors) staffed
  * with a mix of real players and procedural fakes. Real players bring
  * recognizable likenesses; fakes keep every game fresh. Fully seeded.
+ *
+ * NOTE: the franchise identity is the FIRST RNG draw (`pickRealTeam`). The run
+ * map previews each opponent's color before the game is built (see
+ * src/game/opponent-preview.ts), and that preview depends on this ordering, so
+ * keep `pickRealTeam` first if you reorder the draws here.
  */
 export function generateOpponentTeam(
   round: number,
   rng: RNG
-): { name: string; roster: Roster; colorHex: string } {
+): { name: string; roster: Roster; colorHex: string; accentHex: string } {
   const team = pickRealTeam(rng);
   const starters = POSITIONS.map((position) => {
     const useReal = rng.int(0, 99) < REAL_OPPONENT_CHANCE;
@@ -283,6 +288,7 @@ export function generateOpponentTeam(
     name: `${team.city} ${team.name}`,
     roster: { starters, bench: [] },
     colorHex: team.primaryHex,
+    accentHex: team.secondaryHex,
   };
 }
 

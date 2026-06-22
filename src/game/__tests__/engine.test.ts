@@ -9,7 +9,7 @@ import type { Roster } from '@/types/roster';
 import type { Team } from '@/types/team';
 
 function teamFromRoster(name: string, roster: Roster, plan: GamePlan = DEFAULT_GAME_PLAN): Team {
-  return buildTeam(name, roster.starters, plan, '#FFD54F');
+  return buildTeam(name, roster.starters, plan, '#FFD54F', '#1D428A');
 }
 
 function makeMatchup(seed: number | string, round = 1): { home: Team; away: Team } {

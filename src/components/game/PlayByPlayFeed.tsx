@@ -122,21 +122,27 @@ export function PlayByPlayFeed({
           ROUND {round}/{totalRounds}
         </Text>
         <View style={styles.scoreRow}>
-          <Text
-            style={[styles.team, { color: homeTeam.colorHex }]}
-            numberOfLines={1}
-          >
-            {homeTeam.name}
-          </Text>
+          <View style={styles.teamCol}>
+            <Text
+              style={[styles.team, { color: homeTeam.colorHex }]}
+              numberOfLines={1}
+            >
+              {homeTeam.name}
+            </Text>
+            <View style={[styles.teamBar, { backgroundColor: homeTeam.accentHex }]} />
+          </View>
           <Counter value={homeScore} style={styles.score} />
           <Text style={styles.dash}>-</Text>
           <Counter value={awayScore} style={styles.score} />
-          <Text
-            style={[styles.team, { color: awayTeam.colorHex }]}
-            numberOfLines={1}
-          >
-            {awayTeam.name}
-          </Text>
+          <View style={styles.teamCol}>
+            <Text
+              style={[styles.team, { color: awayTeam.colorHex }]}
+              numberOfLines={1}
+            >
+              {awayTeam.name}
+            </Text>
+            <View style={[styles.teamBar, { backgroundColor: awayTeam.accentHex }]} />
+          </View>
         </View>
       </View>
 
@@ -199,10 +205,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  teamCol: {
+    maxWidth: 96,
+    alignItems: 'center',
+  },
   team: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
-    maxWidth: 96,
+  },
+  teamBar: {
+    alignSelf: 'stretch',
+    height: 2,
+    marginTop: space(0.5),
+    borderRadius: RADIUS.chip,
   },
   score: {
     fontFamily: FONT.display,

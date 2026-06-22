@@ -75,10 +75,11 @@ describe('player pool', () => {
 });
 
 describe('generateOpponentTeam (real + fake mix)', () => {
-  it('returns a real team identity, five starters, and a color', () => {
+  it('returns a real team identity, five starters, and both colors', () => {
     const opp = generateOpponentTeam(2, createRNG('opp'));
     expect(opp.roster.starters).toHaveLength(5);
     expect(opp.colorHex).toMatch(/^#[0-9A-Fa-f]{6}$/);
+    expect(opp.accentHex).toMatch(/^#[0-9A-Fa-f]{6}$/);
     expect(opp.name.length).toBeGreaterThan(0);
   });
 

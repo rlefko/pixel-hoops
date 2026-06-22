@@ -99,11 +99,12 @@ export function buildTeam(
   name: string,
   players: RosterPlayer[],
   tactic: GamePlan,
-  colorHex: string
+  colorHex: string,
+  accentHex: string
 ): Team {
   const synergy = computeSynergy(players);
   const usageWeights = computeUsageWeights(players, tactic);
   const teamStats = computeTeamStats(players, usageWeights, synergy, tactic);
   const lineup: Lineup = { players, usageWeights };
-  return { name, lineup, tactic, synergy, teamStats, colorHex };
+  return { name, lineup, tactic, synergy, teamStats, colorHex, accentHex };
 }

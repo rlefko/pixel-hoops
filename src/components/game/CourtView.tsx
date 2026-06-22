@@ -1,9 +1,20 @@
-import { View, StyleSheet, type DimensionValue } from 'react-native';
-import { PixelCourt, PixelPlayer, Pop } from '@/components/fx';
+import { useMemo, useState } from 'react';
+import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
+import {
+  PixelCourt,
+  PixelPlayer,
+  Pop,
+  BallFlight,
+  RimRipple,
+  ParticleBurst,
+  type BurstVariant,
+} from '@/components/fx';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
+import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { palette } from '@/theme';
+import { courtThemeFor } from '@/theme/courtTheme';
 import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
-import type { SimEvent, SimTeamSide } from '@/types/sim';
+import { isMadeShot, type SimEvent, type SimTeamSide } from '@/types/sim';
 import type { Team } from '@/types/team';
 
 /**
@@ -20,29 +31,44 @@ interface CourtViewProps {
   current: SimEvent | null;
 }
 
-/** Court spot per position: x across the floor, depth from the center line. */
-const FORMATION: Record<Position, { x: number; depth: number }> = {
-  PG: { x: 0.5, depth: 0.86 },
-  SG: { x: 0.2, depth: 0.58 },
-  SF: { x: 0.8, depth: 0.58 },
-  PF: { x: 0.34, depth: 0.3 },
-  C: { x: 0.66, depth: 0.3 },
-};
-
 function playerAt(team: Team, position: Position): RosterPlayer | undefined {
   return team.lineup.players.find((p) => p.position === position);
 }
 
-/** Screen position (percent) for a position on a given side. */
-function spot(
-  side: SimTeamSide,
-  position: Position
-): { left: DimensionValue; top: DimensionValue } {
-  const f = FORMATION[position];
-  // Home defends the bottom half, away the top half (mirrored).
-  const x = side === 'home' ? f.x : 1 - f.x;
-  const top = side === 'home' ? 0.5 + f.depth * 0.46 : 0.5 - f.depth * 0.46;
-  return { left: `${x * 100}%`, top: `${top * 100}%` };
+interface Burst {
+  origin: { x: number; y: number };
+  variant: BurstVariant;
+  color?: string;
+}
+
+/** The particle burst (if any) for the current event, positioned in court px. */
+function burstFor(
+  current: SimEvent | null,
+  homeTeam: Team,
+  awayTeam: Team,
+  width: number,
+  height: number
+): Burst | null {
+  if (!current || width === 0 || height === 0) return null;
+  const side = current.team;
+  const made = isMadeShot(current);
+  const rim = rimCenterPx(side, width, height);
+  if (current.result === 'block' || current.result === 'steal') {
+    return {
+      origin: spotPx(side, current.scorerPosition, width, height),
+      variant: 'cool',
+    };
+  }
+  if (!made) return null;
+  if (current.action === 'three' || current.result === 'and-one') {
+    return { origin: rim, variant: 'confetti' };
+  }
+  if (current.action === 'dunk') return { origin: rim, variant: 'debris' };
+  return {
+    origin: rim,
+    variant: 'spark',
+    color: side === 'home' ? homeTeam.colorHex : awayTeam.colorHex,
+  };
 }
 
 function SpriteAt({
@@ -60,7 +86,7 @@ function SpriteAt({
   if (!rp) return null;
   const active =
     current != null && current.team === side && current.scorerPosition === position;
-  const { left, top } = spot(side, position);
+  const { left, top } = spotPercent(side, position);
   // Pop only when this sprite becomes the active scorer on a new possession.
   const trigger = active ? current!.seq : `idle-${side}-${position}`;
 
@@ -68,6 +94,7 @@ function SpriteAt({
     <Pop trigger={trigger} style={[styles.sprite, { left, top }]}>
       <PixelPlayer
         color={team.colorHex}
+        accent={team.accentHex}
         number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
         skinIndex={skinIndexFor(rp.player.name)}
         active={active}
@@ -78,9 +105,31 @@ function SpriteAt({
 }
 
 export function CourtView({ homeTeam, awayTeam, current }: CourtViewProps) {
+  // Every game is hosted in the opponent's arena, so the floor takes their colors.
+  const theme = useMemo(
+    () => courtThemeFor(awayTeam.colorHex, awayTeam.accentHex),
+    [awayTeam.colorHex, awayTeam.accentHex]
+  );
+
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const onLayout = (e: LayoutChangeEvent) =>
+    setSize({
+      width: e.nativeEvent.layout.width,
+      height: e.nativeEvent.layout.height,
+    });
+
+  const burst = useMemo(
+    () => burstFor(current, homeTeam, awayTeam, size.width, size.height),
+    [current, homeTeam, awayTeam, size.width, size.height]
+  );
+
   return (
-    <View style={styles.wrap}>
-      <PixelCourt />
+    <View style={styles.wrap} onLayout={onLayout}>
+      <PixelCourt
+        floorColor={theme.floorColor}
+        lineColor={theme.lineColor}
+        accentColor={theme.accentColor}
+      />
       {(['away', 'home'] as SimTeamSide[]).map((side) =>
         POSITIONS.map((position) => (
           <SpriteAt
@@ -92,6 +141,19 @@ export function CourtView({ homeTeam, awayTeam, current }: CourtViewProps) {
           />
         ))
       )}
+      <BallFlight event={current} width={size.width} height={size.height} />
+      <RimRipple
+        event={current}
+        width={size.width}
+        height={size.height}
+        color={theme.accentColor}
+      />
+      <ParticleBurst
+        origin={burst?.origin ?? null}
+        variant={burst?.variant ?? 'spark'}
+        color={burst?.color}
+        trigger={burst ? current?.seq : null}
+      />
     </View>
   );
 }
