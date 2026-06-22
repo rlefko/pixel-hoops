@@ -6,3 +6,6 @@ export { Scanlines } from './Scanlines';
 export { Callout } from './Callout';
 export { PixelCourt } from './PixelCourt';
 export { PixelPlayer } from './PixelPlayer';
+export { ParticleBurst, type BurstVariant } from './ParticleBurst';
+export { BallFlight } from './BallFlight';
+export { RimRipple } from './RimRipple';
