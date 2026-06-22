@@ -6,7 +6,7 @@ import type { Team } from '@/types/team';
 
 /** Pregame roster view: the five by position, their stats, and active synergies. */
 
-const POSITION_COLOR: Record<Position, string> = {
+export const POSITION_COLOR: Record<Position, string> = {
   PG: palette.steelBlue,
   SG: palette.makeGreenLt,
   SF: palette.gold,

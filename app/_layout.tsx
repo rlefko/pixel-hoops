@@ -6,6 +6,7 @@ import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
 import { FeelSettingsProvider } from '@/feel';
+import { HomeRosterProvider } from '@/context/HomeRosterContext';
 import { FONT_ASSETS } from '@/theme';
 
 export {
@@ -40,7 +41,9 @@ export default function RootLayout() {
 
   return (
     <FeelSettingsProvider>
-      <RootLayoutNav />
+      <HomeRosterProvider>
+        <RootLayoutNav />
+      </HomeRosterProvider>
     </FeelSettingsProvider>
   );
 }
@@ -52,6 +55,7 @@ function RootLayoutNav() {
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(home)" options={{ headerShown: false }} />
+        <Stack.Screen name="run" options={{ headerShown: false }} />
         <Stack.Screen name="sim" options={{ headerShown: false }} />
         <Stack.Screen name="game" options={{ presentation: 'modal' }} />
         <Stack.Screen

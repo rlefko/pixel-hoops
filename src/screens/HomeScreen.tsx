@@ -16,15 +16,18 @@ export default function HomeScreen() {
       </View>
 
       <Text style={styles.instructions}>
-        {'Build your five. Set the plan.\nWatch them ball out.'}
+        {'Build a roster. Run the bracket.\nKeep what you earn.'}
       </Text>
 
       <View style={styles.buttonContainer}>
         <Pressable
           style={[styles.button, styles.primaryButton]}
-          onPress={() => router.push('/sim')}
+          onPress={() => router.push('/run')}
         >
-          <Text style={styles.primaryText}>NEW SIM RUN</Text>
+          <Text style={styles.primaryText}>NEW RUN</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={() => router.push('/sim')}>
+          <Text style={styles.secondaryText}>Quick Sim</Text>
         </Pressable>
         <Pressable style={styles.button} onPress={() => router.push('/game')}>
           <Text style={styles.secondaryText}>Card Game (Classic)</Text>
@@ -34,7 +37,7 @@ export default function HomeScreen() {
         </Pressable>
       </View>
 
-      <Text style={styles.tagline}>Auto-sim 5-on-5. One run at a time.</Text>
+      <Text style={styles.tagline}>Auto-sim 5-on-5. Your team compounds.</Text>
     </View>
   );
 }
