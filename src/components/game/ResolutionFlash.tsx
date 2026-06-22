@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Dimensions } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { palette, FONT } from '@/theme';
 import type { QuarterOutcome } from '@/types/game-state';
 
-const FLASH_DURATION = 1500; // ms per flash animation phase
+const FLASH_DURATION = 500; // ms to show the success rate before the result (snappy)
 
 interface ResolutionFlashProps {
     outcome: QuarterOutcome | null;
@@ -39,7 +40,7 @@ export function ResolutionFlash({ outcome }: ResolutionFlashProps) {
     if (!outcome) return null;
 
     const isSuccess = outcome.result === 'score' || outcome.result === 'and-one';
-    const accentColor = isSuccess ? '#66BB6A' : '#EF5350';
+    const accentColor = isSuccess ? palette.makeGreen : palette.missRed;
 
     return (
         <View style={styles.overlay}>
@@ -100,24 +101,23 @@ const styles = StyleSheet.create({
     },
     vs: {
         fontSize: 11,
-        color: '#aaa',
+        color: palette.inkDim,
         marginTop: 4,
     },
     result: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        letterSpacing: 2,
+        fontFamily: FONT.display,
+        fontSize: 20,
     },
     plusPoints: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        color: '#FFD54F',
-        marginTop: 4,
+        fontFamily: FONT.display,
+        fontSize: 14,
+        color: palette.gold,
+        marginTop: 8,
     },
     opponentLine: {
         fontSize: 12,
         fontWeight: 'bold',
-        color: '#EF5350',
+        color: palette.missRed,
         marginTop: 8,
         letterSpacing: 1,
     },

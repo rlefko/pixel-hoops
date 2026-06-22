@@ -38,10 +38,17 @@ function clampStat(value: number): number {
   return Math.max(3, Math.min(10, value));
 }
 
-/** Build a player with stats randomised around archetype-specific biases. */
+/**
+ * Build a player with stats randomised around archetype-specific biases.
+ *
+ * `int` defaults to the global `randomInt` (legacy behavior). The auto-sim path
+ * passes a seeded `rng.int` instead so generated teams are reproducible without
+ * changing how the legacy card game generates players.
+ */
 export function createPlayer(
   name: string,
-  archetype: Archetype
+  archetype: Archetype,
+  int: (min: number, max: number) => number = randomInt
 ): Player {
   const base = { shooting: 5, speed: 5, athleticism: 5, clutch: 5 };
 
@@ -52,10 +59,10 @@ export function createPlayer(
         archetype,
         stats: {
           ...base,
-          shooting: clampStat(base.shooting + randomInt(-1, 0)),
-          speed: clampStat(base.speed + randomInt(2, 4)),
-          athleticism: clampStat(base.athleticism + randomInt(-1, 0)),
-          clutch: clampStat(base.clutch + randomInt(-1, 1)),
+          shooting: clampStat(base.shooting + int(-1, 0)),
+          speed: clampStat(base.speed + int(2, 4)),
+          athleticism: clampStat(base.athleticism + int(-1, 0)),
+          clutch: clampStat(base.clutch + int(-1, 1)),
         },
         level: 1,
         trainingXP: 0,
@@ -66,10 +73,10 @@ export function createPlayer(
         archetype,
         stats: {
           ...base,
-          shooting: clampStat(base.shooting + randomInt(2, 4)),
-          speed: clampStat(base.speed + randomInt(-1, 0)),
-          athleticism: clampStat(base.athleticism + randomInt(-1, 1)),
-          clutch: clampStat(base.clutch + randomInt(1, 3)),
+          shooting: clampStat(base.shooting + int(2, 4)),
+          speed: clampStat(base.speed + int(-1, 0)),
+          athleticism: clampStat(base.athleticism + int(-1, 1)),
+          clutch: clampStat(base.clutch + int(1, 3)),
         },
         level: 1,
         trainingXP: 0,
@@ -80,10 +87,10 @@ export function createPlayer(
         archetype,
         stats: {
           ...base,
-          shooting: clampStat(base.shooting + randomInt(0, 1)),
-          speed: clampStat(base.speed + randomInt(0, 1)),
-          athleticism: clampStat(base.athleticism + randomInt(0, 1)),
-          clutch: clampStat(base.clutch + randomInt(0, 1)),
+          shooting: clampStat(base.shooting + int(0, 1)),
+          speed: clampStat(base.speed + int(0, 1)),
+          athleticism: clampStat(base.athleticism + int(0, 1)),
+          clutch: clampStat(base.clutch + int(0, 1)),
         },
         level: 1,
         trainingXP: 0,
@@ -94,10 +101,10 @@ export function createPlayer(
         archetype,
         stats: {
           ...base,
-          shooting: clampStat(base.shooting + randomInt(-1, 0)),
-          speed: clampStat(base.speed + randomInt(-1, 0)),
-          athleticism: clampStat(base.athleticism + randomInt(2, 4)),
-          clutch: clampStat(base.clutch + randomInt(0, 1)),
+          shooting: clampStat(base.shooting + int(-1, 0)),
+          speed: clampStat(base.speed + int(-1, 0)),
+          athleticism: clampStat(base.athleticism + int(2, 4)),
+          clutch: clampStat(base.clutch + int(0, 1)),
         },
         level: 1,
         trainingXP: 0,
@@ -108,10 +115,10 @@ export function createPlayer(
         archetype,
         stats: {
           ...base,
-          shooting: clampStat(base.shooting + randomInt(-1, 0)),
-          speed: clampStat(base.speed + randomInt(-2, -1)),
-          athleticism: clampStat(base.athleticism + randomInt(3, 5)),
-          clutch: clampStat(base.clutch + randomInt(1, 3)),
+          shooting: clampStat(base.shooting + int(-1, 0)),
+          speed: clampStat(base.speed + int(-2, -1)),
+          athleticism: clampStat(base.athleticism + int(3, 5)),
+          clutch: clampStat(base.clutch + int(1, 3)),
         },
         level: 1,
         trainingXP: 0,

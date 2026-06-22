@@ -5,6 +5,8 @@ import { useEffect } from 'react';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/components/useColorScheme';
+import { FeelSettingsProvider } from '@/feel';
+import { FONT_ASSETS } from '@/theme';
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -19,9 +21,7 @@ export const unstable_settings = {
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
+  const [loaded, error] = useFonts(FONT_ASSETS);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
@@ -38,7 +38,11 @@ export default function RootLayout() {
     return null;
   }
 
-  return <RootLayoutNav />;
+  return (
+    <FeelSettingsProvider>
+      <RootLayoutNav />
+    </FeelSettingsProvider>
+  );
 }
 
 function RootLayoutNav() {

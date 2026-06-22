@@ -6,6 +6,21 @@ const SCORE_AHEAD_THRESHOLD = 3;
 /** Score threshold below which AI becomes aggressive (prefers pressure trap). */
 const SCORE_BEHIND_THRESHOLD = -2;
 
+/** Coarse posture an offense takes given the score: how much risk to accept. */
+export type RiskPosture = 'safe' | 'risky' | 'mixed';
+
+/**
+ * Shared ahead/behind/close heuristic. The legacy card AI and the auto-sim both
+ * read the same thresholds: comfortably ahead plays safe, behind chases big
+ * plays, close games mix. `scoreDifferential` is from the offense's view
+ * (offenseScore - opponentScore).
+ */
+export function pickRiskPosture(scoreDifferential: number): RiskPosture {
+    if (scoreDifferential >= SCORE_AHEAD_THRESHOLD) return 'safe';
+    if (scoreDifferential <= SCORE_BEHIND_THRESHOLD) return 'risky';
+    return 'mixed';
+}
+
 /** Pick an AI defensive card based on the current score differential. */
 export function pickAIDefensiveCard(scoreDifferential: number): CardId {
     // scoreDifferential = opponentScore - ourScore (positive = we're ahead)
