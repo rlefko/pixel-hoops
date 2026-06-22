@@ -1,0 +1,51 @@
+import type { PlayerStats } from './player';
+import type { RosterPlayer } from './roster';
+import type { GamePlan } from './tactics';
+
+/**
+ * Bonuses produced by a lineup's composition. Synergy rewards thoughtful roster
+ * construction (the heart of the pokelike-style meta): two guards push the
+ * pace, twin bigs anchor the defense, a balanced five plays clutch. Computed
+ * once at game start (see src/game/synergy.ts) and stored on the Team.
+ */
+export interface SynergyResult {
+  /** Additive pace bonus (more possessions). */
+  paceBonus: number;
+  /** Additive team clutch bonus. */
+  clutchBonus: number;
+  /** Additive defensive counter-stat bonus. */
+  defenseBonus: number;
+  /** Additive offensive stat bonus. */
+  offenseBonus: number;
+  /** Human-readable synergy names for the pregame UI (e.g. "Twin Towers"). */
+  labels: string[];
+}
+
+/** The five players on the floor plus their normalized usage weights. */
+export interface Lineup {
+  /** Exactly five players, ideally one per position. */
+  players: RosterPlayer[];
+  /** Possession-share weights (sum to 1), driving who takes each shot. */
+  usageWeights: number[];
+}
+
+/**
+ * A lineup's effective stat line, used as the team's "player" during
+ * resolution. Not a flat average: scorers are weighted by usage, the rim is
+ * anchored by the best defender, etc. (see src/game/lineup.ts).
+ */
+export interface TeamStats extends PlayerStats {
+  /** Derived possessions-per-quarter driver. */
+  pace: number;
+}
+
+/** Everything the sim needs to play one side of a game. */
+export interface Team {
+  name: string;
+  lineup: Lineup;
+  tactic: GamePlan;
+  synergy: SynergyResult;
+  teamStats: TeamStats;
+  /** Team color for juice / UI (a palette entry). */
+  colorHex: string;
+}
