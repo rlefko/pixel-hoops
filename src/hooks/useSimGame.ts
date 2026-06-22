@@ -78,7 +78,7 @@ export function useSimGame() {
         opponent.name,
         opponent.roster.starters,
         planForRoster(opponent.roster),
-        palette.awayTeam
+        opponent.colorHex
       ),
     [opponent]
   );

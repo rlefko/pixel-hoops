@@ -9,11 +9,12 @@ import {
   Scanlines,
   Counter,
   Callout,
-  PixelCourt,
 } from '@/components/fx';
+import { CourtView } from '@/components/game/CourtView';
 import { haptics } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, BORDER, RADIUS } from '@/theme';
 import type { SimEvent } from '@/types/sim';
+import type { Team } from '@/types/team';
 
 /**
  * The "watch the sim" centerpiece. Replays a precomputed SimEvent timeline at a
@@ -22,7 +23,7 @@ import type { SimEvent } from '@/types/sim';
  * (honors the instant-restart pillar).
  */
 
-const VISIBLE_ROWS = 5;
+const VISIBLE_ROWS = 3;
 
 function colorForEvent(e: SimEvent): string {
   if (e.result === 'and-one') return palette.gold;
@@ -41,8 +42,8 @@ function gapFor(e: SimEvent): number {
 
 interface PlayByPlayFeedProps {
   timeline: SimEvent[];
-  homeName: string;
-  awayName: string;
+  homeTeam: Team;
+  awayTeam: Team;
   round: number;
   totalRounds: number;
   onComplete: () => void;
@@ -50,8 +51,8 @@ interface PlayByPlayFeedProps {
 
 export function PlayByPlayFeed({
   timeline,
-  homeName,
-  awayName,
+  homeTeam,
+  awayTeam,
   round,
   totalRounds,
   onComplete,
@@ -122,25 +123,25 @@ export function PlayByPlayFeed({
         </Text>
         <View style={styles.scoreRow}>
           <Text
-            style={[styles.team, { color: palette.homeTeam }]}
+            style={[styles.team, { color: homeTeam.colorHex }]}
             numberOfLines={1}
           >
-            {homeName}
+            {homeTeam.name}
           </Text>
           <Counter value={homeScore} style={styles.score} />
           <Text style={styles.dash}>-</Text>
           <Counter value={awayScore} style={styles.score} />
           <Text
-            style={[styles.team, { color: palette.awayTeam }]}
+            style={[styles.team, { color: awayTeam.colorHex }]}
             numberOfLines={1}
           >
-            {awayName}
+            {awayTeam.name}
           </Text>
         </View>
       </View>
 
       <ShakeView ref={shakeRef} style={styles.courtWrap}>
-        <PixelCourt />
+        <CourtView homeTeam={homeTeam} awayTeam={awayTeam} current={current} />
         <View style={styles.feed}>
           {rows.map((e) => (
             <Text
@@ -232,6 +233,10 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,
     marginTop: space(1),
+    // Keep the ticker legible where it overlaps the sprites on the floor.
+    textShadowColor: palette.bgPanel,
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   callout: {
     position: 'absolute',
