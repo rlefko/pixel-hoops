@@ -30,20 +30,28 @@ The new loop, playable end to end on its own route. The card game stays reachabl
 - A new menu entry into the sim mode.
 - A minimal linear run: a short sequence of escalating opponents with permadeath and a one-tap restart, demonstrating the roguelike loop without the full branching-map UI.
 
-## Phase 2 and beyond
+## PR4: The roguelike meta-loop (branching run + recruitment + compounding roster)
+
+Turns the linear slice into the desired roguelike loop, on a single `RunScreen` driven by `useRun` (a pure, headless-tested reducer in `src/game/run-machine.ts`).
+
+- **Branching run map.** Wires the previously unused `generateRunMap`/`getReachableNodes`/`traverseTo` into a navigable map (`RunMapView`): choose your path through layers of nodes to the boss.
+- **Node types resolve.** game/elite/boss play a sim game; recruit offers depth-scaled candidates; training boosts a stat; rest rebuilds the lineup; shop is a stub.
+- **Recruitment.** `generateRecruitOffers` presents candidates at recruit nodes; pick one for your bench.
+- **Lineup builder.** Choose your starting five from the whole roster (any five, so stacking unlocks the `Specialists` synergy).
+- **Compounding home roster.** A persistent home roster (`src/game/home-roster.ts` + `HomeRosterContext` + a Platform-split AsyncStorage/localStorage wrapper) banks recruits and training on every run end, win or loss.
+
+## Phase 3 and beyond
 
 Sequenced roughly by player impact.
 
-1. **Branching run map UI.** Surface the layered map from the generator: choose a path, visit nodes, see the bracket.
-2. **Recruitment.** Defeated opponents can join the bench at recruit nodes; persist the roster across runs.
-3. **Meta-progression and storage.** Coins, reputation, and training XP earned and spent between runs, saved locally so progress survives app restarts.
-4. **Playbook cards.** Reintroduce cards as a between-games draft that biases the sim, replacing the retired per-possession cards. Pairs with shop and recruit nodes.
-5. **Equipment.** Gear that modifies a player's contribution to the lineup's effective stats.
-6. **Crunch-time decisions.** Pause the replay at a close Q4 boundary for one high-leverage tactical call, then resume. The engine already supports this hook.
-7. **Audio and SFX.** Chiptune per arena, downsampled arcade callouts, and event sound effects synced to the existing haptics.
-8. **Sprite art and particles.** Hand-drawn players and court, a reactive crowd, multi-frame dunk and block animations, and particle bursts.
-9. **Deeper synergies and archetypes.** Expand the synergy rules and signature abilities described in the concept doc.
-10. **Retire the legacy card mode** once the sim mode is the default and proven.
+1. **Playbook cards.** Reintroduce cards as a between-games draft that biases the sim, replacing the retired per-possession cards. Pairs with shop and recruit nodes.
+2. **Equipment + shop economy.** Spend coins/reputation on gear that modifies a player's contribution to the lineup's effective stats.
+3. **Crunch-time decisions.** Pause the replay at a close Q4 boundary for one high-leverage tactical call, then resume. The engine already supports this hook.
+4. **Defeated-opponent recruiting + resume-in-progress-run.** Recruit a player from a beaten team; save/resume an interrupted run.
+5. **Audio and SFX.** Chiptune per arena, downsampled arcade callouts, and event sound effects synced to the existing haptics.
+6. **Sprite art and particles.** Hand-drawn players and court, a reactive crowd, multi-frame dunk and block animations, and particle bursts; measured edge-line drawing on the run map.
+7. **Deeper synergies and archetypes.** Expand the synergy rules and signature abilities described in the concept doc.
+8. **Retire the legacy modes** (card game, quick sim) once the run mode is the default and proven.
 
 ## Working agreement
 
