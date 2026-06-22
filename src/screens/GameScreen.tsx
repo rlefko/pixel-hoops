@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
@@ -7,8 +7,20 @@ import { ScoreBug } from '@/components/game/ScoreBug';
 import { QuarterIndicator } from '@/components/game/QuarterIndicator';
 import { EnergyBar } from '@/components/game/EnergyBar';
 import { ResolutionFlash } from '@/components/game/ResolutionFlash';
+import {
+  ShakeView,
+  type ShakeViewHandle,
+  FlashOverlay,
+  type FlashOverlayHandle,
+  Scanlines,
+} from '@/components/fx';
+import { haptics } from '@/feel';
+import { palette } from '@/theme';
 import { useTournament } from '@/hooks/useTournament';
 import { TOTAL_QUARTERS } from '@/types/game-state';
+
+/** How long a resolved quarter stays on screen before advancing (snappy). */
+const RESOLVE_MS = 950;
 
 /** Full playable game screen — one complete 4-quarter basketball game. */
 export default function GameScreen() {
@@ -26,6 +38,41 @@ export default function GameScreen() {
 
     const { gameState, actions } = useTournament(player);
     const [showResult, setShowResult] = React.useState(false);
+    const shakeRef = useRef<ShakeViewHandle>(null);
+    const flashRef = useRef<FlashOverlayHandle>(null);
+
+     // Fire juice (shake, color flash, haptics) whenever a new quarter resolves.
+     // Pick the most salient beat: the player's own bucket first, then a
+     // defensive stop, otherwise a subdued "miss" cue. (o.result is the player's
+     // offense; o.opponentOffense.result is the player's defense.)
+    const outcomeCount = gameState.outcomes.length;
+    useEffect(() => {
+        if (outcomeCount === 0) return;
+        const o = gameState.outcomes[outcomeCount - 1];
+        const defenseResult = o.opponentOffense?.result;
+        const stoppedThem =
+            defenseResult === 'steal' ||
+            defenseResult === 'block' ||
+            defenseResult === 'turnover';
+        if (o.result === 'and-one') {
+            shakeRef.current?.shake('heavy');
+            flashRef.current?.flash(palette.gold);
+            haptics.bigPlay();
+        } else if (o.result === 'score') {
+            shakeRef.current?.shake('medium');
+            flashRef.current?.flash(palette.makeGreen);
+            haptics.success();
+        } else if (stoppedThem) {
+            // Defensive stop (steal/block/forced turnover) is worth celebrating.
+            shakeRef.current?.shake('heavy');
+            flashRef.current?.flash(palette.steelBlue);
+            haptics.bigPlay();
+        } else {
+            // Player's attack failed and the defense did not force a stop.
+            flashRef.current?.flash(palette.missRed, { peak: 0.22 });
+            haptics.warning();
+        }
+    }, [outcomeCount]);
 
      // Auto-advance to next quarter or end game after resolution animation.
     useEffect(() => {
@@ -49,7 +96,7 @@ export default function GameScreen() {
                  // Advance to the next quarter after a brief pause
                 actions.advanceQuarter();
             }
-         }, 1600);
+         }, RESOLVE_MS);
 
         return () => clearTimeout(timer);
       }, [gameState.resolving, gameState.gameOver]);
@@ -105,13 +152,15 @@ export default function GameScreen() {
                       </Text>
                   </View>
               ) : (
-                   <View style={styles.court}>
+                   <ShakeView ref={shakeRef} style={styles.court}>
                        {/* Resolution flash overlays the court when a quarter resolves */}
                       {lastOutcome && gameState.resolving
                            ? <ResolutionFlash outcome={lastOutcome} />
                            : null}
                        <Text style={styles.vsLabel}>vs {opponentName}</Text>
-                  </View>
+                       <Scanlines />
+                       <FlashOverlay ref={flashRef} />
+                  </ShakeView>
               )}
 
               {/* Card hand area — bottom third of screen */}

@@ -1,19 +1,25 @@
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { Counter, Pop } from '@/components/fx';
+import { palette, FONT, FONT_SIZE, RADIUS, space } from '@/theme';
 
 interface ScoreBugProps {
     yourScore: number;
     opponentScore: number;
 }
 
-/** Top-of-screen scoreboard: "YOU: 28  OPP: 31" */
+/** Top-of-screen scoreboard: "YOU 28 - 31 OPP" with the scores ticking up. */
 export function ScoreBug({ yourScore, opponentScore }: ScoreBugProps) {
     return (
         <View style={styles.container}>
             <Text style={[styles.label, styles.yourLabel]}>YOU</Text>
-            <Text style={styles.score}>{yourScore}</Text>
+            <Pop trigger={yourScore}>
+                <Counter value={yourScore} style={styles.score} />
+            </Pop>
             <Text style={styles.divider}>-</Text>
-            <Text style={styles.score}>{opponentScore}</Text>
+            <Pop trigger={opponentScore}>
+                <Counter value={opponentScore} style={styles.score} />
+            </Pop>
             <Text style={[styles.label, styles.oppLabel]}>OPP</Text>
         </View>
     );
@@ -23,31 +29,31 @@ const styles = StyleSheet.create({
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 6,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        paddingHorizontal: space(2),
+        paddingVertical: space(1),
+        borderRadius: RADIUS.chip,
+        backgroundColor: palette.bgPanel,
     },
     label: {
-        fontSize: 10,
-        fontWeight: 'bold',
+        fontFamily: FONT.body,
+        fontSize: FONT_SIZE.small,
         letterSpacing: 1,
     },
     yourLabel: {
-        color: '#81C784',
+        color: palette.makeGreenLt,
     },
     oppLabel: {
-        color: '#E57373',
+        color: palette.missRedLt,
     },
     score: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: '#fff',
-        marginHorizontal: 6,
+        fontFamily: FONT.display,
+        fontSize: FONT_SIZE.label,
+        color: palette.ink,
+        marginHorizontal: space(2),
     },
     divider: {
-        fontSize: 14,
-        color: '#888',
-        marginHorizontal: 2,
+        fontSize: FONT_SIZE.label,
+        color: palette.inkDim,
+        marginHorizontal: space(0.5),
     },
 });
