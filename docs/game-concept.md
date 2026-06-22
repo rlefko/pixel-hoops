@@ -1,5 +1,7 @@
 # Pixel Hoops - Game Concept
 
+> **Update (pivot):** The moment-to-moment loop has changed. Pixel Hoops is no longer "play a card every quarter." It is now an **auto-sim 5-on-5 roguelike**: build a five, set a game plan, and watch a fast, juicy simulation, with agency in the roster and a branching run map. See **[gameplay-redesign.md](gameplay-redesign.md)** for the new core loop and **[addictive-blueprint.md](addictive-blueprint.md)** for the design principles behind it. The roster, meta-progression, difficulty, mobile UX, and arcade-presentation goals below still hold; the per-possession card mechanic described under "The Card System" and "How a Quarter Works" is retired (kept dormant in code) and returns later as between-games "playbook cards." Sections below are preserved for that context.
+
 ## Overview
 
 Pixel Hoops is a card-driven basketball roguelike for mobile. You build a roster of 8-bit pixel players with unique stats and abilities, then send them into procedurally-generated tournament brackets where every match is decided by tactical card play. Win games to advance. Recruit defeated opponents. Build the ultimate underground team.
