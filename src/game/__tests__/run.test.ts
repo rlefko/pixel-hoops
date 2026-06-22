@@ -10,6 +10,7 @@ import {
   type HomeRoster,
 } from '@/game/home-roster';
 import { runReducer, initRun, type RunModel } from '@/game/run-machine';
+import { generateRunMap } from '@/game/run-map';
 import { POSITIONS } from '@/types/roster';
 
 function rookie(seed = 'home'): HomeRoster {
@@ -39,6 +40,41 @@ describe('generateRecruitOffers', () => {
         expect(stat).toBeLessThanOrEqual(max);
       }
       expect(POSITIONS).toContain(o.position);
+    }
+  });
+});
+
+describe('generateRunMap branching', () => {
+  it('is deterministic from a seed', () => {
+    expect(generateRunMap({ seed: 'map-1' })).toEqual(
+      generateRunMap({ seed: 'map-1' })
+    );
+  });
+
+  it('never forces a single route: every node forks when the next layer allows', () => {
+    for (const seed of ['a', 'b', 'c', 'd', 'e']) {
+      const map = generateRunMap({ seed });
+      map.layers.forEach((layer, li) => {
+        if (li >= map.layers.length - 1) return; // boss layer has no next
+        const nextCount = map.layers[li + 1].length;
+        for (const id of layer) {
+          const edges = map.nodes[id].next.length;
+          expect(edges).toBeGreaterThanOrEqual(Math.min(2, nextCount));
+        }
+      });
+    }
+  });
+
+  it('keeps every node reachable (no orphans)', () => {
+    const map = generateRunMap({ seed: 'orphan-check' });
+    const reached = new Set(map.startNodeIds);
+    for (let li = 0; li < map.layers.length - 1; li++) {
+      for (const id of map.layers[li]) {
+        for (const n of map.nodes[id].next) reached.add(n);
+      }
+    }
+    for (const id of Object.keys(map.nodes)) {
+      expect(reached.has(id)).toBe(true);
     }
   });
 });
