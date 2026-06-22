@@ -1,13 +1,26 @@
 import { useFonts } from 'expo-font';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import { DarkTheme, Stack, ThemeProvider } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import 'react-native-reanimated';
 
-import { useColorScheme } from '@/components/useColorScheme';
 import { FeelSettingsProvider } from '@/feel';
 import { HomeRosterProvider } from '@/context/HomeRosterContext';
-import { FONT_ASSETS } from '@/theme';
+import { FONT_ASSETS, palette } from '@/theme';
+
+/**
+ * Pixel Hoops is a dark 8-bit game. We pin a single palette-matched dark theme
+ * instead of following the device color scheme so the light navigator surface
+ * never flashes white through overscroll, transitions, or safe-area gaps.
+ */
+const navTheme = {
+  ...DarkTheme,
+  colors: {
+    ...DarkTheme.colors,
+    background: palette.bgDeep,
+    card: palette.bgDeep,
+  },
+};
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -49,14 +62,17 @@ export default function RootLayout() {
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(home)" options={{ headerShown: false }} />
-        <Stack.Screen name="run" options={{ headerShown: false }} />
-        <Stack.Screen name="sim" options={{ headerShown: false }} />
+    <ThemeProvider value={navTheme}>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: palette.bgDeep },
+        }}
+      >
+        <Stack.Screen name="(home)" />
+        <Stack.Screen name="run" />
+        <Stack.Screen name="sim" />
         <Stack.Screen name="game" options={{ presentation: 'modal' }} />
         <Stack.Screen
           name="modal"
