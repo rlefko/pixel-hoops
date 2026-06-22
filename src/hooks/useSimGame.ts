@@ -68,7 +68,14 @@ export function useSimGame() {
   );
 
   const homeTeam = useMemo(
-    () => buildTeam('Your Squad', roster.starters, gamePlan, palette.homeTeam),
+    () =>
+      buildTeam(
+        'Your Squad',
+        roster.starters,
+        gamePlan,
+        palette.homeTeam,
+        palette.homeTeamAccent
+      ),
     [roster, gamePlan]
   );
 
@@ -78,7 +85,8 @@ export function useSimGame() {
         opponent.name,
         opponent.roster.starters,
         planForRoster(opponent.roster),
-        opponent.colorHex
+        opponent.colorHex,
+        opponent.accentHex
       ),
     [opponent]
   );

@@ -24,6 +24,7 @@ export function LineupBoard({ team }: { team: Team }) {
           <View style={styles.avatar}>
             <PixelPlayer
               color={team.colorHex}
+              accent={team.accentHex}
               number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
               skinIndex={skinIndexFor(rp.player.name)}
               size={26}

@@ -46,6 +46,8 @@ export interface Team {
   tactic: GamePlan;
   synergy: SynergyResult;
   teamStats: TeamStats;
-  /** Team color for juice / UI (a palette entry). */
+  /** Primary team color for juice / UI (a palette entry or franchise primary). */
   colorHex: string;
+  /** Secondary/accent color: jersey trim, court lines, and score-bug accents. */
+  accentHex: string;
 }

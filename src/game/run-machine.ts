@@ -179,7 +179,8 @@ export function runReducer(
         'Your Squad',
         model.core.roster.starters,
         model.gamePlan,
-        palette.homeTeam
+        palette.homeTeam,
+        palette.homeTeamAccent
       );
       const opp = generateOpponentTeam(
         round,
@@ -189,7 +190,8 @@ export function runReducer(
         opp.name,
         opp.roster.starters,
         planForRoster(opp.roster),
-        opp.colorHex
+        opp.colorHex,
+        opp.accentHex
       );
       const result = simulateGame({
         home,

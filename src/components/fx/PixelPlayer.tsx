@@ -14,6 +14,12 @@ const SKIN_TONES = ['#F2C8A0', '#E0A878', '#C68642', '#8D5524', '#5C3A21'];
 interface PixelPlayerProps {
   /** Jersey color (the team's colorHex). */
   color: string;
+  /**
+   * Secondary/trim color (the team's accentHex). Shows as the jersey outline and
+   * a waistband stripe. Defaults to `color` (no visible trim) and is suppressed
+   * when it matches the jersey, so teams without a usable secondary look unchanged.
+   */
+  accent?: string;
   /** Jersey number shown on the chest. */
   number: number;
   /** Sprite footprint in px (height scales from this). */
@@ -26,6 +32,7 @@ interface PixelPlayerProps {
 
 export function PixelPlayer({
   color,
+  accent,
   number,
   size = 30,
   skinIndex = 0,
@@ -37,6 +44,9 @@ export function PixelPlayer({
   const jerseyH = size * 0.5;
   const legW = size * 0.28;
   const legH = size * 0.34;
+  // Trim only shows when the team has a real, distinct secondary.
+  const hasTrim = !!accent && accent !== color;
+  const trimColor = hasTrim ? accent : palette.bgPanel;
 
   return (
     <View style={[styles.wrap, { width: size }]}>
@@ -58,7 +68,7 @@ export function PixelPlayer({
             width: jerseyW,
             height: jerseyH,
             backgroundColor: color,
-            borderColor: active ? palette.gold : palette.bgPanel,
+            borderColor: active ? palette.gold : trimColor,
           },
         ]}
       >
@@ -66,6 +76,14 @@ export function PixelPlayer({
           {number}
         </Text>
       </View>
+      {hasTrim ? (
+        <View
+          style={[
+            styles.waistband,
+            { width: jerseyW, height: Math.max(1, size * 0.07), backgroundColor: accent },
+          ]}
+        />
+      ) : null}
       <View style={styles.legs}>
         <View style={[styles.leg, { width: legW, height: legH }]} />
         <View style={[styles.leg, { width: legW, height: legH }]} />
@@ -97,6 +115,9 @@ const styles = StyleSheet.create({
   number: {
     fontFamily: FONT.display,
     color: palette.ink,
+  },
+  waistband: {
+    marginTop: -1,
   },
   legs: {
     flexDirection: 'row',

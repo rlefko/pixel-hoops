@@ -26,6 +26,7 @@ export const palette = {
 
   // Team colors
   homeTeam: '#66BB6A',
+  homeTeamAccent: '#FFD54F', // brand gold trim for "Your Squad"
   awayTeam: '#EF5350',
 
   // Card categories (from CardDisplay)
