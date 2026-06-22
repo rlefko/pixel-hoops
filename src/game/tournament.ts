@@ -1,5 +1,8 @@
 import type { Archetype } from '@/types/player';
 import { createPlayer, type Player, type PlayerStats, randomInt } from '@/types/player';
+import type { Roster, RosterPlayer, Position } from '@/types/roster';
+import { POSITIONS, POSITION_ARCHETYPE } from '@/types/roster';
+import type { RNG } from './rng';
 
 // ---------------------------------------------------------------------------
 // Streetball name generator
@@ -105,4 +108,65 @@ export function generateOpponent(
 /** Clamp a value to [min, max] inclusive. */
 function clamp(value: number, min: number, max: number): number {
     return Math.max(min, Math.min(max, value));
+}
+
+// ---------------------------------------------------------------------------
+// Seeded 5-on-5 team generation (auto-sim path)
+// ---------------------------------------------------------------------------
+
+const TEAM_NAMES = [
+    'Downtown Ballers', 'The Reapers', 'Asphalt Kings', 'Night Owls',
+    'Concrete Giants', 'The Hustlers', 'Rim Wreckers', 'Court Vipers',
+    'Steel City', 'The Renegades', 'Skyline Crew', 'Backstreet Saints',
+];
+
+/** Seeded streetball name (the auto-sim analog of generateOpponentName). */
+function generateNameSeeded(rng: RNG): string {
+    return `${rng.pick(FIRST_NAMES)} "${rng.pick(LAST_NAMES)}"`;
+}
+
+/** Seeded team name for an opponent squad. */
+export function generateTeamName(rng: RNG): string {
+    return rng.pick(TEAM_NAMES);
+}
+
+/** Scale a stat line into a round's range with a little variance. */
+function scaleStatsToRound(stats: PlayerStats, round: number, rng: RNG): PlayerStats {
+    const range = getRoundStatRange(round);
+    const scale = (value: number) => clamp(value + rng.int(-1, 2), range.min, range.max);
+    return {
+        shooting: scale(stats.shooting),
+        speed: scale(stats.speed),
+        athleticism: scale(stats.athleticism),
+        clutch: scale(stats.clutch),
+    };
+}
+
+/** Build a five, one player per position, via the seeded RNG. */
+function buildSeededFive(rng: RNG, scaleRound?: number): RosterPlayer[] {
+    return POSITIONS.map((position: Position) => {
+        const archetype = POSITION_ARCHETYPE[position];
+        const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
+        const player =
+            scaleRound !== undefined
+                ? { ...base, stats: scaleStatsToRound(base.stats, scaleRound, rng) }
+                : base;
+        return { player, position };
+    });
+}
+
+/** The player's starting roster: five baseline players, one per position. */
+export function buildStartingRoster(rng: RNG): Roster {
+    return { starters: buildSeededFive(rng), bench: [] };
+}
+
+/** A round-scaled opponent roster (five players) plus a team name. */
+export function generateOpponentTeam(
+    round: number,
+    rng: RNG,
+): { name: string; roster: Roster } {
+    return {
+        name: generateTeamName(rng),
+        roster: { starters: buildSeededFive(rng, round), bench: [] },
+    };
 }
