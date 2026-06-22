@@ -13,6 +13,12 @@ import {
 } from '@/types/roster';
 import type { GamePlan, Focus, Pace } from '@/types/tactics';
 import type { RNG } from './rng';
+import { clamp, getRoundStatRange, scaleStatsToRound } from './stat-scaling';
+import { pickRealTeam, realPlayerAt, realRecruit } from './player-pool';
+
+// Re-exported so existing importers (and tests) can keep using
+// `@/game/tournament` as the entry point for round scaling.
+export { getRoundStatRange } from './stat-scaling';
 
 // ---------------------------------------------------------------------------
 // Streetball name generator
@@ -145,28 +151,6 @@ function pickArchetype(round: number): Archetype {
 // Stat scaling by round
 // ---------------------------------------------------------------------------
 
-/** Expected stat range for a given tournament round. */
-export function getRoundStatRange(round: number): { min: number; max: number } {
-  switch (Math.min(round, 7)) {
-    case 1:
-      return { min: 4, max: 5 };
-    case 2:
-      return { min: 4, max: 6 };
-    case 3:
-      return { min: 5, max: 6 };
-    case 4:
-      return { min: 5, max: 7 };
-    case 5:
-      return { min: 6, max: 8 };
-    case 6:
-      return { min: 7, max: 9 };
-    case 7:
-      return { min: 8, max: 10 };
-    default:
-      return { min: 4, max: 5 };
-  }
-}
-
 /** Scale the archetypes that appear at a given round. */
 export function getRoundArchetypeWeights(
   round: number
@@ -214,11 +198,6 @@ export function generateOpponent(round: number, playerName?: string): Player {
   return { ...basePlayer, stats };
 }
 
-/** Clamp a value to [min, max] inclusive. */
-function clamp(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
 // ---------------------------------------------------------------------------
 // Seeded 5-on-5 team generation (auto-sim path)
 // ---------------------------------------------------------------------------
@@ -248,23 +227,6 @@ export function generateTeamName(rng: RNG): string {
   return rng.pick(TEAM_NAMES);
 }
 
-/** Scale a stat line into a round's range with a little variance. */
-function scaleStatsToRound(
-  stats: PlayerStats,
-  round: number,
-  rng: RNG
-): PlayerStats {
-  const range = getRoundStatRange(round);
-  const scale = (value: number) =>
-    clamp(value + rng.int(-1, 2), range.min, range.max);
-  return {
-    shooting: scale(stats.shooting),
-    speed: scale(stats.speed),
-    athleticism: scale(stats.athleticism),
-    clutch: scale(stats.clutch),
-  };
-}
-
 /** Build a five, one player per position, via the seeded RNG. */
 function buildSeededFive(rng: RNG, scaleRound?: number): RosterPlayer[] {
   return POSITIONS.map((position: Position) => {
@@ -283,21 +245,51 @@ export function buildStartingRoster(rng: RNG): Roster {
   return { starters: buildSeededFive(rng), bench: [] };
 }
 
-/** A round-scaled opponent roster (five players) plus a team name. */
-export function generateOpponentTeam(
+// Chance (out of 100) that a given opponent slot / recruit offer is a real
+// NBA player rather than a procedural streetball one. Tuned for a lively mix.
+const REAL_OPPONENT_CHANCE = 55;
+const REAL_RECRUIT_CHANCE = 50;
+
+/** A single fake, round-scaled player for the given floor position. */
+function fakePlayerAt(
+  position: Position,
   round: number,
   rng: RNG
-): { name: string; roster: Roster } {
+): RosterPlayer {
+  const archetype = POSITION_ARCHETYPE[position];
+  const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
   return {
-    name: generateTeamName(rng),
-    roster: { starters: buildSeededFive(rng, round), bench: [] },
+    player: { ...base, stats: scaleStatsToRound(base.stats, round, rng) },
+    position,
   };
 }
 
 /**
- * Deterministic recruit candidates for a recruit node, scaled to run depth.
- * Archetypes are weighted by depth (deeper runs surface more bigs), positions
- * follow the archetype, and stats scale into the round's range.
+ * A round-scaled opponent: a real NBA franchise identity (name + color) staffed
+ * with a mix of real players and procedural fakes. Real players bring
+ * recognizable likenesses; fakes keep every game fresh. Fully seeded.
+ */
+export function generateOpponentTeam(
+  round: number,
+  rng: RNG
+): { name: string; roster: Roster; colorHex: string } {
+  const team = pickRealTeam(rng);
+  const starters = POSITIONS.map((position) => {
+    const useReal = rng.int(0, 99) < REAL_OPPONENT_CHANCE;
+    const real = useReal ? realPlayerAt(position, round, rng) : null;
+    return real ?? fakePlayerAt(position, round, rng);
+  });
+  return {
+    name: `${team.city} ${team.name}`,
+    roster: { starters, bench: [] },
+    colorHex: team.primaryHex,
+  };
+}
+
+/**
+ * Deterministic recruit candidates for a recruit node, scaled to run depth. A
+ * mix of real NBA players (the exciting "catch") and procedural fakes; fake
+ * archetypes are weighted by depth (deeper runs surface more bigs).
  */
 export function generateRecruitOffers(
   round: number,
@@ -310,13 +302,16 @@ export function generateRecruitOffers(
   ][];
   const offers: RosterPlayer[] = [];
   for (let i = 0; i < count; i++) {
+    if (rng.int(0, 99) < REAL_RECRUIT_CHANCE) {
+      offers.push(realRecruit(round, rng));
+      continue;
+    }
     const archetype = rng.weightedPick(weights);
     const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
-    const player = {
-      ...base,
-      stats: scaleStatsToRound(base.stats, round, rng),
-    };
-    offers.push({ player, position: ARCHETYPE_POSITION[archetype] });
+    offers.push({
+      player: { ...base, stats: scaleStatsToRound(base.stats, round, rng) },
+      position: ARCHETYPE_POSITION[archetype],
+    });
   }
   return offers;
 }

@@ -52,8 +52,8 @@ export default function RunScreen() {
       return model.game ? (
         <PlayByPlayFeed
           timeline={model.game.result.events}
-          homeName="Your Squad"
-          awayName={model.game.opponentName}
+          homeTeam={model.game.home}
+          awayTeam={model.game.away}
           round={depthOf(model, model.phase.nodeId)}
           totalRounds={model.core.map.layers.length}
           onComplete={actions.finishReplay}

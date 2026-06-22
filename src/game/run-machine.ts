@@ -11,6 +11,7 @@ import { homeToRunRoster, type HomeRoster } from './home-roster';
 import type { RunState } from '@/types/run-map';
 import type { RosterPlayer } from '@/types/roster';
 import type { SimResult } from '@/types/sim';
+import type { Team } from '@/types/team';
 import type { PlayerStats } from '@/types/player';
 import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
 // Import the palette module directly (not the @/theme barrel, which pulls in
@@ -46,7 +47,12 @@ export interface RunModel {
   gamePlan: GamePlan;
   wins: number;
   /** Active game context, set on enterGame and read in game/postgame. */
-  game: { opponentName: string; result: SimResult } | null;
+  game: {
+    opponentName: string;
+    result: SimResult;
+    home: Team;
+    away: Team;
+  } | null;
 }
 
 export type RunAction =
@@ -183,7 +189,7 @@ export function runReducer(
         opp.name,
         opp.roster.starters,
         planForRoster(opp.roster),
-        palette.awayTeam
+        opp.colorHex
       );
       const result = simulateGame({
         home,
@@ -193,7 +199,7 @@ export function runReducer(
       return {
         ...model,
         phase: { kind: 'game', nodeId },
-        game: { opponentName: opp.name, result },
+        game: { opponentName: opp.name, result, home, away },
       };
     }
 

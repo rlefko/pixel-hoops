@@ -37,6 +37,8 @@ export interface RosterPlayer {
   position: Position;
   /** 0..100 share of offensive possessions when on court; derived if absent. */
   usage?: number;
+  /** Real jersey number for baked NBA players; fakes derive one from the name. */
+  jerseyNumber?: number;
 }
 
 /** The full owned squad: five starters plus bench depth. */

@@ -78,15 +78,17 @@ export function generateRunMap(config: RunMapConfig): RunMap {
     layers.push(ids);
   }
 
-  // Connect each layer to the next: every node gets 1-2 forward edges, and every
-  // next-layer node keeps at least one inbound edge so nothing is orphaned.
+  // Connect each layer to the next: every node forks to at least two next nodes
+  // whenever the next layer has room (so the player always has a real branch to
+  // choose, never a forced single route), and every next-layer node keeps at
+  // least one inbound edge so nothing is orphaned.
   for (let layer = 0; layer < totalLayers - 1; layer++) {
     const current = layers[layer];
     const nextIds = layers[layer + 1];
     const covered = new Set<string>();
 
     for (const id of current) {
-      const edgeCount = Math.min(nextIds.length, rng.int(1, 2));
+      const edgeCount = Math.min(nextIds.length, rng.int(2, 3));
       const chosen = shuffle(nextIds, rng).slice(0, edgeCount);
       nodes[id].next = chosen;
       for (const c of chosen) covered.add(c);

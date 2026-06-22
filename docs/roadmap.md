@@ -40,6 +40,25 @@ Turns the linear slice into the desired roguelike loop, on a single `RunScreen` 
 - **Lineup builder.** Choose your starting five from the whole roster (any five, so stacking unlocks the `Specialists` synergy).
 - **Compounding home roster.** A persistent home roster (`src/game/home-roster.ts` + `HomeRosterContext` + a Platform-split AsyncStorage/localStorage wrapper) banks recruits and training on every run end, win or loss.
 
+## PR5: Visuals and NBA data foundation
+
+Makes the game feel right: readable navigation, dark-only presentation, pixel
+players on the court, and real teams. Detailed in
+[visual-and-data.md](visual-and-data.md).
+
+- **Dark-only presentation.** Pin a palette-matched dark navigation theme and
+  `Stack` content style so the light navigator surface never flashes white.
+- **Run-map branching.** Fix the generator so every node forks (no forced single
+  route) and draw real per-edge connectors with a "you are here" marker and
+  auto-scroll in `RunMapView`.
+- **Procedural pixel players.** `PixelPlayer` sprites and a `CourtView` that
+  places ten players in formation and spotlights the active scorer, wired into
+  `PlayByPlayFeed` and `LineupBoard` (no image assets).
+- **NBA data foundation.** An offline-baked, key-free dataset (`src/data/*.json`),
+  a shared ratings->stats mapping (`src/game/nba-map.ts`), a mixed real/fake
+  player pool (`src/game/player-pool.ts`), and a dev fetch script
+  (`scripts/fetch-nba.ts`) that reads the API key from the environment.
+
 ## Phase 3 and beyond
 
 Sequenced roughly by player impact.
@@ -49,7 +68,7 @@ Sequenced roughly by player impact.
 3. **Crunch-time decisions.** Pause the replay at a close Q4 boundary for one high-leverage tactical call, then resume. The engine already supports this hook.
 4. **Defeated-opponent recruiting + resume-in-progress-run.** Recruit a player from a beaten team; save/resume an interrupted run.
 5. **Audio and SFX.** Chiptune per arena, downsampled arcade callouts, and event sound effects synced to the existing haptics.
-6. **Sprite art and particles.** Hand-drawn players and court, a reactive crowd, multi-frame dunk and block animations, and particle bursts; measured edge-line drawing on the run map.
+6. **Sprite art and particles.** Hand-drawn players and court (beyond the procedural sprites shipped in PR5), a reactive crowd, multi-frame dunk and block animations, and particle bursts.
 7. **Deeper synergies and archetypes.** Expand the synergy rules and signature abilities described in the concept doc.
 8. **Retire the legacy modes** (card game, quick sim) once the run mode is the default and proven.
 

@@ -21,8 +21,8 @@ export default function SimGameScreen() {
       <View style={styles.container}>
         <PlayByPlayFeed
           timeline={state.result.events}
-          homeName={state.homeTeam.name}
-          awayName={state.awayTeam.name}
+          homeTeam={state.homeTeam}
+          awayTeam={state.awayTeam}
           round={state.round}
           totalRounds={state.totalRounds}
           onComplete={actions.finishReplay}

@@ -1,5 +1,7 @@
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { PixelPlayer } from '@/components/fx';
+import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Position } from '@/types/roster';
 import type { Team } from '@/types/team';
@@ -19,6 +21,14 @@ export function LineupBoard({ team }: { team: Team }) {
     <View style={styles.wrap}>
       {team.lineup.players.map((rp, i) => (
         <View key={i} style={styles.row}>
+          <View style={styles.avatar}>
+            <PixelPlayer
+              color={team.colorHex}
+              number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
+              skinIndex={skinIndexFor(rp.player.name)}
+              size={26}
+            />
+          </View>
           <View
             style={[
               styles.posChip,
@@ -61,6 +71,11 @@ const styles = StyleSheet.create({
     paddingVertical: space(1.5),
     borderBottomWidth: BORDER.thin,
     borderBottomColor: palette.bgPanel,
+  },
+  avatar: {
+    width: 30,
+    alignItems: 'center',
+    marginRight: space(2),
   },
   posChip: {
     width: 34,
