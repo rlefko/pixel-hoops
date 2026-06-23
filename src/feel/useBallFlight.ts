@@ -31,19 +31,20 @@ export interface Pt {
 const ARC_K = 0.34; // peak as a fraction of straight-line shot distance
 const ARC_MIN = 22;
 const ARC_MAX = 130;
-const FLIGHT_MIN_MS = 190;
-const FLIGHT_MAX_MS = 320;
+const FLIGHT_MIN_MS = 160;
+const FLIGHT_MAX_MS = 260;
 const FLIGHT_PX_PER_MS = 1.15;
 
-const DUNK_PEAK = 30;
-const DUNK_MS = 170;
+/** Dunk shot-leg time; the sprite's slam beat is timed to land with it. */
+export const DUNK_FLIGHT_MS = 250;
+const DUNK_PEAK = 56; // rides up high, then punches down
 const LOOSE_PEAK = 12;
 const LOOSE_MS = 180;
 
 const RESOLVE_MS: Record<ShotShape, number> = {
   jumper: 120, // drop straight through the net
-  dunk: 120,
-  miss: 190, // carom off the iron
+  dunk: 110, // a hard, quick punch down
+  miss: 150, // carom off the iron
   block: 170, // deflect away
   loose: 160,
 };
@@ -74,7 +75,7 @@ function arcPeakFor(dist: number, shape: ShotShape = 'jumper'): number {
 
 /** Flight time (ms) for a shot of the given distance and shape. */
 function flightDurationFor(dist: number, shape: ShotShape = 'jumper'): number {
-  if (shape === 'dunk') return DUNK_MS;
+  if (shape === 'dunk') return DUNK_FLIGHT_MS;
   if (shape === 'loose') return LOOSE_MS;
   const base = clamp(dist / FLIGHT_PX_PER_MS, FLIGHT_MIN_MS, FLIGHT_MAX_MS);
   return shape === 'block' ? base * 0.9 : base;
@@ -83,6 +84,26 @@ function flightDurationFor(dist: number, shape: ShotShape = 'jumper'): number {
 /** Resolution time (ms) for the second leg (drop / carom / deflect). */
 export function resolveDurationFor(shape: ShotShape): number {
   return RESOLVE_MS[shape];
+}
+
+/**
+ * A point on the parabolic shot path at progress t (0..1) for a given arc peak.
+ * `4 * t * (1 - t)` peaks at 1.0 (t = 0.5); the bow is always toward screen-up,
+ * which is mid-court for both the top and bottom hoops.
+ */
+function arcPoint(
+  ox: number,
+  tx: number,
+  oy: number,
+  ty: number,
+  peak: number,
+  t: number
+): { x: number; y: number } {
+  'worklet';
+  return {
+    x: ox + (tx - ox) * t,
+    y: oy + (ty - oy) * t - peak * 4 * t * (1 - t),
+  };
 }
 
 interface FireConfig {
@@ -112,27 +133,37 @@ export function useBallFlight() {
   const { reducedMotion } = useFeelSettings();
 
   const ballStyle = useAnimatedStyle(() => {
-    let x: number;
-    let y: number;
-    let op: number;
     if (p2.value <= 0) {
-      const t = p1.value;
-      x = ox.value + (tx.value - ox.value) * t;
-      // 4 * t * (1 - t) peaks at 1.0 (t = 0.5); the bow is always toward
-      // screen-up, which is mid-court for both the top and bottom hoops.
-      y = oy.value + (ty.value - oy.value) * t - peak1.value * 4 * t * (1 - t);
-      op = opacity.value;
-    } else {
-      const t = p2.value;
-      x = tx.value + (rx.value - tx.value) * t;
-      y = ty.value + (ry.value - ty.value) * t - peak2.value * 4 * t * (1 - t);
-      op = opacity.value * (1 - t);
+      const pt = arcPoint(ox.value, tx.value, oy.value, ty.value, peak1.value, p1.value);
+      return {
+        opacity: opacity.value,
+        transform: [{ translateX: pt.x }, { translateY: pt.y }],
+      };
     }
+    const pt = arcPoint(tx.value, rx.value, ty.value, ry.value, peak2.value, p2.value);
     return {
-      opacity: op,
-      transform: [{ translateX: x }, { translateY: y }],
+      opacity: opacity.value * (1 - p2.value),
+      transform: [{ translateX: pt.x }, { translateY: pt.y }],
     };
   });
+
+  // A short motion trail: ghost dots that lag the ball (by `lag` along the path)
+  // and fade with depth. They live only during the shot leg.
+  const ghost = (lag: number, fade: number) => {
+    'worklet';
+    const t = Math.max(0, p1.value - lag);
+    const pt = arcPoint(ox.value, tx.value, oy.value, ty.value, peak1.value, t);
+    const visible = p2.value > 0 || p1.value <= lag ? 0 : 1;
+    return {
+      opacity: opacity.value * fade * visible,
+      transform: [{ translateX: pt.x }, { translateY: pt.y }],
+    };
+  };
+  // (lag along path, opacity fade): the oldest ghost trails farthest and faintest.
+  const trail1 = useAnimatedStyle(() => ghost(0.05, 0.34));
+  const trail2 = useAnimatedStyle(() => ghost(0.1, 0.22));
+  const trail3 = useAnimatedStyle(() => ghost(0.15, 0.12));
+  const trailStyles = [trail1, trail2, trail3];
 
   const fire = useCallback(
     (cfg: FireConfig) => {
@@ -148,7 +179,9 @@ export function useBallFlight() {
       const resolveDur = RESOLVE_MS[shape];
       const shotEase =
         shape === 'dunk' ? Easing.in(Easing.cubic) : Easing.out(Easing.quad);
-      const resolveEase = Easing.in(Easing.quad);
+      // A dunk punches down harder than a jumper's tidy drop.
+      const resolveEase =
+        shape === 'dunk' ? Easing.in(Easing.cubic) : Easing.in(Easing.quad);
 
       ox.value = origin.x;
       oy.value = origin.y;
@@ -178,5 +211,5 @@ export function useBallFlight() {
     [reducedMotion, ox, oy, tx, ty, rx, ry, peak1, peak2, p1, p2, opacity]
   );
 
-  return { ballStyle, fire };
+  return { ballStyle, trailStyles, fire };
 }
