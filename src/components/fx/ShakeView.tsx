@@ -1,5 +1,5 @@
 import { forwardRef, useImperativeHandle, type ReactNode } from 'react';
-import { type StyleProp, type ViewStyle } from 'react-native';
+import { StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useScreenShake, type ShakeIntensity } from '@/feel';
 
@@ -21,8 +21,20 @@ export const ShakeView = forwardRef<ShakeViewHandle, ShakeViewProps>(
   ({ children, style }, ref) => {
     const { shakeStyle, shake } = useScreenShake();
     useImperativeHandle(ref, () => ({ shake }), [shake]);
-    return <Animated.View style={[style, shakeStyle]}>{children}</Animated.View>;
+    // `baseTransform` declares the transform prop at mount so the New
+    // Architecture renderer keeps a transform node to animate. Without it, an
+    // identity-only initial transform can be dropped on iOS/Android and later
+    // shake updates have nothing to attach to (web is unaffected).
+    return (
+      <Animated.View style={[styles.baseTransform, style, shakeStyle]}>
+        {children}
+      </Animated.View>
+    );
   }
 );
 
 ShakeView.displayName = 'ShakeView';
+
+const styles = StyleSheet.create({
+  baseTransform: { transform: [{ translateX: 0 }, { translateY: 0 }] },
+});
