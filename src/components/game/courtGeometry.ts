@@ -1,5 +1,8 @@
 import type { DimensionValue } from 'react-native';
-import { RIM_HEIGHT, RIM_OFFSET } from '@/components/fx/PixelCourt';
+import {
+  RIM_CENTER_FRACTION_X,
+  RIM_CENTER_FRACTION_Y,
+} from '@/components/game/courtDimensions';
 import type { Position } from '@/types/roster';
 import type { SimTeamSide } from '@/types/sim';
 
@@ -26,12 +29,22 @@ interface Spot {
   offTargetDepth: number;
 }
 
+/**
+ * Resting spots, hand-placed so each side reads as a recognizable half-court
+ * spread in its own half against the real court lines. With depth d the home
+ * sprite sits at screen y = 1 - d * SPAN, so these depths land the PG up near the
+ * three-point apex (~0.70), the wings on the arc (~0.76), and the bigs on the
+ * blocks near the rim (~0.84 and ~0.88). The x values keep the bigs inside the
+ * 16 ft lane (x 0.34..0.66) and the wings out on the perimeter. `offTargetDepth`
+ * is retained for the (currently unused) offensive-advance path; only `x` and
+ * `defDepth` are rendered today.
+ */
 export const FORMATION: Record<Position, Spot> = {
-  PG: { x: 0.5, defDepth: 0.12, offTargetDepth: 0.62 },
-  SG: { x: 0.2, defDepth: 0.2, offTargetDepth: 0.74 },
-  SF: { x: 0.8, defDepth: 0.2, offTargetDepth: 0.74 },
-  PF: { x: 0.34, defDepth: 0.3, offTargetDepth: 0.86 },
-  C: { x: 0.66, defDepth: 0.3, offTargetDepth: 0.86 },
+  PG: { x: 0.5, defDepth: 0.32, offTargetDepth: 0.62 },
+  SG: { x: 0.24, defDepth: 0.26, offTargetDepth: 0.74 },
+  SF: { x: 0.76, defDepth: 0.26, offTargetDepth: 0.74 },
+  PF: { x: 0.36, defDepth: 0.17, offTargetDepth: 0.86 },
+  C: { x: 0.6, defDepth: 0.13, offTargetDepth: 0.86 },
 };
 
 /** How far the offense advances toward its target (0 = stay back, 1 = run the floor). */
@@ -91,10 +104,12 @@ export function rimCenterPx(
   width: number,
   height: number
 ): { x: number; y: number } {
-  const x = width * 0.5;
+  // Fractional, so the ball, rim ripple, and particles all land on the rim the
+  // SVG court draws (5.25 ft from the baseline). Home attacks the top rim.
+  const x = width * RIM_CENTER_FRACTION_X;
   const y =
     side === 'home'
-      ? RIM_OFFSET + RIM_HEIGHT / 2
-      : height - RIM_OFFSET - RIM_HEIGHT / 2;
+      ? height * RIM_CENTER_FRACTION_Y
+      : height * (1 - RIM_CENTER_FRACTION_Y);
   return { x, y };
 }
