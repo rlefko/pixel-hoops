@@ -3,13 +3,24 @@ import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { CoinIcon } from '@/components/run/PixelIcons';
+import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** Main menu screen — entry point for the game. */
 export default function HomeScreen() {
   const router = useRouter();
-  const { homeRoster, loaded } = useHomeRoster();
+  const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
+
+  // First launch: welcome the player with their five real free agents, once.
+  if (loaded && homeRoster && !homeRoster.seenWelcome) {
+    return (
+      <FreeAgentRevealView
+        players={homeRoster.players}
+        onContinue={() => saveHomeRoster({ ...homeRoster, seenWelcome: true })}
+      />
+    );
+  }
 
   return (
     <Screen style={styles.container}>

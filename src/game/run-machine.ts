@@ -363,10 +363,15 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
     case 'boss':
       return { ...model, core, phase: { kind: 'pregame', nodeId } };
     case 'recruit': {
+      // Don't offer a free agent the squad already owns.
+      const owned = new Set(
+        [...core.roster.starters, ...core.roster.bench].map((p) => p.player.name)
+      );
       const fallback = generateRecruitOffers(
         round,
         RECRUIT_OFFER_COUNT,
-        createRNG(deriveSeed(core.seed, `recruit-${nodeId}`))
+        createRNG(deriveSeed(core.seed, `recruit-${nodeId}`)),
+        owned
       );
       const gateRng = createRNG(deriveSeed(core.seed, `legend-${nodeId}`));
       if (

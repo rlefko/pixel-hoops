@@ -15,7 +15,14 @@ import {
 import type { GamePlan, Focus, Pace } from '@/types/tactics';
 import type { RNG } from './rng';
 import { clamp, getRoundStatRange, scaleStatsToRound } from './stat-scaling';
-import { pickRealTeam, realPlayerAt, realLegendAt } from './player-pool';
+import {
+  pickRealTeam,
+  realPlayerToRosterPlayer,
+  legendForTeam,
+  modernStartersForTeam,
+  freeAgentPool,
+} from './player-pool';
+import type { RealPlayer } from '@/types/nba';
 
 // Re-exported so existing importers (and tests) can keep using
 // `@/game/tournament` as the entry point for round scaling.
@@ -25,53 +32,34 @@ export { getRoundStatRange } from './stat-scaling';
 // Streetball name generator
 // ---------------------------------------------------------------------------
 
+// Large realistic pools so procedural fill-ins (deep benches, exhausted real
+// pools) read like real players, not corny streetball handles. ~64 x ~64 keeps
+// repeats rare, and no quoted "nickname" gimmick.
 const FIRST_NAMES = [
-  'Slam',
-  'Flash',
-  'Ice',
-  'Tank',
-  'Sky',
-  'Dagger',
-  'Blaze',
-  'Sticky',
-  "Lil' Pockets",
-  'Bullet',
-  'Switchblade',
-  'Slick',
-  'Freak',
-  'Beast',
-  'Macho',
-  'Thunder',
-  'Viper',
-  'Ghost',
-  'Reaper',
-  'Havoc',
+  'Marcus', 'Andre', 'Devin', 'Tyler', 'Brandon', 'Cameron', 'Malik', 'Isaiah',
+  'Trey', 'Darius', 'Xavier', 'Terrence', 'Jalen', 'Anthony', 'Carlos', 'Miguel',
+  'Dennis', 'Victor', 'Derrick', 'Eric', 'Aaron', 'Tobias', 'Caleb', 'Cole',
+  'Grant', 'Keegan', 'Spencer', 'Kyle', 'Norman', 'Gary', 'Jamal', 'Bradley',
+  'Quinn', 'Elijah', 'Josiah', 'Amir', 'Trevor', 'Garrett', 'Mason', 'Hunter',
+  'Bryce', 'Dalton', 'Preston', 'Julian', 'Marquis', 'Roman', 'Andres', 'Lorenzo',
+  'Theo', 'Ivan', 'Bruno', 'Marko', 'Niko', 'Emeka', 'Dejan', 'Lucas',
+  'Mateo', 'Andrei', 'Damon', 'Reggie', 'Solomon', 'Curtis', 'Maurice', 'Vincent',
 ];
 
 const LAST_NAMES = [
-  'Marcus',
-  'Rivera',
-  "O'Neal Jr.",
-  'Chen',
-  'Washington',
-  'Carter',
-  'Delgado',
-  'Petrov',
-  'Okafor',
-  'McRebound',
-  'Basketball Smith',
-  'The Wall',
-  'Quick',
-  'Money',
-  'Danger',
-  'Steele',
-  'Banks',
-  'Cross',
+  'Coleman', 'Bishop', 'Hayes', 'Foster', 'Caldwell', 'Sutton', 'Vance', 'Mercer',
+  'Sterling', 'Holloway', 'Avery', 'Dawson', 'Reyes', 'Castillo', 'Mendez', 'Sullivan',
+  'Hampton', 'Calloway', 'Ferguson', 'Whitfield', 'Sinclair', 'Barnett', 'Hollis', 'Granger',
+  'Lockhart', 'Ashford', 'Carver', 'Easton', 'Faulkner', 'Garrison', 'Harlow', 'Jennings',
+  'Kingsley', 'Langston', 'Mathis', 'Norwood', 'Oakley', 'Prescott', 'Radford', 'Stratton',
+  'Thorne', 'Underwood', 'Vaughn', 'Winslow', 'Yates', 'Abbott', 'Boone', 'Chambers',
+  'Ellison', 'Fletcher', 'Gibson', 'Harmon', 'Ingram', 'Jefferson', 'Kemp', 'Lawson',
+  'Maddox', 'Nash', 'Osborne', 'Patton', 'Rollins', 'Singleton', 'Tanner', 'Walters',
 ];
 
-/** Generate a random streetball-sounding opponent name. */
+/** Generate a random realistic opponent name (no nickname). */
 export function generateOpponentName(): string {
-  return `${FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]} "${LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]}"`;
+  return `${FIRST_NAMES[Math.floor(Math.random() * FIRST_NAMES.length)]} ${LAST_NAMES[Math.floor(Math.random() * LAST_NAMES.length)]}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -201,9 +189,9 @@ const TEAM_NAMES = [
   'Backstreet Saints',
 ];
 
-/** Seeded streetball name (the auto-sim analog of generateOpponentName). */
+/** Seeded realistic player name (the auto-sim analog of generateOpponentName). */
 function generateNameSeeded(rng: RNG): string {
-  return `${rng.pick(FIRST_NAMES)} "${rng.pick(LAST_NAMES)}"`;
+  return `${rng.pick(FIRST_NAMES)} ${rng.pick(LAST_NAMES)}`;
 }
 
 /** Seeded team name for an opponent squad. */
@@ -229,31 +217,6 @@ export function buildStartingRoster(rng: RNG): Roster {
   return { starters: buildSeededFive(rng), bench: [] };
 }
 
-/**
- * Per-five chance a regular opponent fields a single franchise legend, ramping
- * by round. Legends never appear before round 3, and at most one per five, so a
- * real on the opposing team stays a rare, recognizable threat.
- */
-function regularLegendChance(round: number): number {
-  if (round <= 2) return 0;
-  if (round <= 4) return 0.08;
-  if (round === 5) return 0.12;
-  return 0.15; // rounds 6-7
-}
-
-/**
- * Chance a boss fields a guest all-time legend (any franchise), ramping hard in
- * the later rounds so the finale escalates into a marquee matchup.
- */
-function bossGuestChance(round: number): number {
-  if (round <= 2) return 0;
-  if (round === 3) return 0.05;
-  if (round === 4) return 0.1;
-  if (round === 5) return 0.2;
-  if (round === 6) return 0.4;
-  return 0.65; // round 7
-}
-
 /** A single fake, round-scaled player for the given floor position. */
 function fakePlayerAt(
   position: Position,
@@ -268,19 +231,48 @@ function fakePlayerAt(
   };
 }
 
+/** Wrap a real player as a round-scaled roster player: real identity, scaled stats. */
+function scaledFromReal(rp: RealPlayer, round: number, rng: RNG): RosterPlayer {
+  const base = realPlayerToRosterPlayer(rp);
+  return {
+    ...base,
+    player: {
+      ...base.player,
+      stats: scaleStatsToRound(base.player.stats, round, rng),
+    },
+  };
+}
+
+/**
+ * A real franchise starter at `position`, round-scaled so the difficulty curve
+ * holds while the opponent wears a real name, team, and jersey number. Falls
+ * back to a procedural fake when the franchise has no real starter at the slot.
+ */
+function realStarterAt(
+  position: Position,
+  round: number,
+  rng: RNG,
+  pool: RealPlayer[]
+): RosterPlayer {
+  const matches = pool.filter((p) => p.position === position);
+  if (matches.length === 0) return fakePlayerAt(position, round, rng);
+  return scaledFromReal(rng.pick(matches), round, rng);
+}
+
 /** Bench players an opponent carries for in-game rotation. */
 const OPPONENT_BENCH_SIZE = 3;
 
 /**
- * A round-scaled opponent: a real NBA franchise identity (name + colors) staffed
- * with procedural fakes, plus, rarely, one real player. Regular games gate a
- * single FRANCHISE legend (a real on their own team) by round; bosses can field
- * a GUEST all-time legend from any team. Fully seeded.
+ * A round-scaled opponent: a real NBA franchise (name + colors) fielding its
+ * REAL starting five (round-scaled, so balance is unchanged), with a procedural
+ * fallback per slot when the franchise lacks a real there. A boss additionally
+ * is headlined by that franchise's all-time LEGEND (unscaled, gold) at the
+ * legend's own position. Regular games never field a legend. Fully seeded.
  *
  * DETERMINISM: the franchise identity is the FIRST RNG draw (`pickRealTeam`).
  * The run map previews each opponent's color from that exact draw before the
  * game is built (see src/game/opponent-preview.ts), so `pickRealTeam` MUST stay
- * first. The legend/boss rolls follow immediately, then the per-slot fakes.
+ * first. The boss-legend draw follows immediately, then the per-slot starters.
  */
 export function generateOpponentTeam(
   round: number,
@@ -289,29 +281,20 @@ export function generateOpponentTeam(
 ): { name: string; roster: Roster; colorHex: string; accentHex: string } {
   const team = pickRealTeam(rng); // MUST remain the first draw
   const isBoss = opts?.isBoss ?? false;
+  const pool = modernStartersForTeam(team.abbreviation);
 
-  // One roll decides whether this five carries a real legend, then (if so) which
-  // slot. Bosses pull a guest legend from any franchise; regular games pull a
-  // legend that actually plays for this franchise.
-  const legendRoll = rng.next();
+  // Every boss is headlined by its own franchise legend (unscaled, gold) at the
+  // legend's natural position; the other four slots are real franchise starters.
+  let legend: RosterPlayer | null = null;
   let legendSlot: Position | null = null;
-  let bossGuest: RosterPlayer | null = null;
   if (isBoss) {
-    if (legendRoll < bossGuestChance(round)) {
-      const slot = POSITIONS[rng.int(0, POSITIONS.length - 1)];
-      bossGuest = realLegendAt(slot, rng);
-    }
-  } else if (legendRoll < regularLegendChance(round)) {
-    legendSlot = POSITIONS[rng.int(0, POSITIONS.length - 1)];
+    legend = legendForTeam(team.abbreviation, rng);
+    if (legend) legendSlot = legend.position;
   }
 
   const starters = POSITIONS.map((position) => {
-    if (bossGuest && bossGuest.position === position) return bossGuest;
-    if (legendSlot === position) {
-      const legend = realPlayerAt(position, rng, team.abbreviation);
-      if (legend) return legend; // franchise has a legend at this slot
-    }
-    return fakePlayerAt(position, round, rng);
+    if (legend && legendSlot === position) return legend;
+    return realStarterAt(position, round, rng, pool);
   });
   // A short bench so opponents rotate too (procedural fakes only).
   const bench = Array.from({ length: OPPONENT_BENCH_SIZE }, () =>
@@ -325,31 +308,71 @@ export function generateOpponentTeam(
   };
 }
 
-/**
- * Deterministic recruit candidates for a recruit node, scaled to run depth.
- * Keepable recruits are procedural streetball players (archetypes weighted by
- * depth). Real players are never keepable; they surface only as the rare on-loan
- * legendary offer, gated separately by the run machine (see run-machine.ts).
- */
-export function generateRecruitOffers(
-  round: number,
-  count: number,
-  rng: RNG
-): RosterPlayer[] {
+/** One procedural, round-scaled recruit (archetype weighted by run depth). */
+function fakeRecruit(round: number, rng: RNG): RosterPlayer {
   const weights = Object.entries(getRoundArchetypeWeights(round)) as [
     Archetype,
     number,
   ][];
+  const archetype = rng.weightedPick(weights);
+  const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
+  return {
+    player: { ...base, stats: scaleStatsToRound(base.stats, round, rng) },
+    position: ARCHETYPE_POSITION[archetype],
+  };
+}
+
+/**
+ * Deterministic recruit candidates for a recruit node, scaled to run depth.
+ * Keepable recruits are now real free agents (round-scaled) drawn from the
+ * modern-starter pool, skipping any player in `exclude` (the squad already owns
+ * them) and any already offered this visit; a procedural player backfills when
+ * the pool runs dry. Real all-time legends are never keepable here: they surface
+ * only as the rare on-loan legendary offer, gated separately by the run machine.
+ */
+export function generateRecruitOffers(
+  round: number,
+  count: number,
+  rng: RNG,
+  exclude: Set<string> = new Set()
+): RosterPlayer[] {
+  const pool = freeAgentPool();
+  const taken = new Set(exclude);
   const offers: RosterPlayer[] = [];
   for (let i = 0; i < count; i++) {
-    const archetype = rng.weightedPick(weights);
-    const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
-    offers.push({
-      player: { ...base, stats: scaleStatsToRound(base.stats, round, rng) },
-      position: ARCHETYPE_POSITION[archetype],
-    });
+    const available = pool.filter((p) => !taken.has(p.name));
+    if (available.length === 0) {
+      offers.push(fakeRecruit(round, rng));
+      continue;
+    }
+    const chosen = rng.pick(available);
+    taken.add(chosen.name);
+    offers.push(scaledFromReal(chosen, round, rng));
   }
   return offers;
+}
+
+/**
+ * The player's starting five: five real "free agents", one per position, drawn
+ * deterministically from the modern-starter pool with no duplicate players.
+ * Authored (unscaled) ratings, so a fresh roster fields recognizable real
+ * talent. A procedural player backfills any position the pool cannot cover.
+ */
+export function pickFreeAgentFive(rng: RNG): RosterPlayer[] {
+  const pool = freeAgentPool();
+  const used = new Set<string>();
+  return POSITIONS.map((position) => {
+    const matches = pool.filter(
+      (p) => p.position === position && !used.has(p.slug)
+    );
+    if (matches.length === 0) {
+      const archetype = POSITION_ARCHETYPE[position];
+      return { player: createPlayer(generateNameSeeded(rng), archetype, rng.int), position };
+    }
+    const chosen = rng.pick(matches);
+    used.add(chosen.slug);
+    return realPlayerToRosterPlayer(chosen);
+  });
 }
 
 /**

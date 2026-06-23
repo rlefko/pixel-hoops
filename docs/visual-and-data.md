@@ -78,10 +78,13 @@ never ships:
 
 - **`src/data/nba-teams.json`**: the 30 NBA franchises with primary/secondary
   colors (drives sprite jerseys and matchup text).
-- **`src/data/nba-players.json`**: a curated seed of real players across eras,
-  with stats already on the game's 3-10 scale. Hand-authored so the feature works
-  with no key; refresh/expand it with the script below.
-- **`src/data/nba.ts`**: typed loader (`NBA_TEAMS`, `NBA_PLAYERS`, `teamByAbbr`).
+- **`src/data/nba-legends.json`**: ~40 all-time legends (90+), one or more per
+  franchise, each with a signature `ability`. Stats already on the game's 3-10
+  scale. Hand-authored; refresh with the script below.
+- **`src/data/nba-starters.json`**: the current starting five for all 30 teams
+  (~150 modern role players, sub-90, no ability). Hand-curated from live rosters.
+- **`src/data/nba.ts`**: typed loader (`NBA_TEAMS`, `NBA_LEGENDS`, `NBA_STARTERS`,
+  `NBA_PLAYERS` alias of the legend pool, `teamByAbbr`).
 
 ### Ratings mapping
 
@@ -100,19 +103,25 @@ share one source of truth:
 defensive (the API/2kratings naming varies), so missing fields fall back to
 overall rather than producing `NaN`.
 
-### The mixed pool
+### The real pools
 
 `src/game/player-pool.ts` draws from the baked dataset:
 
 - `generateOpponentTeam` (in `tournament.ts`) adopts a real franchise identity
-  (name + `colorHex`) and staffs the five with a seeded mix of real players (by
-  position) and procedural fakes.
-- `generateRecruitOffers` mixes real players (the exciting "catch") with fakes.
+  (name + `colorHex`) and fields that team's real starting five (`realStarterAt`),
+  round-scaled, with a procedural fake only when a slot has no real. Every boss is
+  additionally headlined by its own franchise's legend (`legendForTeam`, unscaled,
+  gold) at the legend's natural position. Regular games never field a legend.
+- `pickFreeAgentFive` seeds a fresh save with five real free agents (one per
+  position); the first-run `FreeAgentRevealView` welcomes the player with them.
+- `generateRecruitOffers` offers real free agents (`freeAgentPool`), skipping any
+  the squad already owns, with a procedural backfill when the pool is exhausted.
+- The rare on-loan legendary jackpot still comes from `legendRecruit`.
 
-Real players are scaled into the current round's range like fakes
-(`src/game/stat-scaling.ts`, shared to avoid an import cycle), so they bring
-identity without breaking difficulty balance. Everything is driven by the seeded
-RNG, so replays stay deterministic.
+Modern starters are scaled into the current round's range like fakes
+(`src/game/stat-scaling.ts`, shared to avoid an import cycle), so they bring real
+identity without breaking difficulty balance; legends keep their authored elite
+ratings. Everything is driven by the seeded RNG, so replays stay deterministic.
 
 ### Refreshing the data
 
@@ -122,13 +131,16 @@ NBA2K_API_KEY=your_key npx tsx scripts/fetch-nba.ts
 NBA2K_API_KEY=your_key npm run fetch:nba
 ```
 
-The script (`scripts/fetch-nba.ts`) reads the key from the environment only,
-fetches the curated slug list via the `X-API-Key` header, maps ratings with
-`mapRatingsToStats`, and writes `src/data/nba-players.json`. Edit its `ROSTER`
-list to change who is baked. Set `NBA2K_API_BASE` to override the API host if it
-differs from the default. `.env` is gitignored; never commit the key. Team colors
-in `nba-teams.json` are maintained by hand (the ratings API does not provide
-reliable brand colors).
+The script (`scripts/fetch-nba.ts`) manages the LEGEND pool only: it reads the
+key from the environment, fetches the curated slug list via the `X-API-Key`
+header, maps ratings with `mapRatingsToStats`, and writes
+`src/data/nba-legends.json`. The `legendary` flag and each legend's `ability` are
+re-added by hand after a bake (the API provides neither). The modern starter pool
+(`nba-starters.json`) is hand-curated from current rosters and is not touched by
+the script. Edit the `ROSTER` list to change which legends are baked. Set
+`NBA2K_API_BASE` to override the API host. `.env` is gitignored; never commit the
+key. Team colors in `nba-teams.json` are maintained by hand (the ratings API does
+not provide reliable brand colors).
 
 ## 5. Map polish, team colors, and game juice
 
