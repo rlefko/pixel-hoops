@@ -48,8 +48,14 @@ interface CourtViewProps {
   onArrival?: (e: SimEvent) => void;
 }
 
+/**
+ * The player in a court slot. The slot is the lineup array index, NOT the
+ * player's intrinsic position: slot `i` (POSITIONS[i]) always renders
+ * `players[i]`, so any player can fill any slot and two players sharing a real
+ * position no longer leave a slot empty (a man down).
+ */
 function playerAt(team: Team, position: Position): RosterPlayer | undefined {
-  return team.lineup.players.find((p) => p.position === position);
+  return team.lineup.players[POSITIONS.indexOf(position)];
 }
 
 interface Burst {

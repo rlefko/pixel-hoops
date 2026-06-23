@@ -33,7 +33,12 @@ export const POSITION_ARCHETYPE: Record<Position, Archetype> = {
  */
 export interface RosterPlayer {
   player: Player;
-  /** Assigned floor slot (may differ from the player's natural archetype). */
+  /**
+   * The player's real/intrinsic position (from their archetype). Drives synergy,
+   * usage, and game-plan composition. NOT their court slot: where they line up on
+   * the floor is the lineup array index (set by the lineup builder order), so any
+   * player can fill any slot and you can field two of the same position.
+   */
   position: Position;
   /** 0..100 share of offensive possessions when on court; derived if absent. */
   usage?: number;

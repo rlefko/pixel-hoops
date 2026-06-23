@@ -1,6 +1,6 @@
 import type { PlayerStats } from '@/types/player';
 import type { QuarterResult } from '@/types/game-state';
-import type { RosterPlayer } from '@/types/roster';
+import { POSITIONS } from '@/types/roster';
 import type { Team } from '@/types/team';
 import type { Focus } from '@/types/tactics';
 import type { SimActionId, SimEvent, SimResult, SimTeamSide } from '@/types/sim';
@@ -274,11 +274,15 @@ export function simulateGame(config: SimConfig): SimResult {
 
     const succeeded = rng.rollPercent(successRate);
 
-    const scorer = rng.weightedPick(
+    // Pick the scorer by lineup INDEX so the event carries their court slot
+    // (POSITIONS[index]), not their intrinsic position. This keeps the active
+    // sprite unambiguous even when two players share a real position.
+    const scorerIndex = rng.weightedPick(
       offense.lineup.players.map(
-        (rp, i): [RosterPlayer, number] => [rp, offense.lineup.usageWeights[i]]
+        (_, i): [number, number] => [i, offense.lineup.usageWeights[i]]
       )
     );
+    const scorer = offense.lineup.players[scorerIndex];
 
     let points = 0;
     let result: QuarterResult;
@@ -310,7 +314,7 @@ export function simulateGame(config: SimConfig): SimResult {
       quarter,
       team: offenseSide,
       scorerName: scorer.player.name,
-      scorerPosition: scorer.position,
+      scorerPosition: POSITIONS[scorerIndex],
       action,
       result,
       points,
@@ -349,11 +353,12 @@ export function simulateGame(config: SimConfig): SimResult {
     const homeClutchWins = config.home.teamStats.clutch >= config.away.teamStats.clutch;
     const side: SimTeamSide = homeClutchWins ? 'home' : 'away';
     const team = sideTeam(side);
-    const scorer = rng.weightedPick(
+    const scorerIndex = rng.weightedPick(
       team.lineup.players.map(
-        (rp, i): [RosterPlayer, number] => [rp, team.lineup.usageWeights[i]]
+        (_, i): [number, number] => [i, team.lineup.usageWeights[i]]
       )
     );
+    const scorer = team.lineup.players[scorerIndex];
     if (side === 'home') homeScore += 2;
     else awayScore += 2;
     events.push({
@@ -362,7 +367,7 @@ export function simulateGame(config: SimConfig): SimResult {
       quarter: TOTAL_QUARTERS,
       team: side,
       scorerName: scorer.player.name,
-      scorerPosition: scorer.position,
+      scorerPosition: POSITIONS[scorerIndex],
       action: 'midrange',
       result: 'score',
       points: 2,
