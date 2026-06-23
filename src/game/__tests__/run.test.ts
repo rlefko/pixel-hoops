@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { createRNG } from '@/game/rng';
 import { generateRecruitOffers, getRoundStatRange } from '@/game/tournament';
 import {
+  applyUpgrade,
   createRookieRoster,
   homeToRunRoster,
   mergeRunGainsIntoHome,
@@ -9,6 +10,7 @@ import {
   deserializeHomeRoster,
   type HomeRoster,
 } from '@/game/home-roster';
+import { legendRecruit } from '@/game/player-pool';
 import { runReducer, initRun, type RunModel } from '@/game/run-machine';
 import { generateRunMap } from '@/game/run-map';
 import { POSITIONS } from '@/types/roster';
@@ -139,20 +141,55 @@ describe('home roster persistence', () => {
       })
     ).toBeNull();
   });
+
+  it('applyUpgrade spends coins, raises the stat, and no-ops when broke', () => {
+    const home = { ...rookie('up'), coins: 1000 };
+    const before = home.players[0].player.stats.inside;
+    const up = applyUpgrade(home, 0, 'inside');
+    expect(up.players[0].player.stats.inside).toBe(Math.min(10, before + 1));
+    expect(up.coins).toBe(980); // first standard buy costs 20
+    // Second buy of the same stat costs more (tier rises).
+    const up2 = applyUpgrade(up, 0, 'inside');
+    expect(up.coins - up2.coins).toBe(25);
+    // Unaffordable is a no-op (same reference).
+    const broke = { ...home, coins: 0 };
+    expect(applyUpgrade(broke, 0, 'inside')).toBe(broke);
+  });
+
+  it('mergeRunGainsIntoHome strips on-loan legends and items', () => {
+    const home = rookie('strip');
+    const run = homeToRunRoster(home);
+    const legend = legendRecruit(createRNG('lg')); // onLoan: true
+    const equipped = { ...run.starters[0], item: { defId: 'grip-tape' } };
+    const grown = {
+      starters: [equipped, ...run.starters.slice(1)],
+      bench: [legend],
+    };
+    const merged = mergeRunGainsIntoHome(
+      home,
+      grown,
+      { coins: 0, reputation: 0, trainingXP: 0 },
+      true
+    );
+    expect(merged.players.some((p) => p.onLoan)).toBe(false);
+    expect(merged.players.every((p) => !p.item)).toBe(true);
+    expect(merged.legendDryStreak).toBe(0); // a legend was offered this run
+  });
 });
 
 describe('run reducer', () => {
   const home = rookie('reducer');
   const start = (): RunModel => initRun('seed-1', home);
 
-  it('initializes on the map with five starters', () => {
+  it('opens on the round-1 boost draft with five starters and no boosts', () => {
     const m = start();
-    expect(m.phase.kind).toBe('map');
+    expect(m.phase.kind).toBe('boostDraft');
+    expect(m.boosts).toHaveLength(0);
     expect(m.core.currentNodeId).toBeNull();
     expect(m.core.roster.starters).toHaveLength(5);
   });
 
-  it('chooseNode on a start (game) node opens pregame', () => {
+  it('chooseNode on a round-1 (game) node opens pregame without re-drafting', () => {
     const m = start();
     const nodeId = m.core.map.startNodeIds[0];
     const next = runReducer(m, { type: 'chooseNode', nodeId })!;
@@ -237,6 +274,77 @@ describe('run reducer', () => {
       bench: [],
     })!;
     expect(bad.phase.kind).toBe('lineup');
+  });
+});
+
+describe('boosts, economy, and legends', () => {
+  const start = (): RunModel => initRun('seed-econ', rookie('econ'));
+
+  it('drafting a boost equips it and lands on the map (run-start draft)', () => {
+    let m = start();
+    expect(m.phase.kind).toBe('boostDraft');
+    const offer =
+      m.phase.kind === 'boostDraft' ? m.phase.offers[0] : null;
+    m = runReducer(m, { type: 'draftBoost', offer: offer! })!;
+    expect(m.boosts).toHaveLength(1);
+    expect(m.phase.kind).toBe('map');
+  });
+
+  it('skipping the draft grants consolation coins', () => {
+    let m = start();
+    m = runReducer(m, { type: 'skipBoostDraft' })!;
+    expect(m.core.rewards.coins).toBe(15);
+    expect(m.boosts).toHaveLength(0);
+    expect(m.phase.kind).toBe('map');
+  });
+
+  it('a sixth boost forces a lossy drop', () => {
+    let m = start();
+    m = {
+      ...m,
+      boosts: [
+        { id: 'lockdown', tier: 1 },
+        { id: 'closer', tier: 1 },
+        { id: 'deep-rotation', tier: 1 },
+        { id: 'iron-legs', tier: 1 },
+        { id: 'no-easy-buckets', tier: 1 },
+      ],
+      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false },
+    };
+    m = runReducer(m, { type: 'draftBoost', offer: { kind: 'new', defId: 'splash-brothers' } })!;
+    expect(m.phase.kind).toBe('boostDraft');
+    expect(m.phase.kind === 'boostDraft' && m.phase.pendingFull).toBe(true);
+    m = runReducer(m, { type: 'dropBoostForNew', dropIndex: 0 })!;
+    expect(m.boosts).toHaveLength(5);
+    expect(m.boosts.some((b) => b.id === 'splash-brothers')).toBe(true);
+    expect(m.boosts.some((b) => b.id === 'lockdown')).toBe(false); // dropped
+    expect(m.phase.kind).toBe('map');
+  });
+
+  it('a loss still banks coins', () => {
+    const m = start();
+    const lost = runReducer(
+      { ...m, phase: { kind: 'postgame', nodeId: 'n', won: false } },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(lost.core.rewards.coins).toBeGreaterThanOrEqual(10);
+    expect(lost.phase).toEqual({ kind: 'summary', champion: false });
+  });
+
+  it('buying an item equips it and deducts coins', () => {
+    let m = start();
+    m = { ...m, core: { ...m.core, rewards: { ...m.core.rewards, coins: 100 } } };
+    m = {
+      ...m,
+      phase: {
+        kind: 'itemShop',
+        nodeId: 'n',
+        stock: [{ id: 'grip-tape', name: 'Grip Tape', rarity: 'common', blurb: '', effect: { outside: 1 }, cost: 18 }],
+      },
+    };
+    m = runReducer(m, { type: 'buyItem', defId: 'grip-tape', playerIndex: 0 })!;
+    expect(m.core.rewards.coins).toBe(82);
+    expect(m.core.roster.starters[0].item?.defId).toBe('grip-tape');
   });
 });
 
