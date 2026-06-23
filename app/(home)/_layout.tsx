@@ -10,7 +10,6 @@ export default function HomeLayout() {
       }}
     >
       <Stack.Screen name="(home)" />
-      <Stack.Screen name="game" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }

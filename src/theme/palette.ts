@@ -37,17 +37,6 @@ export const palette = {
   energyLow: '#EF5350', // = missRed
   injury: '#E57373', // = missRedLt
 
-  // Card categories (from CardDisplay)
-  offenseBg: '#1B5E20',
-  offenseBorder: '#66BB6A',
-  offenseText: '#E8F5E9',
-  defenseBg: '#4A148C',
-  defenseBorder: '#AB47BC',
-  defenseText: '#F3E5F5',
-  specialBg: '#E65100',
-  specialBorder: '#FF9800',
-  specialText: '#FFF3E0',
-
   // Utility
   gridLine: 'rgba(255,255,255,0.12)',
   scanline: 'rgba(0,0,0,0.18)',

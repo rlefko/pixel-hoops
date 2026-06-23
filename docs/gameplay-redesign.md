@@ -1,10 +1,10 @@
 # Pixel Hoops Redesign: Auto-Sim 5-on-5 Roguelike
 
-This document supersedes the moment-to-moment gameplay described in [game-concept.md](game-concept.md). The roster, meta-progression, difficulty, and arcade-presentation goals there still stand. What changes is the core loop. Read [addictive-blueprint.md](addictive-blueprint.md) first; this is its application to basketball.
+This document details the core gameplay loop, expanding on [game-concept.md](game-concept.md). The roster, meta-progression, difficulty, and arcade-presentation goals there still stand. Read [addictive-blueprint.md](addictive-blueprint.md) first; this is its application to basketball.
 
-## Why we are changing the core loop
+## Why the core loop works this way
 
-The original game is card-driven: the player taps one offensive card per quarter, four decisions per game, and each resolution locks the screen for 1600ms. In practice it feels unintuitive and slow, it does not feel like a 5-on-5, and it is not actually snappy. The diagnosis is that **a card per possession is the wrong altitude of decision**: too sparse to be tactical, too frequent to be snappy.
+The original prototype was card-driven: the player tapped one offensive card per quarter, four decisions per game, and each resolution locked the screen for 1600ms. In practice it felt unintuitive and slow, it did not feel like a 5-on-5, and it was not actually snappy. The diagnosis was that **a card per possession is the wrong altitude of decision**: too sparse to be tactical, too frequent to be snappy. That mechanic has since been removed.
 
 The fix comes from the project's north star, **pokelike.xyz**, a Pokemon roguelike autobattler. In pokelike the combat resolves automatically and all the player's thinking goes into team-building, route choice on a branching map, and type and coverage decisions. The loop is compulsive precisely because the player operates one level up from the action.
 
@@ -53,7 +53,7 @@ Synergies are computed once at game start and surfaced in the pregame screen so 
 
 ## The simulation, briefly
 
-The engine reuses the existing, proven resolution math. For each possession:
+The engine uses transparent, deterministic resolution math (detailed in [stat-and-sim-system.md](stat-and-sim-system.md)). For each possession:
 
 1. Choose an action (three, midrange, drive, dunk, layup, or a defensive event), biased by the offense's focus and stats.
 2. Attribute it to an on-court player by usage weight.
@@ -76,9 +76,9 @@ The run is a Slay-the-Spire-style layered map of nodes the player chooses a path
 
 The playable slice shipped a **minimal linear run** first to prove the loop. The **full branching map, recruitment, lineup building, and a compounding home roster are now implemented** (see "The run loop and home roster" below).
 
-## What happens to cards
+## What happened to cards
 
-Per-possession cards are **retired**, not deleted. The card code stays dormant so nothing breaks and so the legacy mode remains reachable during the transition. The card concept returns later in a better-fitting form: **playbook cards** drafted between games (and spendable at timeouts) that bias the simulation, for example "Run and Gun," "Iso the Star," or "2-3 Zone." This preserves the collectible-card meta, which pairs naturally with recruit and shop nodes, while removing the slow per-possession tapping.
+Per-possession cards are **removed**: the legacy card game and its standalone quick-sim mode have been deleted from the codebase. The card *concept* may return later in a better-fitting form: **playbook cards** drafted between games (and spendable at timeouts) that bias the simulation, for example "Run and Gun," "Iso the Star," or "2-3 Zone." That would be a fresh feature built on the sim, pairing a collectible-card meta with the recruit and shop nodes, with none of the slow per-possession tapping.
 
 ## Presentation: programmatic 8-bit now, art later
 

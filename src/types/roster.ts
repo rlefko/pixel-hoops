@@ -2,8 +2,8 @@ import type { Archetype, Player } from './player';
 
 /**
  * Floor positions for the 5-on-5 model. PG/SG are guards, SF is the wing,
- * PF/C are bigs. The existing card game is a 1v1 stat comparison; the sim
- * pivot deploys five players, one per position, so "5-on-5" is real.
+ * PF/C are bigs. The sim deploys five players, one per position, so "5-on-5"
+ * is real.
  */
 export type Position = 'PG' | 'SG' | 'SF' | 'PF' | 'C';
 

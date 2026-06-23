@@ -1,4 +1,3 @@
-import type { QuarterResult } from './game-state';
 import type { Position } from './roster';
 
 /**
@@ -9,6 +8,18 @@ import type { Position } from './roster';
  * Separating simulation (instant, pure, deterministic) from presentation (timed,
  * juicy) is what makes the new loop both snappy and skippable.
  */
+
+/** Total number of quarters in a basketball game. */
+export const TOTAL_QUARTERS = 4;
+
+/** The visual result of a resolved possession. */
+export type QuarterResult =
+  | 'score'         // Successful offensive play → points scored
+  | 'miss'          // Offensive play failed → no points
+  | 'steal'         // Defensive steal (flips possession momentum)
+  | 'turnover'      // Turnover → offense loses the ball without scoring
+  | 'block'         // Shot blocked → no points, crowd goes wild
+  | 'and-one';      // Successful play plus the foul, carries momentum
 
 /** The kind of play a possession produced. */
 export type SimActionId =
@@ -88,7 +99,7 @@ export interface SimEvent {
   scorerPosition: Position;
   /** The action attempted. */
   action: SimActionId;
-  /** Outcome label (reuses the existing card-game result union). */
+  /** Outcome label for this possession. */
   result: QuarterResult;
   /** Points scored on this possession (0..3). */
   points: number;

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeHotState } from '@/game/streaks';
-import type { SimEvent, SimTeamSide } from '@/types/sim';
-import type { QuarterResult } from '@/types/game-state';
+import type { QuarterResult, SimEvent, SimTeamSide } from '@/types/sim';
 import type { Position } from '@/types/roster';
 
 function ev(

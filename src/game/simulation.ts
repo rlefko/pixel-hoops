@@ -1,5 +1,4 @@
 import type { PlayerStats } from '@/types/player';
-import type { QuarterResult } from '@/types/game-state';
 import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
 import type { Team, TeamStats } from '@/types/team';
 import type { Focus } from '@/types/tactics';
@@ -8,13 +7,14 @@ import type {
   OffActionId,
   OnCourtFive,
   OnCourtSnapshot,
+  QuarterResult,
   SimActionId,
   SimEvent,
   SimResult,
   SimSub,
   SimTeamSide,
 } from '@/types/sim';
-import { TOTAL_QUARTERS } from '@/types/game-state';
+import { TOTAL_QUARTERS } from '@/types/sim';
 import {
   makeProbability,
   missFlavor,

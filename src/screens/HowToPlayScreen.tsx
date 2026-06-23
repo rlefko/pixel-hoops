@@ -9,19 +9,19 @@ import { Text } from '@/components/StyledText';
 const RULES: { title: string; body: string }[] = [
   {
     title: 'THE GOAL',
-    body: 'Win each game by outscoring your opponent over 4 quarters. Win to advance the tournament. Lose and the run ends, but your players carry their progress home.',
+    body: 'Win each game by outscoring your opponent over 4 quarters. Win to advance the bracket. Lose and the run ends, but your players carry their progress home.',
   },
   {
-    title: 'EACH QUARTER',
-    body: 'Tap a card to select it, then tap PLAY. You attack on offense while the opponent defends, then the opponent attacks back and you defend. Both possessions resolve at once.',
+    title: 'BUILD YOUR FIVE',
+    body: 'Set your starting lineup, one player per position. Their ratings and how they fit together decide games, so chase synergies: speedy backcourts, twin towers, lockdown wings.',
   },
   {
-    title: 'CARD TYPES',
-    body: 'Green offense cards score points. Purple defense cards (zone, pressure) blunt the opponent. Orange specials bend the rules: reroll your hand, boost a stat, or carry momentum.',
+    title: 'SET A GAME PLAN',
+    body: 'Before tip-off, pick your pace and focus: push the tempo or slow it down, attack inside or rain threes, lock down on defense. The plan shapes how the sim plays out.',
   },
   {
-    title: 'STATS DECIDE',
-    body: 'Every play compares your stat against the defender\'s counter. Success rate = your stat / (your stat + their stat). Higher relative stats mean bigger odds and bigger payoffs.',
+    title: 'WATCH IT PLAY',
+    body: 'The game auto-sims possession by possession. Watch the play-by-play, then read the box score. Between games, recruit, train, and rest to compound your roster for the next round.',
   },
 ];
 
