@@ -242,6 +242,50 @@ export function dressedRoster(roster: RunState['roster']): RunState['roster'] {
 }
 
 /**
+ * The player's effective home Team for a game: the dressed five plus bench, with
+ * items, legend self-auras, and passive boosts baked in. Shared by the pregame
+ * preview and the game sim so both read the exact same lineup.
+ */
+export function buildHomeTeam(model: RunModel): Team {
+  const dressed = dressedRoster(model.core.roster);
+  return buildTeam(
+    'Your Squad',
+    effectivePlayers(dressed.starters),
+    model.gamePlan,
+    palette.homeTeam,
+    palette.homeTeamAccent,
+    effectivePlayers(dressed.bench),
+    teamModifierFor(dressed.starters, model.boosts)
+  );
+}
+
+/**
+ * The deterministic opponent Team for a combat node. Round and boss status are
+ * derived from the node here so the pregame scouting preview and the simulated
+ * game always build the identical five from the same seed (see the determinism
+ * note on generateOpponentTeam).
+ */
+export function buildOpponentTeam(core: RunState, nodeId: string): Team {
+  const node = core.map.nodes[nodeId];
+  const round = node.round ?? node.layer + 1;
+  const isBoss = node.type === 'boss' || nodeId === core.map.bossNodeId;
+  const opp = generateOpponentTeam(
+    round,
+    createRNG(deriveSeed(core.seed, `opp-${nodeId}`)),
+    { isBoss }
+  );
+  return buildTeam(
+    opp.name,
+    effectivePlayers(opp.roster.starters),
+    planForRoster(opp.roster),
+    opp.colorHex,
+    opp.accentHex,
+    effectivePlayers(opp.roster.bench),
+    teamModifierFor(opp.roster.starters, [])
+  );
+}
+
+/**
  * After a game, recover everyone one game (decrement gamesOut) and roll fresh
  * injuries for the players who dressed. Risk rises with accumulated load and
  * falls with durability. Deterministic from the game's derived seed.
@@ -375,35 +419,8 @@ export function runReducer(
     case 'enterGame': {
       if (model.phase.kind !== 'pregame') return model;
       const nodeId = model.phase.nodeId;
-      const node = model.core.map.nodes[nodeId];
-      const round = node.round ?? node.layer + 1;
-      const isBoss = node.type === 'boss' || nodeId === model.core.map.bossNodeId;
-      const dressed = dressedRoster(model.core.roster);
-      // Bake items + legend self-auras into effective copies; collect the
-      // team-level modifier (boosts + legend auras/hooks + on-loan chemistry).
-      const home = buildTeam(
-        'Your Squad',
-        effectivePlayers(dressed.starters),
-        model.gamePlan,
-        palette.homeTeam,
-        palette.homeTeamAccent,
-        effectivePlayers(dressed.bench),
-        teamModifierFor(dressed.starters, model.boosts)
-      );
-      const opp = generateOpponentTeam(
-        round,
-        createRNG(deriveSeed(model.core.seed, `opp-${nodeId}`)),
-        { isBoss }
-      );
-      const away = buildTeam(
-        opp.name,
-        effectivePlayers(opp.roster.starters),
-        planForRoster(opp.roster),
-        opp.colorHex,
-        opp.accentHex,
-        effectivePlayers(opp.roster.bench),
-        teamModifierFor(opp.roster.starters, [])
-      );
+      const home = buildHomeTeam(model);
+      const away = buildOpponentTeam(model.core, nodeId);
       const result = simulateGame({
         home,
         away,
@@ -412,7 +429,7 @@ export function runReducer(
       return {
         ...model,
         phase: { kind: 'game', nodeId },
-        game: { opponentName: opp.name, result, home, away },
+        game: { opponentName: away.name, result, home, away },
       };
     }
 
