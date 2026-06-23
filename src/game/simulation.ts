@@ -63,8 +63,14 @@ const FORM_RANGE = 1.6;
 const IQ_PULL = 0.6;
 /** Fourth-quarter margin (abs) within which clutch matters. */
 const CLUTCH_MARGIN = 6;
-/** How strongly clutch nudges the success rate in crunch time. */
-const CLUTCH_K = 1.4;
+/**
+ * How strongly a scorer's own clutch nudges their make rate in crunch time.
+ * Deliberately small: the research shows clutch is mostly noise, not a durable
+ * skill, so it is flavor here, paired with a symmetric random term, not a tax.
+ */
+const CLUTCH_K = 0.8;
+/** Symmetric crunch-time make swing (percentage points) independent of clutch. */
+const CLUTCH_NOISE = 3;
 const SECONDS_PER_QUARTER = 720;
 
 // --- Fatigue + rotation tunables ---
@@ -487,8 +493,14 @@ export function simulateGame(config: SimConfig): SimResult {
     let defRating = ACTION_DEF[action](defense.aggregate);
     if (defense.team.tactic.focus === 'lockdown') defRating += LOCKDOWN_BONUS;
 
+    // Crunch: the scorer's own clutch gives a small nudge, plus symmetric noise
+    // so it never becomes a deterministic edge (clutch is mostly luck in reality).
     const crunch = quarter === TOTAL_QUARTERS && Math.abs(margin) <= CLUTCH_MARGIN;
-    const clutchDelta = crunch ? ((offense.aggregate.clutch - 5) * CLUTCH_K) / 100 : 0;
+    let clutchDelta = 0;
+    if (crunch) {
+      const noise = (rng.next() - 0.5) * (CLUTCH_NOISE / 100);
+      clutchDelta = ((scorer.rp.player.stats.clutch - 5) * CLUTCH_K) / 100 + noise;
+    }
     const fatigueMult = fatigueMultiplier(scorer.energy, SHOT_PROFILE[action].resilient);
 
     const makeP = makeProbability({
@@ -510,7 +522,7 @@ export function simulateGame(config: SimConfig): SimResult {
       result = 'score';
       if (
         SHOT_PROFILE[action].finish &&
-        rng.chance(0.12 + Math.max(0, offense.aggregate.clutch - 5) * 0.02)
+        rng.chance(0.12 + Math.max(0, scorer.rp.player.stats.clutch - 5) * 0.01)
       ) {
         result = 'and-one';
         points += 1;
