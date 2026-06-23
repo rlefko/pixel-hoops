@@ -59,17 +59,41 @@ players on the court, and real teams. Detailed in
   player pool (`src/game/player-pool.ts`), and a dev fetch script
   (`scripts/fetch-nba.ts`) that reads the API key from the environment.
 
+## PR6: Reward systems and legendary players
+
+The dopamine pass: makes getting a real player feel like a jackpot and gives
+coins a permanent purpose. Built on a small declarative effect/modifier spine
+(`src/game/effects.ts`, `apply-effects.ts`) that funnels per-player and team
+bonuses through the existing `buildTeam` -> `computeTeamStats` path, so the sim
+stays deterministic and a no-effect game resolves identically to before.
+
+- **Legendary real players.** The 24 baked NBA greats are re-rated in the full
+  ten-stat model, each with a signature ability (`src/game/abilities.ts`) and a
+  gold-glow nameplate. They appear on opponents only on their real franchise;
+  bosses can field a guest all-time legend in the later rounds. You can recruit
+  one mid-run (rare, gated, once per run with soft pity) but it is on loan and
+  never kept, with a staged jackpot reveal.
+- **Coin economy + Locker Room.** Coins scale with round and dominance, are kept
+  on a loss, and buy permanent +1 stat upgrades between runs with a rising
+  per-tier cost (`src/game/upgrades.ts`, the `LockerRoomScreen`).
+- **Items.** Run-scoped equippable gear (max one per player), rarity-banded with
+  a boss-relic tier that trades a downside for a big upside, from the shop and
+  elite/boss drops (`src/game/items.ts`).
+- **Passive boosts.** A 1-of-3 draft at the start of each round, max five
+  equipped with a forced lossy drop when full, no duplicates, family-gated
+  capstones (`src/game/boosts.ts`).
+
 ## Phase 3 and beyond
 
 Sequenced roughly by player impact.
 
 1. **Playbook cards.** Reintroduce cards as a between-games draft that biases the sim, a fresh feature in place of the removed per-possession cards. Pairs with shop and recruit nodes.
-2. **Equipment + shop economy.** Spend coins/reputation on gear that modifies a player's contribution to the lineup's effective stats.
+2. **Equipment + shop economy.** _Done (PR6):_ run-scoped items, the item shop, a coin economy, and permanent stat upgrades shipped. Still ahead: permanent (home-roster) gear and a coin-fed gacha for permanently-ownable legendaries.
 3. **Crunch-time decisions.** Pause the replay at a close Q4 boundary for one high-leverage tactical call, then resume. The engine already supports this hook.
 4. **Defeated-opponent recruiting + resume-in-progress-run.** Recruit a player from a beaten team; save/resume an interrupted run.
 5. **Audio and SFX.** Chiptune per arena, downsampled arcade callouts, and event sound effects synced to the existing haptics.
 6. **Sprite art and particles.** Particle bursts, ball flight, rim/net ripple, the pokelike map redesign, team secondary colors, and opponent-themed courts shipped in PR6 (see visual-and-data.md). Still ahead: hand-drawn players and court (beyond the procedural sprites), a reactive crowd, and multi-frame dunk and block animations.
-7. **Deeper synergies and archetypes.** Expand the synergy rules and signature abilities described in the concept doc.
+7. **Deeper synergies and archetypes.** Expand the synergy rules and signature abilities described in the concept doc. _In progress (PR6):_ legendary signature abilities landed; more synergy rules and non-legendary abilities are still ahead.
 8. **Retire the legacy modes** (card game, quick sim). _Done:_ both have been removed now that the run mode is the default, leaving the run as the single game mode.
 
 ## Working agreement
