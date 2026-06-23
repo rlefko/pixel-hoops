@@ -28,6 +28,12 @@ const BLOCK_BASE = 1.1;
 const JUMPER_BLOCK_BASE = 0.24;
 /** Turnover/steal frequency on rim attacks (perimeter D vs playmaking). */
 const TURNOVER_BASE = 1.0;
+/** Make multiplier when a shooter is fully gassed (non-resilient shots). */
+const MIN_FATIGUE_MULT = 0.8;
+/** Make multiplier floor for spot-up threes (they resist fatigue until severe). */
+const RESILIENT_FATIGUE_FLOOR = 0.9;
+/** Curvature of the fatigue penalty (lower = penalty bites sooner). */
+const FATIGUE_CURVE = 0.7;
 
 /** Per-action make profile: base rate, points, contact finish, 3P resilience. */
 export interface ShotProfile {
@@ -114,6 +120,18 @@ export function makeProbability(args: MakeArgs): number {
 /** Expected points of an action's make probability (for IQ shot selection). */
 export function expectedValue(action: OffActionId, makeP: number): number {
   return makeP * SHOT_PROFILE[action].points;
+}
+
+/**
+ * Multiplicative make penalty from fatigue (1 = fresh). Threes are resilient:
+ * a tired shooter keeps deep range until truly spent, while finishing falls off
+ * sooner. Matches the sports-science finding that spot-up accuracy resists
+ * moderate fatigue more than contested interior shots.
+ */
+export function fatigueMultiplier(energy: number, resilient: boolean): number {
+  const e = clampNum(energy / 100, 0, 1);
+  const floor = resilient ? RESILIENT_FATIGUE_FLOOR : MIN_FATIGUE_MULT;
+  return floor + (1 - floor) * Math.pow(e, FATIGUE_CURVE);
 }
 
 export type MissFlavor = 'block' | 'steal' | 'turnover' | 'miss';

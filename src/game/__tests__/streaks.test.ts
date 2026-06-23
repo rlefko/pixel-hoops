@@ -26,6 +26,10 @@ function ev(
     successRate: 50,
     isBigPlay: false,
     text: '',
+    onCourt: {
+      home: { PG: '', SG: '', SF: '', PF: '', C: '' },
+      away: { PG: '', SG: '', SF: '', PF: '', C: '' },
+    },
   };
 }
 

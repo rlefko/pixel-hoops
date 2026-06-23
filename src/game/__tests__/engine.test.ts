@@ -6,8 +6,20 @@ import { simulateGame, actionWeights } from '@/game/simulation';
 import type { TeamStats } from '@/types/team';
 import { generateRunMap, getReachableNodes } from '@/game/run-map';
 import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
-import type { Roster } from '@/types/roster';
+import { POSITIONS, POSITION_ARCHETYPE, type Roster, type RosterPlayer } from '@/types/roster';
+import { createPlayer } from '@/types/player';
 import type { Team } from '@/types/team';
+
+/** Build N procedural bench players (cycling positions) for rotation tests. */
+function makeBench(count: number, seed: string): RosterPlayer[] {
+  return Array.from({ length: count }, (_, i) => {
+    const position = POSITIONS[i % POSITIONS.length];
+    return {
+      player: createPlayer(`Bench${i}`, POSITION_ARCHETYPE[position], createRNG(`${seed}-${i}`).int),
+      position,
+    };
+  });
+}
 
 function teamFromRoster(name: string, roster: Roster, plan: GamePlan = DEFAULT_GAME_PLAN): Team {
   return buildTeam(name, roster.starters, plan, '#FFD54F', '#1D428A');
@@ -177,6 +189,60 @@ describe('simulateGame integrity', () => {
     const dumb = share(3);
     expect(smart.mid).toBeLessThan(dumb.mid); // shuns the contested long two
     expect(smart.good).toBeGreaterThan(dumb.good); // leans rim + three
+  });
+});
+
+describe('fatigue, rotation, and box score', () => {
+  const starters = buildStartingRoster(createRNG('rot')).starters;
+  const deep = (): Team =>
+    buildTeam('Deep', starters, DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(5, 'bench'));
+  const thin = (): Team => buildTeam('Thin', starters, DEFAULT_GAME_PLAN, '#fff', '#000', []);
+
+  it('subs in fresh legs with a bench, never without one', () => {
+    const withBench = simulateGame({ home: deep(), away: thin(), seed: 'subs-1' });
+    const subTotal = withBench.events.reduce((n, e) => n + (e.subs?.length ?? 0), 0);
+    expect(subTotal).toBeGreaterThan(0);
+
+    const benchless = simulateGame({ home: thin(), away: thin(), seed: 'subs-2' });
+    expect(benchless.events.some((e) => e.subs && e.subs.length > 0)).toBe(false);
+  });
+
+  it('keeps energy in [0,100] and minutes summing to a full game', () => {
+    const r = simulateGame({ home: deep(), away: thin(), seed: 'energy' });
+    for (const line of [...r.box.home, ...r.box.away]) {
+      expect(line.energy).toBeGreaterThanOrEqual(0);
+      expect(line.energy).toBeLessThanOrEqual(100);
+    }
+    const homeSeconds = r.box.home.reduce((s, b) => s + b.seconds, 0);
+    const awaySeconds = r.box.away.reduce((s, b) => s + b.seconds, 0);
+    // Five on the floor across four 12-minute quarters: 5 * 4 * 720 seconds.
+    expect(homeSeconds).toBeCloseTo(4 * 5 * 720, 0);
+    expect(awaySeconds).toBeCloseTo(4 * 5 * 720, 0);
+  });
+
+  it('reconciles box-score points with the final score', () => {
+    const r = simulateGame({ home: deep(), away: thin(), seed: 'pts' });
+    expect(r.box.home.reduce((s, b) => s + b.pts, 0)).toBe(r.finalHome);
+    expect(r.box.away.reduce((s, b) => s + b.pts, 0)).toBe(r.finalAway);
+  });
+
+  it('lets a deep bench outlast an identical five-man team', () => {
+    // Modest by design (fatigue is real but not dominant): the deep team wins a
+    // majority across both orientations. Bench players are equal-quality fresh
+    // legs, so the edge is fresher Q4 legs, not raw talent.
+    let deepWins = 0;
+    const games = 100;
+    for (let s = 0; s < games; s++) {
+      if (simulateGame({ home: deep(), away: thin(), seed: `dw-${s}` }).winner === 'home') deepWins += 1;
+      if (simulateGame({ home: thin(), away: deep(), seed: `dw-${s}` }).winner === 'away') deepWins += 1;
+    }
+    expect(deepWins).toBeGreaterThan(games); // > 50% of 2*games
+  });
+
+  it('produces an identical box score for the same seed', () => {
+    const a = simulateGame({ home: deep(), away: thin(), seed: 'det-box' });
+    const b = simulateGame({ home: deep(), away: thin(), seed: 'det-box' });
+    expect(a.box).toEqual(b.box);
   });
 });
 
