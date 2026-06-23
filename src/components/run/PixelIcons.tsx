@@ -4,7 +4,7 @@ import type { MapNodeType } from '@/types/run-map';
 
 /**
  * Tiny 8-bit icons drawn with plain Views (no assets), matching the procedural
- * style of PixelCourt / PixelPlayer. One per run-map node type plus the two
+ * style of PixelPlayer. One per run-map node type plus the two
  * resource glyphs (coin, star). Each takes a square `size` and a `color`.
  */
 

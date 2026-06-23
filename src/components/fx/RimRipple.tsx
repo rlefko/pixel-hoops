@@ -13,7 +13,7 @@ import { palette } from '@/theme';
 import { isMadeShot, type SimEvent } from '@/types/sim';
 
 /**
- * A made-basket flourish at the rim: the permanent net (drawn in PixelCourt)
+ * A made-basket flourish at the rim: the permanent net (drawn in SvgCourt)
  * snaps down and settles as the ball drops through, plus a faint accent ring.
  * Driven by the landed event and the measured court size; fires only on makes,
  * at the rim the scoring side attacks, draping the correct direction per hoop.
