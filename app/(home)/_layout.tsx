@@ -9,7 +9,8 @@ export default function HomeLayout() {
         contentStyle: { backgroundColor: palette.bgDeep },
       }}
     >
-      <Stack.Screen name="(home)" />
+      <Stack.Screen name="index" />
+      <Stack.Screen name="locker" />
     </Stack>
   );
 }
