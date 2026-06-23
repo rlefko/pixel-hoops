@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Pixel Hoops is an 8-bit basketball roguelike built with React Native (Expo v56) and TypeScript. You build a roster of pixel players, set your lineup and game plan, then watch a fast auto-sim of each game play out -- strategy over reflexes or timing. Full concept details in [docs/game-concept.md](docs/game-concept.md). Target platforms: iOS and Android.
+Pixel Hoops is an 8-bit basketball roguelike built with React Native (Expo v54) and TypeScript. You build a roster of pixel players, set your lineup and game plan, then watch a fast auto-sim of each game play out -- strategy over reflexes or timing. Full concept details in [docs/game-concept.md](docs/game-concept.md). Target platforms: iOS and Android.
 
 ## Git Workflow
 
