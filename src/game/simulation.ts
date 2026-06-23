@@ -1,20 +1,31 @@
-import type { PlayerStats } from '@/types/player';
 import type { QuarterResult } from '@/types/game-state';
 import { POSITIONS } from '@/types/roster';
 import type { Team } from '@/types/team';
 import type { Focus } from '@/types/tactics';
-import type { SimActionId, SimEvent, SimResult, SimTeamSide } from '@/types/sim';
+import type {
+  OffActionId,
+  SimActionId,
+  SimEvent,
+  SimResult,
+  SimTeamSide,
+} from '@/types/sim';
 import { TOTAL_QUARTERS } from '@/types/game-state';
-import { calculateSuccessRate } from './resolution';
+import {
+  makeProbability,
+  missFlavor,
+  ACTION_OFF,
+  ACTION_DEF,
+  SHOT_PROFILE,
+} from './sim-resolution';
 import { pickRiskPosture, type RiskPosture } from './ai';
 import { createRNG, type RNG } from './rng';
 
 /**
  * The auto-sim engine. Plays a full game possession-by-possession and returns a
- * deterministic timeline the UI replays with juice. Reuses the card game's
- * success formula (calculateSuccessRate) and risk heuristic (pickRiskPosture),
- * but is driven by five-player team stat lines and a game plan instead of a hand
- * of cards. Same seed always yields the same SimResult.
+ * deterministic timeline the UI replays with juice. Make probability and the
+ * one-on-one contests live in sim-resolution.ts; this file owns pacing, shot
+ * selection, the per-game form factor, fatigue/rotation, and the event stream.
+ * Same seed always yields the same SimResult.
  */
 
 // --- Tunables (kept here so score realism is easy to adjust) ---
@@ -27,6 +38,13 @@ const MIN_POSSESSIONS = 8;
 const MAX_POSSESSIONS = 18;
 /** A lockdown game plan adds this to the opponent's defensive counter stat. */
 const LOCKDOWN_BONUS = 1.5;
+/**
+ * Per-game shooting "form": each team draws a hot/cold offset (in rating points)
+ * once per game that lifts or drops their offense all night. Independent
+ * per-shot luck washes out over ~60 possessions, so this correlated factor is
+ * what keeps upsets alive: a cold favorite can drop one to a hot underdog.
+ */
+const FORM_RANGE = 1.6;
 /** Fourth-quarter margin (abs) within which clutch matters. */
 const CLUTCH_MARGIN = 6;
 /** How strongly clutch nudges the success rate in crunch time. */
@@ -35,51 +53,16 @@ const SECONDS_PER_QUARTER = 720;
 
 // --- Action tables (analogous to card.ts's CARD_STAT_MAP) ---
 
-// Only these five are ever chosen as a possession's action. The defensive ids
-// (steal/block/rebound) appear in the maps below for type completeness over
-// SimActionId; they surface as outcome labels, not chosen actions.
-const OFFENSIVE_ACTIONS: readonly SimActionId[] = [
+// Only these five are ever chosen as a possession's action. The matchup ratings
+// and per-action make profiles live in sim-resolution.ts (ACTION_OFF/ACTION_DEF
+// and SHOT_PROFILE).
+const OFFENSIVE_ACTIONS: readonly OffActionId[] = [
   'three',
   'midrange',
   'drive',
   'layup',
   'dunk',
 ];
-
-const ACTION_POINTS: Record<SimActionId, number> = {
-  three: 3,
-  midrange: 2,
-  drive: 2,
-  layup: 2,
-  dunk: 2,
-  steal: 0,
-  block: 0,
-  rebound: 0,
-};
-
-/** Which offensive rating drives each action. */
-const ACTION_STAT: Record<SimActionId, keyof PlayerStats> = {
-  three: 'outside',
-  midrange: 'outside',
-  drive: 'playmaking',
-  layup: 'inside',
-  dunk: 'inside',
-  steal: 'perimeterD',
-  block: 'interiorD',
-  rebound: 'interiorD',
-};
-
-/** Which defensive rating contests each action (perimeter vs interior split). */
-const ACTION_COUNTER: Record<SimActionId, keyof PlayerStats> = {
-  three: 'perimeterD',
-  midrange: 'perimeterD',
-  drive: 'perimeterD',
-  layup: 'interiorD',
-  dunk: 'interiorD',
-  steal: 'perimeterD',
-  block: 'interiorD',
-  rebound: 'interiorD',
-};
 
 // --- Future crunch-time decision hook (designed-in, dormant for now) ---
 
@@ -106,7 +89,7 @@ export interface SimConfig {
 // --- Action selection ---
 
 /** Weighted offensive action choice, biased by focus and risk posture. */
-function actionWeights(focus: Focus, posture: RiskPosture): [SimActionId, number][] {
+function actionWeights(focus: Focus, posture: RiskPosture): [OffActionId, number][] {
   const w: Record<SimActionId, number> = {
     three: 3,
     midrange: 3,
@@ -152,21 +135,6 @@ function actionWeights(focus: Focus, posture: RiskPosture): [SimActionId, number
   }
 
   return OFFENSIVE_ACTIONS.map((a) => [a, Math.max(0.25, w[a])]);
-}
-
-/** How a missed attempt reads, based on the action and a roll. */
-function missResult(action: SimActionId, rng: RNG): QuarterResult {
-  switch (action) {
-    case 'dunk':
-    case 'layup':
-      return rng.chance(0.6) ? 'block' : 'miss';
-    case 'drive':
-      if (rng.chance(0.35)) return 'turnover';
-      if (rng.chance(0.3)) return 'steal';
-      return 'miss';
-    default:
-      return rng.chance(0.12) ? 'block' : 'miss';
-  }
 }
 
 // --- Play-by-play text ---
@@ -236,6 +204,10 @@ export function simulateGame(config: SimConfig): SimResult {
   let seq = 0;
   let homeFocusOverride: Focus | null = null;
 
+  // Each team's hot/cold shooting night (drawn once, applied to offense all game).
+  const homeForm = (rng.next() - 0.5) * 2 * FORM_RANGE;
+  const awayForm = (rng.next() - 0.5) * 2 * FORM_RANGE;
+
   const sideTeam = (side: SimTeamSide): Team =>
     side === 'home' ? config.home : config.away;
 
@@ -260,23 +232,11 @@ export function simulateGame(config: SimConfig): SimResult {
 
     const action = rng.weightedPick(actionWeights(focus, posture));
 
-    const yourStat = offense.teamStats[ACTION_STAT[action]];
-    let counterStat = defense.teamStats[ACTION_COUNTER[action]];
-    if (defense.tactic.focus === 'lockdown') counterStat += LOCKDOWN_BONUS;
-
-    let successRate = calculateSuccessRate(yourStat, counterStat);
-
-    const crunch = quarter === TOTAL_QUARTERS && Math.abs(margin) <= CLUTCH_MARGIN;
-    if (crunch) {
-      successRate += (offense.teamStats.clutch - 5) * CLUTCH_K;
-      successRate = Math.max(3, Math.min(97, successRate));
-    }
-
-    const succeeded = rng.rollPercent(successRate);
-
     // Pick the scorer by lineup INDEX so the event carries their court slot
     // (POSITIONS[index]), not their intrinsic position. This keeps the active
-    // sprite unambiguous even when two players share a real position.
+    // sprite unambiguous even when two players share a real position, and is
+    // chosen before the make roll so a future per-scorer clutch/fatigue read
+    // can feed the probability.
     const scorerIndex = rng.weightedPick(
       offense.lineup.players.map(
         (_, i): [number, number] => [i, offense.lineup.usageWeights[i]]
@@ -284,20 +244,41 @@ export function simulateGame(config: SimConfig): SimResult {
     );
     const scorer = offense.lineup.players[scorerIndex];
 
+    const form = offenseSide === 'home' ? homeForm : awayForm;
+    const offRating = ACTION_OFF[action](offense.teamStats) + form;
+    let defRating = ACTION_DEF[action](defense.teamStats);
+    if (defense.tactic.focus === 'lockdown') defRating += LOCKDOWN_BONUS;
+
+    const crunch = quarter === TOTAL_QUARTERS && Math.abs(margin) <= CLUTCH_MARGIN;
+    // Crunch nudge in make-probability space (0..1). Small by design.
+    const clutchDelta = crunch ? ((offense.teamStats.clutch - 5) * CLUTCH_K) / 100 : 0;
+
+    const makeP = makeProbability({
+      action,
+      offRating,
+      defRating,
+      iq: offense.teamStats.iq,
+      clutchDelta,
+    });
+    const successRate = Math.round(makeP * 1000) / 10;
+    const succeeded = rng.chance(makeP);
+
     let points = 0;
     let result: QuarterResult;
 
     if (succeeded) {
-      points = ACTION_POINTS[action];
+      points = SHOT_PROFILE[action].points;
       result = 'score';
-      // Contact finishes can draw the foul for an and-one.
-      const finish = action === 'dunk' || action === 'layup' || action === 'drive';
-      if (finish && rng.chance(0.12 + Math.max(0, offense.teamStats.clutch - 5) * 0.02)) {
+      // Contact finishes (drive/layup/dunk) can draw the foul for an and-one.
+      if (
+        SHOT_PROFILE[action].finish &&
+        rng.chance(0.12 + Math.max(0, offense.teamStats.clutch - 5) * 0.02)
+      ) {
         result = 'and-one';
         points += 1;
       }
     } else {
-      result = missResult(action, rng);
+      result = missFlavor(action, offense.teamStats, defense.teamStats, rng);
     }
 
     if (offenseSide === 'home') homeScore += points;
@@ -320,7 +301,7 @@ export function simulateGame(config: SimConfig): SimResult {
       points,
       homeScore,
       awayScore,
-      successRate: Math.round(successRate * 10) / 10,
+      successRate,
       isBigPlay,
       callout: calloutFor(action, result),
       text: textFor(scorer.player.name, action, result),

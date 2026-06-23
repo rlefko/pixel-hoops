@@ -21,6 +21,9 @@ export type SimActionId =
   | 'block'
   | 'rebound';
 
+/** The five offensive actions a possession can choose (a shot is always taken). */
+export type OffActionId = 'three' | 'midrange' | 'drive' | 'layup' | 'dunk';
+
 /** home = the player's team, away = the opponent. */
 export type SimTeamSide = 'home' | 'away';
 
