@@ -3,9 +3,14 @@ import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { POSITION_COLOR } from '@/components/game/LineupBoard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import type { Roster, RosterPlayer } from '@/types/roster';
+import { POSITIONS, type Position, type Roster, type RosterPlayer } from '@/types/roster';
 
-/** Build your starting five from the whole roster (starters + bench). Any five allowed. */
+/**
+ * Set your starting five and assign each player to a court slot (PG/SG/SF/PF/C).
+ * The slot is where they line up; the player keeps their real position (its badge
+ * is unchanged), so a Center can run the point. Tap two players to swap their
+ * spots; the five starters end up in slot order (index 0 = PG slot ... 4 = C).
+ */
 
 const LINEUP_SIZE = 5;
 
@@ -15,89 +20,122 @@ interface LineupBuilderViewProps {
   onCancel: () => void;
 }
 
+type Cell = { zone: 'slot' | 'bench'; index: number };
+
+const sameCell = (a: Cell | null, b: Cell) =>
+  a != null && a.zone === b.zone && a.index === b.index;
+
 export function LineupBuilderView({
   roster,
   onConfirm,
   onCancel,
 }: LineupBuilderViewProps) {
+  // Seed the five slots from the whole pool so there are always five starters,
+  // even if the incoming roster split is uneven.
   const pool = [...roster.starters, ...roster.bench];
-  // The current starters are the first five in the pool.
-  const [selected, setSelected] = useState<number[]>(() =>
-    pool.slice(0, LINEUP_SIZE).map((_, i) => i)
+  const [starters, setStarters] = useState<RosterPlayer[]>(() =>
+    pool.slice(0, LINEUP_SIZE)
   );
+  const [bench, setBench] = useState<RosterPlayer[]>(() => pool.slice(LINEUP_SIZE));
+  const [picked, setPicked] = useState<Cell | null>(null);
 
-  const toggle = (i: number) => {
-    setSelected((sel) => {
-      if (sel.includes(i)) return sel.filter((x) => x !== i);
-      return sel.length < LINEUP_SIZE ? [...sel, i] : sel;
-    });
-  };
+  const playerAt = (c: Cell) => (c.zone === 'slot' ? starters : bench)[c.index];
 
-  const ready = selected.length === LINEUP_SIZE;
-  const confirm = () => {
-    if (!ready) return;
-    const starters = selected.map((i) => pool[i]);
-    const bench = pool.filter((_, i) => !selected.includes(i));
-    onConfirm(starters, bench);
+  const tap = (cell: Cell) => {
+    if (!picked) {
+      setPicked(cell);
+      return;
+    }
+    if (sameCell(picked, cell)) {
+      setPicked(null);
+      return;
+    }
+    // Swap the two cells (slot<->slot reorders, slot<->bench substitutes).
+    const a = picked;
+    const pa = playerAt(a);
+    const pb = playerAt(cell);
+    const nextStarters = [...starters];
+    const nextBench = [...bench];
+    const put = (c: Cell, p: RosterPlayer) => {
+      if (c.zone === 'slot') nextStarters[c.index] = p;
+      else nextBench[c.index] = p;
+    };
+    put(a, pb);
+    put(cell, pa);
+    setStarters(nextStarters);
+    setBench(nextBench);
+    setPicked(null);
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>SET YOUR FIVE</Text>
-      <Text style={styles.subtitle}>
-        {selected.length}/{LINEUP_SIZE} selected
-      </Text>
+      <Text style={styles.subtitle}>Tap two players to swap their spots</Text>
 
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-      >
-        {pool.map((rp, i) => {
-          const on = selected.includes(i);
-          return (
-            <Pressable
-              key={i}
-              onPress={() => toggle(i)}
-              style={[styles.row, on && styles.rowOn]}
-            >
-              <View
-                style={[
-                  styles.posChip,
-                  { borderColor: POSITION_COLOR[rp.position] },
-                ]}
-              >
-                <Text
-                  style={[styles.pos, { color: POSITION_COLOR[rp.position] }]}
-                >
-                  {rp.position}
-                </Text>
-              </View>
-              <Text style={styles.name} numberOfLines={1}>
-                {rp.player.name}
-              </Text>
-              <Text style={styles.stats}>
-                SH{rp.player.stats.shooting} SP{rp.player.stats.speed} AT
-                {rp.player.stats.athleticism}
-              </Text>
-              <Text style={[styles.check, on && styles.checkOn]}>
-                {on ? '★' : '·'}
-              </Text>
-            </Pressable>
-          );
-        })}
+      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+        <Text style={styles.sectionLabel}>STARTERS</Text>
+        {starters.map((rp, i) => (
+          <PlayerRow
+            key={`slot-${i}`}
+            slot={POSITIONS[i]}
+            rp={rp}
+            picked={sameCell(picked, { zone: 'slot', index: i })}
+            onPress={() => tap({ zone: 'slot', index: i })}
+          />
+        ))}
+        {bench.length > 0 ? (
+          <Text style={styles.sectionLabel}>BENCH</Text>
+        ) : null}
+        {bench.map((rp, i) => (
+          <PlayerRow
+            key={`bench-${i}`}
+            rp={rp}
+            picked={sameCell(picked, { zone: 'bench', index: i })}
+            onPress={() => tap({ zone: 'bench', index: i })}
+          />
+        ))}
       </ScrollView>
 
-      <Pressable
-        disabled={!ready}
-        onPress={confirm}
-        style={[styles.confirm, !ready && styles.disabled]}
-      >
+      <Pressable onPress={() => onConfirm(starters, bench)} style={styles.confirm}>
         <Text style={styles.confirmText}>CONFIRM</Text>
       </Pressable>
       <Pressable onPress={onCancel}>
         <Text style={styles.cancel}>Cancel</Text>
       </Pressable>
     </View>
+  );
+}
+
+function PlayerRow({
+  slot,
+  rp,
+  picked,
+  onPress,
+}: {
+  /** The court slot label, for a starter row; omitted for bench rows. */
+  slot?: Position;
+  rp: RosterPlayer;
+  picked: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={[styles.row, picked && styles.rowPicked]}>
+      <View style={styles.slotChip}>
+        {slot ? <Text style={styles.slot}>{slot}</Text> : null}
+      </View>
+      <View style={[styles.posChip, { borderColor: POSITION_COLOR[rp.position] }]}>
+        <Text style={[styles.pos, { color: POSITION_COLOR[rp.position] }]}>
+          {rp.position}
+        </Text>
+      </View>
+      <Text style={styles.name} numberOfLines={1}>
+        {rp.player.name}
+      </Text>
+      <Text style={styles.stats}>
+        SH{rp.player.stats.shooting} SP{rp.player.stats.speed} AT
+        {rp.player.stats.athleticism}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -123,6 +161,13 @@ const styles = StyleSheet.create({
   },
   list: { marginTop: space(4), alignSelf: 'stretch' },
   listContent: { gap: space(1) },
+  sectionLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+    marginTop: space(2),
+    marginBottom: space(1),
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -131,7 +176,17 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     borderRadius: RADIUS.chip,
   },
-  rowOn: { borderColor: palette.gold, backgroundColor: palette.gold + '14' },
+  rowPicked: { borderColor: palette.gold, backgroundColor: palette.gold + '14' },
+  slotChip: {
+    width: 30,
+    alignItems: 'center',
+    marginRight: space(1),
+  },
+  slot: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.ink,
+  },
   posChip: {
     width: 34,
     paddingVertical: space(0.5),
@@ -151,16 +206,7 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
     color: palette.inkDim,
-    marginRight: space(2),
   },
-  check: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.body,
-    color: palette.inkDim,
-    width: 18,
-    textAlign: 'center',
-  },
-  checkOn: { color: palette.gold },
   confirm: {
     marginTop: space(4),
     paddingVertical: space(3),
@@ -170,7 +216,6 @@ const styles = StyleSheet.create({
     backgroundColor: palette.gold + '1A',
     alignItems: 'center',
   },
-  disabled: { opacity: 0.4 },
   confirmText: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.body,
