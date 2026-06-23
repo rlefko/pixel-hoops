@@ -37,6 +37,12 @@ export interface Lineup {
 export interface TeamStats extends PlayerStats {
   /** Derived possessions-per-quarter driver. */
   pace: number;
+  /** Offensive composite of the on-court five (for display/AI). */
+  off: number;
+  /** Defensive composite of the on-court five. */
+  def: number;
+  /** Overall composite of the on-court five. */
+  ovr: number;
 }
 
 /** Everything the sim needs to play one side of a game. */
@@ -46,6 +52,8 @@ export interface Team {
   tactic: GamePlan;
   synergy: SynergyResult;
   teamStats: TeamStats;
+  /** Bench players (beyond the starting five) available for in-game rotation. */
+  bench: RosterPlayer[];
   /** Primary team color for juice / UI (a palette entry or franchise primary). */
   colorHex: string;
   /** Secondary/accent color: jersey trim, court lines, and score-bug accents. */

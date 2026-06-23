@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { POSITION_COLOR } from '@/components/game/LineupBoard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
+import { ovr, off, def } from '@/game/ratings';
 import { POSITIONS, type Position, type Roster, type RosterPlayer } from '@/types/roster';
 
 /**
@@ -132,8 +133,8 @@ function PlayerRow({
         {rp.player.name}
       </Text>
       <Text style={styles.stats}>
-        SH{rp.player.stats.shooting} SP{rp.player.stats.speed} AT
-        {rp.player.stats.athleticism}
+        OVR{ovr(rp.player.stats, rp.position)} O{off(rp.player.stats)} D
+        {def(rp.player.stats)}
       </Text>
     </Pressable>
   );

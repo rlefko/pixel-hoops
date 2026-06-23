@@ -6,17 +6,68 @@ export type Archetype =
   | 'power-forward'
   | 'center';
 
-/** Core stats range: 3 (worst) to 10 (elite). Base is 5 across all. */
+/**
+ * Core ratings, all on the 3 (worst) to 10 (elite) scale, base 5. Ten ratings
+ * split offense and defense the way real basketball does and add the intangibles
+ * accurate sims model (IQ, stamina, durability). The UI keeps this approachable
+ * by showing derived composites (OFF/DEF/ATH) and one OVR on the surface, with
+ * the full breakdown one tap away (see src/game/ratings.ts).
+ */
 export interface PlayerStats {
-  /** Shooting percentage — determines shot accuracy. */
-  shooting: number;
-  /** Speed — determines crossover and pressure effectiveness. */
-  speed: number;
-  /** Athleticism — determines dunking and rim protection. */
+  /** Rim finishing: layups, dunks, post scoring. */
+  inside: number;
+  /** Jump shooting: midrange and three. */
+  outside: number;
+  /** Ball handling and passing: drives, assists, ball security. */
+  playmaking: number;
+  /** Perimeter defense: contests jumpers and drives, forces steals. */
+  perimeterD: number;
+  /** Interior defense: rim protection, blocks, defensive rebounding. */
+  interiorD: number;
+  /** Speed, quickness, vertical: pace, transition, finishing burst. */
   athleticism: number;
-  /** Clutch — determines performance in close-game situations. */
+  /** Basketball IQ: shot selection quality and turnover avoidance. */
+  iq: number;
+  /** Clutch: a small crunch-time nudge in close fourth quarters. */
   clutch: number;
+  /** Stamina: fatigue pool size and how slowly energy drains. */
+  stamina: number;
+  /** Durability: resistance to injury from accumulated load. */
+  durability: number;
 }
+
+/**
+ * Every rating key, in a fixed order. Generation iterates this so seeded RNG
+ * draws are stable: reordering would silently change every generated player.
+ */
+export const STAT_KEYS: readonly (keyof PlayerStats)[] = [
+  'inside',
+  'outside',
+  'playmaking',
+  'perimeterD',
+  'interiorD',
+  'athleticism',
+  'iq',
+  'clutch',
+  'stamina',
+  'durability',
+];
+
+/**
+ * The eight skill ratings (everything except the two condition ratings). Round
+ * scaling and training touch these; stamina/durability are game-state, not a
+ * difficulty tier, so they are left out of round scaling.
+ */
+export const SKILL_STAT_KEYS: readonly (keyof PlayerStats)[] = [
+  'inside',
+  'outside',
+  'playmaking',
+  'perimeterD',
+  'interiorD',
+  'athleticism',
+  'iq',
+  'clutch',
+];
 
 /** A roster player with stats, archetype, and progression data. */
 export interface Player {
@@ -39,89 +90,92 @@ function clampStat(value: number): number {
 }
 
 /**
+ * Per-archetype rating biases as [min, max] deltas applied over the base of 5.
+ * Guards lean playmaking/perimeter/outside, wings are balanced, bigs lean
+ * inside/interior. Bigs carry a slightly lower stamina (heavier minute load).
+ * Condition ratings (stamina/durability) stay near 5 so they do not dominate
+ * early balance and instead matter through fatigue and injury later.
+ */
+const ARCHETYPE_BIASES: Record<Archetype, Record<keyof PlayerStats, [number, number]>> = {
+  'point-guard': {
+    inside: [-1, 0],
+    outside: [0, 1],
+    playmaking: [3, 4],
+    perimeterD: [1, 2],
+    interiorD: [-2, -1],
+    athleticism: [1, 2],
+    iq: [1, 2],
+    clutch: [-1, 1],
+    stamina: [0, 1],
+    durability: [-1, 1],
+  },
+  'shooting-guard': {
+    inside: [0, 1],
+    outside: [2, 4],
+    playmaking: [0, 1],
+    perimeterD: [1, 2],
+    interiorD: [-1, 0],
+    athleticism: [0, 1],
+    iq: [0, 1],
+    clutch: [1, 3],
+    stamina: [0, 1],
+    durability: [-1, 1],
+  },
+  'small-forward': {
+    inside: [0, 1],
+    outside: [1, 2],
+    playmaking: [0, 1],
+    perimeterD: [1, 2],
+    interiorD: [0, 1],
+    athleticism: [1, 2],
+    iq: [0, 1],
+    clutch: [0, 1],
+    stamina: [0, 1],
+    durability: [0, 1],
+  },
+  'power-forward': {
+    inside: [2, 3],
+    outside: [-1, 1],
+    playmaking: [-1, 0],
+    perimeterD: [0, 1],
+    interiorD: [2, 3],
+    athleticism: [1, 2],
+    iq: [0, 1],
+    clutch: [0, 1],
+    stamina: [-1, 0],
+    durability: [0, 2],
+  },
+  center: {
+    inside: [3, 4],
+    outside: [-2, 0],
+    playmaking: [-2, -1],
+    perimeterD: [-1, 0],
+    interiorD: [3, 4],
+    athleticism: [0, 2],
+    iq: [0, 1],
+    clutch: [1, 3],
+    stamina: [-1, 0],
+    durability: [0, 2],
+  },
+};
+
+/**
  * Build a player with stats randomised around archetype-specific biases.
  *
  * `int` defaults to the global `randomInt` (legacy behavior). The auto-sim path
- * passes a seeded `rng.int` instead so generated teams are reproducible without
- * changing how the legacy card game generates players.
+ * passes a seeded `rng.int` instead so generated teams are reproducible. Draws
+ * happen in STAT_KEYS order; keep that order stable for deterministic seeds.
  */
 export function createPlayer(
   name: string,
   archetype: Archetype,
   int: (min: number, max: number) => number = randomInt
 ): Player {
-  const base = { shooting: 5, speed: 5, athleticism: 5, clutch: 5 };
-
-  switch (archetype) {
-    case 'point-guard':
-      return {
-        name,
-        archetype,
-        stats: {
-          ...base,
-          shooting: clampStat(base.shooting + int(-1, 0)),
-          speed: clampStat(base.speed + int(2, 4)),
-          athleticism: clampStat(base.athleticism + int(-1, 0)),
-          clutch: clampStat(base.clutch + int(-1, 1)),
-        },
-        level: 1,
-        trainingXP: 0,
-      };
-    case 'shooting-guard':
-      return {
-        name,
-        archetype,
-        stats: {
-          ...base,
-          shooting: clampStat(base.shooting + int(2, 4)),
-          speed: clampStat(base.speed + int(-1, 0)),
-          athleticism: clampStat(base.athleticism + int(-1, 1)),
-          clutch: clampStat(base.clutch + int(1, 3)),
-        },
-        level: 1,
-        trainingXP: 0,
-      };
-    case 'small-forward':
-      return {
-        name,
-        archetype,
-        stats: {
-          ...base,
-          shooting: clampStat(base.shooting + int(0, 1)),
-          speed: clampStat(base.speed + int(0, 1)),
-          athleticism: clampStat(base.athleticism + int(0, 1)),
-          clutch: clampStat(base.clutch + int(0, 1)),
-        },
-        level: 1,
-        trainingXP: 0,
-      };
-    case 'power-forward':
-      return {
-        name,
-        archetype,
-        stats: {
-          ...base,
-          shooting: clampStat(base.shooting + int(-1, 0)),
-          speed: clampStat(base.speed + int(-1, 0)),
-          athleticism: clampStat(base.athleticism + int(2, 4)),
-          clutch: clampStat(base.clutch + int(0, 1)),
-        },
-        level: 1,
-        trainingXP: 0,
-      };
-    case 'center':
-      return {
-        name,
-        archetype,
-        stats: {
-          ...base,
-          shooting: clampStat(base.shooting + int(-1, 0)),
-          speed: clampStat(base.speed + int(-2, -1)),
-          athleticism: clampStat(base.athleticism + int(3, 5)),
-          clutch: clampStat(base.clutch + int(1, 3)),
-        },
-        level: 1,
-        trainingXP: 0,
-      };
+  const bias = ARCHETYPE_BIASES[archetype];
+  const stats = {} as PlayerStats;
+  for (const key of STAT_KEYS) {
+    const [lo, hi] = bias[key];
+    stats[key] = clampStat(5 + int(lo, hi));
   }
+  return { name, archetype, stats, level: 1, trainingXP: 0 };
 }

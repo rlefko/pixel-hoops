@@ -8,9 +8,13 @@ import type { PlayerStats } from '@/types/player';
 /** Training node: spend the visit to boost one stat of one player by +1. */
 
 const STATS: { key: keyof PlayerStats; label: string }[] = [
-  { key: 'shooting', label: 'SH' },
-  { key: 'speed', label: 'SP' },
+  { key: 'inside', label: 'IN' },
+  { key: 'outside', label: 'OUT' },
+  { key: 'playmaking', label: 'PM' },
+  { key: 'perimeterD', label: 'PD' },
+  { key: 'interiorD', label: 'ID' },
   { key: 'athleticism', label: 'AT' },
+  { key: 'iq', label: 'IQ' },
   { key: 'clutch', label: 'CL' },
 ];
 

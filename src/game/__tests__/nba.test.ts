@@ -39,7 +39,7 @@ describe('nba rating mapping', () => {
     }
     // Falls back to overall when nothing matches, never NaN.
     const fallback = mapRatingsToStats({ overall: 80 });
-    expect(Number.isNaN(fallback.shooting)).toBe(false);
+    expect(Number.isNaN(fallback.outside)).toBe(false);
   });
 });
 

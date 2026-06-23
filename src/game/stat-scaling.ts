@@ -1,4 +1,4 @@
-import type { PlayerStats } from '@/types/player';
+import { SKILL_STAT_KEYS, type PlayerStats } from '@/types/player';
 import type { RNG } from './rng';
 
 /**
@@ -34,19 +34,21 @@ export function getRoundStatRange(round: number): { min: number; max: number } {
   }
 }
 
-/** Scale a stat line into a round's range with a little variance. */
+/**
+ * Scale a stat line into a round's range with a little variance. Only the eight
+ * skill ratings are scaled by difficulty; stamina and durability are condition,
+ * not a difficulty tier, so they pass through unchanged (scaling them would make
+ * deep-round opponents unfatigueable). Draws happen in SKILL_STAT_KEYS order.
+ */
 export function scaleStatsToRound(
   stats: PlayerStats,
   round: number,
   rng: RNG
 ): PlayerStats {
   const range = getRoundStatRange(round);
-  const scale = (value: number) =>
-    clamp(value + rng.int(-1, 2), range.min, range.max);
-  return {
-    shooting: scale(stats.shooting),
-    speed: scale(stats.speed),
-    athleticism: scale(stats.athleticism),
-    clutch: scale(stats.clutch),
-  };
+  const scaled: PlayerStats = { ...stats };
+  for (const key of SKILL_STAT_KEYS) {
+    scaled[key] = clamp(stats[key] + rng.int(-1, 2), range.min, range.max);
+  }
+  return scaled;
 }

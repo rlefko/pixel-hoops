@@ -26,36 +26,41 @@ export type CardCategory = 'offense' | 'defense' | 'special';
 
 // --- Stat mapping ---
 
-/** Which stat of the card-holder is used during resolution. */
+/**
+ * Which stat of the card-holder is used during resolution. Mapped onto the
+ * ten-rating model: jump-shot cards use `outside`, handle cards `playmaking`,
+ * rim cards `inside`. (The legacy 1v1 card game shares the new ratings; this
+ * also sharpens it, since defense now reads perimeter vs interior correctly.)
+ */
 export const CARD_STAT_MAP: Record<CardId, keyof PlayerStats> = {
-  'three-pointer': 'shooting',
-  'bank-shot': 'shooting',
-  'step-back': 'shooting',
-  'crossover': 'speed',
-  'behind-back': 'speed',
-  'alley-oop': 'athleticism',
-  'poster-dunk': 'athleticism',
-  'zone-defense': 'athleticism',
-  'pressure-trap': 'speed',
+  'three-pointer': 'outside',
+  'bank-shot': 'outside',
+  'step-back': 'outside',
+  'crossover': 'playmaking',
+  'behind-back': 'playmaking',
+  'alley-oop': 'inside',
+  'poster-dunk': 'inside',
+  'zone-defense': 'interiorD',
+  'pressure-trap': 'perimeterD',
   'timeout': 'clutch',
   'hustle-play': 'clutch',
-  'and-one': 'shooting',
+  'and-one': 'inside',
 };
 
 /** Opponent's counter-stat keyed by the attacking player's card. */
 export const COUNTER_STAT_MAP: Record<CardId, keyof PlayerStats> = {
-  'three-pointer': 'athleticism', // shooting vs their athleticism (shot block)
-  'bank-shot': 'athleticism',
-  'step-back': 'athleticism',
-  'crossover': 'speed', // speed vs their speed (evasion)
-  'behind-back': 'speed',
-  'alley-oop': 'athleticism', // athleticism vs their athleticism (rim block)
-  'poster-dunk': 'athleticism',
-  'zone-defense': 'athleticism', // our athleticism vs theirs
-  'pressure-trap': 'speed', // our speed vs theirs
+  'three-pointer': 'perimeterD', // outside shot vs a perimeter contest
+  'bank-shot': 'perimeterD',
+  'step-back': 'perimeterD',
+  'crossover': 'perimeterD', // handle vs on-ball pressure
+  'behind-back': 'perimeterD',
+  'alley-oop': 'interiorD', // rim attack vs rim protection
+  'poster-dunk': 'interiorD',
+  'zone-defense': 'interiorD', // our interior anchor vs theirs
+  'pressure-trap': 'perimeterD', // our perimeter pressure vs theirs
   'timeout': 'clutch',
   'hustle-play': 'clutch',
-  'and-one': 'shooting',
+  'and-one': 'interiorD',
 };
 
 // --- Card definitions ---

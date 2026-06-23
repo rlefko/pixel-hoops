@@ -4,6 +4,7 @@ import {
   type Player,
   type PlayerStats,
   randomInt,
+  SKILL_STAT_KEYS,
 } from '@/types/player';
 import type { Roster, RosterPlayer, Position } from '@/types/roster';
 import {
@@ -171,29 +172,12 @@ export function generateOpponent(round: number, playerName?: string): Player {
   const basePlayer = createPlayer(name, archetype);
   const range = getRoundStatRange(round);
 
-  // Scale each stat within the round's range with some variance
-  const stats: PlayerStats = {
-    shooting: clamp(
-      basePlayer.stats.shooting + randomInt(-1, 2),
-      range.min,
-      range.max
-    ),
-    speed: clamp(
-      basePlayer.stats.speed + randomInt(-1, 2),
-      range.min,
-      range.max
-    ),
-    athleticism: clamp(
-      basePlayer.stats.athleticism + randomInt(-1, 2),
-      range.min,
-      range.max
-    ),
-    clutch: clamp(
-      basePlayer.stats.clutch + randomInt(-1, 2),
-      range.min,
-      range.max
-    ),
-  };
+  // Scale each skill rating within the round's range with some variance;
+  // condition ratings (stamina/durability) carry over unscaled.
+  const stats: PlayerStats = { ...basePlayer.stats };
+  for (const key of SKILL_STAT_KEYS) {
+    stats[key] = clamp(basePlayer.stats[key] + randomInt(-1, 2), range.min, range.max);
+  }
 
   return { ...basePlayer, stats };
 }

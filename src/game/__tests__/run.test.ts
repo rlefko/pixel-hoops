@@ -12,6 +12,7 @@ import {
 import { runReducer, initRun, type RunModel } from '@/game/run-machine';
 import { generateRunMap } from '@/game/run-map';
 import { POSITIONS } from '@/types/roster';
+import { SKILL_STAT_KEYS } from '@/types/player';
 
 function rookie(seed = 'home'): HomeRoster {
   return createRookieRoster(createRNG(seed));
@@ -31,13 +32,15 @@ describe('generateRecruitOffers', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('scales stats into the round range with valid positions', () => {
+  it('scales skill stats into the round range with valid positions', () => {
     const { min, max } = getRoundStatRange(5);
     const offers = generateRecruitOffers(5, 8, createRNG('rs'));
     for (const o of offers) {
-      for (const stat of Object.values(o.player.stats)) {
-        expect(stat).toBeGreaterThanOrEqual(min);
-        expect(stat).toBeLessThanOrEqual(max);
+      // Only the eight skill ratings are round-scaled; stamina/durability
+      // stay at their neutral baseline (condition is not a difficulty tier).
+      for (const key of SKILL_STAT_KEYS) {
+        expect(o.player.stats[key]).toBeGreaterThanOrEqual(min);
+        expect(o.player.stats[key]).toBeLessThanOrEqual(max);
       }
       expect(POSITIONS).toContain(o.position);
     }
@@ -204,12 +207,12 @@ describe('run reducer', () => {
 
   it('training boosts a stat, capped at 10', () => {
     const m = start();
-    const before = m.core.roster.starters[0].player.stats.shooting;
+    const before = m.core.roster.starters[0].player.stats.outside;
     const next = runReducer(
       { ...m, phase: { kind: 'training', nodeId: 'n' } },
-      { type: 'trainPlayer', index: 0, stat: 'shooting' }
+      { type: 'trainPlayer', index: 0, stat: 'outside' }
     )!;
-    expect(next.core.roster.starters[0].player.stats.shooting).toBe(
+    expect(next.core.roster.starters[0].player.stats.outside).toBe(
       Math.min(10, before + 1)
     );
     expect(next.phase.kind).toBe('map');

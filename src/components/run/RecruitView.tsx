@@ -2,6 +2,7 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { POSITION_COLOR } from '@/components/game/LineupBoard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
+import { ovr, off, def } from '@/game/ratings';
 import type { RosterPlayer } from '@/types/roster';
 
 /** Recruit node: pick one of a few depth-scaled candidates for your bench. */
@@ -45,8 +46,8 @@ export function RecruitView({
               {rp.player.name}
             </Text>
             <Text style={styles.stats}>
-              SH{rp.player.stats.shooting} SP{rp.player.stats.speed} AT
-              {rp.player.stats.athleticism} CL{rp.player.stats.clutch}
+              OVR{ovr(rp.player.stats, rp.position)} O{off(rp.player.stats)} D
+              {def(rp.player.stats)} CL{rp.player.stats.clutch}
             </Text>
           </Pressable>
         ))}

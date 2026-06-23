@@ -3,6 +3,7 @@ import type { RosterPlayer } from '@/types/roster';
 import type { Lineup, Team, TeamStats, SynergyResult } from '@/types/team';
 import type { GamePlan } from '@/types/tactics';
 import { computeSynergy } from './synergy';
+import { off, def } from './ratings';
 
 /**
  * Lineup math: turns five players into the single effective stat line the
@@ -39,7 +40,7 @@ export function computeUsageWeights(
 ): number[] {
   const raw = players.map((rp, index) => {
     const s = rp.player.stats;
-    let load = s.shooting + s.athleticism + s.clutch * 0.5;
+    let load = s.outside + s.inside + s.playmaking * 0.7 + s.clutch * 0.5;
     if (rp.position === 'PG' || rp.position === 'SG') load += 2; // ball handlers
     if (tactic.starPlayerIndex === index) load *= 1.6; // feature the star
     return Math.max(0.1, load);
@@ -63,10 +64,18 @@ function averageStat(players: RosterPlayer[], key: keyof PlayerStats): number {
   return players.reduce((sum, rp) => sum + rp.player.stats[key], 0) / players.length;
 }
 
+/** Defensive anchor: blend the average with the best defender (rim/wing stopper). */
+function anchoredStat(players: RosterPlayer[], key: keyof PlayerStats): number {
+  const avg = averageStat(players, key);
+  const best = Math.max(...players.map((rp) => rp.player.stats[key]));
+  return avg * 0.6 + best * 0.4;
+}
+
 /**
  * The lineup's effective stat line. Not a flat average: scorers (high usage)
- * weight shooting, the rim is anchored by the best athlete on defense, pace
- * comes from team speed plus synergy and the pace tactic.
+ * weight the offensive ratings, defense is anchored by the best stopper, pace
+ * comes from athleticism plus synergy and the pace tactic. Callable on any five
+ * so the engine can recompute it after a substitution.
  */
 export function computeTeamStats(
   players: RosterPlayer[],
@@ -75,36 +84,50 @@ export function computeTeamStats(
   tactic: GamePlan
 ): TeamStats {
   const avgAth = averageStat(players, 'athleticism');
-  const maxAth = Math.max(...players.map((rp) => rp.player.stats.athleticism));
-  const avgSpeed = averageStat(players, 'speed');
-
   const paceTacticMod = tactic.pace === 'fast' ? 1.5 : tactic.pace === 'slow' ? -1.5 : 0;
+  const athTacticMod = tactic.pace === 'fast' ? 1 : tactic.pace === 'slow' ? -1 : 0;
 
-  return {
-    shooting: clampStat(weightedStat(players, weights, 'shooting') + synergy.offenseBonus),
-    speed: clampStat(avgSpeed + (tactic.pace === 'fast' ? 1 : tactic.pace === 'slow' ? -1 : 0)),
-    // Rim protection leans on the best big, not the average.
-    athleticism: clampStat(avgAth * 0.6 + maxAth * 0.4 + synergy.defenseBonus),
+  const stats: TeamStats = {
+    // Scorers carry the offensive load (usage-weighted).
+    inside: clampStat(weightedStat(players, weights, 'inside') + synergy.offenseBonus),
+    outside: clampStat(weightedStat(players, weights, 'outside') + synergy.offenseBonus),
+    playmaking: clampStat(weightedStat(players, weights, 'playmaking')),
+    // Defense is anchored by the best stopper, not the average.
+    perimeterD: clampStat(anchoredStat(players, 'perimeterD') + synergy.defenseBonus),
+    interiorD: clampStat(anchoredStat(players, 'interiorD') + synergy.defenseBonus),
+    athleticism: clampStat(avgAth + athTacticMod),
+    iq: clampStat(averageStat(players, 'iq')),
     clutch: clampStat(averageStat(players, 'clutch') + synergy.clutchBonus),
-    pace: clampStat(avgSpeed + synergy.paceBonus + paceTacticMod),
+    stamina: clampStat(averageStat(players, 'stamina')),
+    durability: clampStat(averageStat(players, 'durability')),
+    pace: clampStat(avgAth + synergy.paceBonus + paceTacticMod),
+    off: 0,
+    def: 0,
+    ovr: 0,
   };
+  stats.off = off(stats);
+  stats.def = def(stats);
+  stats.ovr = Math.round((stats.off + stats.def) / 2);
+  return stats;
 }
 
 /**
- * Assemble a full {@link Team} from five players and a game plan: computes
- * synergy, usage weights, and the effective stat line in one place so the sim
- * setup (and tests) have a single entry point.
+ * Assemble a full {@link Team} from a starting five, optional bench, and a game
+ * plan: computes synergy, usage weights, and the effective stat line in one
+ * place so the sim setup (and tests) have a single entry point. The bench feeds
+ * in-game rotation; an empty bench means the five plays the whole game.
  */
 export function buildTeam(
   name: string,
   players: RosterPlayer[],
   tactic: GamePlan,
   colorHex: string,
-  accentHex: string
+  accentHex: string,
+  bench: RosterPlayer[] = []
 ): Team {
   const synergy = computeSynergy(players);
   const usageWeights = computeUsageWeights(players, tactic);
   const teamStats = computeTeamStats(players, usageWeights, synergy, tactic);
   const lineup: Lineup = { players, usageWeights };
-  return { name, lineup, tactic, synergy, teamStats, colorHex, accentHex };
+  return { name, lineup, tactic, synergy, teamStats, bench, colorHex, accentHex };
 }

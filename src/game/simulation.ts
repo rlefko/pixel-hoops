@@ -57,28 +57,28 @@ const ACTION_POINTS: Record<SimActionId, number> = {
   rebound: 0,
 };
 
-/** Which offensive stat drives each action. */
+/** Which offensive rating drives each action. */
 const ACTION_STAT: Record<SimActionId, keyof PlayerStats> = {
-  three: 'shooting',
-  midrange: 'shooting',
-  drive: 'speed',
-  layup: 'athleticism',
-  dunk: 'athleticism',
-  steal: 'speed',
-  block: 'athleticism',
-  rebound: 'athleticism',
+  three: 'outside',
+  midrange: 'outside',
+  drive: 'playmaking',
+  layup: 'inside',
+  dunk: 'inside',
+  steal: 'perimeterD',
+  block: 'interiorD',
+  rebound: 'interiorD',
 };
 
-/** Which defensive stat contests each action. */
+/** Which defensive rating contests each action (perimeter vs interior split). */
 const ACTION_COUNTER: Record<SimActionId, keyof PlayerStats> = {
-  three: 'athleticism',
-  midrange: 'athleticism',
-  drive: 'speed',
-  layup: 'athleticism',
-  dunk: 'athleticism',
-  steal: 'speed',
-  block: 'athleticism',
-  rebound: 'athleticism',
+  three: 'perimeterD',
+  midrange: 'perimeterD',
+  drive: 'perimeterD',
+  layup: 'interiorD',
+  dunk: 'interiorD',
+  steal: 'perimeterD',
+  block: 'interiorD',
+  rebound: 'interiorD',
 };
 
 // --- Future crunch-time decision hook (designed-in, dormant for now) ---

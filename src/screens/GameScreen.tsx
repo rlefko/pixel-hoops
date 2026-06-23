@@ -17,6 +17,7 @@ import {
 import { haptics } from '@/feel';
 import { palette } from '@/theme';
 import { useTournament } from '@/hooks/useTournament';
+import { createPlayer } from '@/types/player';
 import { TOTAL_QUARTERS } from '@/types/game-state';
 
 /** How long a resolved quarter stays on screen before advancing (snappy). */
@@ -28,13 +29,7 @@ export default function GameScreen() {
 
      // Create a random small-forward player for this demo run.
      // In the future this will come from the roster system (persistent).
-    const player = useMemo(() => ({
-        name: 'Player 1',
-        archetype: 'small-forward' as const,
-        stats: { shooting: 5, speed: 5, athleticism: 5, clutch: 5 },
-        level: 1,
-        trainingXP: 0,
-     }), []);
+    const player = useMemo(() => createPlayer('Player 1', 'small-forward'), []);
 
     const { gameState, actions } = useTournament(player);
     const [showResult, setShowResult] = React.useState(false);
