@@ -52,12 +52,27 @@ interface CourtViewProps {
 
 /**
  * The player in a court slot. The slot is the lineup array index, NOT the
- * player's intrinsic position: slot `i` (POSITIONS[i]) always renders
- * `players[i]`, so any player can fill any slot and two players sharing a real
- * position no longer leave a slot empty (a man down).
+ * player's intrinsic position. Slot `i` (POSITIONS[i]) maps to the static
+ * starter `players[i]`, but with in-game rotation the player on the floor there
+ * changes, so when an event is in play we resolve the slot to whoever the sim
+ * says is on the floor (by name, across starters and bench). This keeps the
+ * highlighted scorer's sprite correct after a substitution; falls back to the
+ * starter before tip-off or if the name is unknown.
  */
-function playerAt(team: Team, position: Position): RosterPlayer | undefined {
-  return team.lineup.players[POSITIONS.indexOf(position)];
+function playerAt(
+  team: Team,
+  position: Position,
+  side: SimTeamSide,
+  current: SimEvent | null
+): RosterPlayer | undefined {
+  const starter = team.lineup.players[POSITIONS.indexOf(position)];
+  const onCourtName = current?.onCourt[side]?.[position];
+  if (!onCourtName) return starter;
+  return (
+    [...team.lineup.players, ...team.bench].find(
+      (rp) => rp.player.name === onCourtName
+    ) ?? starter
+  );
 }
 
 interface Burst {
@@ -136,7 +151,7 @@ function SpriteAt({
 }) {
   const { reducedMotion, simSpeed } = useFeelSettings();
   const speed = SIM_SPEED_FACTOR[simSpeed];
-  const rp = playerAt(team, position);
+  const rp = playerAt(team, position, side, current);
 
   const role = roleFor(current, side, position);
   const active =

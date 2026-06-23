@@ -1,0 +1,326 @@
+import { type ReactNode } from 'react';
+import { View, StyleSheet, Pressable } from 'react-native';
+import { Text } from '@/components/StyledText';
+import { PixelPlayer } from '@/components/fx';
+import { InjuryIcon } from '@/components/run/PixelIcons';
+import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
+import { POSITION_COLOR } from '@/components/game/LineupBoard';
+import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
+import { ovr, off, def, ath, tierFor, type TierKey } from '@/game/ratings';
+import type { PlayerStats } from '@/types/player';
+import type { RosterPlayer } from '@/types/roster';
+
+/**
+ * The arcade-simplicity centerpiece: one reusable surface for a roster player.
+ * Collapsed, it shows only the sprite, position, tier, OVR, and three composite
+ * chips (OFF/DEF/ATH). The full ten ratings stay one tap away in an expandable
+ * panel, grouped so the breakdown reads like a scouting card rather than a wall
+ * of numbers. Reused by the lineup builder, recruit, training, and pregame board.
+ */
+
+interface PlayerCardProps {
+  rp: RosterPlayer;
+  /** Whether the full-ratings panel is open (controlled by the parent). */
+  expanded?: boolean;
+  /** Tapping the chevron toggles expansion; omitted hides the chevron. */
+  onToggleExpand?: () => void;
+  /** Optional trailing slot (e.g. the lineup slot chip), shown collapsed. */
+  right?: ReactNode;
+  /** Surface condition: an OUT badge for injured players, dimmed. */
+  condition?: boolean;
+  /** Layout: a horizontal row (default) or a taller tile for the recruit grid. */
+  variant?: 'row' | 'tile';
+}
+
+/** Tier key -> palette color for the badge (verified palette keys, no new hex). */
+const TIER_COLOR: Record<TierKey, string> = {
+  bronze: palette.inkDim,
+  silver: palette.steelBlue,
+  gold: palette.gold,
+  elite: palette.flame,
+};
+
+/** One rating's short label, for the expanded breakdown grid. */
+const RATING_LABEL: Record<keyof PlayerStats, string> = {
+  inside: 'INSIDE',
+  outside: 'OUTSIDE',
+  playmaking: 'PLAYMAKING',
+  perimeterD: 'PERIM D',
+  interiorD: 'INTERIOR D',
+  athleticism: 'ATHLETIC',
+  iq: 'IQ',
+  clutch: 'CLUTCH',
+  stamina: 'STAMINA',
+  durability: 'DURABLE',
+};
+
+/** The expanded panel's groups, ordered offense -> defense -> physical -> condition. */
+const RATING_GROUPS: { label: string; keys: (keyof PlayerStats)[] }[] = [
+  { label: 'OFFENSE', keys: ['inside', 'outside', 'playmaking'] },
+  { label: 'DEFENSE', keys: ['perimeterD', 'interiorD'] },
+  { label: 'PHYSICAL + MENTAL', keys: ['athleticism', 'iq', 'clutch'] },
+  { label: 'CONDITION', keys: ['stamina', 'durability'] },
+];
+
+export function PlayerCard({
+  rp,
+  expanded = false,
+  onToggleExpand,
+  right,
+  condition = false,
+  variant = 'row',
+}: PlayerCardProps) {
+  const stats = rp.player.stats;
+  const overall = ovr(stats, rp.position);
+  const tier = tierFor(overall);
+  const tierColor = TIER_COLOR[tier.key];
+  const injured = condition && (rp.gamesOut ?? 0) > 0;
+  const isTile = variant === 'tile';
+
+  return (
+    <View style={[styles.card, isTile && styles.cardTile, injured && styles.injured]}>
+      <View style={[styles.head, isTile && styles.headTile]}>
+        <View style={styles.avatar}>
+          <PixelPlayer
+            color={palette.homeTeam}
+            accent={palette.homeTeamAccent}
+            number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
+            skinIndex={skinIndexFor(rp.player.name)}
+            size={26}
+          />
+        </View>
+        <View style={[styles.posChip, { borderColor: POSITION_COLOR[rp.position] }]}>
+          <Text style={[styles.pos, { color: POSITION_COLOR[rp.position] }]}>
+            {rp.position}
+          </Text>
+        </View>
+        <TierBadge label={tier.label} color={tierColor} />
+        <View style={styles.nameCol}>
+          <Text style={styles.name} numberOfLines={1}>
+            {rp.player.name}
+          </Text>
+          {injured ? (
+            <View style={styles.outRow}>
+              <InjuryIcon size={10} />
+              <Text style={styles.outText}>OUT {rp.gamesOut}</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={styles.ovr}>{overall}</Text>
+        {right}
+        {onToggleExpand ? (
+          <Pressable
+            onPress={onToggleExpand}
+            hitSlop={space(2)}
+            style={styles.chevronBtn}
+            accessibilityRole="button"
+            accessibilityLabel={expanded ? 'Hide ratings' : 'Show ratings'}
+          >
+            <Text style={styles.chevron}>{expanded ? '▲' : '▼'}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={styles.chips}>
+        <CompositeChip label="OFF" value={off(stats)} />
+        <CompositeChip label="DEF" value={def(stats)} />
+        <CompositeChip label="ATH" value={ath(stats)} />
+      </View>
+
+      {expanded ? (
+        <View style={styles.panel}>
+          {RATING_GROUPS.map((group) => (
+            <View key={group.label} style={styles.group}>
+              <Text style={styles.groupLabel}>{group.label}</Text>
+              {group.keys.map((key) => (
+                <View key={key} style={styles.ratingRow}>
+                  <Text style={styles.ratingLabel}>{RATING_LABEL[key]}</Text>
+                  <PipBar value={stats[key]} />
+                  <Text style={styles.ratingValue}>{stats[key]}</Text>
+                </View>
+              ))}
+            </View>
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** A small colored tier badge (C/B/A/S). */
+function TierBadge({ label, color }: { label: string; color: string }) {
+  return (
+    <View style={[styles.tier, { borderColor: color }]}>
+      <Text style={[styles.tierText, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
+/** A surface composite chip (OFF/DEF/ATH) with its rounded value. */
+function CompositeChip({ label, value }: { label: string; value: number }) {
+  return (
+    <View style={styles.chip}>
+      <Text style={styles.chipLabel}>{label}</Text>
+      <Text style={styles.chipValue}>{value}</Text>
+    </View>
+  );
+}
+
+/** A 10-cell pixel pip bar for a single 3-10 rating. */
+function PipBar({ value }: { value: number }) {
+  const filled = Math.max(0, Math.min(10, Math.round(value)));
+  return (
+    <View style={styles.pipBar}>
+      {Array.from({ length: 10 }).map((_, i) => (
+        <View
+          key={i}
+          style={[styles.pip, i < filled ? styles.pipOn : styles.pipOff]}
+        />
+      ))}
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  card: {
+    alignSelf: 'stretch',
+    paddingVertical: space(1),
+  },
+  cardTile: {
+    padding: space(2),
+    borderWidth: BORDER.chunk,
+    borderColor: palette.bgPanel,
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.bgPanel,
+  },
+  injured: { opacity: 0.55 },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headTile: { marginBottom: space(1) },
+  avatar: {
+    width: 30,
+    alignItems: 'center',
+    marginRight: space(2),
+  },
+  posChip: {
+    width: 34,
+    paddingVertical: space(0.5),
+    borderWidth: BORDER.chunk,
+    borderRadius: RADIUS.chip,
+    alignItems: 'center',
+    marginRight: space(2),
+  },
+  pos: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
+  tier: {
+    width: 18,
+    paddingVertical: space(0.5),
+    borderWidth: BORDER.chunk,
+    borderRadius: RADIUS.chip,
+    alignItems: 'center',
+    marginRight: space(2),
+  },
+  tierText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
+  nameCol: { flex: 1 },
+  name: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.body,
+    color: palette.ink,
+  },
+  outRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(1),
+    marginTop: 1,
+  },
+  outText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.injury,
+  },
+  ovr: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.h3,
+    color: palette.ink,
+    marginLeft: space(2),
+  },
+  chevronBtn: {
+    paddingHorizontal: space(2),
+    marginLeft: space(1),
+  },
+  chevron: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+  },
+  chips: {
+    flexDirection: 'row',
+    gap: space(2),
+    marginTop: space(1),
+    marginLeft: 30 + space(2),
+  },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(1),
+    paddingHorizontal: space(1.5),
+    paddingVertical: space(0.5),
+    borderWidth: BORDER.thin,
+    borderColor: palette.inkDim,
+    borderRadius: RADIUS.chip,
+  },
+  chipLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
+  chipValue: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.ink,
+  },
+  panel: {
+    marginTop: space(2),
+    paddingTop: space(2),
+    borderTopWidth: BORDER.thin,
+    borderTopColor: palette.bgPanel,
+    gap: space(2),
+  },
+  group: { gap: space(1) },
+  groupLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.gold,
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
+  },
+  ratingLabel: {
+    width: 88,
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+  },
+  ratingValue: {
+    width: 18,
+    textAlign: 'right',
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.ink,
+  },
+  pipBar: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 2,
+  },
+  pip: {
+    flex: 1,
+    height: 8,
+    borderRadius: RADIUS.none,
+  },
+  pipOn: { backgroundColor: palette.makeGreen },
+  pipOff: { backgroundColor: palette.bgPanel },
+});

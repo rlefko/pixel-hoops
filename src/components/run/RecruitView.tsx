@@ -1,8 +1,8 @@
+import { useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
-import { POSITION_COLOR } from '@/components/game/LineupBoard';
+import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { ovr, off, def } from '@/game/ratings';
 import type { RosterPlayer } from '@/types/roster';
 
 /** Recruit node: pick one of a few depth-scaled candidates for your bench. */
@@ -20,6 +20,10 @@ export function RecruitView({
   onRecruit,
   onSkip,
 }: RecruitViewProps) {
+  // Tapping a card recruits; the chevron just reveals the full ratings, so a
+  // single index of the expanded offer keeps the breakdown one tap from a pick.
+  const [expanded, setExpanded] = useState<number | null>(null);
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>RECRUIT</Text>
@@ -30,25 +34,11 @@ export function RecruitView({
       <View style={styles.offers}>
         {offers.map((rp, i) => (
           <Pressable key={i} style={styles.card} onPress={() => onRecruit(rp)}>
-            <View
-              style={[
-                styles.posChip,
-                { borderColor: POSITION_COLOR[rp.position] },
-              ]}
-            >
-              <Text
-                style={[styles.pos, { color: POSITION_COLOR[rp.position] }]}
-              >
-                {rp.position}
-              </Text>
-            </View>
-            <Text style={styles.name} numberOfLines={1}>
-              {rp.player.name}
-            </Text>
-            <Text style={styles.stats}>
-              OVR{ovr(rp.player.stats, rp.position)} O{off(rp.player.stats)} D
-              {def(rp.player.stats)} CL{rp.player.stats.clutch}
-            </Text>
+            <PlayerCard
+              rp={rp}
+              expanded={expanded === i}
+              onToggleExpand={() => setExpanded(expanded === i ? null : i)}
+            />
           </Pressable>
         ))}
       </View>
@@ -82,33 +72,11 @@ const styles = StyleSheet.create({
   },
   offers: { marginTop: space(6), gap: space(3) },
   card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: space(3),
+    padding: space(2),
     borderWidth: BORDER.chunk,
     borderColor: palette.bgPanel,
     borderRadius: RADIUS.chip,
     backgroundColor: palette.bgPanel,
-  },
-  posChip: {
-    width: 34,
-    paddingVertical: space(0.5),
-    borderWidth: BORDER.chunk,
-    borderRadius: RADIUS.chip,
-    alignItems: 'center',
-    marginRight: space(2),
-  },
-  pos: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  name: {
-    flex: 1,
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.body,
-    color: palette.ink,
-  },
-  stats: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.small,
-    color: palette.inkDim,
   },
   skip: {
     fontFamily: FONT.body,

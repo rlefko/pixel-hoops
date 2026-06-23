@@ -1,21 +1,46 @@
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
-import { POSITION_COLOR } from '@/components/game/LineupBoard';
+import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Roster } from '@/types/roster';
 import type { PlayerStats } from '@/types/player';
 
 /** Training node: spend the visit to boost one stat of one player by +1. */
 
-const STATS: { key: keyof PlayerStats; label: string }[] = [
-  { key: 'inside', label: 'IN' },
-  { key: 'outside', label: 'OUT' },
-  { key: 'playmaking', label: 'PM' },
-  { key: 'perimeterD', label: 'PD' },
-  { key: 'interiorD', label: 'ID' },
-  { key: 'athleticism', label: 'AT' },
-  { key: 'iq', label: 'IQ' },
-  { key: 'clutch', label: 'CL' },
+interface StatDef {
+  key: keyof PlayerStats;
+  label: string;
+}
+
+/**
+ * The eight trainable skills grouped the way the cards present them, so the
+ * busy button grid reads as three short rows instead of one long one. Stamina
+ * and durability are condition, not skills, so they are not trainable here.
+ */
+const STAT_GROUPS: { label: string; stats: StatDef[] }[] = [
+  {
+    label: 'OFFENSE',
+    stats: [
+      { key: 'inside', label: 'IN' },
+      { key: 'outside', label: 'OUT' },
+      { key: 'playmaking', label: 'PM' },
+    ],
+  },
+  {
+    label: 'DEFENSE',
+    stats: [
+      { key: 'perimeterD', label: 'PD' },
+      { key: 'interiorD', label: 'ID' },
+    ],
+  },
+  {
+    label: 'PHYSICAL + MENTAL',
+    stats: [
+      { key: 'athleticism', label: 'AT' },
+      { key: 'iq', label: 'IQ' },
+      { key: 'clutch', label: 'CL' },
+    ],
+  },
 ];
 
 const STAT_CAP = 10;
@@ -39,28 +64,30 @@ export function TrainingView({ roster, onTrain, onSkip }: TrainingViewProps) {
       >
         {pool.map((rp, i) => (
           <View key={i} style={styles.row}>
-            <Text style={[styles.pos, { color: POSITION_COLOR[rp.position] }]}>
-              {rp.position}
-            </Text>
-            <Text style={styles.name} numberOfLines={1}>
-              {rp.player.name}
-            </Text>
-            <View style={styles.statButtons}>
-              {STATS.map((s) => {
-                const maxed = rp.player.stats[s.key] >= STAT_CAP;
-                return (
-                  <Pressable
-                    key={s.key}
-                    disabled={maxed}
-                    onPress={() => onTrain(i, s.key)}
-                    style={[styles.statBtn, maxed && styles.maxed]}
-                  >
-                    <Text style={styles.statBtnText}>
-                      {s.label} {rp.player.stats[s.key]}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <PlayerCard rp={rp} condition />
+            <View style={styles.groups}>
+              {STAT_GROUPS.map((group) => (
+                <View key={group.label} style={styles.group}>
+                  <Text style={styles.groupLabel}>{group.label}</Text>
+                  <View style={styles.statButtons}>
+                    {group.stats.map((s) => {
+                      const maxed = rp.player.stats[s.key] >= STAT_CAP;
+                      return (
+                        <Pressable
+                          key={s.key}
+                          disabled={maxed}
+                          onPress={() => onTrain(i, s.key)}
+                          style={[styles.statBtn, maxed && styles.maxed]}
+                        >
+                          <Text style={styles.statBtnText}>
+                            {s.label} {rp.player.stats[s.key]}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
             </View>
           </View>
         ))}
@@ -94,24 +121,26 @@ const styles = StyleSheet.create({
     marginTop: space(2),
   },
   list: { marginTop: space(4), alignSelf: 'stretch' },
-  listContent: { gap: space(2) },
+  listContent: { gap: space(3) },
   row: {
     borderBottomWidth: BORDER.thin,
     borderBottomColor: palette.bgPanel,
-    paddingBottom: space(2),
+    paddingBottom: space(3),
   },
-  pos: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  name: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.body,
-    color: palette.ink,
-    marginTop: space(1),
+  groups: {
+    marginTop: space(2),
+    gap: space(2),
+  },
+  group: { gap: space(1) },
+  groupLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
   },
   statButtons: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: space(2),
-    marginTop: space(2),
   },
   statBtn: {
     paddingVertical: space(1),

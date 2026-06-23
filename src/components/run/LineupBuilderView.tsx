@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
-import { POSITION_COLOR } from '@/components/game/LineupBoard';
+import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { ovr, off, def } from '@/game/ratings';
 import { POSITIONS, type Position, type Roster, type RosterPlayer } from '@/types/roster';
 
 /**
@@ -39,6 +38,9 @@ export function LineupBuilderView({
   );
   const [bench, setBench] = useState<RosterPlayer[]>(() => pool.slice(LINEUP_SIZE));
   const [picked, setPicked] = useState<Cell | null>(null);
+  // Which row's full-ratings panel is open, keyed by its stable cell id so it
+  // tracks the cell, not the player, as swaps reorder the pool.
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const playerAt = (c: Cell) => (c.zone === 'slot' ? starters : bench)[c.index];
 
@@ -75,26 +77,36 @@ export function LineupBuilderView({
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         <Text style={styles.sectionLabel}>STARTERS</Text>
-        {starters.map((rp, i) => (
-          <PlayerRow
-            key={`slot-${i}`}
-            slot={POSITIONS[i]}
-            rp={rp}
-            picked={sameCell(picked, { zone: 'slot', index: i })}
-            onPress={() => tap({ zone: 'slot', index: i })}
-          />
-        ))}
+        {starters.map((rp, i) => {
+          const key = `slot-${i}`;
+          return (
+            <PlayerRow
+              key={key}
+              slot={POSITIONS[i]}
+              rp={rp}
+              picked={sameCell(picked, { zone: 'slot', index: i })}
+              expanded={expanded === key}
+              onPress={() => tap({ zone: 'slot', index: i })}
+              onToggleExpand={() => setExpanded(expanded === key ? null : key)}
+            />
+          );
+        })}
         {bench.length > 0 ? (
           <Text style={styles.sectionLabel}>BENCH</Text>
         ) : null}
-        {bench.map((rp, i) => (
-          <PlayerRow
-            key={`bench-${i}`}
-            rp={rp}
-            picked={sameCell(picked, { zone: 'bench', index: i })}
-            onPress={() => tap({ zone: 'bench', index: i })}
-          />
-        ))}
+        {bench.map((rp, i) => {
+          const key = `bench-${i}`;
+          return (
+            <PlayerRow
+              key={key}
+              rp={rp}
+              picked={sameCell(picked, { zone: 'bench', index: i })}
+              expanded={expanded === key}
+              onPress={() => tap({ zone: 'bench', index: i })}
+              onToggleExpand={() => setExpanded(expanded === key ? null : key)}
+            />
+          );
+        })}
       </ScrollView>
 
       <Pressable onPress={() => onConfirm(starters, bench)} style={styles.confirm}>
@@ -111,31 +123,32 @@ function PlayerRow({
   slot,
   rp,
   picked,
+  expanded,
   onPress,
+  onToggleExpand,
 }: {
   /** The court slot label, for a starter row; omitted for bench rows. */
   slot?: Position;
   rp: RosterPlayer;
   picked: boolean;
+  expanded: boolean;
+  /** Tapping the row body selects it (for the swap), not the chevron. */
   onPress: () => void;
+  onToggleExpand: () => void;
 }) {
   return (
     <Pressable onPress={onPress} style={[styles.row, picked && styles.rowPicked]}>
       <View style={styles.slotChip}>
         {slot ? <Text style={styles.slot}>{slot}</Text> : null}
       </View>
-      <View style={[styles.posChip, { borderColor: POSITION_COLOR[rp.position] }]}>
-        <Text style={[styles.pos, { color: POSITION_COLOR[rp.position] }]}>
-          {rp.position}
-        </Text>
+      <View style={styles.cardWrap}>
+        <PlayerCard
+          rp={rp}
+          condition
+          expanded={expanded}
+          onToggleExpand={onToggleExpand}
+        />
       </View>
-      <Text style={styles.name} numberOfLines={1}>
-        {rp.player.name}
-      </Text>
-      <Text style={styles.stats}>
-        OVR{ovr(rp.player.stats, rp.position)} O{off(rp.player.stats)} D
-        {def(rp.player.stats)}
-      </Text>
     </Pressable>
   );
 }
@@ -171,7 +184,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     padding: space(2),
     borderWidth: BORDER.chunk,
     borderColor: 'transparent',
@@ -182,32 +195,15 @@ const styles = StyleSheet.create({
     width: 30,
     alignItems: 'center',
     marginRight: space(1),
+    alignSelf: 'flex-start',
+    marginTop: space(2),
   },
   slot: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
     color: palette.ink,
   },
-  posChip: {
-    width: 34,
-    paddingVertical: space(0.5),
-    borderWidth: BORDER.chunk,
-    borderRadius: RADIUS.chip,
-    alignItems: 'center',
-    marginRight: space(2),
-  },
-  pos: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  name: {
-    flex: 1,
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.body,
-    color: palette.ink,
-  },
-  stats: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.small,
-    color: palette.inkDim,
-  },
+  cardWrap: { flex: 1 },
   confirm: {
     marginTop: space(4),
     paddingVertical: space(3),
