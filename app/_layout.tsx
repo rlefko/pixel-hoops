@@ -8,7 +8,7 @@ import {
   SafeAreaProvider,
   initialWindowMetrics,
 } from 'react-native-safe-area-context';
-import 'react-native-reanimated';
+import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 
 import { FeelSettingsProvider } from '@/feel';
 import { HomeRosterProvider } from '@/context/HomeRosterContext';
@@ -71,6 +71,9 @@ function RootLayoutNav() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
       <ThemeProvider value={navTheme}>
+        {/* Ignore the OS "Reduce Motion" flag so the game's juice (ball, particles,
+            shake) always plays. The in-app Reduce Motion setting is the control. */}
+        <ReducedMotionConfig mode={ReduceMotion.Never} />
         <StatusBar style="light" />
         <Stack
           screenOptions={{
