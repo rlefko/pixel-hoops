@@ -34,8 +34,8 @@ averages on the same 3-10 scale:
 - `ATH` = `athleticism` (a legible third chip).
 - `OVR` = a position-weighted blend of `OFF`/`DEF` plus a small per-position skill lean (a center leans interior, a point guard leans playmaking).
 
-Cards show OVR plus OFF/DEF/ATH by default; the full ten ratings are one tap
-away (progressive disclosure).
+Player cards show OVR plus OFF/DEF/ATH by default; the full ten ratings are one
+tap away (progressive disclosure).
 
 ## How a possession resolves
 

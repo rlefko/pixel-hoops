@@ -14,9 +14,9 @@ The foundation in writing and contracts. No runtime behavior changes, so it is t
 
 ## PR2: Game-feel foundation, auto-sim engine, and juice retrofit
 
-The load-bearing logic and the feel system. The existing card game is retrofitted so it feels snappier immediately, even before the new screen exists.
+The load-bearing logic and the feel system. The card game (since removed) was retrofitted at this stage so it felt snappier immediately, even before the new screen existed.
 
-- **Auto-sim engine** (pure, deterministic, tested): synergy and lineup math, `simulateGame`, the run-map generator, and seeded team generation. Reuses the existing resolution, scoring, and AI logic. Threads the RNG through the sim path only; the legacy card path keeps its own randomness.
+- **Auto-sim engine** (pure, deterministic, tested): synergy and lineup math, `simulateGame`, the run-map generator, and seeded team generation. Has its own deterministic resolution (`sim-resolution.ts`) and risk-posture AI (`ai.ts`), threaded with a seeded RNG so every game is reproducible.
 - **Feel system:** `src/feel` (snappy timing tokens, a haptics wrapper, screen-shake, pop, count-up, and flash hooks, and a settings context for reduced motion), `src/theme` (a constrained palette, pixel-grid metrics, and the pixel font), and `src/components/fx` (the visual building blocks).
 - **8-bit foundation:** a bundled Press Start 2P font loaded alongside the existing one, plus the palette and scanline overlay.
 - **Juice retrofit into the card game:** a count-up, popping scoreboard; screen shake and haptics on big plays; and removal of the 1600ms resolution lock.
@@ -24,7 +24,7 @@ The load-bearing logic and the feel system. The existing card game is retrofitte
 
 ## PR3: Playable auto-sim 5-on-5 vertical slice
 
-The new loop, playable end to end on its own route. The card game stays reachable and unchanged.
+The new loop, playable end to end on its own route. At this stage the card game stayed reachable and unchanged. (Both legacy modes, the card game and the quick sim, have since been removed, completing the retirement item in Phase 3 below.)
 
 - A sim-game hook (pregame, simulate, replay, final), the play-by-play replay component, a programmatic pixel court, and pregame lineup and game-plan screens.
 - A new menu entry into the sim mode.
@@ -63,17 +63,17 @@ players on the court, and real teams. Detailed in
 
 Sequenced roughly by player impact.
 
-1. **Playbook cards.** Reintroduce cards as a between-games draft that biases the sim, replacing the retired per-possession cards. Pairs with shop and recruit nodes.
+1. **Playbook cards.** Reintroduce cards as a between-games draft that biases the sim, a fresh feature in place of the removed per-possession cards. Pairs with shop and recruit nodes.
 2. **Equipment + shop economy.** Spend coins/reputation on gear that modifies a player's contribution to the lineup's effective stats.
 3. **Crunch-time decisions.** Pause the replay at a close Q4 boundary for one high-leverage tactical call, then resume. The engine already supports this hook.
 4. **Defeated-opponent recruiting + resume-in-progress-run.** Recruit a player from a beaten team; save/resume an interrupted run.
 5. **Audio and SFX.** Chiptune per arena, downsampled arcade callouts, and event sound effects synced to the existing haptics.
 6. **Sprite art and particles.** Particle bursts, ball flight, rim/net ripple, the pokelike map redesign, team secondary colors, and opponent-themed courts shipped in PR6 (see visual-and-data.md). Still ahead: hand-drawn players and court (beyond the procedural sprites), a reactive crowd, and multi-frame dunk and block animations.
 7. **Deeper synergies and archetypes.** Expand the synergy rules and signature abilities described in the concept doc.
-8. **Retire the legacy modes** (card game, quick sim) once the run mode is the default and proven.
+8. **Retire the legacy modes** (card game, quick sim). _Done:_ both have been removed now that the run mode is the default, leaving the run as the single game mode.
 
 ## Working agreement
 
 - Every feature is checked against [addictive-blueprint.md](addictive-blueprint.md), ideally via the `addictive-blueprint` skill, before it is built.
 - Pure game logic is unit-tested; presentation is verified by running the app.
-- Changes stay additive where possible: the engine reuses existing math, and new systems sit beside the old until the new path is proven.
+- Changes stay additive where possible: new systems sat beside the old until the new path was proven, after which the legacy modes were removed.

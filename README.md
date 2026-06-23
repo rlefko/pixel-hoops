@@ -1,6 +1,6 @@
 # Pixel Hoops 🏀
 
-Addictive 8-bit basketball roguelike built with React Native (Expo) and TypeScript. Build a roster of pixel players, enter tournaments, and win games through tactical card play -- not reflexes or timing.
+Addictive 8-bit basketball roguelike built with React Native (Expo) and TypeScript. Build a roster of pixel players, set your lineup and game plan, then watch a fast, juicy auto-sim play out -- strategy over reflexes or timing.
 
 ## Quick Start
 
@@ -39,7 +39,7 @@ Run on device with the Expo Go app or build for iOS/Android.
 
 ## Game Concept
 
-Pixel Hoops combines Slay the Spire-style card strategy with NBA Jam arcade energy. Build a roster of 8-bit players, recruit defeated opponents between runs, and climb tournament brackets through smart card play. Every run ends in permadeath but leaves permanent progress behind.
+Pixel Hoops combines Slay the Spire-style roster building with NBA Jam arcade energy. Draft a roster of 8-bit players, chase lineup synergies, recruit defeated opponents between runs, and climb tournament brackets by out-building your rivals. You set the five and the game plan; the game auto-sims each matchup possession by possession. Every run ends in permadeath but leaves permanent progress behind.
 
 Full design document in [docs/game-concept.md](docs/game-concept.md). Key pillars: one-thumb strategy playability, instant restart under 5 seconds, meaningful death (no run is wasted), compounding roster growth, and NBA Jam arcade energy.
 
