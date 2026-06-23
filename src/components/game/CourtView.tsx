@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -6,6 +6,8 @@ import Animated, {
   withSequence,
   withTiming,
   withDelay,
+  cancelAnimation,
+  interpolate,
   Easing,
 } from 'react-native-reanimated';
 import {
@@ -18,8 +20,8 @@ import {
   type BurstVariant,
 } from '@/components/fx';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
-import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
-import { idleBobFor, moveOffsetFor, MOVE } from '@/components/game/possession';
+import { spotPx, rimCenterPx } from '@/components/game/courtGeometry';
+import { idleBobFor, moveOffsetFor, roleFor, MOVE, DUNK } from '@/components/game/possession';
 import { useFeelSettings, usePulse } from '@/feel';
 import { palette } from '@/theme';
 import { courtThemeFor } from '@/theme/courtTheme';
@@ -40,6 +42,8 @@ interface CourtViewProps {
   awayTeam: Team;
   /** The play currently being shown, or null before tip-off. */
   current: SimEvent | null;
+  /** `${side}-${position}` keys of players who are currently on fire. */
+  hotKeys?: string[];
   /** Fired when the ball reaches the rim (synced make/miss feedback). */
   onArrival?: (e: SimEvent) => void;
 }
@@ -72,7 +76,7 @@ function burstFor(
   const rim = rimCenterPx(side, width, height);
   if (e.result === 'block' || e.result === 'steal') {
     return {
-      origin: spotPx(side, e.scorerPosition, width, height),
+      origin: spotPx(side, e.scorerPosition, width, height, side),
       variant: 'cool',
       count: e.result === 'block' ? 6 : 5,
     };
@@ -84,7 +88,7 @@ function burstFor(
   if (e.action === 'three' || e.result === 'and-one') {
     return { origin: rim, variant: 'confetti', count: 14 };
   }
-  if (e.action === 'dunk') return { origin: rim, variant: 'debris', count: 8 };
+  if (e.action === 'dunk') return { origin: rim, variant: 'debris', count: 14 };
   return {
     origin: rim,
     variant: 'spark',
@@ -93,6 +97,17 @@ function burstFor(
   };
 }
 
+/** Cumulative time fractions of the dunk beats, for interpolating the sequence. */
+const DUNK_TOTAL = DUNK.gather + DUNK.leap + DUNK.slam + DUNK.hang + DUNK.recover;
+const DUNK_KF = [
+  0,
+  DUNK.gather / DUNK_TOTAL,
+  (DUNK.gather + DUNK.leap) / DUNK_TOTAL,
+  (DUNK.gather + DUNK.leap + DUNK.slam) / DUNK_TOTAL,
+  (DUNK.gather + DUNK.leap + DUNK.slam + DUNK.hang) / DUNK_TOTAL,
+  1,
+];
+
 function SpriteAt({
   side,
   position,
@@ -100,6 +115,7 @@ function SpriteAt({
   current,
   width,
   height,
+  hot,
 }: {
   side: SimTeamSide;
   position: Position;
@@ -107,9 +123,44 @@ function SpriteAt({
   current: SimEvent | null;
   width: number;
   height: number;
+  hot: boolean;
 }) {
   const { reducedMotion } = useFeelSettings();
   const rp = playerAt(team, position);
+
+  const role = roleFor(current, side, position);
+  const active =
+    current != null && current.team === side && current.scorerPosition === position;
+  const isDunker = role === 'dunker';
+  const seq = current?.seq ?? -1;
+
+  // Possession-aware base: the team with the ball advances into the attacking
+  // half; everyone else holds the defensive set. The base slides on each change.
+  const target = useMemo(() => {
+    if (width === 0 || height === 0) return { x: 0, y: 0 };
+    return spotPx(side, position, width, height, current?.team ?? null);
+  }, [side, position, width, height, current?.team]);
+  const baseX = useSharedValue(0);
+  const baseY = useSharedValue(0);
+  const placed = useRef(false);
+  useEffect(() => {
+    if (width === 0 || height === 0) return;
+    if (!placed.current || reducedMotion) {
+      baseX.value = target.x; // first placement or reduced motion: snap
+      baseY.value = target.y;
+      placed.current = true;
+      return;
+    }
+    baseX.value = withTiming(target.x, { duration: 120, easing: Easing.out(Easing.cubic) });
+    baseY.value = withTiming(target.y, { duration: 120, easing: Easing.out(Easing.cubic) });
+  }, [target.x, target.y, reducedMotion, baseX, baseY, width, height]);
+  // Quantize to whole 2px steps so the slide reads as discrete 8-bit hops.
+  const slideStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: Math.round(baseX.value / 2) * 2 },
+      { translateY: Math.round(baseY.value / 2) * 2 },
+    ],
+  }));
 
   // Idle breathe, detuned per sprite so the floor undulates instead of marching.
   const bob = useMemo(() => idleBobFor(side, position), [side, position]);
@@ -119,15 +170,14 @@ function SpriteAt({
   });
 
   // Possession motion: a driver steps to the rim, a defender leans in, a jumper
-  // shooter rises. Idle sprites don't move.
+  // shooter rises. The dunker owns its own travel (below), so it skips this.
   const offset = useMemo(
     () => moveOffsetFor(current, side, position, width, height),
     [current, side, position, width, height]
   );
   const move = useSharedValue(0);
-  const seq = current?.seq ?? -1;
   useEffect(() => {
-    if (reducedMotion || (offset.dx === 0 && offset.dy === 0)) {
+    if (reducedMotion || isDunker || (offset.dx === 0 && offset.dy === 0)) {
       move.value = 0;
       return;
     }
@@ -136,7 +186,7 @@ function SpriteAt({
       withTiming(1, { duration: MOVE.out, easing: Easing.out(Easing.cubic) }),
       withDelay(MOVE.hold, withTiming(0, { duration: MOVE.back, easing: Easing.out(Easing.quad) }))
     );
-  }, [seq, offset.dx, offset.dy, reducedMotion, move]);
+  }, [seq, offset.dx, offset.dy, reducedMotion, isDunker, move]);
   const moveStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: offset.dx * move.value },
@@ -144,33 +194,83 @@ function SpriteAt({
     ],
   }));
 
+  // The dunk: gather (squash), leap (stretch up toward the rim), slam (squash
+  // down, the ball arrives), hang, recover. One progress value drives it all.
+  const dunk = useSharedValue(0);
+  useEffect(() => {
+    if (reducedMotion || !isDunker) {
+      dunk.value = 0;
+      return;
+    }
+    dunk.value = 0;
+    dunk.value = withTiming(1, { duration: DUNK_TOTAL, easing: Easing.linear });
+    return () => cancelAnimation(dunk);
+  }, [seq, isDunker, reducedMotion, dunk]);
+  const dunkStyle = useAnimatedStyle(() => {
+    const p = dunk.value;
+    // Values per beat: rest, gather (squash), leap (stretch up), slam (squash
+    // down), hang, recover.
+    const travel = interpolate(p, DUNK_KF, [0, 0.4, 1, 1, 1, 0]);
+    const lift = interpolate(p, DUNK_KF, [0, 0, -DUNK.lift, 0, 0, 0]);
+    const sx = interpolate(p, DUNK_KF, [1, 1.08, 0.88, 1.16, 1.1, 1]);
+    const sy = interpolate(p, DUNK_KF, [1, 0.86, 1.22, 0.82, 0.88, 1]);
+    return {
+      transform: [
+        { translateX: Math.round(offset.dx * travel) },
+        { translateY: Math.round(offset.dy * travel + lift) },
+        { scaleX: sx },
+        { scaleY: sy },
+      ],
+    };
+  });
+
+  // On-fire aura: a flame glow behind a hot scorer (NBA Jam). Steady under reduced motion.
+  const { glowStyle } = usePulse(560);
+
   if (!rp) return null;
-  const active =
-    current != null && current.team === side && current.scorerPosition === position;
-  const { left, top } = spotPercent(side, position);
-  // Pop only when this sprite becomes the active scorer on a new possession.
-  const trigger = active ? current!.seq : `idle-${side}-${position}`;
+  const inner = (
+    <>
+      {hot ? (
+        <Animated.View pointerEvents="none" style={[styles.aura, glowStyle]} />
+      ) : null}
+      <PixelPlayer
+        color={team.colorHex}
+        accent={team.accentHex}
+        number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
+        skinIndex={skinIndexFor(rp.player.name)}
+        active={active}
+      />
+      {/* Under reduced motion the ball doesn't fly, so the active sprite holds it. */}
+      {active && reducedMotion ? <View style={styles.ball} /> : null}
+    </>
+  );
 
   return (
-    <Animated.View style={[styles.sprite, { left, top }, moveStyle]}>
-      <Animated.View style={bobStyle}>
-        <Pop trigger={trigger}>
-          <PixelPlayer
-            color={team.colorHex}
-            accent={team.accentHex}
-            number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
-            skinIndex={skinIndexFor(rp.player.name)}
-            active={active}
-          />
-          {/* Under reduced motion the ball doesn't fly, so the active sprite holds it. */}
-          {active && reducedMotion ? <View style={styles.ball} /> : null}
-        </Pop>
+    <Animated.View style={[styles.sprite, slideStyle]}>
+      <Animated.View style={moveStyle}>
+        <Animated.View style={bobStyle}>
+          <Animated.View style={dunkStyle}>
+            {isDunker ? (
+              inner
+            ) : (
+              <Pop trigger={active ? current!.seq : `idle-${side}-${position}`}>
+                {inner}
+              </Pop>
+            )}
+          </Animated.View>
+        </Animated.View>
       </Animated.View>
     </Animated.View>
   );
 }
 
-export function CourtView({ homeTeam, awayTeam, current, onArrival }: CourtViewProps) {
+export function CourtView({
+  homeTeam,
+  awayTeam,
+  current,
+  hotKeys = [],
+  onArrival,
+}: CourtViewProps) {
   // Every game is hosted in the opponent's arena, so the floor takes their colors.
   const theme = useMemo(
     () => courtThemeFor(awayTeam.colorHex, awayTeam.accentHex),
@@ -217,6 +317,7 @@ export function CourtView({ homeTeam, awayTeam, current, onArrival }: CourtViewP
             current={current}
             width={size.width}
             height={size.height}
+            hot={hotKeys.includes(`${side}-${position}`)}
           />
         ))
       )}
@@ -255,11 +356,22 @@ const styles = StyleSheet.create({
   },
   sprite: {
     position: 'absolute',
+    top: 0,
+    left: 0,
     width: SPRITE_W,
-    // Center the sprite on its court spot.
+    // Center the sprite on its court spot (translated into place by slideStyle).
     marginLeft: -SPRITE_W / 2,
     marginTop: -SPRITE_W * 0.75,
     alignItems: 'center',
+  },
+  aura: {
+    position: 'absolute',
+    top: -4,
+    left: -4,
+    width: SPRITE_W + 8,
+    height: SPRITE_W * 1.5 + 8,
+    borderRadius: 4,
+    backgroundColor: palette.flame,
   },
   ball: {
     position: 'absolute',

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import {
@@ -12,6 +12,7 @@ import {
 } from '@/components/fx';
 import { CourtView } from '@/components/game/CourtView';
 import { eventGapMs } from '@/components/game/possession';
+import { computeHotState } from '@/game/streaks';
 import { haptics, useFeelSettings } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, BORDER, RADIUS } from '@/theme';
 import { isMadeShot, type SimEvent } from '@/types/sim';
@@ -70,6 +71,9 @@ export function PlayByPlayFeed({
   const homeScore = landed ? landed.homeScore : 0;
   const awayScore = landed ? landed.awayScore : 0;
 
+  // NBA-Jam hot hand, derived once from the timeline (presentation only).
+  const hotState = useMemo(() => computeHotState(timeline), [timeline]);
+
   // Outcome feedback, tiered so routine plays stay quiet and only special moments
   // pop. Fired when the ball reaches the rim (see CourtView onArrival).
   const applyOutcomeJuice = useCallback((e: SimEvent) => {
@@ -103,8 +107,9 @@ export function PlayByPlayFeed({
       return;
     }
     if (e.action === 'dunk') {
-      shakeRef.current?.shake('medium');
-      haptics.medium();
+      // The slam hits hard: heavy rattle and a triple-burst, below only the winner.
+      shakeRef.current?.shake('heavy');
+      haptics.bigPlay();
       return;
     }
     if (e.isBigPlay) {
@@ -160,7 +165,21 @@ export function PlayByPlayFeed({
 
   const start = Math.max(0, cursor - VISIBLE_ROWS + 1);
   const rows = cursor >= 0 ? timeline.slice(start, cursor + 1) : [];
-  const bigCallout = landed?.isBigPlay ? landed.callout : undefined;
+
+  // The callout: a streak milestone takes precedence over the play's own callout.
+  const landedHot = landed ? hotState.get(landed.seq) : undefined;
+  const streakCallout = landedHot?.igniting
+    ? 'ON FIRE!'
+    : landedHot?.heating
+      ? 'HEATING UP!'
+      : undefined;
+  const calloutText =
+    streakCallout ?? (landed?.isBigPlay ? landed.callout : undefined);
+  const calloutColor = streakCallout
+    ? palette.flame
+    : landed
+      ? colorForEvent(landed)
+      : palette.gold;
 
   return (
     <View style={styles.wrap}>
@@ -198,6 +217,7 @@ export function PlayByPlayFeed({
           homeTeam={homeTeam}
           awayTeam={awayTeam}
           current={current}
+          hotKeys={landedHot?.hotKeys ?? []}
           onArrival={handleArrival}
         />
         <View style={styles.feed}>
@@ -218,12 +238,8 @@ export function PlayByPlayFeed({
             </Text>
           ))}
         </View>
-        {bigCallout ? (
-          <Callout
-            text={bigCallout}
-            color={landed ? colorForEvent(landed) : palette.gold}
-            style={styles.callout}
-          />
+        {calloutText ? (
+          <Callout text={calloutText} color={calloutColor} style={styles.callout} />
         ) : null}
         <Scanlines />
         <FlashOverlay ref={flashRef} />

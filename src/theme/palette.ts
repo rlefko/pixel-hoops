@@ -23,6 +23,7 @@ export const palette = {
   missRed: '#EF5350',
   missRedLt: '#E57373',
   steelBlue: '#42A5F5', // steal / block cool pop
+  flame: '#FF6B35', // on-fire hot streak aura and callout
 
   // Team colors
   homeTeam: '#66BB6A',

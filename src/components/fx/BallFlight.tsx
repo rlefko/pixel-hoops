@@ -37,6 +37,7 @@ const DEFLECT_DY = 22; // ...and back toward mid-court
 const CAROM_DX = 34; // sideways kick on a miss off the iron
 const CAROM_DY = 24; // ...and back toward mid-court
 const DROP_THROUGH = 10; // a make drops this far down through the net
+const DUNK_DROP_THROUGH = 22; // a dunk rams the ball harder through the net
 
 function lerp(a: Pt, b: Pt, t: number): Pt {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
@@ -44,7 +45,7 @@ function lerp(a: Pt, b: Pt, t: number): Pt {
 
 export function BallFlight({ event, width, height, onArrival }: BallFlightProps) {
   const { reducedMotion } = useFeelSettings();
-  const { ballStyle, fire } = useBallFlight();
+  const { ballStyle, trailStyles, fire } = useBallFlight();
   const lastSeq = useRef<number | null>(null);
 
   useEffect(() => {
@@ -53,7 +54,8 @@ export function BallFlight({ event, width, height, onArrival }: BallFlightProps)
     lastSeq.current = event.seq;
 
     const shape = shotShapeFor(event);
-    const origin = spotPx(event.team, event.scorerPosition, width, height);
+    // The scorer is on the attacking side, so its spot is the advanced one.
+    const origin = spotPx(event.team, event.scorerPosition, width, height, event.team);
     const rim = rimCenterPx(event.team, width, height);
     // Mid-court is +y from the top hoop and -y from the bottom hoop.
     const dropSign = event.team === 'home' ? 1 : -1;
@@ -73,15 +75,25 @@ export function BallFlight({ event, width, height, onArrival }: BallFlightProps)
     } else if (shape === 'miss') {
       resolve = { x: rim.x + caromSide * CAROM_DX, y: rim.y + dropSign * CAROM_DY }; // carom off iron
     } else {
-      resolve = { x: rim.x, y: rim.y + dropSign * DROP_THROUGH }; // drop through the net
+      const drop = shape === 'dunk' ? DUNK_DROP_THROUGH : DROP_THROUGH;
+      resolve = { x: rim.x, y: rim.y + dropSign * drop }; // ram/drop through the net
     }
 
     fire({ origin, target, resolve, shape, onArrival: arrival });
   }, [event, width, height, fire, onArrival]);
 
   if (reducedMotion) return null;
-  return <Animated.View pointerEvents="none" style={[styles.ball, ballStyle]} />;
+  return (
+    <>
+      {trailStyles.map((ts, i) => (
+        <Animated.View key={i} pointerEvents="none" style={[styles.trail, ts]} />
+      ))}
+      <Animated.View pointerEvents="none" style={[styles.ball, ballStyle]} />
+    </>
+  );
 }
+
+const TRAIL = 6;
 
 const styles = StyleSheet.create({
   ball: {
@@ -96,5 +108,16 @@ const styles = StyleSheet.create({
     backgroundColor: palette.orange,
     borderWidth: 1,
     borderColor: palette.courtLine,
+  },
+  trail: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    width: TRAIL,
+    height: TRAIL,
+    marginLeft: -TRAIL / 2,
+    marginTop: -TRAIL / 2,
+    borderRadius: TRAIL / 2,
+    backgroundColor: palette.orange,
   },
 });
