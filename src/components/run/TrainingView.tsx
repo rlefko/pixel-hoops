@@ -2,11 +2,16 @@ import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { MAX_TRAINED_STAT, trainedStat } from '@/game/effects';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Roster } from '@/types/roster';
 import type { PlayerStats } from '@/types/player';
 
-/** Training node: spend the visit to boost one stat of one player by +1. */
+/**
+ * Training node: spend banked training points (earned by winning games) to boost
+ * a player's skills, +1 per point. Run-scoped only, and the one way past the
+ * normal 10 cap, up to 12 (the S+ ceiling). Points bank across the whole run.
+ */
 
 interface StatDef {
   key: keyof PlayerStats;
@@ -44,25 +49,25 @@ const STAT_GROUPS: { label: string; stats: StatDef[] }[] = [
   },
 ];
 
-const STAT_CAP = 10;
-
 interface TrainingViewProps {
   roster: Roster;
+  /** Banked training points available to spend (1 per point = +1 skill). */
+  trainingPoints: number;
   onTrain: (index: number, stat: keyof PlayerStats) => void;
-  onSkip: () => void;
+  onDone: () => void;
 }
 
-export function TrainingView({ roster, onTrain, onSkip }: TrainingViewProps) {
+export function TrainingView({ roster, trainingPoints, onTrain, onDone }: TrainingViewProps) {
   const pool = [...roster.starters, ...roster.bench];
+  const noPoints = trainingPoints <= 0;
   return (
     <Screen style={styles.container}>
       <Text style={styles.title}>TRAINING</Text>
-      <Text style={styles.subtitle}>Boost one stat (+1) for one player</Text>
+      <Text style={styles.subtitle}>
+        {trainingPoints} point{trainingPoints === 1 ? '' : 's'} to spend (+1 each, up to {MAX_TRAINED_STAT})
+      </Text>
 
-      <ScrollView
-        style={styles.list}
-        contentContainerStyle={styles.listContent}
-      >
+      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         {pool.map((rp, i) => (
           <View key={i} style={styles.row}>
             <PlayerCard rp={rp} condition />
@@ -72,16 +77,17 @@ export function TrainingView({ roster, onTrain, onSkip }: TrainingViewProps) {
                   <Text style={styles.groupLabel}>{group.label}</Text>
                   <View style={styles.statButtons}>
                     {group.stats.map((s) => {
-                      const maxed = rp.player.stats[s.key] >= STAT_CAP;
+                      const trained = trainedStat(rp, s.key);
+                      const disabled = trained >= MAX_TRAINED_STAT || noPoints;
                       return (
                         <Pressable
                           key={s.key}
-                          disabled={maxed}
+                          disabled={disabled}
                           onPress={() => onTrain(i, s.key)}
-                          style={[styles.statBtn, maxed && styles.maxed]}
+                          style={[styles.statBtn, disabled && styles.maxed]}
                         >
                           <Text style={styles.statBtnText}>
-                            {s.label} {rp.player.stats[s.key]}
+                            {s.label} {trained}
                           </Text>
                         </Pressable>
                       );
@@ -94,8 +100,8 @@ export function TrainingView({ roster, onTrain, onSkip }: TrainingViewProps) {
         ))}
       </ScrollView>
 
-      <Pressable onPress={onSkip}>
-        <Text style={styles.skip}>Skip</Text>
+      <Pressable onPress={onDone}>
+        <Text style={styles.skip}>Done</Text>
       </Pressable>
     </Screen>
   );

@@ -2,19 +2,21 @@ import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Pop } from '@/components/fx';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { CoinIcon, StarIcon } from './PixelIcons';
+import { CoinIcon, DumbbellIcon, StarIcon } from './PixelIcons';
 import type { RunRewards } from '@/types/run-map';
 
 /**
- * The run HUD: title, run progress, and clearly labeled resources. Replaces the
- * cryptic "10c / 1rep" line so the player knows coins are spent at the shop and
- * reputation is their run score. Values pop when they change after a win.
+ * The run HUD: title, map progress, and clearly labeled resources. Coins are
+ * spent in the Locker Room, training points at Training nodes, and reputation is
+ * the run score. Values pop when they change after a win.
  */
 
 interface ResourceHeaderProps {
   rewards: RunRewards;
-  round: number;
-  totalRounds: number;
+  /** 1-based index of the map being climbed. */
+  mapNumber: number;
+  /** Total maps in the run. */
+  totalMaps: number;
   /** Equipped passive-boost count (shown as n/5). Omitted hides the pill. */
   boostCount?: number;
 }
@@ -39,8 +41,8 @@ function Pill({
 
 export function ResourceHeader({
   rewards,
-  round,
-  totalRounds,
+  mapNumber,
+  totalMaps,
   boostCount,
 }: ResourceHeaderProps) {
   return (
@@ -48,11 +50,12 @@ export function ResourceHeader({
       <View style={styles.left}>
         <Text style={styles.title}>THE RUN</Text>
         <Text style={styles.round}>
-          ROUND {round}/{totalRounds}
+          MAP {mapNumber}/{totalMaps}
         </Text>
       </View>
       <View style={styles.right}>
         <Pill icon={<CoinIcon size={12} color={palette.gold} />} value={rewards.coins} label="COINS" />
+        <Pill icon={<DumbbellIcon size={12} color={palette.makeGreen} />} value={rewards.trainingPoints} label="TRAIN" />
         <Pill icon={<StarIcon size={12} color={palette.gold} />} value={rewards.reputation} label="REP" />
         {typeof boostCount === 'number' ? (
           <Pop trigger={boostCount} style={styles.pill}>
@@ -90,6 +93,9 @@ const styles = StyleSheet.create({
   },
   right: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
+    flexShrink: 1,
     gap: space(2),
   },
   pill: {

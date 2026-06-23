@@ -16,7 +16,7 @@ import { LineupBuilderView } from '@/components/run/LineupBuilderView';
 import { TrainingView } from '@/components/run/TrainingView';
 import { RestView } from '@/components/run/RestView';
 import { BoostDraftView } from '@/components/run/BoostDraftView';
-import { ItemShopView } from '@/components/run/ItemShopView';
+import { BoostNodeView } from '@/components/run/BoostNodeView';
 import { ItemDropView } from '@/components/run/ItemDropView';
 import { LegendRevealView } from '@/components/run/LegendRevealView';
 import { RunSummaryView } from '@/components/run/RunSummaryView';
@@ -67,14 +67,13 @@ export default function RunScreen() {
           onSkip={actions.skipBoostDraft}
         />
       );
-    case 'itemShop':
+    case 'boost':
       return (
-        <ItemShopView
+        <BoostNodeView
           stock={model.phase.stock}
-          coins={model.core.rewards.coins}
           roster={model.core.roster}
-          onBuy={actions.buyItem}
-          onLeave={actions.leaveShop}
+          onTake={actions.takeBoostItem}
+          onLeave={actions.leaveBoost}
         />
       );
     case 'itemDrop':
@@ -122,8 +121,9 @@ export default function RunScreen() {
       return (
         <TrainingView
           roster={model.core.roster}
+          trainingPoints={model.core.rewards.trainingPoints}
           onTrain={actions.trainPlayer}
-          onSkip={actions.skipNode}
+          onDone={actions.backToMap}
         />
       );
     case 'rest':
