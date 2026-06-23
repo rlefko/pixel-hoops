@@ -1,45 +1,66 @@
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import {
-  BOOST_BY_ID,
-  SKIP_CONSOLATION_COINS,
-  type BoostOffer,
-  type PassiveBoost,
-} from '@/game/boosts';
+import { BOOST_BY_ID, type BoostOffer, type PassiveBoost } from '@/game/boosts';
 import { BOOST_FAMILY_COLOR, offerDef } from './boost-ui';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
- * The start-of-round passive-boost draft: pick 1 of 3 (or skip for coins). When
- * the 5 slots are full, taking a new boost flips into a "drop one" mode where the
- * player picks which equipped boost to sacrifice (lossy, no refund).
+ * The passive-boost draft shown before each map: pick 1 of 3, or skip (free, no
+ * reward). When the 5 slots are full, taking a new boost flips into a "drop one"
+ * mode that shows the incoming boost beside the owned five, so the player can
+ * drop one to make room or skip to keep their five.
  */
 interface BoostDraftViewProps {
   round: number;
   offers: BoostOffer[];
   pendingFull: boolean;
+  /** The incoming boost shown in drop mode (set only while pendingFull). */
+  forced?: BoostOffer;
   owned: PassiveBoost[];
   onDraft: (offer: BoostOffer) => void;
   onDrop: (index: number) => void;
   onSkip: () => void;
 }
 
+/** A muted secondary button, kept clear of the bottom home indicator (no thin link). */
+function SkipButton({ label, onPress }: { label: string; onPress: () => void }) {
+  return (
+    <Pressable style={styles.skipButton} onPress={onPress} accessibilityRole="button">
+      <Text style={styles.skipButtonText}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function BoostDraftView({
   round,
   offers,
   pendingFull,
+  forced,
   owned,
   onDraft,
   onDrop,
   onSkip,
 }: BoostDraftViewProps) {
   if (pendingFull) {
+    const incoming = forced ? offerDef(forced) : undefined;
+    const incomingColor = incoming ? BOOST_FAMILY_COLOR[incoming.family] : palette.gold;
     return (
-      <Screen style={styles.container}>
+      <Screen style={styles.container} bottomGap={space(5)}>
         <Text style={styles.title}>BOOSTS FULL</Text>
-        <Text style={styles.subtitle}>Drop one to make room for the new boost</Text>
-        <ScrollView contentContainerStyle={styles.offers}>
+        <Text style={styles.subtitle}>Drop one to make room, or skip to keep your five</Text>
+        {incoming ? (
+          <View style={[styles.card, styles.incoming, { borderColor: incomingColor }]}>
+            <View style={styles.cardHead}>
+              <Text style={[styles.cardName, { color: incomingColor }]}>{incoming.name}</Text>
+              <Text style={styles.adding}>ADDING</Text>
+            </View>
+            <Text style={styles.cardBlurb}>{incoming.blurb}</Text>
+            <Text style={styles.family}>{incoming.family.toUpperCase()}</Text>
+          </View>
+        ) : null}
+        <Text style={styles.dropLabel}>DROP ONE</Text>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
           {owned.map((b, i) => {
             const def = BOOST_BY_ID[b.id];
             if (!def) return null;
@@ -55,15 +76,16 @@ export function BoostDraftView({
             );
           })}
         </ScrollView>
+        <SkipButton label="Skip (keep my five)" onPress={onSkip} />
       </Screen>
     );
   }
 
   return (
-    <Screen style={styles.container}>
+    <Screen style={styles.container} bottomGap={space(5)}>
       <Text style={styles.title}>ROUND {round} BOOST</Text>
       <Text style={styles.subtitle}>Pick a passive boost for your squad</Text>
-      <ScrollView contentContainerStyle={styles.offers}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
         {offers.map((offer, i) => {
           const def = offerDef(offer);
           if (!def) return null;
@@ -83,12 +105,10 @@ export function BoostDraftView({
           );
         })}
         {offers.length === 0 ? (
-          <Text style={styles.subtitle}>No new boosts available. Skip for coins.</Text>
+          <Text style={styles.subtitle}>No new boosts available.</Text>
         ) : null}
       </ScrollView>
-      <Pressable onPress={onSkip}>
-        <Text style={styles.skip}>Skip for +{SKIP_CONSOLATION_COINS} coins</Text>
-      </Pressable>
+      <SkipButton label="Skip" onPress={onSkip} />
     </Screen>
   );
 }
@@ -110,13 +130,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: space(2),
   },
-  offers: { marginTop: space(6), gap: space(3), paddingBottom: space(4) },
+  scroll: { flex: 1, alignSelf: 'stretch' },
+  offers: { marginTop: space(4), gap: space(3), paddingBottom: space(4) },
   card: {
     padding: space(3),
     borderWidth: BORDER.chunk,
     borderRadius: RADIUS.chip,
     backgroundColor: palette.bgPanel,
     gap: space(1),
+  },
+  incoming: {
+    marginTop: space(4),
+    backgroundColor: palette.gold + '14', // a faint highlight for the incoming boost
   },
   cardHead: {
     flexDirection: 'row',
@@ -125,14 +150,31 @@ const styles = StyleSheet.create({
   },
   cardName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body },
   tag: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
+  adding: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.makeGreen },
   drop: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.missRed },
-  cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
-  family: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
-  skip: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.body,
+  dropLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
     color: palette.inkDim,
     textAlign: 'center',
+    letterSpacing: 1,
     marginTop: space(4),
+  },
+  cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
+  family: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  skipButton: {
+    alignSelf: 'center',
+    marginTop: space(4),
+    paddingVertical: space(3),
+    paddingHorizontal: space(6),
+    borderWidth: BORDER.chunk,
+    borderColor: palette.inkDim,
+    borderRadius: RADIUS.chip,
+  },
+  skipButtonText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.label,
+    color: palette.inkDim,
+    textAlign: 'center',
   },
 });

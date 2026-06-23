@@ -51,7 +51,6 @@ export type BoostOffer =
   | { kind: 'tierUp'; id: string; toTier: number };
 
 export const MAX_BOOSTS = 5;
-export const SKIP_CONSOLATION_COINS = 15;
 const OFFER_COUNT = 3;
 
 export const BOOST_DEFS: readonly BoostDef[] = [

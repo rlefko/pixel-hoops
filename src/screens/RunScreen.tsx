@@ -61,6 +61,7 @@ export default function RunScreen() {
           round={model.phase.round}
           offers={model.phase.offers}
           pendingFull={model.phase.pendingFull}
+          forced={model.phase.forced}
           owned={model.boosts}
           onDraft={actions.draftBoost}
           onDrop={actions.dropBoostForNew}
