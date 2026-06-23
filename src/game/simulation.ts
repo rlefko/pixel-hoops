@@ -26,6 +26,7 @@ import {
 } from './sim-resolution';
 import { computeUsageWeights, computeTeamStats } from './lineup';
 import { computeSynergy } from './synergy';
+import type { StatDelta } from './effects';
 import { ovrRaw } from './ratings';
 import { pickRiskPosture, type RiskPosture } from './ai';
 import { createRNG, type RNG } from './rng';
@@ -334,7 +335,91 @@ function recomputeAggregate(side: SideState): void {
   const players = side.onCourt.map((p) => p.rp);
   const synergy = computeSynergy(players);
   side.weights = computeUsageWeights(players, side.team.tactic);
-  side.aggregate = computeTeamStats(players, side.weights, synergy, side.team.tactic);
+  side.aggregate = computeTeamStats(
+    players,
+    side.weights,
+    synergy,
+    side.team.tactic,
+    side.team.modifier
+  );
+}
+
+/** Interior-D aggregate at which a post threat is considered "doubled". */
+const DOUBLE_INTERIOR_THRESHOLD = 8;
+
+/** Add a stat delta to a team stat line in place (no clamp; q() tolerates any value). */
+function addDeltaToStats(stats: TeamStats, delta: StatDelta): void {
+  for (const k in delta) {
+    const key = k as keyof StatDelta;
+    stats[key] = stats[key] + (delta[key] ?? 0);
+  }
+}
+
+/** Whether any on-court player has dipped below an energy threshold. */
+function anyOnCourtTired(side: SideState, energyBelow: number): boolean {
+  return side.onCourt.some((p) => p.energy < energyBelow);
+}
+
+/**
+ * Per-possession effective stat lines after conditional SimHooks. When neither
+ * side carries hooks the aggregates are returned unchanged (same references), so
+ * a game with no abilities/conditional boosts resolves identically to before.
+ * Each team's own hooks shape its line; opponentRatingMult hooks bend the OTHER
+ * line (an offense rule-bender like Diesel weakens the defender; a defensive
+ * rule-bender like The Wall weakens the attacker).
+ */
+function applyHooks(
+  offense: SideState,
+  defense: SideState,
+  quarter: number
+): { off: TeamStats; def: TeamStats } {
+  const offHooks = offense.team.modifier.hooks;
+  const defHooks = defense.team.modifier.hooks;
+  if (offHooks.length === 0 && defHooks.length === 0) {
+    return { off: offense.aggregate, def: defense.aggregate };
+  }
+  const off: TeamStats = { ...offense.aggregate };
+  const def: TeamStats = { ...defense.aggregate };
+
+  for (const h of offHooks) {
+    switch (h.kind) {
+      case 'quarterDelta':
+        if (quarter === h.quarter) addDeltaToStats(off, h.delta);
+        break;
+      case 'paceClutch':
+        if (off.pace >= h.minPace) off.clutch += h.clutchAdd;
+        break;
+      case 'tiredBench':
+        if (anyOnCourtTired(offense, h.energyBelow)) addDeltaToStats(off, h.benchDelta);
+        break;
+      case 'opponentRatingMult':
+        if (h.when === 'offense') {
+          const doubled = h.unlessDoubled && def.interiorD >= DOUBLE_INTERIOR_THRESHOLD;
+          if (!doubled) def[h.stat] = def[h.stat] * h.mult;
+        }
+        break;
+    }
+  }
+  for (const h of defHooks) {
+    switch (h.kind) {
+      case 'quarterDelta':
+        if (quarter === h.quarter) addDeltaToStats(def, h.delta);
+        break;
+      case 'tiredBench':
+        if (anyOnCourtTired(defense, h.energyBelow)) addDeltaToStats(def, h.benchDelta);
+        break;
+      case 'opponentRatingMult':
+        if (h.when === 'defense') {
+          const doubled = h.unlessDoubled && def.interiorD >= DOUBLE_INTERIOR_THRESHOLD;
+          if (!doubled) off[h.stat] = off[h.stat] * h.mult;
+        }
+        break;
+      case 'paceClutch':
+        // Pace/clutch is an offense-side concept; ignored when defending.
+        break;
+    }
+  }
+  return { off, def };
 }
 
 /**
@@ -491,8 +576,12 @@ export function simulateGame(config: SimConfig): SimResult {
     // fatigue (and clutch, later) feed the probability.
     const { pgs: scorer, slot } = pickScorer(offense, rng);
 
-    const offRating = ACTION_OFF[action](offense.aggregate) + offense.form;
-    let defRating = ACTION_DEF[action](defense.aggregate);
+    // Conditional ability/boost hooks (Q4 surges, post rule-benders, depth) bend
+    // the effective lines for this possession only. A no-hook game is unchanged.
+    const { off: offStats, def: defStats } = applyHooks(offense, defense, quarter);
+
+    const offRating = ACTION_OFF[action](offStats) + offense.form;
+    let defRating = ACTION_DEF[action](defStats);
     if (defense.team.tactic.focus === 'lockdown') defRating += LOCKDOWN_BONUS;
 
     // Crunch: the scorer's own clutch gives a small nudge, plus symmetric noise
@@ -509,7 +598,7 @@ export function simulateGame(config: SimConfig): SimResult {
       action,
       offRating,
       defRating,
-      iq: offense.aggregate.iq,
+      iq: offStats.iq,
       fatigueMult,
       clutchDelta,
     });
@@ -530,7 +619,7 @@ export function simulateGame(config: SimConfig): SimResult {
         points += 1;
       }
     } else {
-      result = missFlavor(action, offense.aggregate, defense.aggregate, rng);
+      result = missFlavor(action, offStats, defStats, rng);
     }
 
     if (offenseSide === 'home') homeScore += points;
