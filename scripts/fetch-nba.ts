@@ -1,8 +1,8 @@
 /**
- * Offline NBA dataset baker. Pulls ratings from the NBA 2K API
- * (https://www.nba2kapi.com) for a curated set of players and writes
- * src/data/nba-players.json. The app NEVER calls the API at runtime, so the
- * sim stays deterministic, offline, and the API key never ships.
+ * Offline NBA legend-dataset baker. Pulls ratings from the NBA 2K API
+ * (https://www.nba2kapi.com) for the curated set of all-time legends and writes
+ * src/data/nba-legends.json. The app NEVER calls the API at runtime, so the sim
+ * stays deterministic, offline, and the API key never ships.
  *
  * Usage:
  *   NBA2K_API_KEY=your_key npx tsx scripts/fetch-nba.ts
@@ -13,7 +13,13 @@
  * The key is read from the environment only. Do not hardcode it or commit it.
  * Team colors live in src/data/nba-teams.json and are maintained by hand (the
  * ratings API does not provide reliable brand colors); this script leaves that
- * file untouched. Curate WHO appears by editing the ROSTER list below.
+ * file untouched. Curate WHICH legends appear by editing the ROSTER list below.
+ *
+ * Scope: this script manages ONLY the legend pool. The `legendary` flag and each
+ * legend's signature `ability` are hand-maintained in nba-legends.json after a
+ * bake (the ratings API provides neither). The modern starter pool
+ * (src/data/nba-starters.json) is hand-curated from current rosters and is NOT
+ * touched here.
  */
 
 import { writeFileSync } from 'node:fs';
@@ -59,6 +65,24 @@ const ROSTER: RosterEntry[] = [
   { slug: 'jimmy-butler', teamAbbr: 'MIA', era: 'modern', position: 'SF', jerseyNumber: 22 },
   { slug: 'ja-morant', teamAbbr: 'MEM', era: 'modern', position: 'PG', jerseyNumber: 12 },
   { slug: 'shai-gilgeous-alexander', teamAbbr: 'OKC', era: 'modern', position: 'SG', jerseyNumber: 2 },
+  // Franchise legends added so every one of the 30 teams has an all-time great
+  // (each boss is headlined by its own franchise legend).
+  { slug: 'dominique-wilkins', teamAbbr: 'ATL', era: 'historical', position: 'SF', jerseyNumber: 21 },
+  { slug: 'jason-kidd', teamAbbr: 'BKN', era: 'historical', position: 'PG', jerseyNumber: 5 },
+  { slug: 'larry-johnson', teamAbbr: 'CHA', era: 'historical', position: 'PF', jerseyNumber: 2 },
+  { slug: 'mark-price', teamAbbr: 'CLE', era: 'historical', position: 'PG', jerseyNumber: 25 },
+  { slug: 'isiah-thomas', teamAbbr: 'DET', era: 'historical', position: 'PG', jerseyNumber: 11 },
+  { slug: 'reggie-miller', teamAbbr: 'IND', era: 'historical', position: 'SG', jerseyNumber: 31 },
+  { slug: 'chris-paul', teamAbbr: 'LAC', era: 'modern', position: 'PG', jerseyNumber: 3 },
+  { slug: 'kevin-garnett', teamAbbr: 'MIN', era: 'historical', position: 'PF', jerseyNumber: 21 },
+  { slug: 'zion-williamson', teamAbbr: 'NOP', era: 'modern', position: 'PF', jerseyNumber: 1 },
+  { slug: 'patrick-ewing', teamAbbr: 'NYK', era: 'historical', position: 'C', jerseyNumber: 33 },
+  { slug: 'tracy-mcgrady', teamAbbr: 'ORL', era: 'historical', position: 'SF', jerseyNumber: 1 },
+  { slug: 'clyde-drexler', teamAbbr: 'POR', era: 'historical', position: 'SG', jerseyNumber: 22 },
+  { slug: 'chris-webber', teamAbbr: 'SAC', era: 'historical', position: 'PF', jerseyNumber: 4 },
+  { slug: 'vince-carter', teamAbbr: 'TOR', era: 'historical', position: 'SG', jerseyNumber: 15 },
+  { slug: 'karl-malone', teamAbbr: 'UTA', era: 'historical', position: 'PF', jerseyNumber: 32 },
+  { slug: 'gilbert-arenas', teamAbbr: 'WAS', era: 'historical', position: 'SG', jerseyNumber: 0 },
 ];
 
 const API_BASE = process.env.NBA2K_API_BASE ?? 'https://www.nba2kapi.com';
@@ -116,9 +140,10 @@ async function main(): Promise<void> {
   }
 
   const here = dirname(fileURLToPath(import.meta.url));
-  const out = join(here, '..', 'src', 'data', 'nba-players.json');
+  const out = join(here, '..', 'src', 'data', 'nba-legends.json');
   writeFileSync(out, JSON.stringify(players, null, 2) + '\n');
-  console.log(`\nWrote ${players.length} players to ${out}`);
+  console.log(`\nWrote ${players.length} legends to ${out}`);
+  console.log('Re-add each legend\'s `legendary` flag and `ability` by hand.');
 }
 
 main();

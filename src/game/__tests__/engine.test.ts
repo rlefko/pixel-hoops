@@ -119,7 +119,9 @@ describe('simulateGame integrity', () => {
       const { home, away } = makeMatchup(`score-${s}`, (s % 7) + 1);
       const r = simulateGame({ home, away, seed: `sg-${s}` });
       for (const side of [r.finalHome, r.finalAway]) {
-        expect(side).toBeGreaterThan(15);
+        // Floor allows the occasional cold-shooting blowout: the rookie home five
+        // can be held to the low teens by a deep-round, round-scaled real opponent.
+        expect(side).toBeGreaterThan(12);
         expect(side).toBeLessThan(130);
         total += side;
         count += 1;

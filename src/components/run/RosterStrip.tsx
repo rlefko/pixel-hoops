@@ -18,9 +18,9 @@ interface RosterStripProps {
   onPress?: () => void;
 }
 
-/** Short, single-token name for the tight strip (nickname or first name). */
+/** Short, single-token first name for the tight strip. */
 function shortName(name: string): string {
-  return name.split(' ')[0].replace(/"/g, '');
+  return name.split(' ')[0];
 }
 
 export function RosterStrip({ roster, onPress }: RosterStripProps) {

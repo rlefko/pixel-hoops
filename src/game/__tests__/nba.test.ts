@@ -3,13 +3,14 @@ import { createRNG } from '@/game/rng';
 import { mapRatingsToStats, scaleRating } from '@/game/nba-map';
 import {
   realPlayerToRosterPlayer,
-  realPlayerAt,
-  realLegendAt,
   legendRecruit,
   pickRealTeam,
+  legendForTeam,
+  modernStartersForTeam,
+  freeAgentPool,
 } from '@/game/player-pool';
-import { generateOpponentTeam } from '@/game/tournament';
-import { NBA_PLAYERS, NBA_TEAMS } from '@/data/nba';
+import { generateOpponentTeam, pickFreeAgentFive } from '@/game/tournament';
+import { NBA_PLAYERS, NBA_LEGENDS, NBA_STARTERS, NBA_TEAMS } from '@/data/nba';
 import { POSITIONS } from '@/types/roster';
 
 describe('nba rating mapping', () => {
@@ -51,27 +52,6 @@ describe('player pool', () => {
     expect(rp.ability).toBe(NBA_PLAYERS[0].ability);
   });
 
-  it('realPlayerAt is franchise-constrained, unscaled, and null when absent', () => {
-    const c = realPlayerAt('C', createRNG('lal'), 'LAL'); // LAL has Kareem/Shaq at C
-    expect(c).not.toBeNull();
-    expect(c!.position).toBe('C');
-    const src = NBA_PLAYERS.find((p) => p.name === c!.player.name)!;
-    expect(src.teamAbbr).toBe('LAL');
-    // Unscaled: keeps the authored elite line (at least one rating >= 8).
-    expect(Math.max(...Object.values(c!.player.stats))).toBeGreaterThanOrEqual(8);
-    // San Antonio has only a PF legend, so no PG legend exists there.
-    expect(realPlayerAt('PG', createRNG('x'), 'SAS')).toBeNull();
-  });
-
-  it('realLegendAt returns a legend of the requested position', () => {
-    for (const pos of POSITIONS) {
-      const rp = realLegendAt(pos, createRNG(`g-${pos}`));
-      expect(rp).not.toBeNull();
-      expect(rp!.position).toBe(pos);
-      expect(rp!.legendary).toBe(true);
-    }
-  });
-
   it('legendRecruit is an on-loan, deterministic legend', () => {
     const a = legendRecruit(createRNG('lr'));
     const b = legendRecruit(createRNG('lr'));
@@ -82,6 +62,39 @@ describe('player pool', () => {
 
   it('pickRealTeam is deterministic per seed', () => {
     expect(pickRealTeam(createRNG('t'))).toEqual(pickRealTeam(createRNG('t')));
+  });
+
+  it('legendForTeam returns that franchise own legend for every team', () => {
+    for (const team of NBA_TEAMS) {
+      const lg = legendForTeam(team.abbreviation, createRNG(`L-${team.abbreviation}`));
+      expect(lg, team.abbreviation).not.toBeNull();
+      expect(lg!.legendary).toBe(true);
+      const src = NBA_LEGENDS.find((p) => p.name === lg!.player.name)!;
+      expect(src.teamAbbr).toBe(team.abbreviation);
+    }
+  });
+
+  it('modernStartersForTeam returns five non-legend reals per team, one per position', () => {
+    for (const team of NBA_TEAMS) {
+      const five = modernStartersForTeam(team.abbreviation);
+      expect(five, team.abbreviation).toHaveLength(5);
+      expect(five.every((p) => !p.legendary)).toBe(true);
+      expect(new Set(five.map((p) => p.position)).size).toBe(5);
+    }
+  });
+
+  it('freeAgentPool is the modern starter pool (no legends)', () => {
+    expect(freeAgentPool()).toBe(NBA_STARTERS);
+    expect(freeAgentPool().every((p) => !p.legendary)).toBe(true);
+  });
+
+  it('pickFreeAgentFive picks five distinct reals, one per position, deterministically', () => {
+    const a = pickFreeAgentFive(createRNG('fa'));
+    const b = pickFreeAgentFive(createRNG('fa'));
+    expect(a).toEqual(b);
+    expect(a.map((p) => p.position)).toEqual([...POSITIONS]);
+    expect(new Set(a.map((p) => p.player.name)).size).toBe(5);
+    expect(a.every((p) => !p.legendary)).toBe(true);
   });
 });
 
@@ -100,35 +113,37 @@ describe('generateOpponentTeam (franchise-accurate + bosses)', () => {
     );
   });
 
-  it('only fields franchise legends, at most one per five, in regular games', () => {
-    for (let s = 0; s < 80; s++) {
-      const round = 3 + (s % 5); // rounds 3-7, where legends can appear
+  it('staffs regular games with real, non-legendary franchise starters', () => {
+    for (let s = 0; s < 90; s++) {
+      const round = 1 + (s % 7);
       const opp = generateOpponentTeam(round, createRNG(`fr-${s}`));
       const team = NBA_TEAMS.find((t) => `${t.city} ${t.name}` === opp.name)!;
+      const starterNames = new Set(
+        modernStartersForTeam(team.abbreviation).map((p) => p.name)
+      );
+      // Regular games never field a legend.
+      expect(opp.roster.starters.some((p) => p.legendary)).toBe(false);
+      // Every starter is a real player from this franchise.
+      for (const sp of opp.roster.starters) {
+        expect(
+          starterNames.has(sp.player.name),
+          `${sp.player.name} not a ${team.abbreviation} starter`
+        ).toBe(true);
+      }
+    }
+  });
+
+  it('headlines every boss with its own franchise all-time legend', () => {
+    for (let s = 0; s < 90; s++) {
+      const round = 3 + (s % 6); // boss rounds 3-8
+      const opp = generateOpponentTeam(round, createRNG(`boss-${s}`), { isBoss: true });
+      const team = NBA_TEAMS.find((t) => `${t.city} ${t.name}` === opp.name)!;
       const legends = opp.roster.starters.filter((p) => p.legendary);
-      expect(legends.length).toBeLessThanOrEqual(1);
+      expect(legends.length, `boss legend for ${team.abbreviation}`).toBeGreaterThanOrEqual(1);
       for (const lg of legends) {
-        const src = NBA_PLAYERS.find((p) => p.name === lg.player.name)!;
+        const src = NBA_LEGENDS.find((p) => p.name === lg.player.name)!;
         expect(src.teamAbbr).toBe(team.abbreviation);
       }
     }
-  });
-
-  it('never fields a legend before round 3', () => {
-    for (let s = 0; s < 40; s++) {
-      for (const round of [1, 2]) {
-        const opp = generateOpponentTeam(round, createRNG(`early-${round}-${s}`));
-        expect(opp.roster.starters.some((p) => p.legendary)).toBe(false);
-      }
-    }
-  });
-
-  it('a boss can field a guest legend in the final round', () => {
-    let sawGuest = false;
-    for (let s = 0; s < 60 && !sawGuest; s++) {
-      const opp = generateOpponentTeam(7, createRNG(`boss-${s}`), { isBoss: true });
-      if (opp.roster.starters.some((p) => p.legendary)) sawGuest = true;
-    }
-    expect(sawGuest).toBe(true);
   });
 });

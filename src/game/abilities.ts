@@ -132,6 +132,18 @@ export const ABILITIES: Record<string, Ability> = {
     blurb: 'Another gear in the fourth: +2 perimeter D, +2 clutch in Q4.',
     hooks: [{ kind: 'quarterDelta', quarter: 4, delta: { perimeterD: 2, clutch: 2 } }],
   },
+  vinsanity: {
+    id: 'vinsanity',
+    name: 'Vinsanity',
+    blurb: 'Plays above the rim: +1 athleticism, +1 outside.',
+    selfDelta: { athleticism: 1, outside: 1 },
+  },
+  mailman: {
+    id: 'mailman',
+    name: 'The Mailman',
+    blurb: 'Always delivers: +1 inside, +1 clutch.',
+    selfDelta: { inside: 1, clutch: 1 },
+  },
 };
 
 /** Look up an ability by id (undefined for non-legends or unknown ids). */

@@ -1,21 +1,19 @@
-import { NBA_PLAYERS, NBA_TEAMS } from '@/data/nba';
+import { NBA_PLAYERS, NBA_LEGENDS, NBA_STARTERS, NBA_TEAMS } from '@/data/nba';
 import type { NbaTeam, RealPlayer } from '@/types/nba';
 import type { Player } from '@/types/player';
-import {
-  POSITION_ARCHETYPE,
-  type Position,
-  type RosterPlayer,
-} from '@/types/roster';
+import { POSITION_ARCHETYPE, type RosterPlayer } from '@/types/roster';
 import type { RNG } from './rng';
 
 /**
- * The real-player pool. Every baked NBA player is a 90+ Legendary, so reals are
- * the rare, exciting crown jewels: they appear on opponents only on their real
- * franchise, on bosses as a guest all-time great, and as on-loan recruit offers.
+ * The real-player pools. Two tiers:
+ *  - LEGENDS (90+, gold): the rare crown jewels. They headline bosses (one per
+ *    boss, from that boss's own franchise) and appear as on-loan recruit offers.
+ *    Kept at their authored elite ratings (NOT round-scaled), so fielding or
+ *    facing one is a genuine power spike.
+ *  - STARTERS (sub-90): every franchise's real modern five. They staff regular
+ *    opponents (round-scaled) and seed the player's free-agent roster.
  *
- * Legends keep their authored elite ratings (NOT round-scaled like procedural
- * fakes): that is exactly what makes facing or fielding one a genuine power
- * spike. Everything is driven by the seeded RNG, keeping sims deterministic.
+ * Everything is driven by the seeded RNG, keeping sims deterministic.
  */
 
 /** Wrap a baked real player as a deployable roster player (carries legendary + ability). */
@@ -42,36 +40,35 @@ export function pickRealTeam(rng: RNG): NbaTeam {
 }
 
 /**
- * A franchise legend at `position`, or null if that franchise has no legend
- * there. Unscaled (keeps elite ratings), so a real on their own team is a
- * mini-boss. Used for the rarity-gated legend slot on a regular opponent five.
- */
-export function realPlayerAt(
-  position: Position,
-  rng: RNG,
-  teamAbbr: string
-): RosterPlayer | null {
-  const matches = NBA_PLAYERS.filter(
-    (p) => p.position === position && p.teamAbbr === teamAbbr
-  );
-  if (matches.length === 0) return null;
-  return realPlayerToRosterPlayer(rng.pick(matches));
-}
-
-/**
- * A guest all-time legend (any team) at `position`, unscaled. Used to let a boss
- * field a marquee opponent in the later rounds, even off their own franchise.
- */
-export function realLegendAt(position: Position, rng: RNG): RosterPlayer | null {
-  const matches = NBA_PLAYERS.filter((p) => p.position === position);
-  if (matches.length === 0) return null;
-  return realPlayerToRosterPlayer(rng.pick(matches));
-}
-
-/**
  * A random legend (any position/team) as an on-loan recruit offer: unscaled and
  * flagged `onLoan`, so it is usable for the rest of the run but never kept.
  */
 export function legendRecruit(rng: RNG): RosterPlayer {
   return { ...realPlayerToRosterPlayer(rng.pick(NBA_PLAYERS)), onLoan: true };
+}
+
+/**
+ * That franchise's all-time legend (any position), unscaled, picking one at
+ * random when a team has several. Every team is covered in the dataset, so the
+ * null return is a defensive fallback. Used to guarantee each boss fields a
+ * marquee opponent from its OWN franchise.
+ */
+export function legendForTeam(teamAbbr: string, rng: RNG): RosterPlayer | null {
+  const matches = NBA_LEGENDS.filter((p) => p.teamAbbr === teamAbbr);
+  if (matches.length === 0) return null;
+  return realPlayerToRosterPlayer(rng.pick(matches));
+}
+
+/**
+ * A franchise's modern role-player starters (sub-90, not legendary). Pure data
+ * (no RNG): callers round-scale these before deploying, so the difficulty curve
+ * is preserved while opponents wear real names, teams, and jersey numbers.
+ */
+export function modernStartersForTeam(teamAbbr: string): RealPlayer[] {
+  return NBA_STARTERS.filter((p) => p.teamAbbr === teamAbbr);
+}
+
+/** The keepable, free-agent-eligible reals (every modern starter). */
+export function freeAgentPool(): RealPlayer[] {
+  return NBA_STARTERS;
 }

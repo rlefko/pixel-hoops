@@ -2,7 +2,7 @@ import type { Roster, RosterPlayer } from '@/types/roster';
 import type { RunRewards } from '@/types/run-map';
 import type { PlayerStats } from '@/types/player';
 import type { RNG } from './rng';
-import { buildStartingRoster } from './tournament';
+import { pickFreeAgentFive } from './tournament';
 import { expandStats, isLegacyStats } from './stat-migration';
 import { RATING_CAP, canUpgrade, upgradeCost } from './upgrades';
 
@@ -24,24 +24,33 @@ export interface HomeRoster {
   upgrades: Record<string, Partial<Record<keyof PlayerStats, number>>>;
   /** Completed runs since a legendary was last offered (soft pity). */
   legendDryStreak: number;
+  /** Whether the one-time, first-run free-agent welcome reveal has been shown. */
+  seenWelcome?: boolean;
 }
 
 /** Owned players beyond the starting five are capped so the roster cannot bloat. */
 const EXTRA_CAP = 12;
 const MAX_PLAYERS = 5 + EXTRA_CAP;
-// v3 adds the permanent-upgrade ledger and legendary pity counter (both additive
-// optionals); v1's four-stat lines are still migrated to the ten-rating model.
-const HOME_ROSTER_VERSION = 3;
+// v4 adds the first-run welcome flag (additive optional). v3 added the
+// permanent-upgrade ledger and legendary pity counter; v1's four-stat lines are
+// still migrated to the ten-rating model.
+const HOME_ROSTER_VERSION = 4;
 
 export interface SerializedHomeRoster {
   version: number;
   data: HomeRoster;
 }
 
-/** A fresh home roster: a rookie five (one per position), no extras. */
+/** A fresh home roster: five real free agents (one per position), no extras. */
 export function createRookieRoster(rng: RNG): HomeRoster {
-  const base = buildStartingRoster(rng); // five starters, empty bench
-  return { players: base.starters, coins: 0, reputation: 0, upgrades: {}, legendDryStreak: 0 };
+  return {
+    players: pickFreeAgentFive(rng), // five real free agents, empty bench
+    coins: 0,
+    reputation: 0,
+    upgrades: {},
+    legendDryStreak: 0,
+    seenWelcome: false,
+  };
 }
 
 /** Turn owned players into a run Roster (first five start, the rest are bench). */
@@ -129,6 +138,7 @@ export function mergeRunGainsIntoHome(
     reputation: home.reputation + (rewards?.reputation ?? 0),
     upgrades: home.upgrades,
     legendDryStreak: legendOffered ? 0 : home.legendDryStreak + 1,
+    seenWelcome: home.seenWelcome ?? true,
   };
 }
 
@@ -170,5 +180,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     reputation: typeof data.reputation === 'number' ? data.reputation : 0,
     upgrades: data.upgrades && typeof data.upgrades === 'object' ? data.upgrades : {},
     legendDryStreak: typeof data.legendDryStreak === 'number' ? data.legendDryStreak : 0,
+    // Restored saves already have a roster, so the first-run welcome is "seen".
+    seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
   };
 }

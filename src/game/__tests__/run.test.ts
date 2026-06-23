@@ -11,6 +11,7 @@ import {
   type HomeRoster,
 } from '@/game/home-roster';
 import { legendRecruit } from '@/game/player-pool';
+import { NBA_STARTERS } from '@/data/nba';
 import {
   runReducer,
   initRun,
@@ -56,6 +57,18 @@ describe('generateRecruitOffers', () => {
       }
       expect(POSITIONS).toContain(o.position);
     }
+  });
+
+  it('offers real free agents, never an excluded or duplicate name', () => {
+    const exclude = new Set(['Trae Young', 'LaMelo Ball']);
+    const offers = generateRecruitOffers(4, 12, createRNG('ex'), exclude);
+    const starterNames = new Set(NBA_STARTERS.map((p) => p.name));
+    for (const o of offers) {
+      expect(exclude.has(o.player.name)).toBe(false);
+      expect(starterNames.has(o.player.name)).toBe(true); // a real free agent
+      expect(o.legendary).toBeFalsy(); // keepable reals are never gold legends
+    }
+    expect(new Set(offers.map((o) => o.player.name)).size).toBe(offers.length);
   });
 });
 
@@ -110,8 +123,13 @@ describe('generateFixedMap (fixed shape, random types)', () => {
 });
 
 describe('home roster persistence', () => {
-  it('rookie roster owns five players', () => {
-    expect(rookie().players).toHaveLength(5);
+  it('rookie roster owns five real free agents, one per position, pre-welcome', () => {
+    const r = rookie('fa-seed');
+    expect(r.players).toHaveLength(5);
+    expect(r.seenWelcome).toBe(false);
+    expect(r.players.map((p) => p.position)).toEqual([...POSITIONS]);
+    const starterNames = new Set(NBA_STARTERS.map((p) => p.name));
+    expect(r.players.every((p) => starterNames.has(p.player.name))).toBe(true);
   });
 
   it('homeToRunRoster puts five in starters and the rest on the bench', () => {
