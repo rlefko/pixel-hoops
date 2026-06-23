@@ -1,8 +1,13 @@
 import { DarkTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
+import {
+  SafeAreaProvider,
+  initialWindowMetrics,
+} from 'react-native-safe-area-context';
 import 'react-native-reanimated';
 
 import { FeelSettingsProvider } from '@/feel';
@@ -64,20 +69,23 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   return (
-    <ThemeProvider value={navTheme}>
-      <Stack
-        screenOptions={{
-          headerShown: false,
-          contentStyle: { backgroundColor: palette.bgDeep },
-        }}
-      >
-        <Stack.Screen name="(home)" />
-        <Stack.Screen name="run" />
-        <Stack.Screen
-          name="modal"
-          options={{ presentation: 'modal', title: 'How to Play' }}
-        />
-      </Stack>
-    </ThemeProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <ThemeProvider value={navTheme}>
+        <StatusBar style="light" />
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: palette.bgDeep },
+          }}
+        >
+          <Stack.Screen name="(home)" />
+          <Stack.Screen name="run" />
+          <Stack.Screen
+            name="modal"
+            options={{ presentation: 'modal', title: 'How to Play' }}
+          />
+        </Stack>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
