@@ -28,7 +28,7 @@ Difficulty should compound across a run while the player's power compounds along
 
 ### 3. Snappy, layered feedback (game juice)
 
-Every meaningful moment should stack several feedback channels at once so it reads as a single satisfying beat: a made dunk fires a screen shake, a color flash, a count-up on the scoreboard, an arcade callout, and a haptic pulse together. Feedback must be fast. The old card game locked the screen for 1600ms per resolution; the target is 80 to 260ms per beat, with the whole game watchable in a few seconds and skippable on demand. Snappy beats slow even when slow is "prettier."
+Every meaningful moment should stack several feedback channels at once so it reads as a single satisfying beat: a made dunk fires a screen shake, a color flash, a count-up on the scoreboard, an arcade callout, and a haptic pulse together. Feedback must be fast. The old card game locked the screen for 1600ms per resolution; the target is 80 to 260ms per beat, with the whole game watchable quickly and skippable on demand at a default-fast playback speed (see "Pacing the watch"). Snappy beats slow even when slow is "prettier."
 
 ### 4. Short, interruptible sessions (Balatro, Slice and Dice, mobile roguelikes)
 
@@ -57,10 +57,20 @@ Pixel Hoops auto-sims games, so the player does not control each possession. Aut
 
 - **Pre-game decisions are consequential.** Lineup, synergies, and game plan should be the real game. A loss should read as "my roster or plan was wrong," not "the dice hated me."
 - **Outcomes are opaque but fair.** The player should not be able to predict the exact score, but strategy should clearly move the odds.
-- **The watch is short and skippable.** A few seconds of juicy play-by-play, with skip and fast-forward, respects the player's time.
+- **The watch is short, default-fast, and skippable.** The replay is decoupled from the sim (the engine emits a timeline, the UI replays it), so its length is a presentation choice. Target tens of seconds at the default speed, not minutes. Default to a brisk playback speed with chill and blitz tiers, plus an optional condensed highlights mode. See "Pacing the watch" below.
 - **Post-game is legible.** It should be obvious which players carried the game and where the plan succeeded or failed, so the next decision is informed.
 
 The engine is built as simulate then replay, so a future crunch-time decision (a Q4 timeout where the player picks pound-inside, chuck-threes, or full-court-press) can pause the replay and resume with the chosen bias, without changing the architecture.
+
+## Pacing the watch: default-fast, juice the peaks
+
+A watched sim lives or dies on pacing. Research across roguelikes, auto-battlers, and sports sims (see Sources) points to a consistent set of principles. The apparent tension between "juicy animation" and "a short, snappy loop" is false: the fix is to spend animation time only where it pays off.
+
+- **Default fast; a skip button is a symptom.** If players reach for skip, the default is too slow. Make the default playback brisk and offer slower and faster tiers, rather than shipping a slow default with a speed-up. Skipping should feel like giving something up, not escaping a chore.
+- **Juice the peaks, compress the routine.** Roughly 80 percent of plays are routine (misses, ordinary makes); animating them at full weight is what makes a watch drag. Give the big moments (dunks, threes, blocks, the game-winner) the full hit-stop and weight, and let routine plays whip by. A condensed highlights mode that elides routine non-scoring plays is a legitimate, time-respecting option.
+- **Do not thrash the backdrop; move the focal element.** Constant repositioning of the whole scene (a floor that shuffles every possession, a camera that cuts back and forth) reads as jumpy and adds motion without meaning. Keep the backdrop stable and move only the focal element (the ball and the active player). This is calmer and faster at once.
+- **The watch is a reward, not a tax.** Anticipation-then-payoff, variable rewards, and reactive flourishes (a hot-streak callout, a buzzer-beater) make watching feel earned. Dead time between beats is the enemy; compress it.
+- **Pace scales, sync holds.** When you add a speed control, scale the event cadence and the animation durations by the same factor so the action stays in sync at every speed.
 
 ## The checklist
 
@@ -87,13 +97,13 @@ A feature should satisfy at least **12 of these 15**. The skill scores each as p
 
 **Session design**
 
-11. **Short and tight.** It fits a short session and keeps decision density high.
+11. **Short and tight.** It fits a short session and keeps decision density high. A watched moment is default-fast (tens of seconds, not minutes) with the routine compressed.
 12. **Interruptible.** The player can stop between decisions and resume without loss.
 
 **Polish and feel**
 
 13. **Snappy, layered juice.** Feedback stacks multiple channels and lands in well under half a second.
-14. **Anticipation and pacing.** The feature builds toward its payoff and avoids dead time.
+14. **Anticipation and pacing.** The feature builds toward its payoff and avoids dead time. It juices the peaks and compresses the routine, and its default speed is fast enough that skipping is rare.
 15. **Clear agency.** The player understands why they won or lost; failure teaches.
 
 ## Sources
@@ -107,3 +117,12 @@ A feature should satisfy at least **12 of these 15**. The skill scores each as p
 - Daniel Cook, "The Chemistry of Game Design"; Raph Koster, "A Theory of Fun": the loop and mastery psychology.
 - Compulsion-loop and variable-ratio-reward literature: the structure underneath "one more run."
 - Auto-battlers (TFT, Super Auto Pets) and Football Manager: keeping a watched simulation engaging through consequential pre-game decisions.
+
+On pacing the watch (default-fast, juice the peaks, do not thrash the backdrop):
+
+- Parry Everything, "If your game needs a 'skip animations' button it's too slow": skipping is a symptom of slow defaults. https://parryeverything.com/2022/01/21/if-your-game-needs-a-skip-animations-option-its-too-slow/
+- Grid Sage Games, "Animation vs. pacing dilemma in modern roguelikes": even quick animations cost player time once familiar; default to fast. https://www.gridsagegames.com/blog/2014/01/animation-vs-pacing-dilemma-modern-roguelikes/
+- Vlambeer, "The Art of Screenshake": juice is many small effects layered on the impactful moments, not longer animations everywhere. https://www.youtube.com/watch?v=SkgkIXZ_13Y
+- Slay the Spire, GDC "Metrics-Driven Design and Balance": pacing tuned with data; the intent system removes downtime. https://gdcvault.com/play/1025731/-Slay-the-Spire-Metrics
+- Football Manager and NBA 2K simulation-speed presets, and Backpack Battles / Super Auto Pets round pacing: speed tiers that default brisk, with condensed and full views.
+- Supergiant, Hades: making a repeated watch feel fresh and rewarding through reactive, variable moments rather than longer scenes.

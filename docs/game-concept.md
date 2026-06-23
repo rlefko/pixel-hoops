@@ -187,7 +187,7 @@ This "monotonically decreasing" difficulty curve is the signature of successful 
 
 ### Session Length and Pacing
 
-Successful mobile roguelike runs fall in the **5-20 minute window**, fitting naturally into commute, lunch break, or bedtime play patterns (mobile gamereport 2024 analysis). Each game is ~30-48 seconds. A full tournament run of 5 games takes approximately 4 minutes -- easily completable in a single sitting with room for multiple attempts.
+Successful mobile roguelike runs fall in the **5-20 minute window**, fitting naturally into commute, lunch break, or bedtime play patterns (mobile gamereport 2024 analysis). The auto-sim watch is the per-game time sink, so it is paced to stay short: routine plays are compressed and the peaks are juiced, the default playback speed is brisk (about 30 seconds a game) with chill and blitz tiers and an optional condensed highlights mode, and the floor stays stable rather than repositioning every possession. See the "Pacing the watch" section of [addictive-blueprint.md](addictive-blueprint.md). A full tournament run of 5 games takes a few minutes at the default speed, less on faster tiers, easily completable in a single sitting with room for multiple attempts.
 
 ### Instant Restart
 
@@ -361,10 +361,12 @@ This procedural generation solves the "content treadmill problem" -- algorithmic
 
 ## Session Length Targets
 
-| Run Type     | Active Play Time | Restart Delay   |
-| ------------ | ---------------- | --------------- |
-| Single game  | 30-48 seconds    | Under 5 seconds |
-| Tournament   | 2.5 - 4 minutes  | Under 5 seconds |
-| Full bracket | 6 - 8 minutes    | Under 5 seconds |
+Watch times are at the brisk default speed; the blitz tier and highlights mode are faster, and chill is slower.
 
-These targets align with the successful mobile roguelike sweet spot: sessions that respect the platform by fitting into natural break points (commute, lunch, bedtime) while keeping restart friction near zero so the "just one more tournament" compulsion stays active.
+| Run Type     | Watch Time (brisk) | Restart Delay   |
+| ------------ | ------------------ | --------------- |
+| Single game  | about 30 seconds   | Under 5 seconds |
+| Tournament   | a few minutes      | Under 5 seconds |
+| Full bracket | a few minutes      | Under 5 seconds |
+
+These targets align with the successful mobile roguelike sweet spot: sessions that respect the platform by fitting into natural break points (commute, lunch, bedtime) while keeping restart friction near zero so the "just one more tournament" compulsion stays active. The auto-sim watch is kept short by default-fast pacing (see the "Pacing the watch" principles in addictive-blueprint.md) rather than by forcing the player to skip.
