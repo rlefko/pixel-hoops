@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { useRun } from '@/hooks/useRun';
 import { buildTeam } from '@/game/lineup';
+import { dressedRoster, type RunModel } from '@/game/run-machine';
+import { effectivePlayers, teamModifierFor } from '@/game/apply-effects';
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { GamePlanPicker } from '@/components/game/GamePlanPicker';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
@@ -12,11 +14,13 @@ import { RecruitView } from '@/components/run/RecruitView';
 import { LineupBuilderView } from '@/components/run/LineupBuilderView';
 import { TrainingView } from '@/components/run/TrainingView';
 import { RestView } from '@/components/run/RestView';
-import { ShopView } from '@/components/run/ShopView';
+import { BoostDraftView } from '@/components/run/BoostDraftView';
+import { ItemShopView } from '@/components/run/ItemShopView';
+import { ItemDropView } from '@/components/run/ItemDropView';
+import { LegendRevealView } from '@/components/run/LegendRevealView';
 import { RunSummaryView } from '@/components/run/RunSummaryView';
 import { BoxScoreView } from '@/components/run/BoxScoreView';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import type { RunModel } from '@/game/run-machine';
 
 /**
  * The roguelike run, one screen, one route. Renders a sub-view per RunPhase and
@@ -44,9 +48,49 @@ export default function RunScreen() {
       return (
         <RunMapView
           core={model.core}
+          boosts={model.boosts}
           onChoose={actions.chooseNode}
           onQuit={actions.endRun}
           onOpenLineup={actions.openLineupBuilder}
+        />
+      );
+    case 'boostDraft':
+      return (
+        <BoostDraftView
+          round={model.phase.round}
+          offers={model.phase.offers}
+          pendingFull={model.phase.pendingFull}
+          owned={model.boosts}
+          onDraft={actions.draftBoost}
+          onDrop={actions.dropBoostForNew}
+          onSkip={actions.skipBoostDraft}
+        />
+      );
+    case 'itemShop':
+      return (
+        <ItemShopView
+          stock={model.phase.stock}
+          coins={model.core.rewards.coins}
+          roster={model.core.roster}
+          onBuy={actions.buyItem}
+          onLeave={actions.leaveShop}
+        />
+      );
+    case 'itemDrop':
+      return (
+        <ItemDropView
+          drop={model.phase.drop}
+          roster={model.core.roster}
+          onTake={actions.takeDrop}
+          onSkip={actions.skipDrop}
+        />
+      );
+    case 'legendReveal':
+      return (
+        <LegendRevealView
+          offer={model.phase.offer}
+          onScout={actions.scoutLegend}
+          onDecline={actions.declineLegend}
         />
       );
     case 'pregame':
@@ -89,8 +133,6 @@ export default function RunScreen() {
           onContinue={actions.rest}
         />
       );
-    case 'shop':
-      return <ShopView onContinue={actions.skipNode} />;
     case 'lineup':
       return (
         <LineupBuilderView
@@ -119,12 +161,17 @@ function depthOf(model: RunModel, nodeId: string): number {
 function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
   const round = depthOf(model, nodeId);
+  // Preview the five that will actually dress: healthy-first, with items, legend
+  // auras, and passive boosts baked in, so the board matches the tip-off lineup.
+  const dressed = dressedRoster(model.core.roster);
   const home = buildTeam(
     'Your Squad',
-    model.core.roster.starters,
+    effectivePlayers(dressed.starters),
     model.gamePlan,
     palette.homeTeam,
-    palette.homeTeamAccent
+    palette.homeTeamAccent,
+    effectivePlayers(dressed.bench),
+    teamModifierFor(dressed.starters, model.boosts)
   );
   return (
     <View style={styles.container}>

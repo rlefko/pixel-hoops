@@ -4,6 +4,7 @@ import type { Lineup, Team, TeamStats, SynergyResult } from '@/types/team';
 import type { GamePlan } from '@/types/tactics';
 import { computeSynergy } from './synergy';
 import { off, def } from './ratings';
+import { EMPTY_TEAM_MODIFIER, type StatDelta, type TeamModifier } from './effects';
 
 /**
  * Lineup math: turns five players into the single effective stat line the
@@ -81,26 +82,32 @@ export function computeTeamStats(
   players: RosterPlayer[],
   weights: number[],
   synergy: SynergyResult,
-  tactic: GamePlan
+  tactic: GamePlan,
+  modifier: TeamModifier = EMPTY_TEAM_MODIFIER
 ): TeamStats {
   const avgAth = averageStat(players, 'athleticism');
   const paceTacticMod = tactic.pace === 'fast' ? 1.5 : tactic.pace === 'slow' ? -1.5 : 0;
   const athTacticMod = tactic.pace === 'fast' ? 1 : tactic.pace === 'slow' ? -1 : 0;
 
+  // Flat per-rating deltas the modifier carries (team-wide boosts/auras). An
+  // empty modifier (the default) makes every term below a no-op, so a team with
+  // no boosts/abilities resolves identically to before.
+  const ex = (key: keyof StatDelta): number => modifier.extra[key] ?? 0;
+
   const stats: TeamStats = {
     // Scorers carry the offensive load (usage-weighted).
-    inside: clampStat(weightedStat(players, weights, 'inside') + synergy.offenseBonus),
-    outside: clampStat(weightedStat(players, weights, 'outside') + synergy.offenseBonus),
-    playmaking: clampStat(weightedStat(players, weights, 'playmaking')),
+    inside: clampStat(weightedStat(players, weights, 'inside') + synergy.offenseBonus + modifier.offenseBonus + ex('inside')),
+    outside: clampStat(weightedStat(players, weights, 'outside') + synergy.offenseBonus + modifier.offenseBonus + ex('outside')),
+    playmaking: clampStat(weightedStat(players, weights, 'playmaking') + ex('playmaking')),
     // Defense is anchored by the best stopper, not the average.
-    perimeterD: clampStat(anchoredStat(players, 'perimeterD') + synergy.defenseBonus),
-    interiorD: clampStat(anchoredStat(players, 'interiorD') + synergy.defenseBonus),
-    athleticism: clampStat(avgAth + athTacticMod),
-    iq: clampStat(averageStat(players, 'iq')),
-    clutch: clampStat(averageStat(players, 'clutch') + synergy.clutchBonus),
-    stamina: clampStat(averageStat(players, 'stamina')),
-    durability: clampStat(averageStat(players, 'durability')),
-    pace: clampStat(avgAth + synergy.paceBonus + paceTacticMod),
+    perimeterD: clampStat(anchoredStat(players, 'perimeterD') + synergy.defenseBonus + modifier.defenseBonus + ex('perimeterD')),
+    interiorD: clampStat(anchoredStat(players, 'interiorD') + synergy.defenseBonus + modifier.defenseBonus + ex('interiorD')),
+    athleticism: clampStat(avgAth + athTacticMod + ex('athleticism')),
+    iq: clampStat(averageStat(players, 'iq') + ex('iq')),
+    clutch: clampStat(averageStat(players, 'clutch') + synergy.clutchBonus + modifier.clutchBonus + ex('clutch')),
+    stamina: clampStat(averageStat(players, 'stamina') + ex('stamina')),
+    durability: clampStat(averageStat(players, 'durability') + ex('durability')),
+    pace: clampStat(avgAth + synergy.paceBonus + modifier.paceBonus + paceTacticMod),
     off: 0,
     def: 0,
     ovr: 0,
@@ -123,11 +130,12 @@ export function buildTeam(
   tactic: GamePlan,
   colorHex: string,
   accentHex: string,
-  bench: RosterPlayer[] = []
+  bench: RosterPlayer[] = [],
+  modifier: TeamModifier = EMPTY_TEAM_MODIFIER
 ): Team {
   const synergy = computeSynergy(players);
   const usageWeights = computeUsageWeights(players, tactic);
-  const teamStats = computeTeamStats(players, usageWeights, synergy, tactic);
+  const teamStats = computeTeamStats(players, usageWeights, synergy, tactic, modifier);
   const lineup: Lineup = { players, usageWeights };
-  return { name, lineup, tactic, synergy, teamStats, bench, colorHex, accentHex };
+  return { name, lineup, tactic, synergy, modifier, teamStats, bench, colorHex, accentHex };
 }

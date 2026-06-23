@@ -10,6 +10,7 @@ import { MapNodeTile } from './MapNodeTile';
 import { PositionMarker, EntryBanner } from './PositionMarker';
 import { ResourceHeader } from './ResourceHeader';
 import { RosterStrip } from './RosterStrip';
+import { BoostRow } from './BoostRow';
 import {
   BOARD_WIDTH,
   ROW_PITCH,
@@ -19,11 +20,14 @@ import {
 } from './map-geometry';
 import { palette, FONT, FONT_SIZE, space } from '@/theme';
 import type { MapNodeType, RunState } from '@/types/run-map';
+import type { PassiveBoost } from '@/game/boosts';
 
 /** The branching run map: tap a reachable node to play it. */
 
 interface RunMapViewProps {
   core: RunState;
+  /** Equipped passive boosts, shown in the HUD pill and the boost row. */
+  boosts: PassiveBoost[];
   onChoose: (nodeId: string) => void;
   onQuit: () => void;
   /** Opens the lineup builder from the roster strip (optional). */
@@ -40,7 +44,7 @@ const LEGEND: MapNodeType[] = [
   'boss',
 ];
 
-export function RunMapView({ core, onChoose, onQuit, onOpenLineup }: RunMapViewProps) {
+export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: RunMapViewProps) {
   const reachable = useMemo(
     () =>
       new Set(getReachableNodes(core.map, core.currentNodeId).map((n) => n.id)),
@@ -87,7 +91,9 @@ export function RunMapView({ core, onChoose, onQuit, onOpenLineup }: RunMapViewP
         rewards={core.rewards}
         round={round}
         totalRounds={core.map.layers.length}
+        boostCount={boosts.length}
       />
+      <BoostRow boosts={boosts} />
 
       <ScrollView
         ref={scrollRef}

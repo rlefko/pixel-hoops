@@ -1,11 +1,14 @@
 import { StyleSheet, View, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
+import { CoinIcon } from '@/components/run/PixelIcons';
+import { useHomeRoster } from '@/context/HomeRosterContext';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** Main menu screen — entry point for the game. */
 export default function HomeScreen() {
   const router = useRouter();
+  const { homeRoster, loaded } = useHomeRoster();
 
   return (
     <View style={styles.container}>
@@ -14,6 +17,13 @@ export default function HomeScreen() {
         <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
         <Text style={styles.subtitle}>8-Bit Basketball Roguelike</Text>
       </View>
+
+      {loaded && homeRoster ? (
+        <View style={styles.coinRow}>
+          <CoinIcon size={14} color={palette.gold} />
+          <Text style={styles.coinText}>{homeRoster.coins}</Text>
+        </View>
+      ) : null}
 
       <Text style={styles.instructions}>
         {'Build a roster. Run the bracket.\nKeep what you earn.'}
@@ -25,6 +35,9 @@ export default function HomeScreen() {
           onPress={() => router.push('/run')}
         >
           <Text style={styles.primaryText}>NEW RUN</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={() => router.push('/locker')}>
+          <Text style={styles.secondaryText}>Locker Room</Text>
         </Pressable>
         <Pressable style={styles.button} onPress={() => router.push('/modal')}>
           <Text style={styles.secondaryText}>How to Play</Text>
@@ -63,6 +76,17 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     marginTop: space(2),
     letterSpacing: 1,
+  },
+  coinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
+    marginTop: space(6),
+  },
+  coinText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.label,
+    color: palette.gold,
   },
   instructions: {
     fontFamily: FONT.body,

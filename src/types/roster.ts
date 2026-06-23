@@ -46,6 +46,14 @@ export interface RosterPlayer {
   jerseyNumber?: number;
   /** Games this player must sit out from a between-game injury (0/undefined = healthy). */
   gamesOut?: number;
+  /** A 90+ real NBA great: gold nameplate, signature ability, very rare. */
+  legendary?: boolean;
+  /** Signature ability id (legends only; see src/game/abilities.ts). */
+  ability?: string;
+  /** On-loan recruit: usable for the rest of this run but never kept (stripped at merge). */
+  onLoan?: boolean;
+  /** Run-scoped equipped item (max 1/player; reset each run, never persists home). */
+  item?: { defId: string };
 }
 
 /** The full owned squad: five starters plus bench depth. */

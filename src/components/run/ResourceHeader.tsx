@@ -15,6 +15,8 @@ interface ResourceHeaderProps {
   rewards: RunRewards;
   round: number;
   totalRounds: number;
+  /** Equipped passive-boost count (shown as n/5). Omitted hides the pill. */
+  boostCount?: number;
 }
 
 function Pill({
@@ -35,7 +37,12 @@ function Pill({
   );
 }
 
-export function ResourceHeader({ rewards, round, totalRounds }: ResourceHeaderProps) {
+export function ResourceHeader({
+  rewards,
+  round,
+  totalRounds,
+  boostCount,
+}: ResourceHeaderProps) {
   return (
     <View style={styles.header}>
       <View style={styles.left}>
@@ -47,6 +54,13 @@ export function ResourceHeader({ rewards, round, totalRounds }: ResourceHeaderPr
       <View style={styles.right}>
         <Pill icon={<CoinIcon size={12} color={palette.gold} />} value={rewards.coins} label="COINS" />
         <Pill icon={<StarIcon size={12} color={palette.gold} />} value={rewards.reputation} label="REP" />
+        {typeof boostCount === 'number' ? (
+          <Pop trigger={boostCount} style={styles.pill}>
+            <Text style={styles.boostGlyph}>✦</Text>
+            <Text style={styles.pillValue}>{boostCount}/5</Text>
+            <Text style={styles.pillLabel}>BOOSTS</Text>
+          </Pop>
+        ) : null}
       </View>
     </View>
   );
@@ -93,6 +107,11 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.small,
     color: palette.ink,
+  },
+  boostGlyph: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
   },
   pillLabel: {
     fontFamily: FONT.body,

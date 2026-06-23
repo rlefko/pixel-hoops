@@ -7,19 +7,18 @@ import {
   type RosterPlayer,
 } from '@/types/roster';
 import type { RNG } from './rng';
-import { scaleStatsToRound } from './stat-scaling';
 
 /**
- * The real-player pool. Mixes the baked NBA dataset (historical + modern) into
- * opponent squads and recruit offers so the run is populated with real teams
- * and likenesses alongside the procedural streetball players (tournament.ts).
+ * The real-player pool. Every baked NBA player is a 90+ Legendary, so reals are
+ * the rare, exciting crown jewels: they appear on opponents only on their real
+ * franchise, on bosses as a guest all-time great, and as on-loan recruit offers.
  *
- * Real players are scaled into the current round's range like fakes, so they
- * bring identity (name, team, jersey) without breaking difficulty balance.
- * Everything is driven by the seeded RNG, keeping sims deterministic.
+ * Legends keep their authored elite ratings (NOT round-scaled like procedural
+ * fakes): that is exactly what makes facing or fielding one a genuine power
+ * spike. Everything is driven by the seeded RNG, keeping sims deterministic.
  */
 
-/** Wrap a baked real player as a deployable roster player. */
+/** Wrap a baked real player as a deployable roster player (carries legendary + ability). */
 export function realPlayerToRosterPlayer(rp: RealPlayer): RosterPlayer {
   const player: Player = {
     name: rp.name,
@@ -28,21 +27,12 @@ export function realPlayerToRosterPlayer(rp: RealPlayer): RosterPlayer {
     level: 1,
     trainingXP: 0,
   };
-  return { player, position: rp.position, jerseyNumber: rp.jerseyNumber };
-}
-
-/** Scale a roster player's stats into the round (returns a fresh copy). */
-function scaledToRound(
-  rp: RosterPlayer,
-  round: number,
-  rng: RNG
-): RosterPlayer {
   return {
-    ...rp,
-    player: {
-      ...rp.player,
-      stats: scaleStatsToRound(rp.player.stats, round, rng),
-    },
+    player,
+    position: rp.position,
+    jerseyNumber: rp.jerseyNumber,
+    legendary: rp.legendary ?? false,
+    ability: rp.ability,
   };
 }
 
@@ -51,18 +41,37 @@ export function pickRealTeam(rng: RNG): NbaTeam {
   return rng.pick(NBA_TEAMS);
 }
 
-/** A real player at `position`, scaled to the round, or null if none exist. */
+/**
+ * A franchise legend at `position`, or null if that franchise has no legend
+ * there. Unscaled (keeps elite ratings), so a real on their own team is a
+ * mini-boss. Used for the rarity-gated legend slot on a regular opponent five.
+ */
 export function realPlayerAt(
   position: Position,
-  round: number,
-  rng: RNG
+  rng: RNG,
+  teamAbbr: string
 ): RosterPlayer | null {
-  const matches = NBA_PLAYERS.filter((p) => p.position === position);
+  const matches = NBA_PLAYERS.filter(
+    (p) => p.position === position && p.teamAbbr === teamAbbr
+  );
   if (matches.length === 0) return null;
-  return scaledToRound(realPlayerToRosterPlayer(rng.pick(matches)), round, rng);
+  return realPlayerToRosterPlayer(rng.pick(matches));
 }
 
-/** A random real player (any position) as a recruit offer, scaled to round. */
-export function realRecruit(round: number, rng: RNG): RosterPlayer {
-  return scaledToRound(realPlayerToRosterPlayer(rng.pick(NBA_PLAYERS)), round, rng);
+/**
+ * A guest all-time legend (any team) at `position`, unscaled. Used to let a boss
+ * field a marquee opponent in the later rounds, even off their own franchise.
+ */
+export function realLegendAt(position: Position, rng: RNG): RosterPlayer | null {
+  const matches = NBA_PLAYERS.filter((p) => p.position === position);
+  if (matches.length === 0) return null;
+  return realPlayerToRosterPlayer(rng.pick(matches));
+}
+
+/**
+ * A random legend (any position/team) as an on-loan recruit offer: unscaled and
+ * flagged `onLoan`, so it is usable for the rest of the run but never kept.
+ */
+export function legendRecruit(rng: RNG): RosterPlayer {
+  return { ...realPlayerToRosterPlayer(rng.pick(NBA_PLAYERS)), onLoan: true };
 }

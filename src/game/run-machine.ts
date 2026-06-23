@@ -8,6 +8,17 @@ import {
 import { buildTeam, validateLineup } from './lineup';
 import { simulateGame } from './simulation';
 import { homeToRunRoster, type HomeRoster } from './home-roster';
+import { effectivePlayers, teamModifierFor } from './apply-effects';
+import { legendRecruit } from './player-pool';
+import {
+  MAX_BOOSTS,
+  SKIP_CONSOLATION_COINS,
+  drawBoostOffers,
+  type BoostOffer,
+  type PassiveBoost,
+} from './boosts';
+import { ITEM_BY_ID, rollDrop, rollShopStock, type ItemDef } from './items';
+import type { MapNode } from '@/types/run-map';
 import type { RunState } from '@/types/run-map';
 import type { RosterPlayer } from '@/types/roster';
 import type { BoxLine, SimResult } from '@/types/sim';
@@ -25,9 +36,18 @@ import { palette } from '@/theme/palette';
  */
 
 const RECRUIT_OFFER_COUNT = 3;
-const WIN_COINS = 10;
 const REST_REPUTATION = 2;
 const STAT_CAP = 10;
+
+// --- Coin economy ---
+/** Round-1 standard-game floor. */
+const COIN_BASE = 10;
+/** Each deeper round adds this much to a win's payout. */
+const COIN_PER_ROUND = 4;
+/** Coins banked even on a loss, so no run is wasted. */
+const LOSS_COINS = 10;
+/** Cap on the blowout bonus. */
+const DOMINANCE_CAP = 12;
 
 // --- Between-game injuries (gentle: never bricks a run) ---
 /** Base per-game injury chance for a heavily-used, average-durability player. */
@@ -45,7 +65,20 @@ export type RunPhase =
   | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[] }
   | { kind: 'training'; nodeId: string }
   | { kind: 'rest'; nodeId: string }
-  | { kind: 'shop'; nodeId: string }
+  // A 1-of-3 passive-boost draft at the start of a round. `thenNodeId` is the
+  // node the player chose that opened the round (resumed after the draft);
+  // `forced` is set when the boost list is full and a drop is required.
+  | {
+      kind: 'boostDraft';
+      round: number;
+      offers: BoostOffer[];
+      pendingFull: boolean;
+      forced?: BoostOffer;
+      thenNodeId?: string;
+    }
+  | { kind: 'itemShop'; nodeId: string; stock: ItemDef[] }
+  | { kind: 'itemDrop'; nodeId: string; drop: ItemDef; returnTo: RunPhase }
+  | { kind: 'legendReveal'; nodeId: string; offer: RosterPlayer; fallback: RosterPlayer[] }
   | { kind: 'lineup'; returnTo: RunPhase }
   | { kind: 'summary'; champion: boolean };
 
@@ -54,6 +87,13 @@ export interface RunModel {
   phase: RunPhase;
   gamePlan: GamePlan;
   wins: number;
+  /** Equipped passive boosts (max 5). Lives here, not in RunState, so it never
+   * leaks into the home roster at merge. */
+  boosts: PassiveBoost[];
+  /** Legendary on-loan offer tracking (once per run + soft pity). */
+  legend: { dryStreak: number; offeredThisRun: boolean };
+  /** Deepest round a boost draft has fired for (gates one draft per round). */
+  lastDraftedRound: number;
   /** Active game context, set on enterGame and read in game/postgame. */
   game: {
     opponentName: string;
@@ -76,6 +116,15 @@ export type RunAction =
   | { type: 'recruit'; player: RosterPlayer }
   | { type: 'trainPlayer'; index: number; stat: keyof PlayerStats }
   | { type: 'rest' }
+  | { type: 'draftBoost'; offer: BoostOffer }
+  | { type: 'dropBoostForNew'; dropIndex: number }
+  | { type: 'skipBoostDraft' }
+  | { type: 'buyItem'; defId: string; playerIndex: number }
+  | { type: 'leaveShop' }
+  | { type: 'takeDrop'; playerIndex: number }
+  | { type: 'skipDrop' }
+  | { type: 'scoutLegend' }
+  | { type: 'declineLegend' }
   | { type: 'skipNode' }
   | { type: 'backToMap' }
   | { type: 'endRun' };
@@ -90,24 +139,73 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     seed,
     rewards: { coins: 0, reputation: 0, trainingXP: 0 },
   };
+  // The run opens on the round-1 boost draft (the "before the run starts" pick).
+  const offers = drawBoostOffers(1, [], createRNG(deriveSeed(seed, 'boost-r1')));
   return {
     core,
-    phase: { kind: 'map' },
+    phase: { kind: 'boostDraft', round: 1, offers, pendingFull: false },
     gamePlan: DEFAULT_GAME_PLAN,
     wins: 0,
+    boosts: [],
+    legend: { dryStreak: homeRoster.legendDryStreak ?? 0, offeredThisRun: false },
+    lastDraftedRound: 1,
     game: null,
   };
 }
 
-/** Replace one player in the combined starters+bench list, re-split into a roster. */
+// --- Coin payout ---
+
+/** Coins for a win: round-scaled, node-type multiplied, plus a dominance bonus. */
+function coinsForWin(node: MapNode, result: SimResult): number {
+  const round = node.round ?? node.layer + 1;
+  let coins = COIN_BASE + COIN_PER_ROUND * (round - 1);
+  if (node.type === 'elite') coins *= 1.5;
+  else if (node.type === 'boss') coins *= 2;
+  const margin = result.finalHome - result.finalAway;
+  coins += Math.min(DOMINANCE_CAP, Math.max(0, margin - 5) * 0.6);
+  return Math.round(coins);
+}
+
+// --- Legendary recruit gate ---
+
+/** Base per-recruit-node legendary chance, ramping by round. */
+function recruitLegendChance(round: number): number {
+  if (round <= 2) return 0;
+  if (round <= 4) return 0.08;
+  if (round === 5) return 0.12;
+  return 0.15;
+}
+
+/** Legendary chance with soft pity: +5%/run after five dry runs. */
+function legendGateChance(round: number, dryStreak: number): number {
+  return recruitLegendChance(round) + Math.max(0, dryStreak - 5) * 0.05;
+}
+
+/** Apply a per-player transform across the combined roster, re-split at five. */
+function mapRoster(
+  roster: RunState['roster'],
+  fn: (p: RosterPlayer, index: number) => RosterPlayer
+): RunState['roster'] {
+  const all = [...roster.starters, ...roster.bench].map(fn);
+  return { starters: all.slice(0, 5), bench: all.slice(5) };
+}
+
+/** Replace one player by combined index (starters then bench). */
 function withReplacedPlayer(
-  core: RunState,
+  roster: RunState['roster'],
   index: number,
   next: RosterPlayer
 ): RunState['roster'] {
-  const all = [...core.roster.starters, ...core.roster.bench];
-  const updated = all.map((p, i) => (i === index ? next : p));
-  return { starters: updated.slice(0, 5), bench: updated.slice(5) };
+  return mapRoster(roster, (p, i) => (i === index ? next : p));
+}
+
+/** Equip an item to the player at `index` (combined order). */
+function withEquippedItem(
+  roster: RunState['roster'],
+  index: number,
+  defId: string
+): RunState['roster'] {
+  return mapRoster(roster, (p, i) => (i === index ? { ...p, item: { defId } } : p));
 }
 
 /**
@@ -116,16 +214,12 @@ function withReplacedPlayer(
  * can never be bricked by injuries. With a deep, healthy roster the player's
  * chosen order is preserved.
  */
-function dressedRoster(roster: RunState['roster']): RunState['roster'] {
+export function dressedRoster(roster: RunState['roster']): RunState['roster'] {
   const all = [...roster.starters, ...roster.bench];
   const healthy = all.filter((p) => !(p.gamesOut && p.gamesOut > 0));
   if (healthy.length >= 5) {
-    // Enough healthy bodies: injured players sit out entirely (not even bench),
-    // so rotation can never put a hurt player back on the floor.
     return { starters: healthy.slice(0, 5), bench: healthy.slice(5) };
   }
-  // Short-handed: backfill with the least-injured so a five always takes the
-  // floor (a run is never bricked by injuries).
   const injured = all
     .filter((p) => p.gamesOut && p.gamesOut > 0)
     .sort((a, b) => (a.gamesOut ?? 0) - (b.gamesOut ?? 0));
@@ -136,8 +230,7 @@ function dressedRoster(roster: RunState['roster']): RunState['roster'] {
 /**
  * After a game, recover everyone one game (decrement gamesOut) and roll fresh
  * injuries for the players who dressed. Risk rises with accumulated load and
- * falls with durability: more minutes mean more risk (not the naive "iron-man"
- * inversion). Deterministic from the game's derived seed.
+ * falls with durability. Deterministic from the game's derived seed.
  */
 function applyInjuries(
   core: RunState,
@@ -156,10 +249,59 @@ function applyInjuries(
     }
     return { ...p, gamesOut };
   };
-  return {
-    starters: core.roster.starters.map(update),
-    bench: core.roster.bench.map(update),
-  };
+  return mapRoster(core.roster, update);
+}
+
+/**
+ * Resolve a chosen node into its phase. Combat opens pregame; recruit nodes can
+ * roll a rare on-loan legendary (else procedural offers); shop rolls item stock.
+ * Shared by chooseNode and the post-draft continuation so the two stay in sync.
+ */
+function enterNode(model: RunModel, nodeId: string): RunModel {
+  const core = traverseTo(model.core, nodeId);
+  const node = core.map.nodes[nodeId];
+  const round = node.round ?? node.layer + 1;
+  switch (node.type) {
+    case 'game':
+    case 'elite':
+    case 'boss':
+      return { ...model, core, phase: { kind: 'pregame', nodeId } };
+    case 'recruit': {
+      const fallback = generateRecruitOffers(
+        round,
+        RECRUIT_OFFER_COUNT,
+        createRNG(deriveSeed(core.seed, `recruit-${nodeId}`))
+      );
+      const gateRng = createRNG(deriveSeed(core.seed, `legend-${nodeId}`));
+      if (
+        !model.legend.offeredThisRun &&
+        gateRng.chance(legendGateChance(round, model.legend.dryStreak))
+      ) {
+        return {
+          ...model,
+          core,
+          legend: { ...model.legend, offeredThisRun: true },
+          phase: { kind: 'legendReveal', nodeId, offer: legendRecruit(gateRng), fallback },
+        };
+      }
+      return { ...model, core, phase: { kind: 'recruit', nodeId, offers: fallback } };
+    }
+    case 'training':
+      return { ...model, core, phase: { kind: 'training', nodeId } };
+    case 'rest':
+      return { ...model, core, phase: { kind: 'rest', nodeId } };
+    case 'shop': {
+      const stock = rollShopStock(round, createRNG(deriveSeed(core.seed, `shop-${nodeId}`)));
+      return { ...model, core, phase: { kind: 'itemShop', nodeId, stock } };
+    }
+    default:
+      return { ...model, core, phase: { kind: 'map' } };
+  }
+}
+
+/** After a boost draft resolves, resume the deferred node or return to the map. */
+function afterBoostDraft(model: RunModel, thenNodeId?: string): RunModel {
+  return thenNodeId ? enterNode(model, thenNodeId) : { ...model, phase: { kind: 'map' } };
 }
 
 export function runReducer(
@@ -171,41 +313,24 @@ export function runReducer(
 
   switch (action.type) {
     case 'chooseNode': {
-      const core = traverseTo(model.core, action.nodeId);
-      const node = core.map.nodes[action.nodeId];
+      const node = model.core.map.nodes[action.nodeId];
+      if (!node) return model;
       const round = node.round ?? node.layer + 1;
-      let phase: RunPhase;
-      switch (node.type) {
-        case 'game':
-        case 'elite':
-        case 'boss':
-          phase = { kind: 'pregame', nodeId: action.nodeId };
-          break;
-        case 'recruit': {
-          const rng = createRNG(
-            deriveSeed(core.seed, `recruit-${action.nodeId}`)
-          );
-          phase = {
-            kind: 'recruit',
-            nodeId: action.nodeId,
-            offers: generateRecruitOffers(round, RECRUIT_OFFER_COUNT, rng),
-          };
-          break;
-        }
-        case 'training':
-          phase = { kind: 'training', nodeId: action.nodeId };
-          break;
-        case 'rest':
-          phase = { kind: 'rest', nodeId: action.nodeId };
-          break;
-        case 'shop':
-          phase = { kind: 'shop', nodeId: action.nodeId };
-          break;
-        default:
-          // Defensive: unknown/corrupt node type falls back to the map.
-          phase = { kind: 'map' };
+      // Entering a deeper round opens that round's boost draft first; the chosen
+      // node is resumed once the draft resolves.
+      if (round > model.lastDraftedRound) {
+        const offers = drawBoostOffers(
+          round,
+          model.boosts,
+          createRNG(deriveSeed(model.core.seed, `boost-r${round}`))
+        );
+        return {
+          ...model,
+          lastDraftedRound: round,
+          phase: { kind: 'boostDraft', round, offers, pendingFull: false, thenNodeId: action.nodeId },
+        };
       }
-      return { ...model, core, phase };
+      return enterNode(model, action.nodeId);
     }
 
     case 'setGamePlan':
@@ -218,11 +343,7 @@ export function runReducer(
       if (model.phase.kind !== 'lineup') return model;
       if (!validateLineup(action.starters).ok) return model;
       const roster = { starters: action.starters, bench: action.bench };
-      return {
-        ...model,
-        core: { ...model.core, roster },
-        phase: model.phase.returnTo,
-      };
+      return { ...model, core: { ...model.core, roster }, phase: model.phase.returnTo };
     }
 
     case 'cancelLineup':
@@ -235,26 +356,32 @@ export function runReducer(
       const nodeId = model.phase.nodeId;
       const node = model.core.map.nodes[nodeId];
       const round = node.round ?? node.layer + 1;
+      const isBoss = node.type === 'boss' || nodeId === model.core.map.bossNodeId;
       const dressed = dressedRoster(model.core.roster);
+      // Bake items + legend self-auras into effective copies; collect the
+      // team-level modifier (boosts + legend auras/hooks + on-loan chemistry).
       const home = buildTeam(
         'Your Squad',
-        dressed.starters,
+        effectivePlayers(dressed.starters),
         model.gamePlan,
         palette.homeTeam,
         palette.homeTeamAccent,
-        dressed.bench
+        effectivePlayers(dressed.bench),
+        teamModifierFor(dressed.starters, model.boosts)
       );
       const opp = generateOpponentTeam(
         round,
-        createRNG(deriveSeed(model.core.seed, `opp-${nodeId}`))
+        createRNG(deriveSeed(model.core.seed, `opp-${nodeId}`)),
+        { isBoss }
       );
       const away = buildTeam(
         opp.name,
-        opp.roster.starters,
+        effectivePlayers(opp.roster.starters),
         planForRoster(opp.roster),
         opp.colorHex,
         opp.accentHex,
-        opp.roster.bench
+        effectivePlayers(opp.roster.bench),
+        teamModifierFor(opp.roster.starters, [])
       );
       const result = simulateGame({
         home,
@@ -271,38 +398,50 @@ export function runReducer(
     case 'finishReplay': {
       if (model.phase.kind !== 'game' || !model.game) return model;
       const won = model.game.result.winner === 'home';
-      return {
-        ...model,
-        phase: { kind: 'postgame', nodeId: model.phase.nodeId, won },
-      };
+      return { ...model, phase: { kind: 'postgame', nodeId: model.phase.nodeId, won } };
     }
 
     case 'resolveGameResult': {
       if (model.phase.kind !== 'postgame') return model;
       const { won, nodeId } = model.phase;
-      if (!won)
-        return { ...model, phase: { kind: 'summary', champion: false } };
+      if (!won) {
+        // Coins are kept even on a loss, so the run is never wasted.
+        const rewards = { ...model.core.rewards, coins: model.core.rewards.coins + LOSS_COINS };
+        return { ...model, core: { ...model.core, rewards }, phase: { kind: 'summary', champion: false } };
+      }
       const node = model.core.map.nodes[nodeId];
-      const isBoss =
-        node.type === 'boss' || nodeId === model.core.map.bossNodeId;
+      const isBoss = node.type === 'boss' || nodeId === model.core.map.bossNodeId;
+      const coins = model.game ? coinsForWin(node, model.game.result) : COIN_BASE;
       const rewards = {
         ...model.core.rewards,
-        coins: model.core.rewards.coins + WIN_COINS,
+        coins: model.core.rewards.coins + coins,
         reputation: model.core.rewards.reputation + node.layer + 1,
       };
-      // Recover prior knocks and roll fresh injuries from this game's workload.
       const roster = model.game
         ? applyInjuries(model.core, model.game.result.box.home, nodeId)
         : model.core.roster;
       const core = { ...model.core, rewards, roster };
       const wins = model.wins + 1;
-      if (isBoss)
-        return {
-          ...model,
-          core,
-          wins,
-          phase: { kind: 'summary', champion: true },
-        };
+      if (isBoss) {
+        return { ...model, core, wins, phase: { kind: 'summary', champion: true } };
+      }
+      // Elite wins drop a piece of gear before returning to the map.
+      if (node.type === 'elite') {
+        const drop = rollDrop(
+          'elite',
+          node.round ?? node.layer + 1,
+          createRNG(deriveSeed(model.core.seed, `drop-${nodeId}`))
+        );
+        if (drop) {
+          return {
+            ...model,
+            core,
+            wins,
+            game: null,
+            phase: { kind: 'itemDrop', nodeId, drop, returnTo: { kind: 'map' } },
+          };
+        }
+      }
       return { ...model, core, wins, phase: { kind: 'map' }, game: null };
     }
 
@@ -312,11 +451,7 @@ export function runReducer(
         ...model.core.roster,
         bench: [...model.core.roster.bench, action.player],
       };
-      return {
-        ...model,
-        core: { ...model.core, roster },
-        phase: { kind: 'map' },
-      };
+      return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
     }
 
     case 'trainPlayer': {
@@ -330,19 +465,12 @@ export function runReducer(
           ...target.player,
           stats: {
             ...target.player.stats,
-            [action.stat]: Math.min(
-              STAT_CAP,
-              target.player.stats[action.stat] + 1
-            ),
+            [action.stat]: Math.min(STAT_CAP, target.player.stats[action.stat] + 1),
           },
         },
       };
-      const roster = withReplacedPlayer(model.core, action.index, next);
-      return {
-        ...model,
-        core: { ...model.core, roster },
-        phase: { kind: 'map' },
-      };
+      const roster = withReplacedPlayer(model.core.roster, action.index, next);
+      return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
     }
 
     case 'rest': {
@@ -351,17 +479,89 @@ export function runReducer(
         ...model.core.rewards,
         reputation: model.core.rewards.reputation + REST_REPUTATION,
       };
-      // Rest fully clears injuries (the strategic reason to visit a rest node).
-      const heal = (p: RosterPlayer): RosterPlayer =>
-        p.gamesOut ? { ...p, gamesOut: 0 } : p;
-      const roster = {
-        starters: model.core.roster.starters.map(heal),
-        bench: model.core.roster.bench.map(heal),
+      const roster = mapRoster(model.core.roster, (p) =>
+        p.gamesOut ? { ...p, gamesOut: 0 } : p
+      );
+      return { ...model, core: { ...model.core, rewards, roster }, phase: { kind: 'map' } };
+    }
+
+    case 'draftBoost': {
+      if (model.phase.kind !== 'boostDraft') return model;
+      const phase = model.phase;
+      const offer = action.offer;
+      if (offer.kind === 'tierUp') {
+        const boosts = model.boosts.map((b) =>
+          b.id === offer.id ? { ...b, tier: offer.toTier } : b
+        );
+        return afterBoostDraft({ ...model, boosts }, phase.thenNodeId);
+      }
+      if (model.boosts.length < MAX_BOOSTS) {
+        const boosts = [...model.boosts, { id: offer.defId, tier: 1 }];
+        return afterBoostDraft({ ...model, boosts }, phase.thenNodeId);
+      }
+      // Full: ask the player which boost to drop for the new one.
+      return { ...model, phase: { ...phase, pendingFull: true, forced: offer } };
+    }
+
+    case 'dropBoostForNew': {
+      if (model.phase.kind !== 'boostDraft') return model;
+      const phase = model.phase;
+      const forced = phase.forced;
+      if (!forced || forced.kind !== 'new') return model;
+      // Lossy: the dropped boost is gone (no refund), the new one takes its slot.
+      const boosts = model.boosts.filter((_, i) => i !== action.dropIndex);
+      boosts.push({ id: forced.defId, tier: 1 });
+      return afterBoostDraft({ ...model, boosts }, phase.thenNodeId);
+    }
+
+    case 'skipBoostDraft': {
+      if (model.phase.kind !== 'boostDraft') return model;
+      const rewards = {
+        ...model.core.rewards,
+        coins: model.core.rewards.coins + SKIP_CONSOLATION_COINS,
       };
+      return afterBoostDraft({ ...model, core: { ...model.core, rewards } }, model.phase.thenNodeId);
+    }
+
+    case 'buyItem': {
+      if (model.phase.kind !== 'itemShop') return model;
+      const def = ITEM_BY_ID[action.defId];
+      if (!def || model.core.rewards.coins < def.cost) return model;
+      const all = [...model.core.roster.starters, ...model.core.roster.bench];
+      if (!all[action.playerIndex]) return model;
+      const roster = withEquippedItem(model.core.roster, action.playerIndex, def.id);
+      const rewards = { ...model.core.rewards, coins: model.core.rewards.coins - def.cost };
+      return { ...model, core: { ...model.core, roster, rewards } };
+    }
+
+    case 'leaveShop':
+      return model.phase.kind === 'itemShop' ? { ...model, phase: { kind: 'map' } } : model;
+
+    case 'takeDrop': {
+      if (model.phase.kind !== 'itemDrop') return model;
+      const { drop, returnTo } = model.phase;
+      const roster = withEquippedItem(model.core.roster, action.playerIndex, drop.id);
+      return { ...model, core: { ...model.core, roster }, phase: returnTo };
+    }
+
+    case 'skipDrop':
+      return model.phase.kind === 'itemDrop' ? { ...model, phase: model.phase.returnTo } : model;
+
+    case 'scoutLegend': {
+      if (model.phase.kind !== 'legendReveal') return model;
+      const roster = {
+        ...model.core.roster,
+        bench: [...model.core.roster.bench, model.phase.offer],
+      };
+      return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
+    }
+
+    case 'declineLegend': {
+      if (model.phase.kind !== 'legendReveal') return model;
+      // Passing on the legend still leaves the node's procedural recruit offers.
       return {
         ...model,
-        core: { ...model.core, rewards, roster },
-        phase: { kind: 'map' },
+        phase: { kind: 'recruit', nodeId: model.phase.nodeId, offers: model.phase.fallback },
       };
     }
 

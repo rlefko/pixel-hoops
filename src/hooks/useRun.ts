@@ -5,6 +5,7 @@ import { useHomeRoster } from '@/context/HomeRosterContext';
 import type { RosterPlayer } from '@/types/roster';
 import type { PlayerStats } from '@/types/player';
 import type { GamePlan } from '@/types/tactics';
+import type { BoostOffer } from '@/game/boosts';
 
 /**
  * React wrapper around the pure run machine (src/game/run-machine.ts). Starts a
@@ -29,7 +30,12 @@ export function useRun() {
     if (model.phase.kind === 'summary' && !savedRef.current && homeRoster) {
       savedRef.current = true;
       saveHomeRoster(
-        mergeRunGainsIntoHome(homeRoster, model.core.roster, model.core.rewards)
+        mergeRunGainsIntoHome(
+          homeRoster,
+          model.core.roster,
+          model.core.rewards,
+          model.legend.offeredThisRun
+        )
       );
     }
     if (model.phase.kind !== 'summary') savedRef.current = false;
@@ -50,6 +56,17 @@ export function useRun() {
       trainPlayer: (index: number, stat: keyof PlayerStats) =>
         dispatch({ type: 'trainPlayer', index, stat }),
       rest: () => dispatch({ type: 'rest' }),
+      draftBoost: (offer: BoostOffer) => dispatch({ type: 'draftBoost', offer }),
+      dropBoostForNew: (dropIndex: number) =>
+        dispatch({ type: 'dropBoostForNew', dropIndex }),
+      skipBoostDraft: () => dispatch({ type: 'skipBoostDraft' }),
+      buyItem: (defId: string, playerIndex: number) =>
+        dispatch({ type: 'buyItem', defId, playerIndex }),
+      leaveShop: () => dispatch({ type: 'leaveShop' }),
+      takeDrop: (playerIndex: number) => dispatch({ type: 'takeDrop', playerIndex }),
+      skipDrop: () => dispatch({ type: 'skipDrop' }),
+      scoutLegend: () => dispatch({ type: 'scoutLegend' }),
+      declineLegend: () => dispatch({ type: 'declineLegend' }),
       skipNode: () => dispatch({ type: 'skipNode' }),
       backToMap: () => dispatch({ type: 'backToMap' }),
       endRun: () => dispatch({ type: 'endRun' }),

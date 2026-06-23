@@ -37,5 +37,9 @@ export interface RealPlayer {
   jerseyNumber: number;
   /** 2K overall rating (0-99) from the source dataset; surfaced in-game later. */
   overall: number;
+  /** A 90+ all-time great: rare, on-loan only, gold nameplate, signature ability. */
+  legendary?: boolean;
+  /** Signature ability id (legends only; see src/game/abilities.ts). */
+  ability?: string;
   stats: PlayerStats;
 }

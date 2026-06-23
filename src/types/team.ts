@@ -1,6 +1,7 @@
 import type { PlayerStats } from './player';
 import type { RosterPlayer } from './roster';
 import type { GamePlan } from './tactics';
+import type { TeamModifier } from '@/game/effects';
 
 /**
  * Bonuses produced by a lineup's composition. Synergy rewards thoughtful roster
@@ -51,6 +52,12 @@ export interface Team {
   lineup: Lineup;
   tactic: GamePlan;
   synergy: SynergyResult;
+  /**
+   * Run-level + ability bonuses (passive boosts, legend auras/hooks, on-loan
+   * chemistry tax). Folded into teamStats and re-applied on every substitution;
+   * the conditional hooks are evaluated per possession by the sim.
+   */
+  modifier: TeamModifier;
   teamStats: TeamStats;
   /** Bench players (beyond the starting five) available for in-game rotation. */
   bench: RosterPlayer[];
