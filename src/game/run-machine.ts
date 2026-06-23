@@ -1,5 +1,5 @@
 import { createRNG, deriveSeed } from './rng';
-import { generateRunMap, traverseTo } from './run-map';
+import { generateFixedMap, traverseTo } from './run-map';
 import {
   generateOpponentTeam,
   generateRecruitOffers,
@@ -9,6 +9,7 @@ import { buildTeam, validateLineup } from './lineup';
 import { simulateGame } from './simulation';
 import { homeToRunRoster, type HomeRoster } from './home-roster';
 import { effectivePlayers, teamModifierFor } from './apply-effects';
+import { MAX_TRAINED_STAT, trainedStat } from './effects';
 import { legendRecruit } from './player-pool';
 import {
   MAX_BOOSTS,
@@ -17,7 +18,7 @@ import {
   type BoostOffer,
   type PassiveBoost,
 } from './boosts';
-import { ITEM_BY_ID, rollDrop, rollShopStock, type ItemDef } from './items';
+import { ITEM_BY_ID, rollDrop, rollBoostStock, type ItemDef } from './items';
 import type { MapNode } from '@/types/run-map';
 import type { RunState } from '@/types/run-map';
 import type { RosterPlayer } from '@/types/roster';
@@ -33,13 +34,23 @@ import { palette } from '@/theme/palette';
  * The roguelike run state machine: pure types, an initializer, and a reducer.
  * No React, no storage, no theme barrel, so it unit-tests headless. The hook
  * (src/hooks/useRun.ts) wraps this with state + persistence side effects.
+ *
+ * A run is a sequence of TOTAL_MAPS short fixed-shape maps. A passive-boost draft
+ * opens each map; clearing a map's boss opens the next map (and its draft), and
+ * clearing the final boss wins the run.
  */
 
+/** Maps in a run; each ends in a boss and opens with a passive-boost draft. */
+export const TOTAL_MAPS = 7;
 const RECRUIT_OFFER_COUNT = 3;
 const REST_REPUTATION = 2;
-const STAT_CAP = 10;
 
-// --- Coin economy ---
+// --- Training points (earned per win, banked all run, spent at Training nodes) ---
+const TP_GAME = 1;
+const TP_ELITE = 2;
+const TP_BOSS = 4;
+
+// --- Coin economy (spent only in the Locker Room between runs) ---
 /** Round-1 standard-game floor. */
 const COIN_BASE = 10;
 /** Each deeper round adds this much to a win's payout. */
@@ -65,18 +76,17 @@ export type RunPhase =
   | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[] }
   | { kind: 'training'; nodeId: string }
   | { kind: 'rest'; nodeId: string }
-  // A 1-of-3 passive-boost draft at the start of a round. `thenNodeId` is the
-  // node the player chose that opened the round (resumed after the draft);
-  // `forced` is set when the boost list is full and a drop is required.
+  // A 1-of-3 passive-boost draft, opened once before each map. `forced` is set
+  // when the boost list is full and a drop is required.
   | {
       kind: 'boostDraft';
       round: number;
       offers: BoostOffer[];
       pendingFull: boolean;
       forced?: BoostOffer;
-      thenNodeId?: string;
     }
-  | { kind: 'itemShop'; nodeId: string; stock: ItemDef[] }
+  // Boost node: grab one free item and assign it (the renamed, coin-free shop).
+  | { kind: 'boost'; nodeId: string; stock: ItemDef[] }
   | { kind: 'itemDrop'; nodeId: string; drop: ItemDef; returnTo: RunPhase }
   | { kind: 'legendReveal'; nodeId: string; offer: RosterPlayer; fallback: RosterPlayer[] }
   | { kind: 'lineup'; returnTo: RunPhase }
@@ -92,8 +102,6 @@ export interface RunModel {
   boosts: PassiveBoost[];
   /** Legendary on-loan offer tracking (once per run + soft pity). */
   legend: { dryStreak: number; offeredThisRun: boolean };
-  /** Deepest round a boost draft has fired for (gates one draft per round). */
-  lastDraftedRound: number;
   /** Active game context, set on enterGame and read in game/postgame. */
   game: {
     opponentName: string;
@@ -119,8 +127,8 @@ export type RunAction =
   | { type: 'draftBoost'; offer: BoostOffer }
   | { type: 'dropBoostForNew'; dropIndex: number }
   | { type: 'skipBoostDraft' }
-  | { type: 'buyItem'; defId: string; playerIndex: number }
-  | { type: 'leaveShop' }
+  | { type: 'takeBoostItem'; defId: string; playerIndex: number }
+  | { type: 'leaveBoost' }
   | { type: 'takeDrop'; playerIndex: number }
   | { type: 'skipDrop' }
   | { type: 'scoutLegend' }
@@ -131,16 +139,17 @@ export type RunAction =
 
 /** Build a fresh run from a seed and the player's home roster. */
 export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
-  const map = generateRunMap({ seed: deriveSeed(seed, 'map') });
+  const map = generateFixedMap({ seed: deriveSeed(seed, 'map-0'), mapIndex: 0 });
   const core: RunState = {
     map,
+    currentMapIndex: 0,
     currentNodeId: null,
     roster: homeToRunRoster(homeRoster),
     seed,
-    rewards: { coins: 0, reputation: 0, trainingXP: 0 },
+    rewards: { coins: 0, reputation: 0, trainingPoints: 0 },
   };
-  // The run opens on the round-1 boost draft (the "before the run starts" pick).
-  const offers = drawBoostOffers(1, [], createRNG(deriveSeed(seed, 'boost-r1')));
+  // The run opens on the Map-1 passive-boost draft (the "starter pick").
+  const offers = drawBoostOffers(1, [], createRNG(deriveSeed(seed, 'boost-m0')));
   return {
     core,
     phase: { kind: 'boostDraft', round: 1, offers, pendingFull: false },
@@ -148,7 +157,6 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     wins: 0,
     boosts: [],
     legend: { dryStreak: homeRoster.legendDryStreak ?? 0, offeredThisRun: false },
-    lastDraftedRound: 1,
     game: null,
   };
 }
@@ -164,6 +172,13 @@ function coinsForWin(node: MapNode, result: SimResult): number {
   const margin = result.finalHome - result.finalAway;
   coins += Math.min(DOMINANCE_CAP, Math.max(0, margin - 5) * 0.6);
   return Math.round(coins);
+}
+
+/** Training points a win awards, scaled by the opponent's difficulty. */
+function trainingPointsFor(node: MapNode): number {
+  if (node.type === 'boss') return TP_BOSS;
+  if (node.type === 'elite') return TP_ELITE;
+  return TP_GAME;
 }
 
 // --- Legendary recruit gate ---
@@ -254,8 +269,8 @@ function applyInjuries(
 
 /**
  * Resolve a chosen node into its phase. Combat opens pregame; recruit nodes can
- * roll a rare on-loan legendary (else procedural offers); shop rolls item stock.
- * Shared by chooseNode and the post-draft continuation so the two stay in sync.
+ * roll a rare on-loan legendary (else procedural offers); boost nodes roll a free
+ * item stock. Shared by chooseNode and the post-draft continuation.
  */
 function enterNode(model: RunModel, nodeId: string): RunModel {
   const core = traverseTo(model.core, nodeId);
@@ -290,18 +305,40 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
       return { ...model, core, phase: { kind: 'training', nodeId } };
     case 'rest':
       return { ...model, core, phase: { kind: 'rest', nodeId } };
-    case 'shop': {
-      const stock = rollShopStock(round, createRNG(deriveSeed(core.seed, `shop-${nodeId}`)));
-      return { ...model, core, phase: { kind: 'itemShop', nodeId, stock } };
+    case 'boost': {
+      const stock = rollBoostStock(round, createRNG(deriveSeed(core.seed, `boost-${nodeId}`)));
+      return { ...model, core, phase: { kind: 'boost', nodeId, stock } };
     }
     default:
       return { ...model, core, phase: { kind: 'map' } };
   }
 }
 
-/** After a boost draft resolves, resume the deferred node or return to the map. */
-function afterBoostDraft(model: RunModel, thenNodeId?: string): RunModel {
-  return thenNodeId ? enterNode(model, thenNodeId) : { ...model, phase: { kind: 'map' } };
+/** After a boost draft resolves, show the freshly-opened map. */
+function afterBoostDraft(model: RunModel): RunModel {
+  return { ...model, phase: { kind: 'map' } };
+}
+
+/** Clear a boss: build the next map, reset position, and open its boost draft. */
+function advanceToNextMap(model: RunModel): RunModel {
+  const nextIndex = model.core.currentMapIndex + 1;
+  const map = generateFixedMap({
+    seed: deriveSeed(model.core.seed, `map-${nextIndex}`),
+    mapIndex: nextIndex,
+  });
+  const core = { ...model.core, map, currentMapIndex: nextIndex, currentNodeId: null };
+  const round = nextIndex + 1;
+  const offers = drawBoostOffers(
+    round,
+    model.boosts,
+    createRNG(deriveSeed(model.core.seed, `boost-m${nextIndex}`))
+  );
+  return {
+    ...model,
+    core,
+    game: null,
+    phase: { kind: 'boostDraft', round, offers, pendingFull: false },
+  };
 }
 
 export function runReducer(
@@ -315,21 +352,6 @@ export function runReducer(
     case 'chooseNode': {
       const node = model.core.map.nodes[action.nodeId];
       if (!node) return model;
-      const round = node.round ?? node.layer + 1;
-      // Entering a deeper round opens that round's boost draft first; the chosen
-      // node is resumed once the draft resolves.
-      if (round > model.lastDraftedRound) {
-        const offers = drawBoostOffers(
-          round,
-          model.boosts,
-          createRNG(deriveSeed(model.core.seed, `boost-r${round}`))
-        );
-        return {
-          ...model,
-          lastDraftedRound: round,
-          phase: { kind: 'boostDraft', round, offers, pendingFull: false, thenNodeId: action.nodeId },
-        };
-      }
       return enterNode(model, action.nodeId);
     }
 
@@ -416,6 +438,7 @@ export function runReducer(
         ...model.core.rewards,
         coins: model.core.rewards.coins + coins,
         reputation: model.core.rewards.reputation + node.layer + 1,
+        trainingPoints: model.core.rewards.trainingPoints + trainingPointsFor(node),
       };
       const roster = model.game
         ? applyInjuries(model.core, model.game.result.box.home, nodeId)
@@ -423,7 +446,20 @@ export function runReducer(
       const core = { ...model.core, rewards, roster };
       const wins = model.wins + 1;
       if (isBoss) {
-        return { ...model, core, wins, phase: { kind: 'summary', champion: true } };
+        // The final map's boss wins the run; earlier bosses open the next map.
+        if (core.currentMapIndex >= TOTAL_MAPS - 1) {
+          return { ...model, core, wins, phase: { kind: 'summary', champion: true } };
+        }
+        const advanced = advanceToNextMap({ ...model, core, wins });
+        const drop = rollDrop(
+          'boss',
+          node.round ?? node.layer + 1,
+          createRNG(deriveSeed(model.core.seed, `drop-${nodeId}`))
+        );
+        // Grab the boss relic first, then fall through to the next map's draft.
+        return drop
+          ? { ...advanced, phase: { kind: 'itemDrop', nodeId, drop, returnTo: advanced.phase } }
+          : advanced;
       }
       // Elite wins drop a piece of gear before returning to the map.
       if (node.type === 'elite') {
@@ -456,21 +492,25 @@ export function runReducer(
 
     case 'trainPlayer': {
       if (model.phase.kind !== 'training') return model;
+      if (model.core.rewards.trainingPoints <= 0) return model;
       const all = [...model.core.roster.starters, ...model.core.roster.bench];
       const target = all[action.index];
       if (!target) return model;
+      if (trainedStat(target, action.stat) >= MAX_TRAINED_STAT) return model; // already maxed
       const next: RosterPlayer = {
         ...target,
-        player: {
-          ...target.player,
-          stats: {
-            ...target.player.stats,
-            [action.stat]: Math.min(STAT_CAP, target.player.stats[action.stat] + 1),
-          },
+        trainingDelta: {
+          ...target.trainingDelta,
+          [action.stat]: (target.trainingDelta?.[action.stat] ?? 0) + 1,
         },
       };
       const roster = withReplacedPlayer(model.core.roster, action.index, next);
-      return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
+      const rewards = {
+        ...model.core.rewards,
+        trainingPoints: model.core.rewards.trainingPoints - 1,
+      };
+      // Stay on the Training node so banked points can be spent in one visit.
+      return { ...model, core: { ...model.core, roster, rewards } };
     }
 
     case 'rest': {
@@ -493,11 +533,11 @@ export function runReducer(
         const boosts = model.boosts.map((b) =>
           b.id === offer.id ? { ...b, tier: offer.toTier } : b
         );
-        return afterBoostDraft({ ...model, boosts }, phase.thenNodeId);
+        return afterBoostDraft({ ...model, boosts });
       }
       if (model.boosts.length < MAX_BOOSTS) {
         const boosts = [...model.boosts, { id: offer.defId, tier: 1 }];
-        return afterBoostDraft({ ...model, boosts }, phase.thenNodeId);
+        return afterBoostDraft({ ...model, boosts });
       }
       // Full: ask the player which boost to drop for the new one.
       return { ...model, phase: { ...phase, pendingFull: true, forced: offer } };
@@ -505,13 +545,12 @@ export function runReducer(
 
     case 'dropBoostForNew': {
       if (model.phase.kind !== 'boostDraft') return model;
-      const phase = model.phase;
-      const forced = phase.forced;
+      const forced = model.phase.forced;
       if (!forced || forced.kind !== 'new') return model;
       // Lossy: the dropped boost is gone (no refund), the new one takes its slot.
       const boosts = model.boosts.filter((_, i) => i !== action.dropIndex);
       boosts.push({ id: forced.defId, tier: 1 });
-      return afterBoostDraft({ ...model, boosts }, phase.thenNodeId);
+      return afterBoostDraft({ ...model, boosts });
     }
 
     case 'skipBoostDraft': {
@@ -520,22 +559,21 @@ export function runReducer(
         ...model.core.rewards,
         coins: model.core.rewards.coins + SKIP_CONSOLATION_COINS,
       };
-      return afterBoostDraft({ ...model, core: { ...model.core, rewards } }, model.phase.thenNodeId);
+      return afterBoostDraft({ ...model, core: { ...model.core, rewards } });
     }
 
-    case 'buyItem': {
-      if (model.phase.kind !== 'itemShop') return model;
+    case 'takeBoostItem': {
+      if (model.phase.kind !== 'boost') return model;
       const def = ITEM_BY_ID[action.defId];
-      if (!def || model.core.rewards.coins < def.cost) return model;
+      if (!def) return model;
       const all = [...model.core.roster.starters, ...model.core.roster.bench];
       if (!all[action.playerIndex]) return model;
       const roster = withEquippedItem(model.core.roster, action.playerIndex, def.id);
-      const rewards = { ...model.core.rewards, coins: model.core.rewards.coins - def.cost };
-      return { ...model, core: { ...model.core, roster, rewards } };
+      return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
     }
 
-    case 'leaveShop':
-      return model.phase.kind === 'itemShop' ? { ...model, phase: { kind: 'map' } } : model;
+    case 'leaveBoost':
+      return model.phase.kind === 'boost' ? { ...model, phase: { kind: 'map' } } : model;
 
     case 'takeDrop': {
       if (model.phase.kind !== 'itemDrop') return model;

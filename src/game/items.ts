@@ -7,7 +7,7 @@ import type { MapNodeType } from '@/types/run-map';
  * Run-scoped equippable items (max 1 per player). Modeled on Slay the Spire
  * relics with rarity bands. Common items are a flat +1; the boss-relic band
  * trades a big upside for a real downside so a strong item is a decision, not a
- * free win. Surfaced at shop nodes (bought with coins) and as elite/boss drops.
+ * free win. Grabbed free (one) at Boost nodes, and dropped by elites/bosses.
  * Items reset each run (stripped at mergeRunGainsIntoHome).
  */
 export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'boss';
@@ -21,7 +21,7 @@ export interface ItemDef {
   effect: StatDelta;
   /** Boss-relic downside (negative deltas) applied to the same player. */
   downside?: StatDelta;
-  /** Shop buy price in coins (boss relics are drop-only; cost unused). */
+  /** Legacy coin price, retained for rarity ordering; items are free in-run. */
   cost: number;
 }
 
@@ -72,13 +72,14 @@ function pickFrom(rarity: ItemRarity, rng: RNG): ItemDef {
   return rng.pick(BY_RARITY[rarity]);
 }
 
-const SHOP_SIZE = 3;
+const BOOST_STOCK_SIZE = 3;
 
 /**
- * Deterministic shop stock: SHOP_SIZE distinct items weighted toward commons,
- * with rares more likely in deeper rounds. Boss relics never appear in shops.
+ * Deterministic Boost-node stock: BOOST_STOCK_SIZE distinct items weighted toward
+ * commons, with rares more likely in deeper rounds. Boss relics never appear here
+ * (drop-only). The player grabs one of these for free.
  */
-export function rollShopStock(round: number, rng: RNG): ItemDef[] {
+export function rollBoostStock(round: number, rng: RNG): ItemDef[] {
   const rareW = round >= 5 ? 3 : round >= 3 ? 2 : 1;
   const weights: [ItemRarity, number][] = [
     ['common', 5],
@@ -88,7 +89,7 @@ export function rollShopStock(round: number, rng: RNG): ItemDef[] {
   const stock: ItemDef[] = [];
   const seen = new Set<string>();
   // Bounded attempts keep the RNG-draw count predictable while avoiding dupes.
-  for (let attempt = 0; attempt < SHOP_SIZE * 4 && stock.length < SHOP_SIZE; attempt++) {
+  for (let attempt = 0; attempt < BOOST_STOCK_SIZE * 4 && stock.length < BOOST_STOCK_SIZE; attempt++) {
     const rarity = rng.weightedPick(weights);
     const item = pickFrom(rarity, rng);
     if (seen.has(item.id)) continue;

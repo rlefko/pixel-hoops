@@ -12,9 +12,10 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-/** Expected stat range for a given tournament round. */
+/** Expected stat range for a given tournament round. Round 8 is the final map's
+ * boss peak (one tier above the deepest regular games). */
 export function getRoundStatRange(round: number): { min: number; max: number } {
-  switch (Math.min(round, 7)) {
+  switch (Math.min(round, 8)) {
     case 1:
       return { min: 4, max: 5 };
     case 2:
@@ -29,6 +30,8 @@ export function getRoundStatRange(round: number): { min: number; max: number } {
       return { min: 7, max: 9 };
     case 7:
       return { min: 8, max: 10 };
+    case 8:
+      return { min: 9, max: 10 };
     default:
       return { min: 4, max: 5 };
   }

@@ -2,6 +2,7 @@ import type { RosterPlayer } from '@/types/roster';
 import {
   addStatDelta,
   applyStatDelta,
+  applyTrainingDelta,
   hasDelta,
   mergeTeamModifiers,
   teamModifierFromPartial,
@@ -32,7 +33,9 @@ const LEGEND_CHEMISTRY: Partial<TeamModifier> = {
   labels: ['On-Loan Star'],
 };
 
-/** Return effective-stat COPIES of a five/bench (items + legend self-auras baked in). */
+/** Return effective-stat COPIES of a five/bench (items + legend self-auras +
+ * run-scoped training baked in). Items/abilities cap at 10; training folds on
+ * top, the only path past 10 (up to 12). */
 export function effectivePlayers(players: RosterPlayer[]): RosterPlayer[] {
   return players.map((rp) => {
     let delta: StatDelta = {};
@@ -42,8 +45,11 @@ export function effectivePlayers(players: RosterPlayer[]): RosterPlayer[] {
     }
     const ability = getAbility(rp.ability);
     if (ability?.selfDelta) delta = addStatDelta(delta, ability.selfDelta);
-    if (!hasDelta(delta)) return rp;
-    return { ...rp, player: { ...rp.player, stats: applyStatDelta(rp.player.stats, delta) } };
+    const hasTraining = !!rp.trainingDelta && hasDelta(rp.trainingDelta);
+    if (!hasDelta(delta) && !hasTraining) return rp;
+    let stats = applyStatDelta(rp.player.stats, delta);
+    if (hasTraining) stats = applyTrainingDelta(stats, rp.trainingDelta);
+    return { ...rp, player: { ...rp.player, stats } };
   });
 }
 

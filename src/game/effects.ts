@@ -1,4 +1,8 @@
 import type { PlayerStats } from '@/types/player';
+import type { RosterPlayer } from '@/types/roster';
+
+/** A single skill trains up to this; the only path past the normal 10 cap. */
+export const MAX_TRAINED_STAT = 12;
 
 /**
  * The effect/modifier spine. One small, declarative, serialization-safe model
@@ -97,6 +101,26 @@ export function applyStatDelta(stats: PlayerStats, delta: StatDelta): PlayerStat
     out[key] = Math.max(3, Math.min(10, out[key] + (delta[key] ?? 0)));
   }
   return out;
+}
+
+/**
+ * Apply a run-scoped TRAINING delta, clamped to 3-12 (pure copy). Training is the
+ * only source that may push a skill above the normal 10 cap (up to 12, the S+
+ * ceiling); items and abilities stay capped at 10 via applyStatDelta.
+ */
+export function applyTrainingDelta(stats: PlayerStats, delta: StatDelta | undefined): PlayerStats {
+  if (!delta) return stats;
+  const out = { ...stats };
+  for (const k in delta) {
+    const key = k as keyof PlayerStats;
+    out[key] = Math.max(3, Math.min(MAX_TRAINED_STAT, out[key] + (delta[key] ?? 0)));
+  }
+  return out;
+}
+
+/** A player's effective value for one skill, including run-scoped training. */
+export function trainedStat(rp: RosterPlayer, key: keyof PlayerStats): number {
+  return rp.player.stats[key] + (rp.trainingDelta?.[key] ?? 0);
 }
 
 /** Build a full TeamModifier from a partial fragment (abilities supply these). */
