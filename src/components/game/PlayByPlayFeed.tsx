@@ -47,8 +47,6 @@ interface PlayByPlayFeedProps {
   timeline: SimEvent[];
   homeTeam: Team;
   awayTeam: Team;
-  round: number;
-  totalRounds: number;
   onComplete: () => void;
 }
 
@@ -56,8 +54,6 @@ export function PlayByPlayFeed({
   timeline,
   homeTeam,
   awayTeam,
-  round,
-  totalRounds,
   onComplete,
 }: PlayByPlayFeedProps) {
   const { reducedMotion, simSpeed, highlightsOnly, update } = useFeelSettings();
@@ -220,9 +216,6 @@ export function PlayByPlayFeed({
   return (
     <View style={styles.wrap}>
       <View style={[styles.hud, { paddingTop: insets.top + space(2) }]}>
-        <Text style={styles.round}>
-          ROUND {round}/{totalRounds}
-        </Text>
         <View style={styles.scoreRow}>
           <View style={styles.teamCol}>
             <Text
@@ -306,12 +299,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3),
     paddingVertical: space(2),
     alignItems: 'center',
-  },
-  round: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    color: palette.inkDim,
-    marginBottom: space(2),
   },
   scoreRow: {
     flexDirection: 'row',
