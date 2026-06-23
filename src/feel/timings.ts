@@ -1,8 +1,7 @@
 /**
- * Snappy timing tokens. The old card game locked the screen for 1500-1600ms per
- * resolution; these durations (80-260ms) are the contract that keeps the new
- * feel fast. Pure numbers, safe to import anywhere; hooks reference reanimated's
- * Easing directly at the call site.
+ * Snappy timing tokens. These short durations (80-260ms) are the contract that
+ * keeps the auto-sim watch feeling fast. Pure numbers, safe to import anywhere;
+ * hooks reference reanimated's Easing directly at the call site.
  */
 export const DUR = {
   instant: 80, // hit-confirmation flash on/off

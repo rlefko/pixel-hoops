@@ -3,9 +3,8 @@
  *
  * The auto-sim engine must be reproducible: the same seed has to produce the
  * exact same game timeline so a run can be replayed, fast-forwarded, or
- * debugged deterministically. The legacy card game uses bare `Math.random()`
- * scattered across several files; the sim path threads an `RNG` instead so it
- * never depends on global randomness.
+ * debugged deterministically. The sim path threads an `RNG` everywhere so it
+ * never depends on global `Math.random()`.
  *
  * Algorithm: mulberry32 (a fast, well-distributed 32-bit PRNG) seeded either
  * from a number or from a string hashed with FNV-1a.

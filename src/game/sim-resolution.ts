@@ -3,13 +3,12 @@ import type { OffActionId } from '@/types/sim';
 import { clamp } from './stat-scaling';
 
 /**
- * Auto-sim shot resolution, kept separate from the legacy card game's
- * `calculateSuccessRate` (which the card screen still uses). Modeled on the
- * shipped Basketball-GM engine: a make is affine in the shooter's rating minus
- * a defensive offset, nudged by IQ and scaled by fatigue, then clamped. No
- * logistic curves, no ML, just readable arithmetic that is easy to tune. The
- * one-on-one miss-flavor contests use a ratio a/(a+b), the parameter-free form
- * that feels fair. All pure; randomness is supplied by the caller's seeded RNG.
+ * Auto-sim shot resolution. Modeled on the shipped Basketball-GM engine: a make
+ * is affine in the shooter's rating minus a defensive offset, nudged by IQ and
+ * scaled by fatigue, then clamped. No logistic curves, no ML, just readable
+ * arithmetic that is easy to tune. The one-on-one miss-flavor contests use a
+ * ratio a/(a+b), the parameter-free form that feels fair. All pure; randomness
+ * is supplied by the caller's seeded RNG.
  */
 
 // --- Tunables (score realism lives here) ---
