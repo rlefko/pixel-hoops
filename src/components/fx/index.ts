@@ -4,7 +4,7 @@ export { FlashOverlay, type FlashOverlayHandle } from './FlashOverlay';
 export { ShakeView, type ShakeViewHandle } from './ShakeView';
 export { Scanlines } from './Scanlines';
 export { Callout } from './Callout';
-export { PixelCourt } from './PixelCourt';
+export { SvgCourt } from './SvgCourt';
 export { PixelPlayer } from './PixelPlayer';
 export { ParticleBurst, type BurstVariant } from './ParticleBurst';
 export { BallFlight } from './BallFlight';

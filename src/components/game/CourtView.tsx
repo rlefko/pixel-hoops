@@ -10,8 +10,9 @@ import Animated, {
   interpolate,
   Easing,
 } from 'react-native-reanimated';
+import { Text } from '@/components/StyledText';
 import {
-  PixelCourt,
+  SvgCourt,
   PixelPlayer,
   Pop,
   BallFlight,
@@ -21,9 +22,10 @@ import {
 } from '@/components/fx';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
+import { COURT } from '@/components/game/courtDimensions';
 import { idleBobFor, moveOffsetFor, roleFor, MOVE, DUNK } from '@/components/game/possession';
 import { useFeelSettings, usePulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
-import { palette } from '@/theme';
+import { palette, FONT, FONT_SIZE } from '@/theme';
 import { courtThemeFor } from '@/theme/courtTheme';
 import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
 import { isMadeShot, type SimEvent, type SimTeamSide } from '@/types/sim';
@@ -260,12 +262,18 @@ export function CourtView({
     [awayTeam.colorHex, awayTeam.accentHex]
   );
 
-  const [size, setSize] = useState({ width: 0, height: 0 });
+  // Aspect-lock the floor to the true 50:94 court inside the available space, so
+  // feet map to pixels uniformly on both axes (circles stay round, and every
+  // fractional player/ball coordinate lands on the drawn markings). The leftover
+  // space reads as a dark out-of-bounds apron.
+  const [avail, setAvail] = useState({ width: 0, height: 0 });
   const onLayout = (e: LayoutChangeEvent) =>
-    setSize({
+    setAvail({
       width: e.nativeEvent.layout.width,
       height: e.nativeEvent.layout.height,
     });
+  const scale = Math.min(avail.width / COURT.width, avail.height / COURT.length);
+  const size = { width: COURT.width * scale, height: COURT.length * scale };
 
   // The landed event: drives the rim flourish and particles so they fire when
   // the ball arrives, not when the play is first revealed.
@@ -285,44 +293,56 @@ export function CourtView({
 
   return (
     <View style={styles.wrap} onLayout={onLayout}>
-      <PixelCourt
-        floorColor={theme.floorColor}
-        lineColor={theme.lineColor}
-        accentColor={theme.accentColor}
-      />
-      {(['away', 'home'] as SimTeamSide[]).map((side) =>
-        POSITIONS.map((position) => (
-          <SpriteAt
-            key={`${side}-${position}`}
-            side={side}
-            position={position}
-            team={side === 'home' ? homeTeam : awayTeam}
-            current={current}
-            width={size.width}
-            height={size.height}
-            hot={hotKeys.includes(`${side}-${position}`)}
-          />
-        ))
-      )}
-      <BallFlight
-        event={current}
-        width={size.width}
-        height={size.height}
-        onArrival={handleArrival}
-      />
-      <RimRipple
-        event={arrival}
-        width={size.width}
-        height={size.height}
-        color={theme.accentColor}
-      />
-      <ParticleBurst
-        origin={burst?.origin ?? null}
-        variant={burst?.variant ?? 'spark'}
-        count={burst?.count}
-        color={burst?.color}
-        trigger={burst ? arrival?.seq : null}
-      />
+      <View style={[styles.courtBox, { width: size.width, height: size.height }]}>
+        <SvgCourt
+          floorColor={theme.floorColor}
+          lineColor={theme.lineColor}
+          accentColor={theme.accentColor}
+        />
+        {/* Home team name painted along its own (bottom) baseline, under the play. */}
+        <Text
+          style={[
+            styles.homeName,
+            { color: theme.lineColor, bottom: Math.round(size.height * 0.012) },
+          ]}
+          numberOfLines={1}
+        >
+          {homeTeam.name.toUpperCase()}
+        </Text>
+        {(['away', 'home'] as SimTeamSide[]).map((side) =>
+          POSITIONS.map((position) => (
+            <SpriteAt
+              key={`${side}-${position}`}
+              side={side}
+              position={position}
+              team={side === 'home' ? homeTeam : awayTeam}
+              current={current}
+              width={size.width}
+              height={size.height}
+              hot={hotKeys.includes(`${side}-${position}`)}
+            />
+          ))
+        )}
+        <BallFlight
+          event={current}
+          width={size.width}
+          height={size.height}
+          onArrival={handleArrival}
+        />
+        <RimRipple
+          event={arrival}
+          width={size.width}
+          height={size.height}
+          color={theme.accentColor}
+        />
+        <ParticleBurst
+          origin={burst?.origin ?? null}
+          variant={burst?.variant ?? 'spark'}
+          count={burst?.count}
+          color={burst?.color}
+          trigger={burst ? arrival?.seq : null}
+        />
+      </View>
     </View>
   );
 }
@@ -336,6 +356,22 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    // The out-of-bounds apron framing the aspect-locked court.
+    backgroundColor: palette.bgDeep,
+  },
+  courtBox: {
+    position: 'relative',
+  },
+  homeName: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    textAlign: 'center',
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    opacity: 0.5,
   },
   sprite: {
     position: 'absolute',
