@@ -8,11 +8,13 @@ import { FONT, FONT_SIZE, palette, space } from '@/theme';
 
 /**
  * Feedback and feel settings. Screen shake and haptics are independent: a player
- * can run with either, both, or neither. Changes persist via FeelSettings.
+ * can run with either, both, or neither. Reduce Motion is the in-app control for
+ * the game's animations, since the app ignores the OS reduce-motion flag so the
+ * juice plays by default. Changes persist via FeelSettings.
  */
 export default function SettingsScreen() {
   const router = useRouter();
-  const { shakeEnabled, hapticsEnabled, update } = useFeelSettings();
+  const { shakeEnabled, hapticsEnabled, reducedMotion, update } = useFeelSettings();
 
   return (
     <Screen style={styles.container} onBack={() => router.back()}>
@@ -30,6 +32,15 @@ export default function SettingsScreen() {
         description="Buzz the phone on big plays"
         checked={hapticsEnabled}
         onToggle={(next) => update({ hapticsEnabled: next })}
+      />
+
+      <Text style={styles.section}>MOTION</Text>
+
+      <CheckboxRow
+        label="Reduce Motion"
+        description="Calm the ball, particles, shake, and other animations"
+        checked={reducedMotion}
+        onToggle={(next) => update({ reducedMotion: next })}
       />
     </Screen>
   );
