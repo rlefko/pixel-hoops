@@ -10,7 +10,7 @@ import { simulateGame } from './simulation';
 import { homeToRunRoster, type HomeRoster } from './home-roster';
 import type { RunState } from '@/types/run-map';
 import type { RosterPlayer } from '@/types/roster';
-import type { SimResult } from '@/types/sim';
+import type { BoxLine, SimResult } from '@/types/sim';
 import type { Team } from '@/types/team';
 import type { PlayerStats } from '@/types/player';
 import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
@@ -28,6 +28,14 @@ const RECRUIT_OFFER_COUNT = 3;
 const WIN_COINS = 10;
 const REST_REPUTATION = 2;
 const STAT_CAP = 10;
+
+// --- Between-game injuries (gentle: never bricks a run) ---
+/** Base per-game injury chance for a heavily-used, average-durability player. */
+const INJURY_BASE = 0.05;
+/** Game load that maps to "full minutes" (load / this ~ 1 for a full game). */
+const INJURY_LOAD_NORM = 90;
+/** Most games an injury can sideline a player. */
+const MAX_GAMES_OUT = 2;
 
 export type RunPhase =
   | { kind: 'map' }
@@ -100,6 +108,58 @@ function withReplacedPlayer(
   const all = [...core.roster.starters, ...core.roster.bench];
   const updated = all.map((p, i) => (i === index ? next : p));
   return { starters: updated.slice(0, 5), bench: updated.slice(5) };
+}
+
+/**
+ * The five (plus bench) that actually dress for a game: healthy players first,
+ * injured players backfilled only if there are fewer than five healthy, so a run
+ * can never be bricked by injuries. With a deep, healthy roster the player's
+ * chosen order is preserved.
+ */
+function dressedRoster(roster: RunState['roster']): RunState['roster'] {
+  const all = [...roster.starters, ...roster.bench];
+  const healthy = all.filter((p) => !(p.gamesOut && p.gamesOut > 0));
+  if (healthy.length >= 5) {
+    // Enough healthy bodies: injured players sit out entirely (not even bench),
+    // so rotation can never put a hurt player back on the floor.
+    return { starters: healthy.slice(0, 5), bench: healthy.slice(5) };
+  }
+  // Short-handed: backfill with the least-injured so a five always takes the
+  // floor (a run is never bricked by injuries).
+  const injured = all
+    .filter((p) => p.gamesOut && p.gamesOut > 0)
+    .sort((a, b) => (a.gamesOut ?? 0) - (b.gamesOut ?? 0));
+  const ordered = [...healthy, ...injured];
+  return { starters: ordered.slice(0, 5), bench: ordered.slice(5) };
+}
+
+/**
+ * After a game, recover everyone one game (decrement gamesOut) and roll fresh
+ * injuries for the players who dressed. Risk rises with accumulated load and
+ * falls with durability: more minutes mean more risk (not the naive "iron-man"
+ * inversion). Deterministic from the game's derived seed.
+ */
+function applyInjuries(
+  core: RunState,
+  homeBox: BoxLine[],
+  nodeId: string
+): RunState['roster'] {
+  const rng = createRNG(deriveSeed(core.seed, `injury-${nodeId}`));
+  const lineByName = new Map(homeBox.map((b) => [b.name, b]));
+  const update = (p: RosterPlayer): RosterPlayer => {
+    let gamesOut = Math.max(0, (p.gamesOut ?? 0) - 1); // heal one game
+    const line = lineByName.get(p.player.name);
+    if (line && line.seconds > 0) {
+      const risk =
+        (INJURY_BASE * (line.load / INJURY_LOAD_NORM) * (11 - p.player.stats.durability)) / 8;
+      if (rng.chance(risk)) gamesOut = rng.int(1, MAX_GAMES_OUT);
+    }
+    return { ...p, gamesOut };
+  };
+  return {
+    starters: core.roster.starters.map(update),
+    bench: core.roster.bench.map(update),
+  };
 }
 
 export function runReducer(
@@ -175,12 +235,14 @@ export function runReducer(
       const nodeId = model.phase.nodeId;
       const node = model.core.map.nodes[nodeId];
       const round = node.round ?? node.layer + 1;
+      const dressed = dressedRoster(model.core.roster);
       const home = buildTeam(
         'Your Squad',
-        model.core.roster.starters,
+        dressed.starters,
         model.gamePlan,
         palette.homeTeam,
-        palette.homeTeamAccent
+        palette.homeTeamAccent,
+        dressed.bench
       );
       const opp = generateOpponentTeam(
         round,
@@ -191,7 +253,8 @@ export function runReducer(
         opp.roster.starters,
         planForRoster(opp.roster),
         opp.colorHex,
-        opp.accentHex
+        opp.accentHex,
+        opp.roster.bench
       );
       const result = simulateGame({
         home,
@@ -227,7 +290,11 @@ export function runReducer(
         coins: model.core.rewards.coins + WIN_COINS,
         reputation: model.core.rewards.reputation + node.layer + 1,
       };
-      const core = { ...model.core, rewards };
+      // Recover prior knocks and roll fresh injuries from this game's workload.
+      const roster = model.game
+        ? applyInjuries(model.core, model.game.result.box.home, nodeId)
+        : model.core.roster;
+      const core = { ...model.core, rewards, roster };
       const wins = model.wins + 1;
       if (isBoss)
         return {
@@ -284,9 +351,16 @@ export function runReducer(
         ...model.core.rewards,
         reputation: model.core.rewards.reputation + REST_REPUTATION,
       };
+      // Rest fully clears injuries (the strategic reason to visit a rest node).
+      const heal = (p: RosterPlayer): RosterPlayer =>
+        p.gamesOut ? { ...p, gamesOut: 0 } : p;
+      const roster = {
+        starters: model.core.roster.starters.map(heal),
+        bench: model.core.roster.bench.map(heal),
+      };
       return {
         ...model,
-        core: { ...model.core, rewards },
+        core: { ...model.core, rewards, roster },
         phase: { kind: 'map' },
       };
     }

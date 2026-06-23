@@ -258,6 +258,9 @@ function fakePlayerAt(
  * src/game/opponent-preview.ts), and that preview depends on this ordering, so
  * keep `pickRealTeam` first if you reorder the draws here.
  */
+/** Bench players an opponent carries for in-game rotation. */
+const OPPONENT_BENCH_SIZE = 3;
+
 export function generateOpponentTeam(
   round: number,
   rng: RNG
@@ -268,9 +271,14 @@ export function generateOpponentTeam(
     const real = useReal ? realPlayerAt(position, round, rng) : null;
     return real ?? fakePlayerAt(position, round, rng);
   });
+  // A short bench so opponents rotate too (drawn AFTER starters so the franchise
+  // identity stays the first draw; see src/game/opponent-preview.ts).
+  const bench = Array.from({ length: OPPONENT_BENCH_SIZE }, () =>
+    fakePlayerAt(rng.pick(POSITIONS), round, rng)
+  );
   return {
     name: `${team.city} ${team.name}`,
-    roster: { starters, bench: [] },
+    roster: { starters, bench },
     colorHex: team.primaryHex,
     accentHex: team.secondaryHex,
   };
