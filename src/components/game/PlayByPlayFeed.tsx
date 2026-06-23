@@ -13,7 +13,12 @@ import {
 import { CourtView } from '@/components/game/CourtView';
 import { eventGapMs } from '@/components/game/possession';
 import { computeHotState } from '@/game/streaks';
-import { haptics, useFeelSettings } from '@/feel';
+import {
+  haptics,
+  useFeelSettings,
+  SIM_SPEED_FACTOR,
+  SIM_SPEED_ORDER,
+} from '@/feel';
 import { palette, FONT, FONT_SIZE, space, BORDER, RADIUS } from '@/theme';
 import { isMadeShot, type SimEvent } from '@/types/sim';
 import type { Team } from '@/types/team';
@@ -54,7 +59,8 @@ export function PlayByPlayFeed({
   totalRounds,
   onComplete,
 }: PlayByPlayFeedProps) {
-  const { reducedMotion } = useFeelSettings();
+  const { reducedMotion, simSpeed, highlightsOnly, update } = useFeelSettings();
+  const speed = SIM_SPEED_FACTOR[simSpeed];
   const [cursor, setCursor] = useState(-1);
   const [skipped, setSkipped] = useState(false);
   // The most recently landed event drives the HUD score, callout, and feedback,
@@ -66,6 +72,10 @@ export function PlayByPlayFeed({
   const completedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  // Latest pacing, read by the one-shot completion timer without being a dep (so
+  // toggling speed/highlights on the final beat can't clear and strand it).
+  const pacingRef = useRef({ reducedMotion, speed, highlightsOnly });
+  pacingRef.current = { reducedMotion, speed, highlightsOnly };
 
   const current = cursor >= 0 ? timeline[cursor] : null;
   const homeScore = landed ? landed.homeScore : 0;
@@ -135,10 +145,16 @@ export function PlayByPlayFeed({
     if (skipped || timeline.length === 0 || cursor >= timeline.length - 1)
       return;
     const nextIdx = cursor + 1;
-    const next = timeline[nextIdx];
-    const timer = setTimeout(() => setCursor(nextIdx), eventGapMs(next, reducedMotion));
+    // Show the current event for its OWN duration before advancing (the first
+    // event reveals immediately). Pacing by the next event would cut a peak
+    // short when a routine play follows, notably in highlights mode.
+    const gap =
+      cursor < 0
+        ? 0
+        : eventGapMs(timeline[cursor], reducedMotion, speed, highlightsOnly);
+    const timer = setTimeout(() => setCursor(nextIdx), gap);
     return () => clearTimeout(timer);
-  }, [cursor, timeline, skipped, reducedMotion]);
+  }, [cursor, timeline, skipped, reducedMotion, speed, highlightsOnly]);
 
   // Fire onComplete once the timeline finishes, after the final ball has had time
   // to land and celebrate (so the game-winner isn't cut off by the transition).
@@ -149,12 +165,13 @@ export function PlayByPlayFeed({
       return;
     completedRef.current = true;
     const last = timeline[timeline.length - 1];
+    const p = pacingRef.current;
     const timer = setTimeout(
       () => onCompleteRef.current(),
-      eventGapMs(last, reducedMotion)
+      eventGapMs(last, p.reducedMotion, p.speed, p.highlightsOnly)
     );
     return () => clearTimeout(timer);
-  }, [cursor, timeline, reducedMotion]);
+  }, [cursor, timeline]);
 
   const skip = useCallback(() => {
     // Jump to the final beat; its ball still arcs and lands the payoff via
@@ -162,6 +179,15 @@ export function PlayByPlayFeed({
     setSkipped(true);
     setCursor(timeline.length - 1);
   }, [timeline]);
+
+  // In-replay pacing controls (persisted): cycle speed, toggle highlights.
+  const cycleSpeed = useCallback(() => {
+    const i = SIM_SPEED_ORDER.indexOf(simSpeed);
+    update({ simSpeed: SIM_SPEED_ORDER[(i + 1) % SIM_SPEED_ORDER.length] });
+  }, [simSpeed, update]);
+  const toggleHighlights = useCallback(() => {
+    update({ highlightsOnly: !highlightsOnly });
+  }, [highlightsOnly, update]);
 
   const start = Math.max(0, cursor - VISIBLE_ROWS + 1);
   const rows = cursor >= 0 ? timeline.slice(start, cursor + 1) : [];
@@ -245,11 +271,19 @@ export function PlayByPlayFeed({
         <FlashOverlay ref={flashRef} />
       </ShakeView>
 
-      <Pressable style={styles.skip} onPress={skip} disabled={skipped}>
-        <Text style={styles.skipText}>
-          {skipped ? 'FINISHING...' : 'TAP TO SKIP >>'}
-        </Text>
-      </Pressable>
+      <View style={styles.controls}>
+        <Pressable style={styles.control} onPress={cycleSpeed}>
+          <Text style={styles.controlLabel}>{`${SIM_SPEED_FACTOR[simSpeed]}x`}</Text>
+        </Pressable>
+        <Pressable style={styles.control} onPress={toggleHighlights}>
+          <Text style={[styles.controlLabel, highlightsOnly && styles.controlOn]}>
+            {highlightsOnly ? 'HIGHLIGHTS' : 'FULL GAME'}
+          </Text>
+        </Pressable>
+        <Pressable style={styles.control} onPress={skip} disabled={skipped}>
+          <Text style={styles.skipText}>{skipped ? 'FINISHING...' : 'SKIP >>'}</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -327,11 +361,23 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-  skip: {
-    paddingVertical: space(3),
-    alignItems: 'center',
+  controls: {
+    flexDirection: 'row',
     borderTopWidth: BORDER.thin,
     borderTopColor: palette.bgPanel,
+  },
+  control: {
+    flex: 1,
+    paddingVertical: space(3),
+    alignItems: 'center',
+  },
+  controlLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
+  controlOn: {
+    color: palette.gold,
   },
   skipText: {
     fontFamily: FONT.display,

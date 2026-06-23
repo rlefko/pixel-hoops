@@ -1,9 +1,12 @@
-export { DUR, SHAKE_PX, type ShakeIntensity } from './timings';
+export { DUR, SHAKE_PX, scaled, type ShakeIntensity } from './timings';
 export { haptics, setHapticsEnabled } from './haptics';
 export {
   FeelSettingsProvider,
   useFeelSettings,
+  SIM_SPEED_FACTOR,
+  SIM_SPEED_ORDER,
   type FeelSettings,
+  type SimSpeed,
 } from './FeelSettingsContext';
 export { useScreenShake } from './useScreenShake';
 export { usePop } from './usePop';

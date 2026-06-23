@@ -23,7 +23,7 @@ Build a Five  ->  Set a Game Plan  ->  Watch the Auto-Sim  ->  Win / Lose
 
 1. **Build a five.** Choose five players by position (PG, SG, SF, PF, C) from your roster, plus bench depth. This is what finally makes the game a real 5-on-5: five distinct players on the floor, with synergies between them.
 2. **Set a game plan.** Pick pace (slow, balanced, fast) and focus (inside, outside, balanced, lockdown), and later a star to feature. These bias the simulation.
-3. **Watch the auto-sim.** The engine plays the game possession by possession and emits a timeline of events. The UI replays it in a few seconds with count-up scores, screen shake on big plays, arcade callouts, and haptics. Skip or fast-forward at any time.
+3. **Watch the auto-sim.** The engine plays the game possession by possession and emits a timeline of events. The UI replays it default-fast with count-up scores, screen shake on big plays, arcade callouts, and haptics. The floor holds a stable formation (the ball and the active player carry the possession, rather than the whole floor sliding each time), routine plays are compressed while the peaks are juiced, and the player controls pacing with an in-replay speed toggle (chill, brisk default, blitz), a condensed highlights mode, and skip. See the "Pacing the watch" principles in [addictive-blueprint.md](addictive-blueprint.md).
 4. **Take the reward, advance the map.** Win to move forward on a branching run map; lose and the run ends, but you keep meta-progression.
 
 ## Agency model: pure auto-sim now, crunch moments later

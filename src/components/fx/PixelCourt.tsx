@@ -36,6 +36,13 @@ const NET_STRANDS = [10, 13, 14, 13, 10];
  */
 export const RIM_OFFSET = BASELINE_INSET + BACKBOARD_H + RIM_HEIGHT / 2;
 
+/**
+ * Three-point arc: a big circle centered on each rim. Only the part that bows
+ * into the court shows; the court's overflow clip hides the rest, leaving an arc.
+ */
+const THREE_PT_D = 172;
+const RIM_CENTER = RIM_OFFSET + RIM_HEIGHT / 2;
+
 interface PixelCourtProps {
   /** Floor fill. Defaults to the house court color. */
   floorColor?: string;
@@ -74,6 +81,10 @@ export function PixelCourt({
     >
       <View style={[styles.centerLine, { backgroundColor: lineColor }]} />
       <View style={[styles.centerCircle, { borderColor: lineColor }]} />
+      <View style={[styles.threePt, styles.threePtTop, { borderColor: lineColor }]} />
+      <View
+        style={[styles.threePt, styles.threePtBottom, { borderColor: lineColor }]}
+      />
       <View style={[styles.key, styles.keyTop, { borderColor: lineColor }]} />
       <View style={[styles.key, styles.keyBottom, { borderColor: lineColor }]} />
 
@@ -126,6 +137,17 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     borderWidth: BORDER.chunk,
   },
+  threePt: {
+    position: 'absolute',
+    left: '50%',
+    width: THREE_PT_D,
+    height: THREE_PT_D,
+    marginLeft: -THREE_PT_D / 2,
+    borderRadius: THREE_PT_D / 2,
+    borderWidth: BORDER.chunk,
+  },
+  threePtTop: { top: RIM_CENTER - THREE_PT_D / 2 },
+  threePtBottom: { bottom: RIM_CENTER - THREE_PT_D / 2 },
   key: {
     position: 'absolute',
     left: '50%',

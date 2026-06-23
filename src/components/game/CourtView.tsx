@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -20,9 +20,9 @@ import {
   type BurstVariant,
 } from '@/components/fx';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
-import { spotPx, rimCenterPx } from '@/components/game/courtGeometry';
+import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { idleBobFor, moveOffsetFor, roleFor, MOVE, DUNK } from '@/components/game/possession';
-import { useFeelSettings, usePulse } from '@/feel';
+import { useFeelSettings, usePulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
 import { palette } from '@/theme';
 import { courtThemeFor } from '@/theme/courtTheme';
 import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
@@ -76,7 +76,8 @@ function burstFor(
   const rim = rimCenterPx(side, width, height);
   if (e.result === 'block' || e.result === 'steal') {
     return {
-      origin: spotPx(side, e.scorerPosition, width, height, side),
+      // The defender/ball is at the player's stable base, so pass null to match.
+      origin: spotPx(side, e.scorerPosition, width, height, null),
       variant: 'cool',
       count: e.result === 'block' ? 6 : 5,
     };
@@ -125,7 +126,8 @@ function SpriteAt({
   height: number;
   hot: boolean;
 }) {
-  const { reducedMotion } = useFeelSettings();
+  const { reducedMotion, simSpeed } = useFeelSettings();
+  const speed = SIM_SPEED_FACTOR[simSpeed];
   const rp = playerAt(team, position);
 
   const role = roleFor(current, side, position);
@@ -134,33 +136,11 @@ function SpriteAt({
   const isDunker = role === 'dunker';
   const seq = current?.seq ?? -1;
 
-  // Possession-aware base: the team with the ball advances into the attacking
-  // half; everyone else holds the defensive set. The base slides on each change.
-  const target = useMemo(() => {
-    if (width === 0 || height === 0) return { x: 0, y: 0 };
-    return spotPx(side, position, width, height, current?.team ?? null);
-  }, [side, position, width, height, current?.team]);
-  const baseX = useSharedValue(0);
-  const baseY = useSharedValue(0);
-  const placed = useRef(false);
-  useEffect(() => {
-    if (width === 0 || height === 0) return;
-    if (!placed.current || reducedMotion) {
-      baseX.value = target.x; // first placement or reduced motion: snap
-      baseY.value = target.y;
-      placed.current = true;
-      return;
-    }
-    baseX.value = withTiming(target.x, { duration: 120, easing: Easing.out(Easing.cubic) });
-    baseY.value = withTiming(target.y, { duration: 120, easing: Easing.out(Easing.cubic) });
-  }, [target.x, target.y, reducedMotion, baseX, baseY, width, height]);
-  // Quantize to whole 2px steps so the slide reads as discrete 8-bit hops.
-  const slideStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: Math.round(baseX.value / 2) * 2 },
-      { translateY: Math.round(baseY.value / 2) * 2 },
-    ],
-  }));
+  // Stable base: the floor holds a fixed defensive set and does NOT reposition
+  // per possession (that read as jumpy). The ball flight and the active
+  // shooter/driver/dunker carry the possession. Static percent placement avoids
+  // a pre-layout jump.
+  const { left, top } = spotPercent(side, position, null);
 
   // Idle breathe, detuned per sprite so the floor undulates instead of marching.
   const bob = useMemo(() => idleBobFor(side, position), [side, position]);
@@ -183,10 +163,13 @@ function SpriteAt({
     }
     move.value = 0;
     move.value = withSequence(
-      withTiming(1, { duration: MOVE.out, easing: Easing.out(Easing.cubic) }),
-      withDelay(MOVE.hold, withTiming(0, { duration: MOVE.back, easing: Easing.out(Easing.quad) }))
+      withTiming(1, { duration: scaled(MOVE.out, speed), easing: Easing.out(Easing.cubic) }),
+      withDelay(
+        scaled(MOVE.hold, speed),
+        withTiming(0, { duration: scaled(MOVE.back, speed), easing: Easing.out(Easing.quad) })
+      )
     );
-  }, [seq, offset.dx, offset.dy, reducedMotion, isDunker, move]);
+  }, [seq, offset.dx, offset.dy, reducedMotion, isDunker, speed, move]);
   const moveStyle = useAnimatedStyle(() => ({
     transform: [
       { translateX: offset.dx * move.value },
@@ -203,9 +186,9 @@ function SpriteAt({
       return;
     }
     dunk.value = 0;
-    dunk.value = withTiming(1, { duration: DUNK_TOTAL, easing: Easing.linear });
+    dunk.value = withTiming(1, { duration: scaled(DUNK_TOTAL, speed), easing: Easing.linear });
     return () => cancelAnimation(dunk);
-  }, [seq, isDunker, reducedMotion, dunk]);
+  }, [seq, isDunker, reducedMotion, speed, dunk]);
   const dunkStyle = useAnimatedStyle(() => {
     const p = dunk.value;
     // Values per beat: rest, gather (squash), leap (stretch up), slam (squash
@@ -246,7 +229,7 @@ function SpriteAt({
   );
 
   return (
-    <Animated.View style={[styles.sprite, slideStyle]}>
+    <View style={[styles.sprite, { left, top }]}>
       <Animated.View style={moveStyle}>
         <Animated.View style={bobStyle}>
           <Animated.View style={dunkStyle}>
@@ -260,7 +243,7 @@ function SpriteAt({
           </Animated.View>
         </Animated.View>
       </Animated.View>
-    </Animated.View>
+    </View>
   );
 }
 
@@ -356,10 +339,8 @@ const styles = StyleSheet.create({
   },
   sprite: {
     position: 'absolute',
-    top: 0,
-    left: 0,
     width: SPRITE_W,
-    // Center the sprite on its court spot (translated into place by slideStyle).
+    // Center the sprite on its court spot (left/top set per sprite).
     marginLeft: -SPRITE_W / 2,
     marginTop: -SPRITE_W * 0.75,
     alignItems: 'center',

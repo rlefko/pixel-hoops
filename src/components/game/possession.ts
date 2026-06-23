@@ -1,4 +1,5 @@
 import { spotPx, rimCenterPx } from './courtGeometry';
+import { scaled } from '@/feel/timings';
 import { POSITIONS, type Position } from '@/types/roster';
 import { isMadeShot, type SimEvent, type SimTeamSide } from '@/types/sim';
 import {
@@ -32,7 +33,9 @@ export function shotShapeFor(e: SimEvent): ShotShape {
 // resolve tokens the ball uses (distance is unknown here, so the flight upper
 // bound is used) so the cursor never advances before the ball has landed.
 
-const LINGER = { winner: 480, big: 150, make: 80, other: 50 };
+// Routine plays fly by; only the peaks linger. (Compressed so the watch stays
+// short, per the addictive-blueprint pacing principles.)
+const LINGER = { winner: 420, big: 120, make: 30, other: 16 };
 
 function lingerFor(e: SimEvent): number {
   if (e.callout === 'BUZZER BEATER!') return LINGER.winner;
@@ -55,18 +58,38 @@ function hitStopFor(e: SimEvent): number {
   return 0;
 }
 
-export function eventGapMs(e: SimEvent, reducedMotion = false): number {
+/** A scoring play or a big defensive stop: kept in the condensed highlights watch. */
+export function isNoteworthy(e: SimEvent): boolean {
+  return isMadeShot(e) || e.isBigPlay;
+}
+
+/**
+ * Delay before the next event. `speed` divides everything (the ball flight scales
+ * by the same factor, so arrival stays in sync). In highlights mode, routine
+ * non-scoring plays collapse to a tiny gap so they whip by while the score still
+ * processes.
+ */
+export function eventGapMs(
+  e: SimEvent,
+  reducedMotion = false,
+  speed = 1,
+  highlightsOnly = false
+): number {
+  if (highlightsOnly && !isNoteworthy(e)) {
+    return scaled(60, speed); // a routine miss or turnover: blow past it
+  }
   if (reducedMotion) {
     // No ball arcs, so there is nothing to wait for: keep the ticker snappy.
-    if (e.isBigPlay) return 320;
-    if (isMadeShot(e)) return 240;
-    return 140;
+    if (e.isBigPlay) return scaled(220, speed);
+    if (isMadeShot(e)) return scaled(150, speed);
+    return scaled(90, speed);
   }
-  return (
+  return scaled(
     FLIGHT_DURATION_MAX +
-    resolveDurationFor(shotShapeFor(e)) +
-    lingerFor(e) +
-    hitStopFor(e)
+      resolveDurationFor(shotShapeFor(e)) +
+      lingerFor(e) +
+      hitStopFor(e),
+    speed
   );
 }
 
@@ -91,7 +114,6 @@ export const DUNK = {
   slam: DUNK_FLIGHT_MS - DUNK_GATHER - DUNK_LEAP,
   hang: 100,
   recover: 160,
-  reach: 96, // how far the dunker travels toward the rim
   lift: 10, // extra px up at the top of the leap
 } as const;
 
@@ -148,18 +170,19 @@ export function moveOffsetFor(
     return { dx: 0, dy: 0 };
   }
   if (role === 'driver' || role === 'dunker') {
-    // The dunker reaches all the way to the rim; a driver takes a shorter step.
-    return cappedStep(
-      spotPx(e.team, e.scorerPosition, width, height, e.team),
-      rimCenterPx(e.team, width, height),
-      role === 'dunker' ? DUNK.reach : 52
-    );
+    // Drive toward the rim from the stable base: the dunker attacks most of the
+    // way (so the slam meets the ball), a driver a strong step. Anchored to the
+    // same null base the sprite is drawn at, so the ball still leaves the shooter.
+    const from = spotPx(e.team, e.scorerPosition, width, height, null);
+    const to = rimCenterPx(e.team, width, height);
+    const frac = role === 'dunker' ? 0.7 : 0.45;
+    return { dx: (to.x - from.x) * frac, dy: (to.y - from.y) * frac };
   }
   if (role === 'defender') {
     return cappedStep(
-      spotPx(side, position, width, height, e.team),
+      spotPx(side, position, width, height, null),
       rimCenterPx(e.team, width, height),
-      22
+      24
     );
   }
   // shooter: a small rise into the jumper.
