@@ -28,12 +28,15 @@ interface HomeRosterContextValue {
   homeRoster: HomeRoster | null;
   loaded: boolean;
   saveHomeRoster: (next: HomeRoster) => void;
+  /** Wipe all game progress back to a fresh rookie roster (the Settings reset). */
+  resetHomeRoster: () => void;
 }
 
 const HomeRosterContext = createContext<HomeRosterContextValue>({
   homeRoster: null,
   loaded: false,
   saveHomeRoster: () => {},
+  resetHomeRoster: () => {},
 });
 
 export function HomeRosterProvider({ children }: { children: ReactNode }) {
@@ -61,9 +64,16 @@ export function HomeRosterProvider({ children }: { children: ReactNode }) {
     void setJSON(STORAGE_KEY, serializeHomeRoster(next));
   }, []);
 
+  // Reset to a fresh rookie team and persist it (overwriting the save), so the UI
+  // re-renders clean without an app restart. Feel/accessibility settings are a
+  // separate store and are intentionally left untouched.
+  const resetHomeRoster = useCallback(() => {
+    saveHomeRoster(createRookieRoster(createRNG(`home-${Date.now()}`)));
+  }, [saveHomeRoster]);
+
   const value = useMemo<HomeRosterContextValue>(
-    () => ({ homeRoster, loaded, saveHomeRoster }),
-    [homeRoster, loaded, saveHomeRoster]
+    () => ({ homeRoster, loaded, saveHomeRoster, resetHomeRoster }),
+    [homeRoster, loaded, saveHomeRoster, resetHomeRoster]
   );
 
   return (

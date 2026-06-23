@@ -3,20 +3,44 @@ import { Text } from '@/components/StyledText';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, BORDER } from '@/theme';
 import type { Team } from '@/types/team';
+import type { RosterPlayer } from '@/types/roster';
 
 /** Pregame roster view: the five by position, their stats, and active synergies. */
 
 // Re-exported for existing importers; the source of truth is positionColor.ts.
 export { POSITION_COLOR } from '@/components/game/positionColor';
 
-export function LineupBoard({ team }: { team: Team }) {
+interface LineupBoardProps {
+  team: Team;
+  /**
+   * Render these starters instead of the team's dressed five: pass the player's
+   * chosen starters so an injured one stays in their slot (marked OUT) rather than
+   * being silently swapped out. Defaults to the dressed five (the away board).
+   */
+  players?: RosterPlayer[];
+  /** Surface each card's injury condition (the OUT badge), for the home board. */
+  condition?: boolean;
+  /** Healthy subs starting in place of injured starters, named below the five. */
+  steppingIn?: RosterPlayer[];
+}
+
+export function LineupBoard({ team, players, condition = false, steppingIn }: LineupBoardProps) {
+  const lineup = players ?? team.lineup.players;
   return (
     <View style={styles.wrap}>
-      {team.lineup.players.map((rp, i) => (
+      {lineup.map((rp, i) => (
         <View key={i} style={styles.row}>
-          <PlayerCard rp={rp} />
+          <PlayerCard rp={rp} condition={condition} />
         </View>
       ))}
+      {steppingIn && steppingIn.length > 0 ? (
+        <View style={styles.steppingIn}>
+          <Text style={styles.steppingInLabel}>STEPPING IN</Text>
+          <Text style={styles.steppingInNames} numberOfLines={2}>
+            {steppingIn.map((p) => p.player.name).join(', ')}
+          </Text>
+        </View>
+      ) : null}
       {team.synergy.labels.length > 0 ? (
         <View style={styles.synergyRow}>
           {team.synergy.labels.map((label) => (
@@ -40,6 +64,26 @@ const styles = StyleSheet.create({
     paddingVertical: space(1.5),
     borderBottomWidth: BORDER.thin,
     borderBottomColor: palette.bgPanel,
+  },
+  steppingIn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
+    marginTop: space(2),
+    paddingTop: space(2),
+    borderTopWidth: BORDER.thin,
+    borderTopColor: palette.bgPanel,
+  },
+  steppingInLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.injury,
+  },
+  steppingInNames: {
+    flex: 1,
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
   },
   synergyRow: {
     flexDirection: 'row',

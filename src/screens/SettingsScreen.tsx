@@ -1,10 +1,13 @@
-import { StyleSheet } from 'react-native';
+import { useState } from 'react';
+import { Pressable, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { CheckboxRow } from '@/components/CheckboxRow';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useFeelSettings } from '@/feel';
-import { FONT, FONT_SIZE, palette, space } from '@/theme';
+import { useHomeRoster } from '@/context/HomeRosterContext';
+import { BORDER, FONT, FONT_SIZE, palette, RADIUS, space } from '@/theme';
 
 /**
  * Feedback and feel settings. Screen shake and haptics are independent: a player
@@ -15,6 +18,8 @@ import { FONT, FONT_SIZE, palette, space } from '@/theme';
 export default function SettingsScreen() {
   const router = useRouter();
   const { shakeEnabled, hapticsEnabled, reducedMotion, update } = useFeelSettings();
+  const { resetHomeRoster } = useHomeRoster();
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
   return (
     <Screen style={styles.container} onBack={() => router.back()}>
@@ -42,6 +47,32 @@ export default function SettingsScreen() {
         checked={reducedMotion}
         onToggle={(next) => update({ reducedMotion: next })}
       />
+
+      <Text style={styles.dangerSection}>DANGER ZONE</Text>
+      <Text style={styles.dangerDesc}>
+        Wipe your roster, coins, and upgrades and start over. This cannot be undone.
+      </Text>
+      <Pressable
+        style={styles.dangerButton}
+        onPress={() => setConfirmingReset(true)}
+        accessibilityRole="button"
+      >
+        <Text style={styles.dangerButtonText}>RESET SAVE</Text>
+      </Pressable>
+
+      <ConfirmDialog
+        visible={confirmingReset}
+        title="RESET SAVE?"
+        message="This permanently deletes your roster, coins, and upgrades. Your settings are kept."
+        confirmLabel="RESET"
+        destructive
+        onConfirm={() => {
+          setConfirmingReset(false);
+          resetHomeRoster();
+          router.replace('/');
+        }}
+        onCancel={() => setConfirmingReset(false)}
+      />
     </Screen>
   );
 }
@@ -59,5 +90,31 @@ const styles = StyleSheet.create({
     color: palette.gold,
     marginTop: space(6),
     marginBottom: space(2),
+  },
+  dangerSection: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.missRed,
+    marginTop: space(8),
+    marginBottom: space(2),
+  },
+  dangerDesc: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+    marginBottom: space(3),
+  },
+  dangerButton: {
+    paddingVertical: space(3),
+    borderWidth: BORDER.chunk,
+    borderColor: palette.missRed,
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.missRed + '1A',
+    alignItems: 'center',
+  },
+  dangerButtonText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.body,
+    color: palette.missRed,
   },
 });

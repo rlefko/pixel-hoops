@@ -125,10 +125,11 @@ export function mergeRunGainsIntoHome(
   const all = [...runRoster.starters, ...runRoster.bench]
     .filter((p) => !p.onLoan)
     .map((p) => {
-      if (!p.item && !p.trainingDelta) return p;
+      if (!p.item && !p.trainingDelta && !p.gamesOut) return p;
       const copy = { ...p };
       delete copy.item; // items are run-scoped; never persist
       delete copy.trainingDelta; // training is run-scoped; never persists home
+      delete copy.gamesOut; // injuries are run-scoped; never persist home (heal at run end)
       return copy;
     })
     .slice(0, MAX_PLAYERS);
@@ -172,6 +173,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     delete migrated.item; // never trust a persisted run-scoped item
     delete migrated.onLoan;
     delete migrated.trainingDelta; // training never persists home
+    delete migrated.gamesOut; // injuries are run-scoped; heal any save that leaked one
     return migrated;
   });
   return {

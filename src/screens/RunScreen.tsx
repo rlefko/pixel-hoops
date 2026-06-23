@@ -4,7 +4,12 @@ import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { useRun } from '@/hooks/useRun';
-import { buildHomeTeam, buildOpponentTeam, type RunModel } from '@/game/run-machine';
+import {
+  buildHomeTeam,
+  buildOpponentTeam,
+  steppingInSubs,
+  type RunModel,
+} from '@/game/run-machine';
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { GamePlanPicker } from '@/components/game/GamePlanPicker';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
@@ -182,12 +187,15 @@ function depthOf(model: RunModel, nodeId: string): number {
 function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
   const round = depthOf(model, nodeId);
-  // The home board previews the five that will actually dress (healthy-first,
-  // items + auras + boosts baked in); the away board scouts the opponent the run
-  // will field. Both come from the same builders the sim uses, so the preview
-  // never lies about the matchup.
+  // The away board scouts the opponent the run will field. The home board shows the
+  // player's chosen five in their own slots, with an injured starter marked OUT in
+  // place rather than silently swapped; the healthy sub who dresses for them in the
+  // sim is named under the five. Synergy comes from `home` (the five that actually
+  // dress), so the preview still never lies about the matchup.
   const home = buildHomeTeam(model);
   const away = buildOpponentTeam(model.core, nodeId);
+  const chosen = model.core.roster.starters;
+  const steppingIn = steppingInSubs(model.core.roster);
   return (
     <Screen scroll contentContainerStyle={styles.pregame}>
       <Text style={styles.depth}>DEPTH {round}</Text>
@@ -200,7 +208,7 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
       </View>
       <LineupBoard team={away} />
       <Text style={styles.section}>YOUR FIVE</Text>
-      <LineupBoard team={home} />
+      <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} />
       <Pressable onPress={actions.openLineupBuilder}>
         <Text style={styles.link}>Change Lineup</Text>
       </Pressable>
