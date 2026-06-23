@@ -24,3 +24,13 @@ export const SHAKE_PX = {
 } as const;
 
 export type ShakeIntensity = keyof typeof SHAKE_PX;
+
+/**
+ * Divide a duration by the playback speed, with a floor so beats stay readable
+ * (and 8-bit crisp) even at the fastest speed. Used for every per-event gap and
+ * animation duration so the ball and the scheduler scale together and stay in
+ * sync. Ambient loops (idle bob, glow, scanlines) are not scaled.
+ */
+export function scaled(ms: number, speed: number): number {
+  return Math.max(60, Math.round(ms / speed));
+}
