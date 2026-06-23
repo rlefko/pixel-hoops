@@ -9,6 +9,7 @@ import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { POSITION_COLOR } from '@/components/game/positionColor';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import { ovr, off, def, ath, tierFor, type TierKey } from '@/game/ratings';
+import { applyTrainingDelta } from '@/game/effects';
 import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
 import { ITEM_RARITY_COLOR } from './item-ui';
@@ -43,6 +44,7 @@ const TIER_COLOR: Record<TierKey, string> = {
   silver: palette.steelBlue,
   gold: palette.gold,
   elite: palette.flame,
+  apex: palette.gold, // S+: the trained-past-10 prestige tier
 };
 
 /** One rating's short label, for the expanded breakdown grid. */
@@ -75,7 +77,9 @@ export function PlayerCard({
   condition = false,
   variant = 'row',
 }: PlayerCardProps) {
-  const stats = rp.player.stats;
+  // Fold run-scoped training into the displayed stats so a trained player reads
+  // its true OVR/tier (up to S+) everywhere the card appears.
+  const stats = applyTrainingDelta(rp.player.stats, rp.trainingDelta);
   const overall = ovr(stats, rp.position);
   const tier = tierFor(overall);
   const tierColor = TIER_COLOR[tier.key];
@@ -209,12 +213,12 @@ function CompositeChip({ label, value }: { label: string; value: number }) {
   );
 }
 
-/** A 10-cell pixel pip bar for a single 3-10 rating. */
+/** A 12-cell pixel pip bar for a single rating (trained skills reach 11-12). */
 function PipBar({ value }: { value: number }) {
-  const filled = Math.max(0, Math.min(10, Math.round(value)));
+  const filled = Math.max(0, Math.min(12, Math.round(value)));
   return (
     <View style={styles.pipBar}>
-      {Array.from({ length: 10 }).map((_, i) => (
+      {Array.from({ length: 12 }).map((_, i) => (
         <View
           key={i}
           style={[styles.pip, i < filled ? styles.pipOn : styles.pipOff]}

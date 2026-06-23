@@ -1,4 +1,4 @@
-import type { Archetype, Player } from './player';
+import type { Archetype, Player, PlayerStats } from './player';
 
 /**
  * Floor positions for the 5-on-5 model. PG/SG are guards, SF is the wing,
@@ -54,6 +54,13 @@ export interface RosterPlayer {
   onLoan?: boolean;
   /** Run-scoped equipped item (max 1/player; reset each run, never persists home). */
   item?: { defId: string };
+  /**
+   * Run-scoped training gains: accumulated +1s bought at Training nodes with
+   * training points. The only path past the normal 10 cap (up to 12). Baked into
+   * effective stats and the card display, but never persisted home (stripped at
+   * merge, like {@link item}).
+   */
+  trainingDelta?: Partial<PlayerStats>;
 }
 
 /** The full owned squad: five starters plus bench depth. */

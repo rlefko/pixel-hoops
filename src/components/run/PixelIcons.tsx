@@ -157,7 +157,18 @@ export function RestIcon({ size, color }: IconProps) {
   );
 }
 
-/** shop / coins: a coin. */
+/** boost: an up-arrow (a power-up: grab one free item). */
+export function BoostIcon({ size, color }: IconProps) {
+  const stem = Math.max(2, Math.round(size * 0.22));
+  return (
+    <View style={box(size)}>
+      <View style={upTriangle(size * 0.32, size * 0.36, color)} />
+      <View style={{ width: stem, height: size * 0.34, marginTop: -1, backgroundColor: color }} />
+    </View>
+  );
+}
+
+/** coins: a coin (the run/locker-room currency glyph). */
 export function CoinIcon({ size, color }: IconProps) {
   return (
     <View style={box(size)}>
@@ -252,7 +263,7 @@ const ICONS: Record<MapNodeType, (p: IconProps) => React.ReactElement> = {
   recruit: RecruitIcon,
   training: DumbbellIcon,
   rest: RestIcon,
-  shop: CoinIcon,
+  boost: BoostIcon,
 };
 
 /** Dispatch to the right icon for a node type. */

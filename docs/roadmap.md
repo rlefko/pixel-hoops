@@ -35,7 +35,7 @@ The new loop, playable end to end on its own route. At this stage the card game 
 Turns the linear slice into the desired roguelike loop, on a single `RunScreen` driven by `useRun` (a pure, headless-tested reducer in `src/game/run-machine.ts`).
 
 - **Branching run map.** Wires the previously unused `generateRunMap`/`getReachableNodes`/`traverseTo` into a navigable map (`RunMapView`): choose your path through layers of nodes to the boss.
-- **Node types resolve.** game/elite/boss play a sim game; recruit offers depth-scaled candidates; training boosts a stat; rest rebuilds the lineup; shop is a stub.
+- **Node types resolve.** game/elite/boss play a sim game; recruit offers depth-scaled candidates; training spends banked training points on run-scoped skill boosts; rest rebuilds the lineup; boost hands out one free item.
 - **Recruitment.** `generateRecruitOffers` presents candidates at recruit nodes; pick one for your bench.
 - **Lineup builder.** Choose your starting five from the whole roster (any five, so stacking unlocks the `Specialists` synergy).
 - **Compounding home roster.** A persistent home roster (`src/game/home-roster.ts` + `HomeRosterContext` + a Platform-split AsyncStorage/localStorage wrapper) banks recruits and training on every run end, win or loss.
@@ -77,18 +77,18 @@ stays deterministic and a no-effect game resolves identically to before.
   on a loss, and buy permanent +1 stat upgrades between runs with a rising
   per-tier cost (`src/game/upgrades.ts`, the `LockerRoomScreen`).
 - **Items.** Run-scoped equippable gear (max one per player), rarity-banded with
-  a boss-relic tier that trades a downside for a big upside, from the shop and
-  elite/boss drops (`src/game/items.ts`).
-- **Passive boosts.** A 1-of-3 draft at the start of each round, max five
-  equipped with a forced lossy drop when full, no duplicates, family-gated
-  capstones (`src/game/boosts.ts`).
+  a boss-relic tier that trades a downside for a big upside, grabbed free at boost
+  nodes and from elite/boss drops (`src/game/items.ts`).
+- **Passive boosts.** A 1-of-3 draft before each map, max five equipped with a
+  forced lossy drop when full, no duplicates, family-gated capstones
+  (`src/game/boosts.ts`).
 
 ## Phase 3 and beyond
 
 Sequenced roughly by player impact.
 
-1. **Playbook cards.** Reintroduce cards as a between-games draft that biases the sim, a fresh feature in place of the removed per-possession cards. Pairs with shop and recruit nodes.
-2. **Equipment + shop economy.** _Done (PR6):_ run-scoped items, the item shop, a coin economy, and permanent stat upgrades shipped. Still ahead: permanent (home-roster) gear and a coin-fed gacha for permanently-ownable legendaries.
+1. **Playbook cards.** Reintroduce cards as a between-games draft that biases the sim, a fresh feature in place of the removed per-possession cards. Pairs with boost and recruit nodes.
+2. **Equipment + economy.** _Done (PR6):_ run-scoped items, a coin economy, and permanent stat upgrades shipped; the item shop has since become the coin-free Boost node (free item grab), with coins spent only in the Locker Room. Still ahead: permanent (home-roster) gear and a coin-fed gacha for permanently-ownable legendaries.
 3. **Crunch-time decisions.** Pause the replay at a close Q4 boundary for one high-leverage tactical call, then resume. The engine already supports this hook.
 4. **Defeated-opponent recruiting + resume-in-progress-run.** Recruit a player from a beaten team; save/resume an interrupted run.
 5. **Audio and SFX.** Chiptune per arena, downsampled arcade callouts, and event sound effects synced to the existing haptics.

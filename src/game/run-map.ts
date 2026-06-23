@@ -2,74 +2,85 @@ import type { MapNode, MapNodeType, RunMap, RunState } from '@/types/run-map';
 import { createRNG, type RNG } from './rng';
 
 /**
- * Generates and traverses the branching tournament run (a Slay-the-Spire-style
- * layered DAG). Deterministic from a seed. The playable slice uses a minimal
- * linear run; this is the foundation the full branching-map UI builds on later
- * (see docs/roadmap.md).
+ * Generates and traverses one short fixed-SHAPE map of the pokelike run. Every
+ * map shares the same authored topology (rows [2,3,2,1] plus the edges below);
+ * only the interior node TYPES vary by seed. Pinned every run: the entry pair
+ * (recruit left, boost right), one rest in the pre-boss row, and the boss.
+ * Deterministic from a per-map seed (run-machine derives one per map index).
  */
 
-export interface RunMapConfig {
+export interface FixedMapConfig {
   seed: number | string;
-  /** Number of layers including the boss layer. Defaults to 7 (the 7 rounds). */
-  layers?: number;
-  /** Max nodes per middle layer. Defaults to 3. */
-  width?: number;
+  /** Which map of the run this is (0-based). Drives difficulty and node ids. */
+  mapIndex: number;
 }
 
-const DEFAULT_LAYERS = 7;
-const DEFAULT_WIDTH = 3;
+/** Nodes per row, entry (0) to boss. The map's fixed shape. */
+const ROW_SIZES = [2, 3, 2, 1] as const;
+const BOSS_ROW = ROW_SIZES.length - 1;
+const PRE_BOSS_ROW = BOSS_ROW - 1;
 
-/** Deterministic Fisher-Yates shuffle (fixed RNG draw count, unbiased). */
-function shuffle<T>(items: readonly T[], rng: RNG): T[] {
-  const a = [...items];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = rng.int(0, i);
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
+/**
+ * Authored edges: EDGES[layer][i] lists the next-row indices node i connects to.
+ * The entry forks recruit and boost toward different sides, the wide middle row
+ * funnels into the two pre-boss nodes, and both pre-boss nodes feed the boss.
+ */
+const EDGES: number[][][] = [
+  [[0, 1], [1, 2]], // entry: recruit -> r1[0,1]; boost -> r1[1,2]
+  [[0], [0, 1], [1]], // row 1 -> the two pre-boss nodes
+  [[0], [0]], // pre-boss -> boss
+];
 
-/** Pick a node type for a middle layer, weighted to stay game-heavy early. */
-function nodeTypeForLayer(layer: number, rng: RNG): MapNodeType {
+const COMBAT: ReadonlySet<MapNodeType> = new Set<MapNodeType>(['game', 'elite', 'boss']);
+
+/** Weighted random interior type, game-heavy; elites only from the second map. */
+function randomInteriorType(mapIndex: number, rng: RNG): MapNodeType {
   const entries: [MapNodeType, number][] = [
     ['game', 6],
-    ['elite', layer >= 3 ? 2 : 0],
+    ['elite', mapIndex >= 1 ? 2 : 0],
     ['recruit', 2],
-    ['shop', 1],
+    ['boost', 1],
     ['rest', 1],
-    ['training', 1],
+    ['training', 2],
   ];
   return rng.weightedPick(entries);
 }
 
-export function generateRunMap(config: RunMapConfig): RunMap {
-  const rng = createRNG(config.seed);
-  const totalLayers = config.layers ?? DEFAULT_LAYERS;
-  const width = config.width ?? DEFAULT_WIDTH;
+/** Pinned types: entry [recruit, boost], the pre-boss rest, and the boss. */
+function pinnedType(layer: number, index: number, restSlot: number): MapNodeType | null {
+  if (layer === 0) return index === 0 ? 'recruit' : 'boost';
+  if (layer === BOSS_ROW) return 'boss';
+  if (layer === PRE_BOSS_ROW && index === restSlot) return 'rest';
+  return null;
+}
 
+/** Difficulty round for a combat node: games scale by map, the boss peaks above. */
+function roundFor(type: MapNodeType, mapIndex: number): number | undefined {
+  if (!COMBAT.has(type)) return undefined;
+  return type === 'boss' ? mapIndex + 2 : mapIndex + 1;
+}
+
+export function generateFixedMap(config: FixedMapConfig): RunMap {
+  const { mapIndex } = config;
+  const rng = createRNG(config.seed);
   const nodes: Record<string, MapNode> = {};
   const layers: string[][] = [];
 
-  for (let layer = 0; layer < totalLayers; layer++) {
-    const isFirst = layer === 0;
-    const isBoss = layer === totalLayers - 1;
-    const count = isBoss ? 1 : isFirst ? width : rng.int(2, width);
-    const ids: string[] = [];
+  // Draw the guaranteed pre-boss rest slot first so the type draws below stay
+  // in a stable order for a given seed.
+  const restSlot = rng.int(0, ROW_SIZES[PRE_BOSS_ROW] - 1);
 
-    for (let index = 0; index < count; index++) {
-      const id = `n-${layer}-${index}`;
-      const type: MapNodeType = isBoss
-        ? 'boss'
-        : isFirst
-          ? 'game'
-          : nodeTypeForLayer(layer, rng);
-      const isCombat = type === 'game' || type === 'elite' || type === 'boss';
+  for (let layer = 0; layer < ROW_SIZES.length; layer++) {
+    const ids: string[] = [];
+    for (let index = 0; index < ROW_SIZES[layer]; index++) {
+      const id = `m${mapIndex}-n-${layer}-${index}`;
+      const type = pinnedType(layer, index, restSlot) ?? randomInteriorType(mapIndex, rng);
       nodes[id] = {
         id,
         type,
         layer,
         next: [],
-        round: isCombat ? layer + 1 : undefined,
+        round: roundFor(type, mapIndex),
         visited: false,
         cleared: false,
       };
@@ -78,36 +89,18 @@ export function generateRunMap(config: RunMapConfig): RunMap {
     layers.push(ids);
   }
 
-  // Connect each layer to the next: every node forks to at least two next nodes
-  // whenever the next layer has room (so the player always has a real branch to
-  // choose, never a forced single route), and every next-layer node keeps at
-  // least one inbound edge so nothing is orphaned.
-  for (let layer = 0; layer < totalLayers - 1; layer++) {
-    const current = layers[layer];
-    const nextIds = layers[layer + 1];
-    const covered = new Set<string>();
-
-    for (const id of current) {
-      const edgeCount = Math.min(nextIds.length, rng.int(2, 3));
-      const chosen = shuffle(nextIds, rng).slice(0, edgeCount);
-      nodes[id].next = chosen;
-      for (const c of chosen) covered.add(c);
-    }
-
-    // Patch any orphaned next node by wiring it from a random current node.
-    for (const nextId of nextIds) {
-      if (!covered.has(nextId)) {
-        const from = current[rng.int(0, current.length - 1)];
-        if (!nodes[from].next.includes(nextId)) nodes[from].next.push(nextId);
-      }
-    }
+  // Wire the fixed edges between consecutive rows.
+  for (let layer = 0; layer < EDGES.length; layer++) {
+    EDGES[layer].forEach((targets, i) => {
+      nodes[layers[layer][i]].next = targets.map((j) => layers[layer + 1][j]);
+    });
   }
 
   return {
     nodes,
     layers,
     startNodeIds: layers[0],
-    bossNodeId: layers[totalLayers - 1][0],
+    bossNodeId: layers[BOSS_ROW][0],
   };
 }
 
@@ -121,7 +114,7 @@ export function getReachableNodes(map: RunMap, currentNodeId: string | null): Ma
   return current.next.map((id) => map.nodes[id]);
 }
 
-/** Advance the run: clear the current node and move to the chosen next node. */
+/** Advance within a map: clear the current node and move to the chosen next node. */
 export function traverseTo(state: RunState, nodeId: string): RunState {
   const nodes = { ...state.map.nodes };
   if (state.currentNodeId && nodes[state.currentNodeId]) {

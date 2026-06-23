@@ -60,9 +60,9 @@ export function useRun() {
       dropBoostForNew: (dropIndex: number) =>
         dispatch({ type: 'dropBoostForNew', dropIndex }),
       skipBoostDraft: () => dispatch({ type: 'skipBoostDraft' }),
-      buyItem: (defId: string, playerIndex: number) =>
-        dispatch({ type: 'buyItem', defId, playerIndex }),
-      leaveShop: () => dispatch({ type: 'leaveShop' }),
+      takeBoostItem: (defId: string, playerIndex: number) =>
+        dispatch({ type: 'takeBoostItem', defId, playerIndex }),
+      leaveBoost: () => dispatch({ type: 'leaveBoost' }),
       takeDrop: (playerIndex: number) => dispatch({ type: 'takeDrop', playerIndex }),
       skipDrop: () => dispatch({ type: 'skipDrop' }),
       scoutLegend: () => dispatch({ type: 'scoutLegend' }),

@@ -4,7 +4,7 @@ import { buildStartingRoster, generateOpponentTeam } from '@/game/tournament';
 import { buildTeam } from '@/game/lineup';
 import { simulateGame, actionWeights } from '@/game/simulation';
 import type { TeamStats } from '@/types/team';
-import { generateRunMap, getReachableNodes } from '@/game/run-map';
+import { generateFixedMap, getReachableNodes } from '@/game/run-map';
 import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
 import { POSITIONS, POSITION_ARCHETYPE, type Roster, type RosterPlayer } from '@/types/roster';
 import { createPlayer } from '@/types/player';
@@ -248,8 +248,8 @@ describe('fatigue, rotation, and box score', () => {
 
 describe('run map', () => {
   it('is deterministic and well-formed', () => {
-    const a = generateRunMap({ seed: 'map-1' });
-    const b = generateRunMap({ seed: 'map-1' });
+    const a = generateFixedMap({ seed: 'map-1', mapIndex: 0 });
+    const b = generateFixedMap({ seed: 'map-1', mapIndex: 0 });
     expect(Object.keys(a.nodes)).toEqual(Object.keys(b.nodes));
 
     // Exactly one boss, reachable structure, no orphaned non-entry nodes.
@@ -268,7 +268,7 @@ describe('run map', () => {
   });
 
   it('reachable nodes come from the current position', () => {
-    const map = generateRunMap({ seed: 'map-2' });
+    const map = generateFixedMap({ seed: 'map-2', mapIndex: 0 });
     expect(getReachableNodes(map, null)).toEqual(map.startNodeIds.map((id) => map.nodes[id]));
     const first = map.startNodeIds[0];
     expect(getReachableNodes(map, first)).toEqual(map.nodes[first].next.map((id) => map.nodes[id]));

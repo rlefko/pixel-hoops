@@ -4,6 +4,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Scanlines } from '@/components/fx';
 import { getReachableNodes } from '@/game/run-map';
+import { TOTAL_MAPS } from '@/game/run-machine';
 import { NODE_META } from './node-meta';
 import { ArenaBackdrop } from './ArenaBackdrop';
 import { DottedPath } from './DottedPath';
@@ -41,7 +42,7 @@ const LEGEND: MapNodeType[] = [
   'recruit',
   'training',
   'rest',
-  'shop',
+  'boost',
   'boss',
 ];
 
@@ -66,7 +67,6 @@ export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: Run
     core.currentNodeId != null
       ? core.map.nodes[core.currentNodeId]?.layer ?? null
       : null;
-  const round = currentLayer != null ? currentLayer + 1 : 1;
 
   const scrollRef = useRef<ScrollView>(null);
   // Keep the player's position in view as they advance (top while choosing entry).
@@ -98,8 +98,8 @@ export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: Run
     <Screen onBack={confirmQuit} backLabel="QUIT">
       <ResourceHeader
         rewards={core.rewards}
-        round={round}
-        totalRounds={core.map.layers.length}
+        mapNumber={core.currentMapIndex + 1}
+        totalMaps={TOTAL_MAPS}
         boostCount={boosts.length}
       />
       <BoostRow boosts={boosts} />
