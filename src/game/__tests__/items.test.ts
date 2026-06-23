@@ -5,13 +5,13 @@ import {
   ITEM_DEFS,
   itemDelta,
   rollDrop,
-  rollShopStock,
+  rollBoostStock,
 } from '@/game/items';
 
 describe('items', () => {
-  it('rollShopStock is deterministic, sized, distinct, and never a boss relic', () => {
-    const a = rollShopStock(3, createRNG('shop-1'));
-    const b = rollShopStock(3, createRNG('shop-1'));
+  it('rollBoostStock is deterministic, sized, distinct, and never a boss relic', () => {
+    const a = rollBoostStock(3, createRNG('boost-1'));
+    const b = rollBoostStock(3, createRNG('boost-1'));
     expect(a.map((i) => i.id)).toEqual(b.map((i) => i.id));
     expect(a).toHaveLength(3);
     expect(new Set(a.map((i) => i.id)).size).toBe(3);

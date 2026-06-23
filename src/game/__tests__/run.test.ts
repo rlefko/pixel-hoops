@@ -11,10 +11,13 @@ import {
   type HomeRoster,
 } from '@/game/home-roster';
 import { legendRecruit } from '@/game/player-pool';
-import { runReducer, initRun, type RunModel } from '@/game/run-machine';
-import { generateRunMap } from '@/game/run-map';
+import { runReducer, initRun, TOTAL_MAPS, type RunModel } from '@/game/run-machine';
+import { generateFixedMap } from '@/game/run-map';
+import { applyTrainingDelta } from '@/game/effects';
+import { tierFor } from '@/game/ratings';
 import { POSITIONS } from '@/types/roster';
 import { SKILL_STAT_KEYS } from '@/types/player';
+import type { MapNode } from '@/types/run-map';
 
 function rookie(seed = 'home'): HomeRoster {
   return createRookieRoster(createRNG(seed));
@@ -49,29 +52,37 @@ describe('generateRecruitOffers', () => {
   });
 });
 
-describe('generateRunMap branching', () => {
-  it('is deterministic from a seed', () => {
-    expect(generateRunMap({ seed: 'map-1' })).toEqual(
-      generateRunMap({ seed: 'map-1' })
+describe('generateFixedMap (fixed shape, random types)', () => {
+  const seeds = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+
+  it('is deterministic from seed + map index', () => {
+    expect(generateFixedMap({ seed: 'm', mapIndex: 0 })).toEqual(
+      generateFixedMap({ seed: 'm', mapIndex: 0 })
     );
   });
 
-  it('never forces a single route: every node forks when the next layer allows', () => {
-    for (const seed of ['a', 'b', 'c', 'd', 'e']) {
-      const map = generateRunMap({ seed });
-      map.layers.forEach((layer, li) => {
-        if (li >= map.layers.length - 1) return; // boss layer has no next
-        const nextCount = map.layers[li + 1].length;
-        for (const id of layer) {
-          const edges = map.nodes[id].next.length;
-          expect(edges).toBeGreaterThanOrEqual(Math.min(2, nextCount));
-        }
-      });
+  it('pins the entry to recruit (left) and boost (right)', () => {
+    for (const seed of seeds) {
+      const map = generateFixedMap({ seed, mapIndex: 1 });
+      const [left, right] = map.startNodeIds;
+      expect(map.nodes[left].type).toBe('recruit');
+      expect(map.nodes[right].type).toBe('boost');
     }
   });
 
-  it('keeps every node reachable (no orphans)', () => {
-    const map = generateRunMap({ seed: 'orphan-check' });
+  it('always offers a rest before the boss and a single boss at the end', () => {
+    for (const seed of seeds) {
+      const map = generateFixedMap({ seed, mapIndex: 2 });
+      const bossLayer = map.layers.length - 1;
+      expect(map.layers[bossLayer]).toHaveLength(1);
+      expect(map.nodes[map.bossNodeId].type).toBe('boss');
+      const preBoss = map.layers[bossLayer - 1];
+      expect(preBoss.some((id) => map.nodes[id].type === 'rest')).toBe(true);
+    }
+  });
+
+  it('keeps every node reachable from an entry node', () => {
+    const map = generateFixedMap({ seed: 'reach', mapIndex: 0 });
     const reached = new Set(map.startNodeIds);
     for (let li = 0; li < map.layers.length - 1; li++) {
       for (const id of map.layers[li]) {
@@ -80,6 +91,13 @@ describe('generateRunMap branching', () => {
     }
     for (const id of Object.keys(map.nodes)) {
       expect(reached.has(id)).toBe(true);
+    }
+  });
+
+  it('gates elites out of the first map', () => {
+    for (const seed of seeds) {
+      const map = generateFixedMap({ seed, mapIndex: 0 });
+      expect(Object.values(map.nodes).some((n) => n.type === 'elite')).toBe(false);
     }
   });
 });
@@ -113,7 +131,7 @@ describe('home roster persistence', () => {
     const merged = mergeRunGainsIntoHome(home, grown, {
       coins: 5,
       reputation: 3,
-      trainingXP: 0,
+      trainingPoints: 0,
     });
     expect(merged.players).toHaveLength(9);
     expect(merged.coins).toBe(5);
@@ -156,11 +174,15 @@ describe('home roster persistence', () => {
     expect(applyUpgrade(broke, 0, 'inside')).toBe(broke);
   });
 
-  it('mergeRunGainsIntoHome strips on-loan legends and items', () => {
+  it('mergeRunGainsIntoHome strips on-loan legends, items, and training', () => {
     const home = rookie('strip');
     const run = homeToRunRoster(home);
     const legend = legendRecruit(createRNG('lg')); // onLoan: true
-    const equipped = { ...run.starters[0], item: { defId: 'grip-tape' } };
+    const equipped = {
+      ...run.starters[0],
+      item: { defId: 'grip-tape' },
+      trainingDelta: { outside: 3 },
+    };
     const grown = {
       starters: [equipped, ...run.starters.slice(1)],
       bench: [legend],
@@ -168,11 +190,12 @@ describe('home roster persistence', () => {
     const merged = mergeRunGainsIntoHome(
       home,
       grown,
-      { coins: 0, reputation: 0, trainingXP: 0 },
+      { coins: 0, reputation: 0, trainingPoints: 0 },
       true
     );
     expect(merged.players.some((p) => p.onLoan)).toBe(false);
     expect(merged.players.every((p) => !p.item)).toBe(true);
+    expect(merged.players.every((p) => !p.trainingDelta)).toBe(true);
     expect(merged.legendDryStreak).toBe(0); // a legend was offered this run
   });
 });
@@ -180,55 +203,116 @@ describe('home roster persistence', () => {
 describe('run reducer', () => {
   const home = rookie('reducer');
   const start = (): RunModel => initRun('seed-1', home);
+  /** A bare combat node injected for resolveGameResult flow tests. */
+  const node = (over: Partial<MapNode>): MapNode => ({
+    id: 'x',
+    type: 'game',
+    layer: 1,
+    next: [],
+    round: 1,
+    visited: true,
+    cleared: false,
+    ...over,
+  });
+  const withNode = (m: RunModel, n: MapNode): RunModel => ({
+    ...m,
+    core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
+  });
 
-  it('opens on the round-1 boost draft with five starters and no boosts', () => {
+  it('opens on the Map-1 boost draft with five starters and no boosts', () => {
     const m = start();
     expect(m.phase.kind).toBe('boostDraft');
     expect(m.boosts).toHaveLength(0);
+    expect(m.core.currentMapIndex).toBe(0);
     expect(m.core.currentNodeId).toBeNull();
     expect(m.core.roster.starters).toHaveLength(5);
   });
 
-  it('chooseNode on a round-1 (game) node opens pregame without re-drafting', () => {
+  it('chooseNode on the recruit entry opens the recruit screen', () => {
     const m = start();
-    const nodeId = m.core.map.startNodeIds[0];
-    const next = runReducer(m, { type: 'chooseNode', nodeId })!;
-    expect(next.phase.kind).toBe('pregame');
-    expect(next.core.currentNodeId).toBe(nodeId);
+    const recruitId = m.core.map.startNodeIds[0];
+    expect(m.core.map.nodes[recruitId].type).toBe('recruit');
+    const next = runReducer(m, { type: 'chooseNode', nodeId: recruitId })!;
+    expect(next.phase.kind).toBe('recruit');
+    expect(next.core.currentNodeId).toBe(recruitId);
   });
 
-  it('plays a game and resolves win/loss correctly', () => {
+  it('chooseNode on a combat node opens pregame', () => {
+    const m = start();
+    const bossId = m.core.map.bossNodeId;
+    const next = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    expect(next.phase.kind).toBe('pregame');
+  });
+
+  it('simulates a game from pregame through postgame', () => {
     let m = start();
-    const nodeId = m.core.map.startNodeIds[0];
-    m = runReducer(m, { type: 'chooseNode', nodeId })!;
+    const bossId = m.core.map.bossNodeId;
+    m = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
     m = runReducer(m, { type: 'enterGame' })!;
     expect(m.phase.kind).toBe('game');
     expect(m.game?.result.events.length).toBeGreaterThan(0);
     m = runReducer(m, { type: 'finishReplay' })!;
     expect(m.phase.kind).toBe('postgame');
+  });
 
+  it('a regular game win returns to the map and banks 1 training point', () => {
+    const m = withNode(start(), node({ id: 'g1', type: 'game', round: 1 }));
     const won = runReducer(
-      { ...m, phase: { kind: 'postgame', nodeId, won: true } },
+      { ...m, game: null, phase: { kind: 'postgame', nodeId: 'g1', won: true } },
       { type: 'resolveGameResult' }
     )!;
     expect(won.phase.kind).toBe('map');
     expect(won.wins).toBe(1);
-
-    const lost = runReducer(
-      { ...m, phase: { kind: 'postgame', nodeId, won: false } },
-      { type: 'resolveGameResult' }
-    )!;
-    expect(lost.phase).toEqual({ kind: 'summary', champion: false });
+    expect(won.core.rewards.trainingPoints).toBe(1);
   });
 
-  it('winning the boss crowns a champion', () => {
+  it('an elite win drops gear and banks 2 training points', () => {
+    const m = withNode(start(), node({ id: 'e1', type: 'elite', round: 2 }));
+    const won = runReducer(
+      { ...m, game: null, phase: { kind: 'postgame', nodeId: 'e1', won: true } },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(won.phase.kind).toBe('itemDrop');
+    expect(won.core.rewards.trainingPoints).toBe(2);
+  });
+
+  it('a non-final boss win advances to the next map (relic then next draft)', () => {
     const m = start();
     const bossId = m.core.map.bossNodeId;
+    const afterBoss = runReducer(
+      { ...m, game: null, phase: { kind: 'postgame', nodeId: bossId, won: true } },
+      { type: 'resolveGameResult' }
+    )!;
+    // Bosses always drop a relic, so the win lands on the item-drop first.
+    expect(afterBoss.phase.kind).toBe('itemDrop');
+    expect(afterBoss.core.currentMapIndex).toBe(1);
+    expect(afterBoss.wins).toBe(1);
+    expect(afterBoss.core.rewards.trainingPoints).toBe(4);
+    const draft = runReducer(afterBoss, { type: 'skipDrop' })!;
+    expect(draft.phase.kind).toBe('boostDraft');
+  });
+
+  it('winning the final map boss crowns a champion', () => {
+    const m = start();
+    const finalMap: RunModel = {
+      ...m,
+      core: { ...m.core, currentMapIndex: TOTAL_MAPS - 1 },
+    };
+    const bossId = finalMap.core.map.bossNodeId;
     const champ = runReducer(
-      { ...m, phase: { kind: 'postgame', nodeId: bossId, won: true } },
+      { ...finalMap, game: null, phase: { kind: 'postgame', nodeId: bossId, won: true } },
       { type: 'resolveGameResult' }
     )!;
     expect(champ.phase).toEqual({ kind: 'summary', champion: true });
+  });
+
+  it('a loss ends the run as a non-champion', () => {
+    const m = withNode(start(), node({ id: 'g1', type: 'game' }));
+    const lost = runReducer(
+      { ...m, game: null, phase: { kind: 'postgame', nodeId: 'g1', won: false } },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(lost.phase).toEqual({ kind: 'summary', champion: false });
   });
 
   it('recruit appends to the bench and returns to the map', () => {
@@ -242,16 +326,21 @@ describe('run reducer', () => {
     expect(next.phase.kind).toBe('map');
   });
 
-  it('training boosts a stat, capped at 10', () => {
+  it('grabbing a free boost item equips it without spending coins', () => {
     const m = start();
-    const before = m.core.roster.starters[0].player.stats.outside;
-    const next = runReducer(
-      { ...m, phase: { kind: 'training', nodeId: 'n' } },
-      { type: 'trainPlayer', index: 0, stat: 'outside' }
-    )!;
-    expect(next.core.roster.starters[0].player.stats.outside).toBe(
-      Math.min(10, before + 1)
-    );
+    const boostPhase: RunModel = {
+      ...m,
+      phase: {
+        kind: 'boost',
+        nodeId: 'n',
+        stock: [
+          { id: 'grip-tape', name: 'Grip Tape', rarity: 'common', blurb: '', effect: { outside: 1 }, cost: 18 },
+        ],
+      },
+    };
+    const next = runReducer(boostPhase, { type: 'takeBoostItem', defId: 'grip-tape', playerIndex: 0 })!;
+    expect(next.core.roster.starters[0].item?.defId).toBe('grip-tape');
+    expect(next.core.rewards.coins).toBe(0); // free
     expect(next.phase.kind).toBe('map');
   });
 
@@ -277,14 +366,75 @@ describe('run reducer', () => {
   });
 });
 
+describe('training points', () => {
+  const withPoints = (points: number): RunModel => {
+    const m = initRun('train', rookie('train'));
+    return {
+      ...m,
+      core: { ...m.core, rewards: { coins: 0, reputation: 0, trainingPoints: points } },
+      phase: { kind: 'training', nodeId: 'n' },
+    };
+  };
+
+  it('spends one point for a run-scoped +1 and stays on the node', () => {
+    const m = withPoints(3);
+    const base = m.core.roster.starters[0].player.stats.outside;
+    const next = runReducer(m, { type: 'trainPlayer', index: 0, stat: 'outside' })!;
+    expect(next.core.roster.starters[0].trainingDelta?.outside).toBe(1);
+    expect(next.core.rewards.trainingPoints).toBe(2);
+    // Base stats are untouched: training lives in trainingDelta (run-scoped).
+    expect(next.core.roster.starters[0].player.stats.outside).toBe(base);
+    expect(next.phase.kind).toBe('training');
+  });
+
+  it('no-ops with no points to spend', () => {
+    const m = withPoints(0);
+    expect(runReducer(m, { type: 'trainPlayer', index: 0, stat: 'outside' })).toBe(m);
+  });
+
+  it('caps a single skill at 12', () => {
+    const m = withPoints(5);
+    const base = m.core.roster.starters[0].player.stats.outside;
+    const maxed: RunModel = {
+      ...m,
+      core: {
+        ...m.core,
+        roster: {
+          ...m.core.roster,
+          starters: [
+            { ...m.core.roster.starters[0], trainingDelta: { outside: 12 - base } },
+            ...m.core.roster.starters.slice(1),
+          ],
+        },
+      },
+    };
+    // Already at the 12 ceiling: a further point is a no-op.
+    expect(runReducer(maxed, { type: 'trainPlayer', index: 0, stat: 'outside' })).toBe(maxed);
+  });
+});
+
+describe('training ratings (S+ tier and the 12 ceiling)', () => {
+  it('applyTrainingDelta clamps to the 3-12 surface', () => {
+    const base = { inside: 9, outside: 9, playmaking: 5, perimeterD: 5, interiorD: 5, athleticism: 5, iq: 5, clutch: 5, stamina: 5, durability: 5 };
+    const out = applyTrainingDelta(base, { outside: 5, inside: 99 });
+    expect(out.outside).toBe(12); // 9 + 5 -> clamped at 12
+    expect(out.inside).toBe(12); // clamped at 12
+  });
+
+  it('tierFor labels a trained-past-10 overall as S+', () => {
+    expect(tierFor(11).label).toBe('S+');
+    expect(tierFor(10).label).toBe('S');
+    expect(tierFor(9).label).toBe('S');
+  });
+});
+
 describe('boosts, economy, and legends', () => {
   const start = (): RunModel => initRun('seed-econ', rookie('econ'));
 
   it('drafting a boost equips it and lands on the map (run-start draft)', () => {
     let m = start();
     expect(m.phase.kind).toBe('boostDraft');
-    const offer =
-      m.phase.kind === 'boostDraft' ? m.phase.offers[0] : null;
+    const offer = m.phase.kind === 'boostDraft' ? m.phase.offers[0] : null;
     m = runReducer(m, { type: 'draftBoost', offer: offer! })!;
     expect(m.boosts).toHaveLength(1);
     expect(m.phase.kind).toBe('map');
@@ -330,28 +480,12 @@ describe('boosts, economy, and legends', () => {
     expect(lost.core.rewards.coins).toBeGreaterThanOrEqual(10);
     expect(lost.phase).toEqual({ kind: 'summary', champion: false });
   });
-
-  it('buying an item equips it and deducts coins', () => {
-    let m = start();
-    m = { ...m, core: { ...m.core, rewards: { ...m.core.rewards, coins: 100 } } };
-    m = {
-      ...m,
-      phase: {
-        kind: 'itemShop',
-        nodeId: 'n',
-        stock: [{ id: 'grip-tape', name: 'Grip Tape', rarity: 'common', blurb: '', effect: { outside: 1 }, cost: 18 }],
-      },
-    };
-    m = runReducer(m, { type: 'buyItem', defId: 'grip-tape', playerIndex: 0 })!;
-    expect(m.core.rewards.coins).toBe(82);
-    expect(m.core.roster.starters[0].item?.defId).toBe('grip-tape');
-  });
 });
 
 describe('between-game injuries', () => {
   const playWonGame = (seed: string): RunModel => {
     let m = initRun(seed, rookie(`inj-${seed}`));
-    const nodeId = m.core.map.startNodeIds[0];
+    const nodeId = m.core.map.bossNodeId; // any combat node; bosses always exist
     m = runReducer(m, { type: 'chooseNode', nodeId })!;
     m = runReducer(m, { type: 'enterGame' })!;
     m = runReducer(m, { type: 'finishReplay' })!;
@@ -382,10 +516,14 @@ describe('between-game injuries', () => {
   it('a rest node clears injuries', () => {
     const m = initRun('rest', rookie('rest'));
     const [first, ...rest] = m.core.roster.starters;
-    const injured = { ...m, core: {
-      ...m.core,
-      roster: { ...m.core.roster, starters: [{ ...first, gamesOut: 2 }, ...rest] },
-    }, phase: { kind: 'rest' as const, nodeId: 'n' } };
+    const injured = {
+      ...m,
+      core: {
+        ...m.core,
+        roster: { ...m.core.roster, starters: [{ ...first, gamesOut: 2 }, ...rest] },
+      },
+      phase: { kind: 'rest' as const, nodeId: 'n' },
+    };
     const rested = runReducer(injured, { type: 'rest' })!;
     expect(rested.core.roster.starters[0].gamesOut).toBe(0);
   });
@@ -394,11 +532,14 @@ describe('between-game injuries', () => {
     let m = initRun('dress', rookie('dress'));
     const bench = generateRecruitOffers(1, 1, createRNG('bp'));
     const [first, ...rest] = m.core.roster.starters;
-    m = { ...m, core: {
-      ...m.core,
-      roster: { starters: [{ ...first, gamesOut: 1 }, ...rest], bench },
-    } };
-    const nodeId = m.core.map.startNodeIds[0];
+    m = {
+      ...m,
+      core: {
+        ...m.core,
+        roster: { starters: [{ ...first, gamesOut: 1 }, ...rest], bench },
+      },
+    };
+    const nodeId = m.core.map.bossNodeId;
     m = runReducer(m, { type: 'chooseNode', nodeId })!;
     m = runReducer(m, { type: 'enterGame' })!;
     const dressed = [

@@ -18,7 +18,7 @@ Stop playing a card every possession. **Build a five, set a game plan, then watc
 Build a Five  ->  Set a Game Plan  ->  Watch the Auto-Sim  ->  Win / Lose
       ^                                                              |
       |                                                              v
-   Run Map  <-  Recruit / Train / Shop / Rest  <-  Rewards  <-  Advance
+   Run Map  <-  Recruit / Train / Boost / Rest  <-  Rewards  <-  Advance
 ```
 
 1. **Build a five.** Choose five players by position (PG, SG, SF, PF, C) from your roster, plus bench depth. This is what finally makes the game a real 5-on-5: five distinct players on the floor, with synergies between them.
@@ -64,21 +64,27 @@ The engine uses transparent, deterministic resolution math (detailed in [stat-an
 
 Determinism matters: the same seed always produces the same game, which makes replay, fast-forward, and testing reliable.
 
-## The branching run map
+## The run: a sequence of fixed-shape pokelike maps
 
-The run is a Slay-the-Spire-style layered map of nodes the player chooses a path through:
+A run is a climb through several short maps (one boss each). Every map shares the
+same authored **shape** (rows, nodes per row, edges); the interior node **types**
+are randomized run to run, with three pins: the entry pair is **Recruit (left) +
+Boost (right)**, a **Rest** always sits before the boss, and the boss ends the
+map. A **passive-boost draft opens each map** (the first is the run-start "starter
+pick"); clearing a map's boss opens the next map, and clearing the final boss wins
+the run. Node types:
 
-- **Game / Elite / Boss:** opponents of escalating difficulty.
+- **Game / Elite / Boss:** opponents of escalating difficulty; wins bank training points (1 / 2 / 4).
 - **Recruit:** add a player to your bench (the "catch" analog).
-- **Training:** spend XP to improve a player.
-- **Shop:** buy gear.
+- **Training:** spend banked training points on run-scoped skill boosts, the only path past the normal 10 cap (up to 12, the S+ tier).
+- **Boost:** grab one free item and equip it (the renamed, coin-free shop; coins are spent only in the Locker Room).
 - **Rest:** restore or re-seed your lineup.
 
-The playable slice shipped a **minimal linear run** first to prove the loop. The **full branching map, recruitment, lineup building, and a compounding home roster are now implemented** (see "The run loop and home roster" below).
+The playable slice shipped a **minimal linear run** first to prove the loop. The **full fixed-shape maps, recruitment, lineup building, and a compounding home roster are now implemented** (see "The run loop and home roster" below).
 
 ## What happened to cards
 
-Per-possession cards are **removed**: the legacy card game and its standalone quick-sim mode have been deleted from the codebase. The card *concept* may return later in a better-fitting form: **playbook cards** drafted between games (and spendable at timeouts) that bias the simulation, for example "Run and Gun," "Iso the Star," or "2-3 Zone." That would be a fresh feature built on the sim, pairing a collectible-card meta with the recruit and shop nodes, with none of the slow per-possession tapping.
+Per-possession cards are **removed**: the legacy card game and its standalone quick-sim mode have been deleted from the codebase. The card *concept* may return later in a better-fitting form: **playbook cards** drafted between games (and spendable at timeouts) that bias the simulation, for example "Run and Gun," "Iso the Star," or "2-3 Zone." That would be a fresh feature built on the sim, pairing a collectible-card meta with the recruit and boost nodes, with none of the slow per-possession tapping.
 
 ## Presentation: programmatic 8-bit now, art later
 
@@ -96,6 +102,6 @@ Run the `addictive-blueprint` skill against any feature in this redesign to conf
 
 ## The run loop and home roster (implemented)
 
-The run is one screen (`RunScreen`) driven by `useRun`, a thin wrapper over a pure, headless-tested reducer (`src/game/run-machine.ts`). The reducer holds a `RunPhase` discriminated union; choosing a node dispatches to the matching sub-view (map, pregame, game, recruit, training, rest, shop, lineup builder, summary). Keeping the run in one screen means run state survives every step (no navigation can drop it), and keeping the reducer pure means the whole state machine is unit-tested without a device.
+The run is one screen (`RunScreen`) driven by `useRun`, a thin wrapper over a pure, headless-tested reducer (`src/game/run-machine.ts`). The reducer holds a `RunPhase` discriminated union; choosing a node dispatches to the matching sub-view (map, pregame, game, recruit, training, rest, boost, lineup builder, summary). Keeping the run in one screen means run state survives every step (no navigation can drop it), and keeping the reducer pure means the whole state machine is unit-tested without a device.
 
 **Compounding home roster.** A persistent home roster (`src/game/home-roster.ts`, owned by `HomeRosterContext`, saved through a Platform-split storage wrapper: AsyncStorage on native, guarded `localStorage` on web) is the "permadeath per run, permanent growth" hook. A run starts from a copy of the home roster; recruits join the bench and training boosts stats during the run; when the run ends (win or loss) those gains are merged back home and saved. So no run is wasted: each one fields a stronger team. The owned roster is capped so it cannot bloat, and the player builds their starting five from it before each game.
