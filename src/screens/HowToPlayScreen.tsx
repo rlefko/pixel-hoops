@@ -1,9 +1,10 @@
-import { ScrollView, StyleSheet } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
+import { StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import RulesSection from '@/components/RulesSection';
 import { ExternalLink } from '@/components/ExternalLink';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
+import { palette, FONT, FONT_SIZE, space } from '@/theme';
 
 /** Each titled rules section shown in the How to Play modal. */
 const RULES: { title: string; body: string }[] = [
@@ -30,7 +31,12 @@ export default function HowToPlayScreen() {
   const router = useRouter();
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <Screen
+      scroll
+      onBack={() => router.back()}
+      backLabel="CLOSE"
+      contentContainerStyle={styles.content}
+    >
       <Text style={styles.title}>HOW TO PLAY</Text>
 
       {RULES.map(rule => (
@@ -43,53 +49,30 @@ export default function HowToPlayScreen() {
       >
         <Text style={styles.linkText}>Read the full game concept</Text>
       </ExternalLink>
-
-      <Text style={styles.closeButton} onPress={() => router.back()}>
-        Got it
-      </Text>
-
-      <StatusBar style="light" />
-    </ScrollView>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1A1A2E',
-  },
   content: {
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingHorizontal: space(5),
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFD54F',
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.h2,
+    color: palette.gold,
     letterSpacing: 3,
-    marginBottom: 16,
+    marginBottom: space(4),
   },
   link: {
-    paddingVertical: 16,
+    paddingVertical: space(4),
   },
   linkText: {
-    fontSize: 13,
-    color: '#7FB3FF',
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.body,
+    color: palette.steelBlue,
     textAlign: 'center',
     textDecorationLine: 'underline',
-  },
-  closeButton: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#FFD54F',
-    textAlign: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 40,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#FFD54F',
-    backgroundColor: 'rgba(255,213,79,0.1)',
-    marginTop: 16,
-    overflow: 'hidden',
   },
 });

@@ -1,5 +1,6 @@
-import { View, StyleSheet, Pressable } from 'react-native';
+import { StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** End-of-run summary. The home roster has already banked the run's gains. */
@@ -18,7 +19,7 @@ export function RunSummaryView({
   onMenu,
 }: RunSummaryViewProps) {
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container}>
       <Text
         style={[styles.title, { color: champion ? palette.gold : palette.ink }]}
       >
@@ -34,17 +35,15 @@ export function RunSummaryView({
       <Pressable onPress={onMenu}>
         <Text style={styles.menu}>Menu</Text>
       </Pressable>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: palette.bgDeep,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: space(6),
+    paddingHorizontal: space(6),
   },
   title: {
     fontFamily: FONT.display,

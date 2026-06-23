@@ -33,6 +33,8 @@ export const SIM_SPEED_ORDER: SimSpeed[] = ['chill', 'brisk', 'blitz'];
 
 export interface FeelSettings {
   hapticsEnabled: boolean;
+  /** Screen shake on big plays. Toggled independently of haptics. */
+  shakeEnabled: boolean;
   reducedMotion: boolean;
   scanlinesEnabled: boolean;
   /** Playback speed for the watched sim. */
@@ -47,6 +49,7 @@ interface FeelSettingsContextValue extends FeelSettings {
 
 const DEFAULTS: FeelSettings = {
   hapticsEnabled: true,
+  shakeEnabled: true,
   reducedMotion: false,
   scanlinesEnabled: true,
   simSpeed: 'brisk',

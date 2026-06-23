@@ -1,5 +1,6 @@
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { InjuryIcon } from '@/components/run/PixelIcons';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Roster } from '@/types/roster';
@@ -17,7 +18,7 @@ export function RestView({ roster, onRebuild, onContinue }: RestViewProps) {
     (rp) => (rp.gamesOut ?? 0) > 0
   );
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container}>
       <Text style={styles.title}>REST</Text>
       <Text style={styles.body}>
         Catch your breath. Resting fully heals every injury. Rework your
@@ -43,17 +44,15 @@ export function RestView({ roster, onRebuild, onContinue }: RestViewProps) {
       <Pressable style={styles.button} onPress={onContinue}>
         <Text style={styles.buttonText}>CONTINUE</Text>
       </Pressable>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: palette.bgDeep,
     alignItems: 'center',
     justifyContent: 'center',
-    padding: space(6),
+    paddingHorizontal: space(6),
   },
   title: {
     fontFamily: FONT.display,

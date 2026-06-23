@@ -1,6 +1,7 @@
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { Pop } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { CoinIcon } from '@/components/run/PixelIcons';
@@ -63,7 +64,7 @@ export default function LockerRoomScreen() {
   const coins = homeRoster.coins;
 
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container} onBack={() => router.back()}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>LOCKER ROOM</Text>
         <Pop trigger={coins} style={styles.coinPill}>
@@ -116,16 +117,12 @@ export default function LockerRoomScreen() {
           </View>
         ))}
       </ScrollView>
-
-      <Pressable onPress={() => router.back()}>
-        <Text style={styles.back}>Done</Text>
-      </Pressable>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.bgDeep, padding: space(4), paddingTop: space(10) },
+  container: { paddingHorizontal: space(4) },
   center: {
     flex: 1,
     backgroundColor: palette.bgDeep,
@@ -180,11 +177,4 @@ const styles = StyleSheet.create({
   disabled: { opacity: 0.3 },
   statBtnText: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
   statCost: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.gold },
-  back: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.body,
-    color: palette.inkDim,
-    textAlign: 'center',
-    marginTop: space(4),
-  },
 });

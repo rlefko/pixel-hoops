@@ -1,5 +1,6 @@
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import {
   BOOST_BY_ID,
   SKIP_CONSOLATION_COINS,
@@ -35,7 +36,7 @@ export function BoostDraftView({
 }: BoostDraftViewProps) {
   if (pendingFull) {
     return (
-      <View style={styles.container}>
+      <Screen style={styles.container}>
         <Text style={styles.title}>BOOSTS FULL</Text>
         <Text style={styles.subtitle}>Drop one to make room for the new boost</Text>
         <ScrollView contentContainerStyle={styles.offers}>
@@ -54,12 +55,12 @@ export function BoostDraftView({
             );
           })}
         </ScrollView>
-      </View>
+      </Screen>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container}>
       <Text style={styles.title}>ROUND {round} BOOST</Text>
       <Text style={styles.subtitle}>Pick a passive boost for your squad</Text>
       <ScrollView contentContainerStyle={styles.offers}>
@@ -88,16 +89,13 @@ export function BoostDraftView({
       <Pressable onPress={onSkip}>
         <Text style={styles.skip}>Skip for +{SKIP_CONSOLATION_COINS} coins</Text>
       </Pressable>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: palette.bgDeep,
-    padding: space(5),
-    paddingTop: space(10),
+    paddingHorizontal: space(5),
   },
   title: {
     fontFamily: FONT.display,

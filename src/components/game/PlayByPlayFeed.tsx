@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/StyledText';
 import {
   ShakeView,
@@ -60,6 +61,7 @@ export function PlayByPlayFeed({
   onComplete,
 }: PlayByPlayFeedProps) {
   const { reducedMotion, simSpeed, highlightsOnly, update } = useFeelSettings();
+  const insets = useSafeAreaInsets();
   const speed = SIM_SPEED_FACTOR[simSpeed];
   const [cursor, setCursor] = useState(-1);
   const [skipped, setSkipped] = useState(false);
@@ -217,7 +219,7 @@ export function PlayByPlayFeed({
 
   return (
     <View style={styles.wrap}>
-      <View style={styles.hud}>
+      <View style={[styles.hud, { paddingTop: insets.top + space(2) }]}>
         <Text style={styles.round}>
           ROUND {round}/{totalRounds}
         </Text>
@@ -279,7 +281,7 @@ export function PlayByPlayFeed({
         <FlashOverlay ref={flashRef} />
       </ShakeView>
 
-      <View style={styles.controls}>
+      <View style={[styles.controls, { paddingBottom: insets.bottom }]}>
         <Pressable style={styles.control} onPress={cycleSpeed}>
           <Text style={styles.controlLabel}>{`${SIM_SPEED_FACTOR[simSpeed]}x`}</Text>
         </Pressable>

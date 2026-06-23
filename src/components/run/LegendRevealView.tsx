@@ -9,6 +9,7 @@ import {
   type ShakeViewHandle,
 } from '@/components/fx';
 import { haptics } from '@/feel';
+import { Screen } from '@/components/Screen';
 import { PlayerCard } from './PlayerCard';
 import { getAbility } from '@/game/abilities';
 import type { RosterPlayer } from '@/types/roster';
@@ -50,7 +51,7 @@ export function LegendRevealView({ offer, onScout, onDecline }: LegendRevealView
   };
 
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container} topGap={space(4)}>
       <Text style={styles.kicker}>A LEGEND APPEARS</Text>
 
       <ShakeView ref={shakeRef} style={styles.stage}>
@@ -87,16 +88,13 @@ export function LegendRevealView({ offer, onScout, onDecline }: LegendRevealView
       )}
 
       <FlashOverlay ref={flashRef} />
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: palette.bgDeep,
     alignItems: 'center',
-    paddingTop: space(12),
     paddingHorizontal: space(5),
   },
   kicker: {

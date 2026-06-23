@@ -1,6 +1,7 @@
 import { StyleSheet, View, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { CoinIcon } from '@/components/run/PixelIcons';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -11,7 +12,7 @@ export default function HomeScreen() {
   const { homeRoster, loaded } = useHomeRoster();
 
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container}>
       <View style={styles.titleBlock}>
         <Text style={styles.title}>PIXEL</Text>
         <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
@@ -39,22 +40,23 @@ export default function HomeScreen() {
         <Pressable style={styles.button} onPress={() => router.push('/locker')}>
           <Text style={styles.secondaryText}>Locker Room</Text>
         </Pressable>
+        <Pressable style={styles.button} onPress={() => router.push('/settings')}>
+          <Text style={styles.secondaryText}>Settings</Text>
+        </Pressable>
         <Pressable style={styles.button} onPress={() => router.push('/modal')}>
           <Text style={styles.secondaryText}>How to Play</Text>
         </Pressable>
       </View>
 
       <Text style={styles.tagline}>Auto-sim 5-on-5. Your team compounds.</Text>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: palette.bgDeep,
   },
   titleBlock: {
     alignItems: 'center',

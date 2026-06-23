@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { View, StyleSheet, Alert, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { Scanlines } from '@/components/fx';
 import { getReachableNodes } from '@/game/run-map';
 import { NODE_META } from './node-meta';
@@ -18,7 +19,7 @@ import {
   buildEdges,
   nodeCenterX,
 } from './map-geometry';
-import { palette, FONT, FONT_SIZE, space } from '@/theme';
+import { FONT, FONT_SIZE, space } from '@/theme';
 import type { MapNodeType, RunState } from '@/types/run-map';
 import type { PassiveBoost } from '@/game/boosts';
 
@@ -75,6 +76,14 @@ export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: Run
     scrollRef.current?.scrollTo({ y, animated: true });
   }, [currentLayer]);
 
+  // Quitting banks progress but ends the run, so confirm before leaving.
+  const confirmQuit = useCallback(() => {
+    Alert.alert('Quit run?', 'Your progress is banked but the run will end.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Quit', style: 'destructive', onPress: onQuit },
+    ]);
+  }, [onQuit]);
+
   // The current node's screen position, for the "you are here" marker.
   const currentMarker = useMemo(() => {
     if (core.currentNodeId == null) return null;
@@ -86,7 +95,7 @@ export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: Run
   }, [core.map, core.currentNodeId]);
 
   return (
-    <View style={styles.container}>
+    <Screen onBack={confirmQuit} backLabel="QUIT">
       <ResourceHeader
         rewards={core.rewards}
         round={round}
@@ -143,17 +152,12 @@ export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: Run
 
       <RosterStrip roster={core.roster} onPress={onOpenLineup} />
 
-      <Pressable onPress={onQuit}>
-        <Text style={styles.quit}>Quit Run</Text>
-      </Pressable>
-
       <Scanlines />
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.bgDeep },
   scroll: { alignItems: 'center', paddingVertical: space(3) },
   board: { position: 'relative' },
   legend: {
@@ -165,11 +169,4 @@ const styles = StyleSheet.create({
     gap: space(2),
   },
   legendItem: { fontFamily: FONT.body, fontSize: FONT_SIZE.small },
-  quit: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.body,
-    color: palette.inkDim,
-    textAlign: 'center',
-    paddingVertical: space(2),
-  },
 });

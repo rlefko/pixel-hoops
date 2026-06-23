@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { useRun } from '@/hooks/useRun';
 import { buildTeam } from '@/game/lineup';
 import { dressedRoster, type RunModel } from '@/game/run-machine';
@@ -174,24 +175,22 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
     teamModifierFor(dressed.starters, model.boosts)
   );
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.pregame}>
-        <Text style={styles.depth}>DEPTH {round}</Text>
-        <Text style={styles.section}>YOUR FIVE</Text>
-        <LineupBoard team={home} />
-        <Pressable onPress={actions.openLineupBuilder}>
-          <Text style={styles.link}>Change Lineup</Text>
-        </Pressable>
-        <Text style={styles.section}>GAME PLAN</Text>
-        <GamePlanPicker plan={model.gamePlan} onChange={actions.setGamePlan} />
-        <Pressable
-          style={[styles.button, styles.primary]}
-          onPress={actions.enterGame}
-        >
-          <Text style={styles.buttonText}>TIP OFF</Text>
-        </Pressable>
-      </ScrollView>
-    </View>
+    <Screen scroll contentContainerStyle={styles.pregame}>
+      <Text style={styles.depth}>DEPTH {round}</Text>
+      <Text style={styles.section}>YOUR FIVE</Text>
+      <LineupBoard team={home} />
+      <Pressable onPress={actions.openLineupBuilder}>
+        <Text style={styles.link}>Change Lineup</Text>
+      </Pressable>
+      <Text style={styles.section}>GAME PLAN</Text>
+      <GamePlanPicker plan={model.gamePlan} onChange={actions.setGamePlan} />
+      <Pressable
+        style={[styles.button, styles.primary]}
+        onPress={actions.enterGame}
+      >
+        <Text style={styles.buttonText}>TIP OFF</Text>
+      </Pressable>
+    </Screen>
   );
 }
 
@@ -209,7 +208,7 @@ function Postgame({
   const won = model.phase.won;
   const { result, home, away } = model.game;
   return (
-    <View style={styles.postgame}>
+    <Screen style={styles.postgame} bottomGap={space(6)}>
       <View style={styles.postgameHeadline}>
         <Text
           style={[
@@ -242,7 +241,7 @@ function Postgame({
       <Pressable style={[styles.button, styles.primary]} onPress={onContinue}>
         <Text style={styles.buttonText}>{won ? 'CONTINUE' : 'END RUN'}</Text>
       </Pressable>
-    </View>
+    </Screen>
   );
 }
 
@@ -260,14 +259,10 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.body,
     color: palette.inkDim,
   },
-  pregame: { padding: space(5), paddingTop: space(8) },
+  pregame: { paddingHorizontal: space(5) },
   postgame: {
-    flex: 1,
-    backgroundColor: palette.bgDeep,
     alignItems: 'center',
     paddingHorizontal: space(5),
-    paddingTop: space(10),
-    paddingBottom: space(6),
   },
   postgameHeadline: { alignItems: 'center' },
   postgameBox: {

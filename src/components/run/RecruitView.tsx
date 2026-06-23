@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { RosterPlayer } from '@/types/roster';
@@ -25,7 +26,7 @@ export function RecruitView({
   const [expanded, setExpanded] = useState<number | null>(null);
 
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container}>
       <Text style={styles.title}>RECRUIT</Text>
       <Text style={styles.subtitle}>
         Add one to your bench ({benchCount} benched)
@@ -46,16 +47,13 @@ export function RecruitView({
       <Pressable onPress={onSkip}>
         <Text style={styles.skip}>Skip</Text>
       </Pressable>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: palette.bgDeep,
-    padding: space(5),
-    paddingTop: space(10),
+    paddingHorizontal: space(5),
   },
   title: {
     fontFamily: FONT.display,
