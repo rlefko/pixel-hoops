@@ -4,9 +4,7 @@ import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { useRun } from '@/hooks/useRun';
-import { buildTeam } from '@/game/lineup';
-import { dressedRoster, type RunModel } from '@/game/run-machine';
-import { effectivePlayers, teamModifierFor } from '@/game/apply-effects';
+import { buildHomeTeam, buildOpponentTeam, type RunModel } from '@/game/run-machine';
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { GamePlanPicker } from '@/components/game/GamePlanPicker';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
@@ -163,21 +161,23 @@ function depthOf(model: RunModel, nodeId: string): number {
 function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
   const round = depthOf(model, nodeId);
-  // Preview the five that will actually dress: healthy-first, with items, legend
-  // auras, and passive boosts baked in, so the board matches the tip-off lineup.
-  const dressed = dressedRoster(model.core.roster);
-  const home = buildTeam(
-    'Your Squad',
-    effectivePlayers(dressed.starters),
-    model.gamePlan,
-    palette.homeTeam,
-    palette.homeTeamAccent,
-    effectivePlayers(dressed.bench),
-    teamModifierFor(dressed.starters, model.boosts)
-  );
+  // The home board previews the five that will actually dress (healthy-first,
+  // items + auras + boosts baked in); the away board scouts the opponent the run
+  // will field. Both come from the same builders the sim uses, so the preview
+  // never lies about the matchup.
+  const home = buildHomeTeam(model);
+  const away = buildOpponentTeam(model.core, nodeId);
   return (
     <Screen scroll contentContainerStyle={styles.pregame}>
       <Text style={styles.depth}>DEPTH {round}</Text>
+      <Text style={styles.section}>SCOUTING REPORT</Text>
+      <View style={styles.scoutHeader}>
+        <View style={[styles.swatch, { backgroundColor: away.colorHex }]} />
+        <Text style={styles.oppName} numberOfLines={1}>
+          {away.name}
+        </Text>
+      </View>
+      <LineupBoard team={away} />
       <Text style={styles.section}>YOUR FIVE</Text>
       <LineupBoard team={home} />
       <Pressable onPress={actions.openLineupBuilder}>
@@ -202,9 +202,9 @@ function Postgame({
   model: RunModel;
   onContinue: () => void;
 }) {
-  // Default collapsed so the win/loss headline reads instantly and the retry
-  // stays one tap away; the box score is opt-in detail.
-  const [showBox, setShowBox] = useState(false);
+  // Default open so the box score is right there after a game; still collapsible
+  // to put the win/loss headline and the retry one tap away.
+  const [showBox, setShowBox] = useState(true);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
   const { result, home, away } = model.game;
@@ -283,6 +283,23 @@ const styles = StyleSheet.create({
     color: palette.gold,
     marginTop: space(6),
     marginBottom: space(2),
+  },
+  scoutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: space(1),
+  },
+  swatch: {
+    width: space(3),
+    height: space(3),
+    borderRadius: RADIUS.chip,
+    marginRight: space(2),
+  },
+  oppName: {
+    flex: 1,
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.ink,
   },
   link: {
     fontFamily: FONT.body,
