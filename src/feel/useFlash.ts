@@ -26,7 +26,7 @@ export function useFlash() {
     (next?: string, opts?: { peak?: number }) => {
       if (reducedMotion) return;
       if (next) setColor(next);
-      const peak = opts?.peak ?? 0.45;
+      const peak = opts?.peak ?? 0.22;
       opacity.value = withSequence(
         withTiming(peak, { duration: DUR.instant }),
         withTiming(0, { duration: DUR.instant * 1.5 })

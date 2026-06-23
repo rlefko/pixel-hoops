@@ -12,11 +12,15 @@ export const DUR = {
   shake: 220, // full screen-shake envelope
 } as const;
 
-/** Screen-shake amplitude in pixels by intensity. */
+/**
+ * Screen-shake amplitude in pixels by intensity. Softened so the floor doesn't
+ * quake on every bucket: `medium` carries dunks and blocks, `heavy` is reserved
+ * for the game-winner.
+ */
 export const SHAKE_PX = {
   light: 3,
-  medium: 7,
-  heavy: 14,
+  medium: 6,
+  heavy: 10,
 } as const;
 
 export type ShakeIntensity = keyof typeof SHAKE_PX;

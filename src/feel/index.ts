@@ -10,4 +10,4 @@ export { usePop } from './usePop';
 export { usePulse } from './usePulse';
 export { useFlash } from './useFlash';
 export { useCountUp } from './useCountUp';
-export { useBallFlight, BALL_FLIGHT_MS } from './useBallFlight';
+export { useBallFlight } from './useBallFlight';

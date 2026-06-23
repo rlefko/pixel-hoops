@@ -11,9 +11,10 @@ import {
   Callout,
 } from '@/components/fx';
 import { CourtView } from '@/components/game/CourtView';
-import { haptics } from '@/feel';
+import { eventGapMs } from '@/components/game/possession';
+import { haptics, useFeelSettings } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, BORDER, RADIUS } from '@/theme';
-import type { SimEvent } from '@/types/sim';
+import { isMadeShot, type SimEvent } from '@/types/sim';
 import type { Team } from '@/types/team';
 
 /**
@@ -33,12 +34,7 @@ function colorForEvent(e: SimEvent): string {
   return palette.missRed;
 }
 
-/** Gap before the next event: big plays linger, makes pause, misses fly by. */
-function gapFor(e: SimEvent): number {
-  if (e.isBigPlay) return 460;
-  if (e.result === 'score' || e.result === 'and-one') return 280;
-  return 150;
-}
+const isWinner = (e: SimEvent): boolean => e.callout === 'BUZZER BEATER!';
 
 interface PlayByPlayFeedProps {
   timeline: SimEvent[];
@@ -57,63 +53,114 @@ export function PlayByPlayFeed({
   totalRounds,
   onComplete,
 }: PlayByPlayFeedProps) {
+  const { reducedMotion } = useFeelSettings();
   const [cursor, setCursor] = useState(-1);
   const [skipped, setSkipped] = useState(false);
+  // The most recently landed event drives the HUD score, callout, and feedback,
+  // so the bucket counts and the celebration land *with* the ball, not when the
+  // play is first revealed.
+  const [landed, setLanded] = useState<SimEvent | null>(null);
   const shakeRef = useRef<ShakeViewHandle>(null);
   const flashRef = useRef<FlashOverlayHandle>(null);
   const completedRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
 
   const current = cursor >= 0 ? timeline[cursor] : null;
-  const homeScore = current ? current.homeScore : 0;
-  const awayScore = current ? current.awayScore : 0;
+  const homeScore = landed ? landed.homeScore : 0;
+  const awayScore = landed ? landed.awayScore : 0;
 
-  const applyJuice = useCallback((e: SimEvent) => {
-    if (e.isBigPlay) {
-      shakeRef.current?.shake(e.action === 'dunk' ? 'heavy' : 'medium');
-      flashRef.current?.flash(colorForEvent(e));
-      haptics.bigPlay();
-    } else if (e.result === 'score' || e.result === 'and-one') {
-      haptics.selection();
+  // Outcome feedback, tiered so routine plays stay quiet and only special moments
+  // pop. Fired when the ball reaches the rim (see CourtView onArrival).
+  const applyOutcomeJuice = useCallback((e: SimEvent) => {
+    if (e.result === 'block') {
+      shakeRef.current?.shake('medium');
+      haptics.medium();
+      return;
     }
+    if (e.result === 'steal') {
+      shakeRef.current?.shake('light');
+      haptics.light();
+      return;
+    }
+    if (!isMadeShot(e)) return; // misses and turnovers: quiet
+
+    if (isWinner(e)) {
+      shakeRef.current?.shake('heavy');
+      flashRef.current?.flash(palette.gold, { peak: 0.3 });
+      haptics.bigPlay();
+      return;
+    }
+    if (e.result === 'and-one') {
+      shakeRef.current?.shake('light');
+      flashRef.current?.flash(palette.gold, { peak: 0.22 });
+      haptics.success();
+      return;
+    }
+    if (e.action === 'three') {
+      shakeRef.current?.shake('light');
+      haptics.light();
+      return;
+    }
+    if (e.action === 'dunk') {
+      shakeRef.current?.shake('medium');
+      haptics.medium();
+      return;
+    }
+    if (e.isBigPlay) {
+      // A clutch bucket (the sim flags it) earns a small bump over a routine make.
+      shakeRef.current?.shake('light');
+      haptics.medium();
+      return;
+    }
+    haptics.selection(); // routine make: a clean tick, the net swish carries it
   }, []);
 
-  // Scheduler: reveal the next event after an event-weighted delay. Assumes a
-  // non-empty timeline (simulateGame always emits events).
+  const handleArrival = useCallback(
+    (e: SimEvent) => {
+      setLanded(e);
+      applyOutcomeJuice(e);
+    },
+    [applyOutcomeJuice]
+  );
+
+  // Scheduler: reveal the next event after a possession-length delay so the ball
+  // always lands before the next play. Assumes a non-empty timeline.
   useEffect(() => {
     if (skipped || timeline.length === 0 || cursor >= timeline.length - 1)
       return;
     const nextIdx = cursor + 1;
     const next = timeline[nextIdx];
-    const timer = setTimeout(() => {
-      applyJuice(next);
-      setCursor(nextIdx);
-    }, gapFor(next));
+    const timer = setTimeout(() => setCursor(nextIdx), eventGapMs(next, reducedMotion));
     return () => clearTimeout(timer);
-  }, [cursor, timeline, skipped, applyJuice]);
+  }, [cursor, timeline, skipped, reducedMotion]);
 
-  // Fire onComplete exactly once when the timeline finishes.
+  // Fire onComplete once the timeline finishes, after the final ball has had time
+  // to land and celebrate (so the game-winner isn't cut off by the transition).
+  // Keyed on cursor/timeline only; the latest onComplete is read through a ref so
+  // a re-render mid-beat can't clear the pending timer.
   useEffect(() => {
-    if (
-      !completedRef.current &&
-      timeline.length > 0 &&
-      cursor >= timeline.length - 1
-    ) {
-      completedRef.current = true;
-      onComplete();
-    }
-  }, [cursor, timeline, onComplete]);
+    if (completedRef.current || timeline.length === 0 || cursor < timeline.length - 1)
+      return;
+    completedRef.current = true;
+    const last = timeline[timeline.length - 1];
+    const timer = setTimeout(
+      () => onCompleteRef.current(),
+      eventGapMs(last, reducedMotion)
+    );
+    return () => clearTimeout(timer);
+  }, [cursor, timeline, reducedMotion]);
 
   const skip = useCallback(() => {
+    // Jump to the final beat; its ball still arcs and lands the payoff via
+    // onArrival (the game-winner), so the skip pays off.
     setSkipped(true);
-    // Still land the final beat (usually the game-winner) so the skip pays off.
-    const last = timeline[timeline.length - 1];
-    if (last) applyJuice(last);
     setCursor(timeline.length - 1);
-  }, [timeline, applyJuice]);
+  }, [timeline]);
 
   const start = Math.max(0, cursor - VISIBLE_ROWS + 1);
   const rows = cursor >= 0 ? timeline.slice(start, cursor + 1) : [];
-  const bigCallout = current?.isBigPlay ? current.callout : undefined;
+  const bigCallout = landed?.isBigPlay ? landed.callout : undefined;
 
   return (
     <View style={styles.wrap}>
@@ -147,7 +194,12 @@ export function PlayByPlayFeed({
       </View>
 
       <ShakeView ref={shakeRef} style={styles.courtWrap}>
-        <CourtView homeTeam={homeTeam} awayTeam={awayTeam} current={current} />
+        <CourtView
+          homeTeam={homeTeam}
+          awayTeam={awayTeam}
+          current={current}
+          onArrival={handleArrival}
+        />
         <View style={styles.feed}>
           {rows.map((e) => (
             <Text
@@ -169,7 +221,7 @@ export function PlayByPlayFeed({
         {bigCallout ? (
           <Callout
             text={bigCallout}
-            color={current ? colorForEvent(current) : palette.gold}
+            color={landed ? colorForEvent(landed) : palette.gold}
             style={styles.callout}
           />
         ) : null}
