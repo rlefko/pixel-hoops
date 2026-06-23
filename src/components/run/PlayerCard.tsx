@@ -4,7 +4,7 @@ import { Text } from '@/components/StyledText';
 import { PixelPlayer } from '@/components/fx';
 import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
-import { POSITION_COLOR } from '@/components/game/LineupBoard';
+import { POSITION_COLOR } from '@/components/game/positionColor';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import { ovr, off, def, ath, tierFor, type TierKey } from '@/game/ratings';
 import type { PlayerStats } from '@/types/player';

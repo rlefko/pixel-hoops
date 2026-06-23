@@ -2,18 +2,12 @@ import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, BORDER } from '@/theme';
-import type { Position } from '@/types/roster';
 import type { Team } from '@/types/team';
 
 /** Pregame roster view: the five by position, their stats, and active synergies. */
 
-export const POSITION_COLOR: Record<Position, string> = {
-  PG: palette.steelBlue,
-  SG: palette.makeGreenLt,
-  SF: palette.gold,
-  PF: palette.orange,
-  C: palette.missRedLt,
-};
+// Re-exported for existing importers; the source of truth is positionColor.ts.
+export { POSITION_COLOR } from '@/components/game/positionColor';
 
 export function LineupBoard({ team }: { team: Team }) {
   return (

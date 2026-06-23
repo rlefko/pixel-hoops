@@ -347,7 +347,6 @@ function recomputeAggregate(side: SideState): void {
  */
 function substitute(side: SideState, team: SimTeamSide): SimSub[] {
   const subs: SimSub[] = [];
-  let changed = false;
   for (let slot = 0; slot < side.onCourt.length; slot++) {
     const current = side.onCourt[slot];
     if (current.energy >= SUB_OUT_ENERGY) continue;
@@ -359,34 +358,37 @@ function substitute(side: SideState, team: SimTeamSide): SimSub[] {
     const effective = (p: PlayerGameState): number =>
       ovrRaw(p.rp.player.stats, position) * fatigueMultiplier(p.energy, false);
 
-    let best: PlayerGameState | null = null;
+    let best: PlayerGameState | undefined;
     let bestKey = -Infinity;
-    side.all.forEach((p, index) => {
-      if (p.onCourt || p.energy < SUB_IN_ENERGY) return;
+    for (let index = 0; index < side.all.length; index++) {
+      const p = side.all[index];
+      if (p.onCourt || p.energy < SUB_IN_ENERGY) continue;
       const samePos = p.rp.position === position ? 1 : 0;
       const key = samePos * 1000 + effective(p) - index * 0.001;
       if (key > bestKey) {
         bestKey = key;
         best = p;
       }
-    });
-    if (!best) continue;
-
-    const fresh = best as PlayerGameState;
-    if (effective(fresh) <= effective(current)) continue;
+    }
+    if (!best || effective(best) <= effective(current)) continue;
 
     current.onCourt = false;
-    fresh.onCourt = true;
-    fresh.box.slot = position;
-    side.onCourt[slot] = fresh;
-    subs.push({ team, slot: position, outName: current.rp.player.name, inName: fresh.rp.player.name });
-    changed = true;
+    best.onCourt = true;
+    best.box.slot = position;
+    side.onCourt[slot] = best;
+    subs.push({ team, slot: position, outName: current.rp.player.name, inName: best.rp.player.name });
   }
-  if (changed) recomputeAggregate(side);
+  if (subs.length > 0) recomputeAggregate(side);
   return subs;
 }
 
-/** Drain the five on the floor (the scorer hardest), recover the bench, log minutes. */
+/**
+ * Drain the five on the floor (the scorer hardest), recover the bench, and log
+ * minutes. Called once per the side's OWN offensive possession, so energy and
+ * minutes advance only on offense; this is deliberate (it keeps the per-side
+ * minutes total exactly 5 * SECONDS_PER_QUARTER per quarter). Do not also call
+ * it on defense or the minutes invariant and determinism shift.
+ */
 function drainRecover(side: SideState, scorer: PlayerGameState, possInQuarter: number): void {
   const paceFactor = side.aggregate.pace / PACE_BASELINE;
   const secondsPerPoss = SECONDS_PER_QUARTER / possInQuarter;

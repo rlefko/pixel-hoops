@@ -1,5 +1,6 @@
 import type { PlayerStats } from '@/types/player';
 import type { OffActionId } from '@/types/sim';
+import { clamp } from './stat-scaling';
 
 /**
  * Auto-sim shot resolution, kept separate from the legacy card game's
@@ -76,11 +77,6 @@ function q(rating: number): number {
   return (rating - 3) / 7;
 }
 
-/** Clamp helper. */
-function clampNum(value: number, min: number, max: number): number {
-  return Math.max(min, Math.min(max, value));
-}
-
 /** Parameter-free one-on-one contest probability. */
 export function ratio(a: number, b: number): number {
   return a + b <= 0 ? 0.5 : a / (a + b);
@@ -107,14 +103,14 @@ export interface MakeArgs {
  */
 export function makeProbability(args: MakeArgs): number {
   const profile = SHOT_PROFILE[args.action];
-  const iqBonus = clampNum((args.iq - 5) * 0.008, 0, IQ_MAKE_BONUS);
+  const iqBonus = clamp((args.iq - 5) * 0.008, 0, IQ_MAKE_BONUS);
   const raw =
     profile.base +
     SLOPE * q(args.offRating) -
     DEF_WEIGHT * q(args.defRating) +
     iqBonus +
     (args.clutchDelta ?? 0);
-  return clampNum(raw, MIN_P, MAX_P) * (args.fatigueMult ?? 1);
+  return clamp(raw, MIN_P, MAX_P) * (args.fatigueMult ?? 1);
 }
 
 /** Expected points of an action's make probability (for IQ shot selection). */
@@ -129,7 +125,7 @@ export function expectedValue(action: OffActionId, makeP: number): number {
  * moderate fatigue more than contested interior shots.
  */
 export function fatigueMultiplier(energy: number, resilient: boolean): number {
-  const e = clampNum(energy / 100, 0, 1);
+  const e = clamp(energy / 100, 0, 1);
   const floor = resilient ? RESILIENT_FATIGUE_FLOOR : MIN_FATIGUE_MULT;
   return floor + (1 - floor) * Math.pow(e, FATIGUE_CURVE);
 }
@@ -152,7 +148,7 @@ export function missFlavor(
     const pBlock = ratio(defense.interiorD, ACTION_OFF[action](offense)) * BLOCK_BASE;
     if (rng.chance(pBlock)) return 'block';
     let pTurnover = ratio(defense.perimeterD, offense.playmaking) * TURNOVER_BASE;
-    pTurnover *= clampNum(1 - (offense.iq - 5) * 0.04, 0.6, 1.2);
+    pTurnover *= clamp(1 - (offense.iq - 5) * 0.04, 0.6, 1.2);
     if (rng.chance(pTurnover)) return rng.chance(0.5) ? 'steal' : 'turnover';
     return 'miss';
   }

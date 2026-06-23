@@ -77,12 +77,13 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     return null;
   const playersOk = data.players.every((p) => {
     const stats = p?.player?.stats as unknown as Record<string, unknown> | undefined;
+    // Accept a player only if it is already the new shape (has `outside`) or a
+    // migratable legacy line. This matches the migration predicate below exactly,
+    // so nothing slips through accepted-but-unmigrated.
     return (
       !!stats &&
       typeof p.position === 'string' &&
-      typeof stats.clutch === 'number' &&
-      typeof stats.athleticism === 'number' &&
-      (typeof stats.outside === 'number' || typeof stats.shooting === 'number')
+      (typeof stats.outside === 'number' || isLegacyStats(stats))
     );
   });
   if (!playersOk) return null;
