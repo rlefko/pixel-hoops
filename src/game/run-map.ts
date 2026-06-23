@@ -15,20 +15,23 @@ export interface FixedMapConfig {
   mapIndex: number;
 }
 
-/** Nodes per row, entry (0) to boss. The map's fixed shape. */
-const ROW_SIZES = [2, 3, 2, 1] as const;
+/** Nodes per row, entry (0) to boss. The map's fixed shape (a tall pokelike map). */
+const ROW_SIZES = [2, 3, 3, 3, 2, 1] as const;
 const BOSS_ROW = ROW_SIZES.length - 1;
 const PRE_BOSS_ROW = BOSS_ROW - 1;
 
 /**
  * Authored edges: EDGES[layer][i] lists the next-row indices node i connects to.
- * The entry forks recruit and boost toward different sides, the wide middle row
- * funnels into the two pre-boss nodes, and both pre-boss nodes feed the boss.
+ * The entry forks recruit and boost toward different sides, the wide middle rows
+ * branch with a central hub (every node reachable and forking), and the pre-boss
+ * pair funnels into the single boss.
  */
 const EDGES: number[][][] = [
-  [[0, 1], [1, 2]], // entry: recruit -> r1[0,1]; boost -> r1[1,2]
-  [[0], [0, 1], [1]], // row 1 -> the two pre-boss nodes
-  [[0], [0]], // pre-boss -> boss
+  [[0, 1], [1, 2]], // entry(2) -> row1(3): recruit -> [0,1]; boost -> [1,2]
+  [[0, 1], [0, 1, 2], [1, 2]], // row1(3) -> row2(3)
+  [[0, 1], [0, 1, 2], [1, 2]], // row2(3) -> row3(3)
+  [[0], [0, 1], [1]], // row3(3) -> pre-boss(2)
+  [[0], [0]], // pre-boss(2) -> boss(1)
 ];
 
 const COMBAT: ReadonlySet<MapNodeType> = new Set<MapNodeType>(['game', 'elite', 'boss']);
