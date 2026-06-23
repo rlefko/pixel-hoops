@@ -440,10 +440,10 @@ describe('boosts, economy, and legends', () => {
     expect(m.phase.kind).toBe('map');
   });
 
-  it('skipping the draft grants consolation coins', () => {
+  it('skipping the draft takes nothing and returns to the map', () => {
     let m = start();
     m = runReducer(m, { type: 'skipBoostDraft' })!;
-    expect(m.core.rewards.coins).toBe(15);
+    expect(m.core.rewards.coins).toBe(0); // coins come only from winning games
     expect(m.boosts).toHaveLength(0);
     expect(m.phase.kind).toBe('map');
   });
@@ -469,6 +469,28 @@ describe('boosts, economy, and legends', () => {
     expect(m.boosts.some((b) => b.id === 'splash-brothers')).toBe(true);
     expect(m.boosts.some((b) => b.id === 'lockdown')).toBe(false); // dropped
     expect(m.phase.kind).toBe('map');
+  });
+
+  it('skipping the full-slots drop keeps all five and declines the new boost', () => {
+    let m = start();
+    m = {
+      ...m,
+      boosts: [
+        { id: 'lockdown', tier: 1 },
+        { id: 'closer', tier: 1 },
+        { id: 'deep-rotation', tier: 1 },
+        { id: 'iron-legs', tier: 1 },
+        { id: 'no-easy-buckets', tier: 1 },
+      ],
+      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false },
+    };
+    m = runReducer(m, { type: 'draftBoost', offer: { kind: 'new', defId: 'splash-brothers' } })!;
+    expect(m.phase.kind === 'boostDraft' && m.phase.pendingFull).toBe(true);
+    const skipped = runReducer(m, { type: 'skipBoostDraft' })!;
+    expect(skipped.boosts).toHaveLength(5);
+    expect(skipped.boosts.some((b) => b.id === 'splash-brothers')).toBe(false); // declined
+    expect(skipped.core.rewards.coins).toBe(0); // no reward
+    expect(skipped.phase.kind).toBe('map');
   });
 
   it('a loss still banks coins', () => {

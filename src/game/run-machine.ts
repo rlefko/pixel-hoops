@@ -13,7 +13,6 @@ import { MAX_TRAINED_STAT, trainedStat } from './effects';
 import { legendRecruit } from './player-pool';
 import {
   MAX_BOOSTS,
-  SKIP_CONSOLATION_COINS,
   drawBoostOffers,
   type BoostOffer,
   type PassiveBoost,
@@ -554,12 +553,10 @@ export function runReducer(
     }
 
     case 'skipBoostDraft': {
+      // Skipping (in the draft or the full-slots drop screen) takes nothing and
+      // returns to the map. Coins are earned only by winning games.
       if (model.phase.kind !== 'boostDraft') return model;
-      const rewards = {
-        ...model.core.rewards,
-        coins: model.core.rewards.coins + SKIP_CONSOLATION_COINS,
-      };
-      return afterBoostDraft({ ...model, core: { ...model.core, rewards } });
+      return afterBoostDraft(model);
     }
 
     case 'takeBoostItem': {
