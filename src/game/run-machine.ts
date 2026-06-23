@@ -280,6 +280,17 @@ export function dressedRoster(roster: RunState['roster']): RunState['roster'] {
 }
 
 /**
+ * The healthy players who start in place of injured starters this game: the dressed
+ * five minus the player's chosen starters. Empty when nobody is hurt. The pregame
+ * board names these subs so an injured starter is shown as OUT in their slot rather
+ * than silently swapped out of the five.
+ */
+export function steppingInSubs(roster: RunState['roster']): RosterPlayer[] {
+  const chosen = new Set(roster.starters.map((p) => p.player.name));
+  return dressedRoster(roster).starters.filter((p) => !chosen.has(p.player.name));
+}
+
+/**
  * The player's effective home Team for a game: the dressed five plus bench, with
  * items, legend self-auras, and passive boosts baked in. Shared by the pregame
  * preview and the game sim so both read the exact same lineup.

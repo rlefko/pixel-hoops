@@ -16,6 +16,7 @@ import {
   initRun,
   buildHomeTeam,
   buildOpponentTeam,
+  steppingInSubs,
   TOTAL_MAPS,
   type RunModel,
 } from '@/game/run-machine';
@@ -181,7 +182,7 @@ describe('home roster persistence', () => {
     expect(applyUpgrade(broke, 0, 'inside')).toBe(broke);
   });
 
-  it('mergeRunGainsIntoHome strips on-loan legends, items, and training', () => {
+  it('mergeRunGainsIntoHome strips on-loan legends, items, training, and injuries', () => {
     const home = rookie('strip');
     const run = homeToRunRoster(home);
     const legend = legendRecruit(createRNG('lg')); // onLoan: true
@@ -189,6 +190,7 @@ describe('home roster persistence', () => {
       ...run.starters[0],
       item: { defId: 'grip-tape' },
       trainingDelta: { outside: 3 },
+      gamesOut: 2, // a run-scoped injury must not follow the player home
     };
     const grown = {
       starters: [equipped, ...run.starters.slice(1)],
@@ -203,7 +205,54 @@ describe('home roster persistence', () => {
     expect(merged.players.some((p) => p.onLoan)).toBe(false);
     expect(merged.players.every((p) => !p.item)).toBe(true);
     expect(merged.players.every((p) => !p.trainingDelta)).toBe(true);
+    expect(merged.players.every((p) => !p.gamesOut)).toBe(true);
     expect(merged.legendDryStreak).toBe(0); // a legend was offered this run
+  });
+
+  it('mergeRunGainsIntoHome heals an injured-only starter (no item or training)', () => {
+    // Guards against the early-return skipping a player who is *only* injured.
+    const home = rookie('inj-only');
+    const run = homeToRunRoster(home);
+    const injured = { ...run.starters[0], gamesOut: 2 };
+    const grown = { starters: [injured, ...run.starters.slice(1)], bench: run.bench };
+    const merged = mergeRunGainsIntoHome(home, grown);
+    expect(merged.players.every((p) => !p.gamesOut)).toBe(true);
+  });
+
+  it('deserializeHomeRoster strips a leaked injury counter', () => {
+    const home = rookie('inj-deser');
+    const leaked = serializeHomeRoster({
+      ...home,
+      players: [{ ...home.players[0], gamesOut: 1 }, ...home.players.slice(1)],
+    });
+    expect(deserializeHomeRoster(leaked)?.players.every((p) => !p.gamesOut)).toBe(true);
+  });
+
+  it('the next run starts fully healthy after ending the prior run injured', () => {
+    // The regression that matches the report: an end-of-run injury reordered the
+    // starting five on the next run's first game. Injuries must heal at the boundary.
+    const home = rookie('cross-run');
+    const ended = homeToRunRoster(home);
+    ended.starters[1] = { ...ended.starters[1], gamesOut: 1 };
+    ended.starters[3] = { ...ended.starters[3], gamesOut: 2 };
+    const merged = mergeRunGainsIntoHome(home, ended);
+    const next = homeToRunRoster(merged);
+    expect([...next.starters, ...next.bench].every((p) => !p.gamesOut)).toBe(true);
+  });
+
+  it('healing an injury at merge keeps the chosen five and the 17 cap', () => {
+    const home = rookie('inj-cap');
+    const run = homeToRunRoster(home);
+    const flooded = {
+      starters: [{ ...run.starters[0], gamesOut: 2 }, ...run.starters.slice(1)],
+      bench: generateRecruitOffers(1, 30, createRNG('flood')),
+    };
+    const merged = mergeRunGainsIntoHome(home, flooded);
+    expect(merged.players).toHaveLength(17); // 5 + cap(12)
+    expect(merged.players.slice(0, 5).map((p) => p.player.name)).toEqual(
+      run.starters.map((p) => p.player.name)
+    );
+    expect(merged.players.every((p) => !p.gamesOut)).toBe(true);
   });
 });
 
@@ -659,5 +708,16 @@ describe('between-game injuries', () => {
       ...m.game!.home.bench,
     ].map((p) => p.player.name);
     expect(dressed).not.toContain(first.player.name);
+  });
+
+  it('steppingInSubs names the healthy sub for an injured starter, else none', () => {
+    const m = initRun('subs', rookie('subs'));
+    expect(steppingInSubs(m.core.roster)).toEqual([]); // a healthy five subs nobody
+    const bench = generateRecruitOffers(1, 1, createRNG('sub-bp'));
+    const [first, ...rest] = m.core.roster.starters;
+    const roster = { starters: [{ ...first, gamesOut: 1 }, ...rest], bench };
+    const subs = steppingInSubs(roster);
+    expect(subs.map((p) => p.player.name)).toEqual([bench[0].player.name]);
+    expect(subs.map((p) => p.player.name)).not.toContain(first.player.name);
   });
 });
