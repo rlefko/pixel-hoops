@@ -7,7 +7,8 @@ import {
   runOnJS,
   Easing,
 } from 'react-native-reanimated';
-import { useFeelSettings } from './FeelSettingsContext';
+import { useFeelSettings, SIM_SPEED_FACTOR } from './FeelSettingsContext';
+import { scaled } from './timings';
 
 /**
  * Animates a single ball view along a parabolic arc from a shooter to a rim, then
@@ -130,7 +131,7 @@ export function useBallFlight() {
   const p1 = useSharedValue(0); // shot leg progress 0..1
   const p2 = useSharedValue(0); // resolution leg progress 0..1
   const opacity = useSharedValue(0);
-  const { reducedMotion } = useFeelSettings();
+  const { reducedMotion, simSpeed } = useFeelSettings();
 
   const ballStyle = useAnimatedStyle(() => {
     if (p2.value <= 0) {
@@ -173,10 +174,13 @@ export function useBallFlight() {
         return;
       }
       const { origin, target, resolve, shape } = cfg;
+      const speed = SIM_SPEED_FACTOR[simSpeed];
       const dist = Math.hypot(target.x - origin.x, target.y - origin.y);
       const peak = arcPeakFor(dist, shape);
-      const dur = flightDurationFor(dist, shape);
-      const resolveDur = RESOLVE_MS[shape];
+      // Scale durations by playback speed; the scheduler's eventGapMs scales by
+      // the same factor, so the ball still lands before the next event.
+      const dur = scaled(flightDurationFor(dist, shape), speed);
+      const resolveDur = scaled(RESOLVE_MS[shape], speed);
       const shotEase =
         shape === 'dunk' ? Easing.in(Easing.cubic) : Easing.out(Easing.quad);
       // A dunk punches down harder than a jumper's tidy drop.
@@ -208,7 +212,7 @@ export function useBallFlight() {
         })
       );
     },
-    [reducedMotion, ox, oy, tx, ty, rx, ry, peak1, peak2, p1, p2, opacity]
+    [reducedMotion, simSpeed, ox, oy, tx, ty, rx, ry, peak1, peak2, p1, p2, opacity]
   );
 
   return { ballStyle, trailStyles, fire };

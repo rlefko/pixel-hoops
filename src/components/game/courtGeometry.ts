@@ -1,3 +1,4 @@
+import type { DimensionValue } from 'react-native';
 import { RIM_HEIGHT, RIM_OFFSET } from '@/components/fx/PixelCourt';
 import type { Position } from '@/types/roster';
 import type { SimTeamSide } from '@/types/sim';
@@ -7,10 +8,13 @@ import type { SimTeamSide } from '@/types/sim';
  * sprite layout (CourtView), the ball flight, and the particle origins all read
  * from here so a single source defines the floor and nothing drifts.
  *
- * Home defends the bottom half and attacks the top rim; away mirrors it.
- * Positions are possession-aware: the team with the ball advances into the
- * attacking half (a half-court set), the other team holds its defensive set near
- * its own basket. `depth` runs 0 (own baseline) to 1 (the attacking rim).
+ * Home defends the bottom half and attacks the top rim; away mirrors it. The
+ * sprite BASE layout is the stable defensive set (`attackingSide = null`): the
+ * floor does not reposition per possession (that read as jumpy). The advanced
+ * offensive depth is used only as a launch anchor for the ball origin and the
+ * active shooter/driver/dunker step, so possession still reads from the ball and
+ * the moving player, not a whole-floor shuffle. `depth` runs 0 (own baseline) to
+ * 1 (the attacking rim).
  */
 
 interface Spot {
@@ -54,6 +58,16 @@ export function spotFraction(
   // Home's own basket is the bottom (y~1); it attacks the top rim (y~0).
   const y = side === 'home' ? 1 - depth * SPAN : depth * SPAN;
   return { x, y };
+}
+
+/** Percent-string position for absolute layout (the static sprite base). */
+export function spotPercent(
+  side: SimTeamSide,
+  position: Position,
+  attackingSide: SimTeamSide | null
+): { left: DimensionValue; top: DimensionValue } {
+  const { x, y } = spotFraction(side, position, attackingSide);
+  return { left: `${x * 100}%`, top: `${y * 100}%` };
 }
 
 /** Pixel position of a player given the measured court size. */

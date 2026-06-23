@@ -4,7 +4,7 @@ import Animated from 'react-native-reanimated';
 import { useBallFlight, type Pt } from '@/feel/useBallFlight';
 import { useFeelSettings } from '@/feel';
 import { spotPx, rimCenterPx } from '@/components/game/courtGeometry';
-import { shotShapeFor } from '@/components/game/possession';
+import { shotShapeFor, isNoteworthy } from '@/components/game/possession';
 import { palette } from '@/theme';
 import { type SimEvent } from '@/types/sim';
 
@@ -44,7 +44,7 @@ function lerp(a: Pt, b: Pt, t: number): Pt {
 }
 
 export function BallFlight({ event, width, height, onArrival }: BallFlightProps) {
-  const { reducedMotion } = useFeelSettings();
+  const { reducedMotion, highlightsOnly } = useFeelSettings();
   const { ballStyle, trailStyles, fire } = useBallFlight();
   const lastSeq = useRef<number | null>(null);
 
@@ -53,9 +53,17 @@ export function BallFlight({ event, width, height, onArrival }: BallFlightProps)
     if (event.seq === lastSeq.current) return;
     lastSeq.current = event.seq;
 
+    // Highlights: routine non-scoring plays whip by with no ball, but still
+    // resolve so the score and ticker stay correct.
+    if (highlightsOnly && !isNoteworthy(event)) {
+      onArrival?.(event);
+      return;
+    }
+
     const shape = shotShapeFor(event);
-    // The scorer is on the attacking side, so its spot is the advanced one.
-    const origin = spotPx(event.team, event.scorerPosition, width, height, event.team);
+    // The ball leaves the shooter at its stable base (the floor no longer
+    // advances per possession), so pass null and the ball matches the sprite.
+    const origin = spotPx(event.team, event.scorerPosition, width, height, null);
     const rim = rimCenterPx(event.team, width, height);
     // Mid-court is +y from the top hoop and -y from the bottom hoop.
     const dropSign = event.team === 'home' ? 1 : -1;
@@ -80,7 +88,7 @@ export function BallFlight({ event, width, height, onArrival }: BallFlightProps)
     }
 
     fire({ origin, target, resolve, shape, onArrival: arrival });
-  }, [event, width, height, fire, onArrival]);
+  }, [event, width, height, fire, onArrival, highlightsOnly]);
 
   if (reducedMotion) return null;
   return (
