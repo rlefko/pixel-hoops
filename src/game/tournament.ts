@@ -15,7 +15,7 @@ import {
 import type { GamePlan, Focus, Pace } from '@/types/tactics';
 import type { RNG } from './rng';
 import { clamp, getRoundStatRange, scaleStatsToRound } from './stat-scaling';
-import { pickRealTeam, realPlayerAt, realRecruit } from './player-pool';
+import { pickRealTeam, realPlayerAt, realLegendAt } from './player-pool';
 
 // Re-exported so existing importers (and tests) can keep using
 // `@/game/tournament` as the entry point for round scaling.
@@ -229,10 +229,30 @@ export function buildStartingRoster(rng: RNG): Roster {
   return { starters: buildSeededFive(rng), bench: [] };
 }
 
-// Chance (out of 100) that a given opponent slot / recruit offer is a real
-// NBA player rather than a procedural streetball one. Tuned for a lively mix.
-const REAL_OPPONENT_CHANCE = 55;
-const REAL_RECRUIT_CHANCE = 50;
+/**
+ * Per-five chance a regular opponent fields a single franchise legend, ramping
+ * by round. Legends never appear before round 3, and at most one per five, so a
+ * real on the opposing team stays a rare, recognizable threat.
+ */
+function regularLegendChance(round: number): number {
+  if (round <= 2) return 0;
+  if (round <= 4) return 0.08;
+  if (round === 5) return 0.12;
+  return 0.15; // rounds 6-7
+}
+
+/**
+ * Chance a boss fields a guest all-time legend (any franchise), ramping hard in
+ * the later rounds so the finale escalates into a marquee matchup.
+ */
+function bossGuestChance(round: number): number {
+  if (round <= 2) return 0;
+  if (round === 3) return 0.05;
+  if (round === 4) return 0.1;
+  if (round === 5) return 0.2;
+  if (round === 6) return 0.4;
+  return 0.65; // round 7
+}
 
 /** A single fake, round-scaled player for the given floor position. */
 function fakePlayerAt(
@@ -248,31 +268,52 @@ function fakePlayerAt(
   };
 }
 
-/**
- * A round-scaled opponent: a real NBA franchise identity (name + colors) staffed
- * with a mix of real players and procedural fakes. Real players bring
- * recognizable likenesses; fakes keep every game fresh. Fully seeded.
- *
- * NOTE: the franchise identity is the FIRST RNG draw (`pickRealTeam`). The run
- * map previews each opponent's color before the game is built (see
- * src/game/opponent-preview.ts), and that preview depends on this ordering, so
- * keep `pickRealTeam` first if you reorder the draws here.
- */
 /** Bench players an opponent carries for in-game rotation. */
 const OPPONENT_BENCH_SIZE = 3;
 
+/**
+ * A round-scaled opponent: a real NBA franchise identity (name + colors) staffed
+ * with procedural fakes, plus, rarely, one real player. Regular games gate a
+ * single FRANCHISE legend (a real on their own team) by round; bosses can field
+ * a GUEST all-time legend from any team. Fully seeded.
+ *
+ * DETERMINISM: the franchise identity is the FIRST RNG draw (`pickRealTeam`).
+ * The run map previews each opponent's color from that exact draw before the
+ * game is built (see src/game/opponent-preview.ts), so `pickRealTeam` MUST stay
+ * first. The legend/boss rolls follow immediately, then the per-slot fakes.
+ */
 export function generateOpponentTeam(
   round: number,
-  rng: RNG
+  rng: RNG,
+  opts?: { isBoss?: boolean }
 ): { name: string; roster: Roster; colorHex: string; accentHex: string } {
-  const team = pickRealTeam(rng);
+  const team = pickRealTeam(rng); // MUST remain the first draw
+  const isBoss = opts?.isBoss ?? false;
+
+  // One roll decides whether this five carries a real legend, then (if so) which
+  // slot. Bosses pull a guest legend from any franchise; regular games pull a
+  // legend that actually plays for this franchise.
+  const legendRoll = rng.next();
+  let legendSlot: Position | null = null;
+  let bossGuest: RosterPlayer | null = null;
+  if (isBoss) {
+    if (legendRoll < bossGuestChance(round)) {
+      const slot = POSITIONS[rng.int(0, POSITIONS.length - 1)];
+      bossGuest = realLegendAt(slot, rng);
+    }
+  } else if (legendRoll < regularLegendChance(round)) {
+    legendSlot = POSITIONS[rng.int(0, POSITIONS.length - 1)];
+  }
+
   const starters = POSITIONS.map((position) => {
-    const useReal = rng.int(0, 99) < REAL_OPPONENT_CHANCE;
-    const real = useReal ? realPlayerAt(position, round, rng) : null;
-    return real ?? fakePlayerAt(position, round, rng);
+    if (bossGuest && bossGuest.position === position) return bossGuest;
+    if (legendSlot === position) {
+      const legend = realPlayerAt(position, rng, team.abbreviation);
+      if (legend) return legend; // franchise has a legend at this slot
+    }
+    return fakePlayerAt(position, round, rng);
   });
-  // A short bench so opponents rotate too (drawn AFTER starters so the franchise
-  // identity stays the first draw; see src/game/opponent-preview.ts).
+  // A short bench so opponents rotate too (procedural fakes only).
   const bench = Array.from({ length: OPPONENT_BENCH_SIZE }, () =>
     fakePlayerAt(rng.pick(POSITIONS), round, rng)
   );
@@ -285,9 +326,10 @@ export function generateOpponentTeam(
 }
 
 /**
- * Deterministic recruit candidates for a recruit node, scaled to run depth. A
- * mix of real NBA players (the exciting "catch") and procedural fakes; fake
- * archetypes are weighted by depth (deeper runs surface more bigs).
+ * Deterministic recruit candidates for a recruit node, scaled to run depth.
+ * Keepable recruits are procedural streetball players (archetypes weighted by
+ * depth). Real players are never keepable; they surface only as the rare on-loan
+ * legendary offer, gated separately by the run machine (see run-machine.ts).
  */
 export function generateRecruitOffers(
   round: number,
@@ -300,10 +342,6 @@ export function generateRecruitOffers(
   ][];
   const offers: RosterPlayer[] = [];
   for (let i = 0; i < count; i++) {
-    if (rng.int(0, 99) < REAL_RECRUIT_CHANCE) {
-      offers.push(realRecruit(round, rng));
-      continue;
-    }
     const archetype = rng.weightedPick(weights);
     const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
     offers.push({
