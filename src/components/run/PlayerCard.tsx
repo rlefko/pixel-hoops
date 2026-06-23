@@ -1,12 +1,17 @@
 import { type ReactNode } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { PixelPlayer } from '@/components/fx';
+import { usePulse } from '@/feel';
 import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { POSITION_COLOR } from '@/components/game/positionColor';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import { ovr, off, def, ath, tierFor, type TierKey } from '@/game/ratings';
+import { ITEM_BY_ID } from '@/game/items';
+import { getAbility } from '@/game/abilities';
+import { ITEM_RARITY_COLOR } from './item-ui';
 import type { PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
 
@@ -76,6 +81,12 @@ export function PlayerCard({
   const tierColor = TIER_COLOR[tier.key];
   const injured = condition && (rp.gamesOut ?? 0) > 0;
   const isTile = variant === 'tile';
+  const isLegendary = rp.legendary ?? false;
+  const itemDef = rp.item ? ITEM_BY_ID[rp.item.defId] : undefined;
+  const abilityDef = getAbility(rp.ability);
+  // A slow gold breathe behind a legendary's name, so a real great reads as a
+  // jackpot wherever the card appears (recruit, lineup, pregame).
+  const { glowStyle } = usePulse();
 
   return (
     <View style={[styles.card, isTile && styles.cardTile, injured && styles.injured]}>
@@ -96,9 +107,23 @@ export function PlayerCard({
         </View>
         <TierBadge label={tier.label} color={tierColor} />
         <View style={styles.nameCol}>
-          <Text style={styles.name} numberOfLines={1}>
-            {rp.player.name}
-          </Text>
+          {isLegendary ? (
+            <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
+          ) : null}
+          <View style={styles.nameRow}>
+            <Text
+              style={[styles.name, isLegendary && styles.legendName]}
+              numberOfLines={1}
+            >
+              {rp.player.name}
+            </Text>
+            {isLegendary ? <Text style={styles.legendStar}>★</Text> : null}
+            {itemDef ? (
+              <Text style={[styles.itemMark, { color: ITEM_RARITY_COLOR[itemDef.rarity] }]}>
+                ◆
+              </Text>
+            ) : null}
+          </View>
           {injured ? (
             <View style={styles.outRow}>
               <InjuryIcon size={10} />
@@ -129,6 +154,24 @@ export function PlayerCard({
 
       {expanded ? (
         <View style={styles.panel}>
+          {abilityDef ? (
+            <View style={styles.metaRow}>
+              <Text style={[styles.metaLabel, { color: palette.gold }]}>ABILITY</Text>
+              <Text style={styles.metaText}>
+                {abilityDef.name}: {abilityDef.blurb}
+              </Text>
+            </View>
+          ) : null}
+          {itemDef ? (
+            <View style={styles.metaRow}>
+              <Text style={[styles.metaLabel, { color: ITEM_RARITY_COLOR[itemDef.rarity] }]}>
+                ITEM
+              </Text>
+              <Text style={styles.metaText}>
+                {itemDef.name}: {itemDef.blurb}
+              </Text>
+            </View>
+          ) : null}
           {RATING_GROUPS.map((group) => (
             <View key={group.label} style={styles.group}>
               <Text style={styles.groupLabel}>{group.label}</Text>
@@ -222,12 +265,29 @@ const styles = StyleSheet.create({
     marginRight: space(2),
   },
   tierText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  nameCol: { flex: 1 },
+  nameCol: { flex: 1, justifyContent: 'center' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
   name: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,
     color: palette.ink,
+    flexShrink: 1,
   },
+  legendName: { color: palette.gold },
+  legendStar: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.gold },
+  itemMark: { fontFamily: FONT.body, fontSize: FONT_SIZE.small },
+  legendGlow: {
+    position: 'absolute',
+    left: -space(1),
+    right: -space(1),
+    top: 0,
+    bottom: 0,
+    backgroundColor: palette.gold + '22',
+    borderRadius: RADIUS.chip,
+  },
+  metaRow: { gap: space(0.5) },
+  metaLabel: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
+  metaText: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
   outRow: {
     flexDirection: 'row',
     alignItems: 'center',
