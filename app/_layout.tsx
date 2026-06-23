@@ -72,8 +72,6 @@ function RootLayoutNav() {
       >
         <Stack.Screen name="(home)" />
         <Stack.Screen name="run" />
-        <Stack.Screen name="sim" />
-        <Stack.Screen name="game" options={{ presentation: 'modal' }} />
         <Stack.Screen
           name="modal"
           options={{ presentation: 'modal', title: 'How to Play' }}

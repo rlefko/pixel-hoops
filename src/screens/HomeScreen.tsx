@@ -26,12 +26,6 @@ export default function HomeScreen() {
         >
           <Text style={styles.primaryText}>NEW RUN</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={() => router.push('/sim')}>
-          <Text style={styles.secondaryText}>Quick Sim</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={() => router.push('/game')}>
-          <Text style={styles.secondaryText}>Card Game (Classic)</Text>
-        </Pressable>
         <Pressable style={styles.button} onPress={() => router.push('/modal')}>
           <Text style={styles.secondaryText}>How to Play</Text>
         </Pressable>
