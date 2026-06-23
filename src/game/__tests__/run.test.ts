@@ -11,7 +11,14 @@ import {
   type HomeRoster,
 } from '@/game/home-roster';
 import { legendRecruit } from '@/game/player-pool';
-import { runReducer, initRun, TOTAL_MAPS, type RunModel } from '@/game/run-machine';
+import {
+  runReducer,
+  initRun,
+  buildHomeTeam,
+  buildOpponentTeam,
+  TOTAL_MAPS,
+  type RunModel,
+} from '@/game/run-machine';
 import { generateFixedMap } from '@/game/run-map';
 import { applyTrainingDelta } from '@/game/effects';
 import { tierFor } from '@/game/ratings';
@@ -363,6 +370,36 @@ describe('run reducer', () => {
       bench: [],
     })!;
     expect(bad.phase.kind).toBe('lineup');
+  });
+});
+
+describe('pregame team builders', () => {
+  it('builds a deterministic opponent for the same seed and node', () => {
+    const m = initRun('det', rookie('det'));
+    const nodeId = m.core.map.bossNodeId;
+    expect(buildOpponentTeam(m.core, nodeId)).toEqual(
+      buildOpponentTeam(m.core, nodeId)
+    );
+  });
+
+  it('previews the exact opponent the game then simulates', () => {
+    let m = initRun('preview', rookie('preview'));
+    const nodeId = m.core.map.bossNodeId;
+    m = runReducer(m, { type: 'chooseNode', nodeId })!;
+    expect(m.phase.kind).toBe('pregame');
+    const preview = buildOpponentTeam(m.core, nodeId);
+    m = runReducer(m, { type: 'enterGame' })!;
+    expect(preview.name).toBe(m.game!.opponentName);
+    expect(preview).toEqual(m.game!.away);
+  });
+
+  it('previews the dressed home five the game then uses', () => {
+    let m = initRun('home-preview', rookie('home-preview'));
+    const nodeId = m.core.map.bossNodeId;
+    m = runReducer(m, { type: 'chooseNode', nodeId })!;
+    const preview = buildHomeTeam(m);
+    m = runReducer(m, { type: 'enterGame' })!;
+    expect(preview).toEqual(m.game!.home);
   });
 });
 
