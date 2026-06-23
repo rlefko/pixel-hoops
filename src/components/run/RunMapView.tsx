@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, StyleSheet, Alert, ScrollView } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Scanlines } from '@/components/fx';
 import { getReachableNodes } from '@/game/run-map';
 import { TOTAL_MAPS } from '@/game/run-machine';
@@ -76,13 +77,9 @@ export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: Run
     scrollRef.current?.scrollTo({ y, animated: true });
   }, [currentLayer]);
 
-  // Quitting banks progress but ends the run, so confirm before leaving.
-  const confirmQuit = useCallback(() => {
-    Alert.alert('Quit run?', 'Your progress is banked but the run will end.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Quit', style: 'destructive', onPress: onQuit },
-    ]);
-  }, [onQuit]);
+  // Quitting banks progress but ends the run, so confirm before leaving. A
+  // custom dialog (not Alert.alert, which has no working buttons on web).
+  const [confirmingQuit, setConfirmingQuit] = useState(false);
 
   // The current node's screen position, for the "you are here" marker.
   const currentMarker = useMemo(() => {
@@ -95,7 +92,7 @@ export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: Run
   }, [core.map, core.currentNodeId]);
 
   return (
-    <Screen onBack={confirmQuit} backLabel="QUIT">
+    <Screen onBack={() => setConfirmingQuit(true)} backLabel="QUIT">
       <ResourceHeader
         rewards={core.rewards}
         mapNumber={core.currentMapIndex + 1}
@@ -153,6 +150,19 @@ export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: Run
       <RosterStrip roster={core.roster} onPress={onOpenLineup} />
 
       <Scanlines />
+
+      <ConfirmDialog
+        visible={confirmingQuit}
+        title="QUIT RUN?"
+        message="Your progress is banked but the run will end."
+        confirmLabel="QUIT"
+        destructive
+        onConfirm={() => {
+          setConfirmingQuit(false);
+          onQuit();
+        }}
+        onCancel={() => setConfirmingQuit(false)}
+      />
     </Screen>
   );
 }
