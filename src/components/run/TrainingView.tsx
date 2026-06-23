@@ -10,7 +10,7 @@ import type { PlayerStats } from '@/types/player';
 /**
  * Training node: spend banked training points (earned by winning games) to boost
  * a player's skills, +1 per point. Run-scoped only, and the one way past the
- * normal 10 cap, up to 12 (the S+ ceiling). Points bank across the whole run.
+ * normal 10 cap, up to 15 (the S++ ceiling). Points bank across the whole run.
  */
 
 interface StatDef {

@@ -96,15 +96,16 @@ export function ovr(s: PlayerStats, position: Position): number {
   return Math.round(ovrRaw(s, position));
 }
 
-export type TierKey = 'bronze' | 'silver' | 'gold' | 'elite' | 'apex';
+export type TierKey = 'bronze' | 'silver' | 'gold' | 'elite' | 'apex' | 'zenith';
 
 /**
  * Map an OVR to a coarse tier. Most players sit on the 3-10 surface scale (top =
- * S); run-scoped training can push a skill past 10 (up to 12), lifting OVR to the
- * S+ apex tier. The UI maps the key to a palette color so this module stays free
- * of theme dependencies.
+ * S); run-scoped training can push skills past 10 (up to 15), lifting OVR into the
+ * S+ apex tier and, with deep focused training, the S++ zenith tier. The UI maps
+ * the key to a palette color so this module stays free of theme dependencies.
  */
 export function tierFor(ovrValue: number): { key: TierKey; label: string } {
+  if (ovrValue >= 13) return { key: 'zenith', label: 'S++' };
   if (ovrValue >= 11) return { key: 'apex', label: 'S+' };
   if (ovrValue >= 9) return { key: 'elite', label: 'S' };
   if (ovrValue >= 8) return { key: 'gold', label: 'A' };

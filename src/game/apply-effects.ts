@@ -35,7 +35,7 @@ const LEGEND_CHEMISTRY: Partial<TeamModifier> = {
 
 /** Return effective-stat COPIES of a five/bench (items + legend self-auras +
  * run-scoped training baked in). Items/abilities cap at 10; training folds on
- * top, the only path past 10 (up to 12). */
+ * top, the only path past 10 (up to 15). */
 export function effectivePlayers(players: RosterPlayer[]): RosterPlayer[] {
   return players.map((rp) => {
     let delta: StatDelta = {};

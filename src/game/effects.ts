@@ -2,7 +2,7 @@ import type { PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
 
 /** A single skill trains up to this; the only path past the normal 10 cap. */
-export const MAX_TRAINED_STAT = 12;
+export const MAX_TRAINED_STAT = 15;
 
 /**
  * The effect/modifier spine. One small, declarative, serialization-safe model
@@ -104,9 +104,9 @@ export function applyStatDelta(stats: PlayerStats, delta: StatDelta): PlayerStat
 }
 
 /**
- * Apply a run-scoped TRAINING delta, clamped to 3-12 (pure copy). Training is the
- * only source that may push a skill above the normal 10 cap (up to 12, the S+
- * ceiling); items and abilities stay capped at 10 via applyStatDelta.
+ * Apply a run-scoped TRAINING delta, clamped to 3-MAX_TRAINED_STAT (pure copy).
+ * Training is the only source that may push a skill above the normal 10 cap (up
+ * to 15, the S++ ceiling); items and abilities stay capped at 10 via applyStatDelta.
  */
 export function applyTrainingDelta(stats: PlayerStats, delta: StatDelta | undefined): PlayerStats {
   if (!delta) return stats;
