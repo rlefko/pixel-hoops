@@ -16,6 +16,7 @@ import { RestView } from '@/components/run/RestView';
 import { BoostDraftView } from '@/components/run/BoostDraftView';
 import { BoostNodeView } from '@/components/run/BoostNodeView';
 import { ItemDropView } from '@/components/run/ItemDropView';
+import { BagView } from '@/components/run/BagView';
 import { LegendRevealView } from '@/components/run/LegendRevealView';
 import { RunSummaryView } from '@/components/run/RunSummaryView';
 import { BoxScoreView } from '@/components/run/BoxScoreView';
@@ -48,9 +49,11 @@ export default function RunScreen() {
         <RunMapView
           core={model.core}
           boosts={model.boosts}
+          bagCount={model.bag.length}
           onChoose={actions.chooseNode}
           onQuit={actions.endRun}
           onOpenLineup={actions.openLineupBuilder}
+          onOpenBag={actions.openBag}
         />
       );
     case 'boostDraft':
@@ -72,18 +75,22 @@ export default function RunScreen() {
           stock={model.phase.stock}
           roster={model.core.roster}
           onTake={actions.takeBoostItem}
+          onKeepInBag={actions.addToBag}
           onLeave={actions.leaveBoost}
         />
       );
-    case 'itemDrop':
+    case 'itemDrop': {
+      const drop = model.phase.drop;
       return (
         <ItemDropView
-          drop={model.phase.drop}
+          drop={drop}
           roster={model.core.roster}
           onTake={actions.takeDrop}
+          onAddToBag={() => actions.addToBag(drop.id)}
           onSkip={actions.skipDrop}
         />
       );
+    }
     case 'legendReveal':
       return (
         <LegendRevealView
@@ -100,8 +107,6 @@ export default function RunScreen() {
           timeline={model.game.result.events}
           homeTeam={model.game.home}
           awayTeam={model.game.away}
-          round={depthOf(model, model.phase.nodeId)}
-          totalRounds={model.core.map.layers.length}
           onComplete={actions.finishReplay}
         />
       ) : null;
@@ -137,8 +142,24 @@ export default function RunScreen() {
       return (
         <LineupBuilderView
           roster={model.core.roster}
+          bagCount={model.bag.length}
           onConfirm={actions.setLineup}
           onCancel={actions.cancelLineup}
+          onOpenBag={(starters, bench) => {
+            // Commit the current order first, then open the bag (lossless).
+            actions.setLineup(starters, bench);
+            actions.openBag();
+          }}
+        />
+      );
+    case 'bag':
+      return (
+        <BagView
+          bag={model.bag}
+          roster={model.core.roster}
+          onEquip={actions.equipFromBag}
+          onUnequip={actions.unequipToBag}
+          onDone={actions.leaveBag}
         />
       );
     case 'summary':

@@ -17,10 +17,11 @@ interface BoostNodeViewProps {
   stock: ItemDef[];
   roster: Roster;
   onTake: (defId: string, playerIndex: number) => void;
+  onKeepInBag: (defId: string) => void;
   onLeave: () => void;
 }
 
-export function BoostNodeView({ stock, roster, onTake, onLeave }: BoostNodeViewProps) {
+export function BoostNodeView({ stock, roster, onTake, onKeepInBag, onLeave }: BoostNodeViewProps) {
   const players = [...roster.starters, ...roster.bench];
   const [selected, setSelected] = useState<ItemDef | null>(null);
 
@@ -38,6 +39,9 @@ export function BoostNodeView({ stock, roster, onTake, onLeave }: BoostNodeViewP
             </Pressable>
           ))}
         </ScrollView>
+        <Pressable style={styles.keepBtn} onPress={() => onKeepInBag(selected.id)}>
+          <Text style={styles.keepText}>Keep in bag</Text>
+        </Pressable>
         <Pressable onPress={() => setSelected(null)}>
           <Text style={styles.skip}>Back</Text>
         </Pressable>
@@ -48,7 +52,7 @@ export function BoostNodeView({ stock, roster, onTake, onLeave }: BoostNodeViewP
   return (
     <Screen style={styles.container}>
       <Text style={styles.title}>BOOST</Text>
-      <Text style={styles.subtitle}>Grab one free item and equip it to a player</Text>
+      <Text style={styles.subtitle}>Grab one free item: equip it, or keep it in your bag</Text>
       <ScrollView contentContainerStyle={styles.list}>
         {stock.map((item, i) => {
           const color = ITEM_RARITY_COLOR[item.rarity];
@@ -111,5 +115,21 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     textAlign: 'center',
     marginTop: space(4),
+  },
+  keepBtn: {
+    alignSelf: 'center',
+    marginTop: space(4),
+    paddingVertical: space(2.5),
+    paddingHorizontal: space(6),
+    borderWidth: BORDER.chunk,
+    borderColor: palette.gold,
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.gold + '1A',
+  },
+  keepText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.label,
+    color: palette.gold,
+    textAlign: 'center',
   },
 });

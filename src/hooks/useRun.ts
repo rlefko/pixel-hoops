@@ -65,6 +65,12 @@ export function useRun() {
       leaveBoost: () => dispatch({ type: 'leaveBoost' }),
       takeDrop: (playerIndex: number) => dispatch({ type: 'takeDrop', playerIndex }),
       skipDrop: () => dispatch({ type: 'skipDrop' }),
+      addToBag: (defId: string) => dispatch({ type: 'addToBag', defId }),
+      openBag: () => dispatch({ type: 'openBag' }),
+      leaveBag: () => dispatch({ type: 'leaveBag' }),
+      equipFromBag: (bagIndex: number, playerIndex: number) =>
+        dispatch({ type: 'equipFromBag', bagIndex, playerIndex }),
+      unequipToBag: (playerIndex: number) => dispatch({ type: 'unequipToBag', playerIndex }),
       scoutLegend: () => dispatch({ type: 'scoutLegend' }),
       declineLegend: () => dispatch({ type: 'declineLegend' }),
       skipNode: () => dispatch({ type: 'skipNode' }),

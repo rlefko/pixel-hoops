@@ -17,8 +17,12 @@ const LINEUP_SIZE = 5;
 
 interface LineupBuilderViewProps {
   roster: Roster;
+  /** Item count in the run bag, shown on the Bag button. */
+  bagCount: number;
   onConfirm: (starters: RosterPlayer[], bench: RosterPlayer[]) => void;
   onCancel: () => void;
+  /** Commit the current order and open the item bag to manage gear. */
+  onOpenBag: (starters: RosterPlayer[], bench: RosterPlayer[]) => void;
 }
 
 type Cell = { zone: 'slot' | 'bench'; index: number };
@@ -28,8 +32,10 @@ const sameCell = (a: Cell | null, b: Cell) =>
 
 export function LineupBuilderView({
   roster,
+  bagCount,
   onConfirm,
   onCancel,
+  onOpenBag,
 }: LineupBuilderViewProps) {
   // Seed the five slots from the whole pool so there are always five starters,
   // even if the incoming roster split is uneven.
@@ -75,6 +81,9 @@ export function LineupBuilderView({
     <Screen style={styles.container}>
       <Text style={styles.title}>SET YOUR FIVE</Text>
       <Text style={styles.subtitle}>Tap two players to swap their spots</Text>
+      <Pressable style={styles.bagButton} onPress={() => onOpenBag(starters, bench)}>
+        <Text style={styles.bagText}>OPEN BAG ({bagCount})</Text>
+      </Pressable>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         <Text style={styles.sectionLabel}>STARTERS</Text>
@@ -223,4 +232,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: space(3),
   },
+  bagButton: {
+    alignSelf: 'center',
+    marginTop: space(2),
+    paddingVertical: space(1.5),
+    paddingHorizontal: space(4),
+    borderWidth: BORDER.thin,
+    borderColor: palette.gold + '88',
+    borderRadius: RADIUS.chip,
+  },
+  bagText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.gold },
 });

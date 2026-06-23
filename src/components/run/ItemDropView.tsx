@@ -12,10 +12,11 @@ interface ItemDropViewProps {
   drop: ItemDef;
   roster: Roster;
   onTake: (playerIndex: number) => void;
+  onAddToBag: () => void;
   onSkip: () => void;
 }
 
-export function ItemDropView({ drop, roster, onTake, onSkip }: ItemDropViewProps) {
+export function ItemDropView({ drop, roster, onTake, onAddToBag, onSkip }: ItemDropViewProps) {
   const players = [...roster.starters, ...roster.bench];
   const color = ITEM_RARITY_COLOR[drop.rarity];
   return (
@@ -26,7 +27,7 @@ export function ItemDropView({ drop, roster, onTake, onSkip }: ItemDropViewProps
         <Text style={styles.dropBlurb}>{drop.blurb}</Text>
         <Text style={styles.rarity}>{drop.rarity.toUpperCase()}</Text>
       </View>
-      <Text style={styles.subtitle}>Equip it to a player</Text>
+      <Text style={styles.subtitle}>Equip it to a player, or keep it in your bag</Text>
       <ScrollView contentContainerStyle={styles.list}>
         {players.map((rp, i) => (
           <Pressable key={i} style={styles.pick} onPress={() => onTake(i)}>
@@ -34,6 +35,9 @@ export function ItemDropView({ drop, roster, onTake, onSkip }: ItemDropViewProps
           </Pressable>
         ))}
       </ScrollView>
+      <Pressable style={styles.bagBtn} onPress={onAddToBag}>
+        <Text style={styles.bagBtnText}>Add to bag</Text>
+      </Pressable>
       <Pressable onPress={onSkip}>
         <Text style={styles.skip}>Leave it</Text>
       </Pressable>
@@ -76,11 +80,27 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgPanel,
     padding: space(2),
   },
+  bagBtn: {
+    alignSelf: 'center',
+    marginTop: space(4),
+    paddingVertical: space(2.5),
+    paddingHorizontal: space(6),
+    borderWidth: BORDER.chunk,
+    borderColor: palette.gold,
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.gold + '1A',
+  },
+  bagBtnText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.label,
+    color: palette.gold,
+    textAlign: 'center',
+  },
   skip: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,
     color: palette.inkDim,
     textAlign: 'center',
-    marginTop: space(4),
+    marginTop: space(3),
   },
 });

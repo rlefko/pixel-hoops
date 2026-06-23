@@ -56,7 +56,7 @@ export interface RosterPlayer {
   item?: { defId: string };
   /**
    * Run-scoped training gains: accumulated +1s bought at Training nodes with
-   * training points. The only path past the normal 10 cap (up to 12). Baked into
+   * training points. The only path past the normal 10 cap (up to 15). Baked into
    * effective stats and the card display, but never persisted home (stripped at
    * merge, like {@link item}).
    */

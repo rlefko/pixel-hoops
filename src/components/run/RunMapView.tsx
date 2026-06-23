@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
@@ -21,7 +21,7 @@ import {
   buildEdges,
   nodeCenterX,
 } from './map-geometry';
-import { FONT, FONT_SIZE, space } from '@/theme';
+import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { MapNodeType, RunState } from '@/types/run-map';
 import type { PassiveBoost } from '@/game/boosts';
 
@@ -31,10 +31,14 @@ interface RunMapViewProps {
   core: RunState;
   /** Equipped passive boosts, shown in the HUD pill and the boost row. */
   boosts: PassiveBoost[];
+  /** Number of items in the run bag, shown on the Bag button. */
+  bagCount: number;
   onChoose: (nodeId: string) => void;
   onQuit: () => void;
   /** Opens the lineup builder from the roster strip (optional). */
   onOpenLineup?: () => void;
+  /** Opens the item bag. */
+  onOpenBag: () => void;
 }
 
 const LEGEND: MapNodeType[] = [
@@ -47,7 +51,15 @@ const LEGEND: MapNodeType[] = [
   'boss',
 ];
 
-export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: RunMapViewProps) {
+export function RunMapView({
+  core,
+  boosts,
+  bagCount,
+  onChoose,
+  onQuit,
+  onOpenLineup,
+  onOpenBag,
+}: RunMapViewProps) {
   const reachable = useMemo(
     () =>
       new Set(getReachableNodes(core.map, core.currentNodeId).map((n) => n.id)),
@@ -147,6 +159,12 @@ export function RunMapView({ core, boosts, onChoose, onQuit, onOpenLineup }: Run
         ))}
       </View>
 
+      <View style={styles.actions}>
+        <Pressable style={styles.bagButton} onPress={onOpenBag} accessibilityRole="button">
+          <Text style={styles.bagText}>BAG ({bagCount})</Text>
+        </Pressable>
+      </View>
+
       <RosterStrip roster={core.roster} onPress={onOpenLineup} />
 
       <Scanlines />
@@ -179,4 +197,14 @@ const styles = StyleSheet.create({
     gap: space(2),
   },
   legendItem: { fontFamily: FONT.body, fontSize: FONT_SIZE.small },
+  actions: { alignItems: 'center', paddingBottom: space(1) },
+  bagButton: {
+    paddingVertical: space(1.5),
+    paddingHorizontal: space(5),
+    borderWidth: BORDER.thin,
+    borderColor: palette.gold + '88',
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.bgPanel,
+  },
+  bagText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.gold },
 });

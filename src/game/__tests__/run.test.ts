@@ -20,7 +20,7 @@ import {
   type RunModel,
 } from '@/game/run-machine';
 import { generateFixedMap } from '@/game/run-map';
-import { applyTrainingDelta } from '@/game/effects';
+import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { tierFor } from '@/game/ratings';
 import { POSITIONS } from '@/types/roster';
 import { SKILL_STAT_KEYS } from '@/types/player';
@@ -429,7 +429,7 @@ describe('training points', () => {
     expect(runReducer(m, { type: 'trainPlayer', index: 0, stat: 'outside' })).toBe(m);
   });
 
-  it('caps a single skill at 12', () => {
+  it('caps a single skill at MAX_TRAINED_STAT', () => {
     const m = withPoints(5);
     const base = m.core.roster.starters[0].player.stats.outside;
     const maxed: RunModel = {
@@ -439,29 +439,82 @@ describe('training points', () => {
         roster: {
           ...m.core.roster,
           starters: [
-            { ...m.core.roster.starters[0], trainingDelta: { outside: 12 - base } },
+            { ...m.core.roster.starters[0], trainingDelta: { outside: MAX_TRAINED_STAT - base } },
             ...m.core.roster.starters.slice(1),
           ],
         },
       },
     };
-    // Already at the 12 ceiling: a further point is a no-op.
+    // Already at the ceiling: a further point is a no-op.
     expect(runReducer(maxed, { type: 'trainPlayer', index: 0, stat: 'outside' })).toBe(maxed);
   });
 });
 
-describe('training ratings (S+ tier and the 12 ceiling)', () => {
-  it('applyTrainingDelta clamps to the 3-12 surface', () => {
+describe('training ratings (S+/S++ tiers and the 15 ceiling)', () => {
+  it('applyTrainingDelta clamps to the 3-15 surface', () => {
     const base = { inside: 9, outside: 9, playmaking: 5, perimeterD: 5, interiorD: 5, athleticism: 5, iq: 5, clutch: 5, stamina: 5, durability: 5 };
-    const out = applyTrainingDelta(base, { outside: 5, inside: 99 });
-    expect(out.outside).toBe(12); // 9 + 5 -> clamped at 12
-    expect(out.inside).toBe(12); // clamped at 12
+    const out = applyTrainingDelta(base, { outside: 8, inside: 99 });
+    expect(out.outside).toBe(15); // 9 + 8 -> clamped at 15
+    expect(out.inside).toBe(15); // clamped at 15
   });
 
-  it('tierFor labels a trained-past-10 overall as S+', () => {
+  it('tierFor labels trained-past-10 overalls as S+ and the apex as S++', () => {
+    expect(tierFor(13).label).toBe('S++');
+    expect(tierFor(12).label).toBe('S+');
     expect(tierFor(11).label).toBe('S+');
     expect(tierFor(10).label).toBe('S');
     expect(tierFor(9).label).toBe('S');
+  });
+});
+
+describe('item bag (run-scoped)', () => {
+  const start = (): RunModel => initRun('seed-bag', rookie('bag'));
+  // Give starter 0 a held item, for the swap/unequip cases.
+  const withItem = (m: RunModel, defId: string): RunModel => ({
+    ...m,
+    core: {
+      ...m.core,
+      roster: {
+        ...m.core.roster,
+        starters: [
+          { ...m.core.roster.starters[0], item: { defId } },
+          ...m.core.roster.starters.slice(1),
+        ],
+      },
+    },
+  });
+
+  it('addToBag stores an item and returns to the map from a boost node', () => {
+    let m = start();
+    m = { ...m, phase: { kind: 'boost', nodeId: 'n', stock: [] } };
+    const next = runReducer(m, { type: 'addToBag', defId: 'grip-tape' })!;
+    expect(next.bag).toEqual(['grip-tape']);
+    expect(next.phase.kind).toBe('map');
+  });
+
+  it('takeBoostItem swaps an existing item into the bag (never lost)', () => {
+    let m = withItem(start(), 'headband');
+    m = { ...m, phase: { kind: 'boost', nodeId: 'n', stock: [] } };
+    const next = runReducer(m, { type: 'takeBoostItem', defId: 'grip-tape', playerIndex: 0 })!;
+    expect(next.core.roster.starters[0].item?.defId).toBe('grip-tape');
+    expect(next.bag).toEqual(['headband']);
+  });
+
+  it('equipFromBag equips a bag item and returns the old one to the bag', () => {
+    let m = withItem(start(), 'headband');
+    m = { ...m, bag: ['grip-tape'], phase: { kind: 'bag', returnTo: { kind: 'map' } } };
+    const next = runReducer(m, { type: 'equipFromBag', bagIndex: 0, playerIndex: 0 })!;
+    expect(next.core.roster.starters[0].item?.defId).toBe('grip-tape');
+    expect(next.bag).toEqual(['headband']); // swapped, not lost
+    expect(next.phase.kind).toBe('bag'); // stays in the bag
+  });
+
+  it('unequipToBag moves a held item to the bag', () => {
+    let m = withItem(start(), 'headband');
+    m = { ...m, phase: { kind: 'bag', returnTo: { kind: 'map' } } };
+    const next = runReducer(m, { type: 'unequipToBag', playerIndex: 0 })!;
+    expect(next.core.roster.starters[0].item).toBeUndefined();
+    expect(next.bag).toEqual(['headband']);
   });
 });
 

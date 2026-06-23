@@ -89,6 +89,8 @@ export type RunPhase =
   | { kind: 'itemDrop'; nodeId: string; drop: ItemDef; returnTo: RunPhase }
   | { kind: 'legendReveal'; nodeId: string; offer: RosterPlayer; fallback: RosterPlayer[] }
   | { kind: 'lineup'; returnTo: RunPhase }
+  // The item bag: equip stored items onto players or unequip held ones back.
+  | { kind: 'bag'; returnTo: RunPhase }
   | { kind: 'summary'; champion: boolean };
 
 export interface RunModel {
@@ -99,6 +101,9 @@ export interface RunModel {
   /** Equipped passive boosts (max 5). Lives here, not in RunState, so it never
    * leaks into the home roster at merge. */
   boosts: PassiveBoost[];
+  /** Run-scoped item bag: defIds of unequipped items kept for later. Lives here,
+   * not in RunState, so items are never lost mid-run and never persist home. */
+  bag: string[];
   /** Legendary on-loan offer tracking (once per run + soft pity). */
   legend: { dryStreak: number; offeredThisRun: boolean };
   /** Active game context, set on enterGame and read in game/postgame. */
@@ -130,6 +135,11 @@ export type RunAction =
   | { type: 'leaveBoost' }
   | { type: 'takeDrop'; playerIndex: number }
   | { type: 'skipDrop' }
+  | { type: 'addToBag'; defId: string }
+  | { type: 'openBag' }
+  | { type: 'leaveBag' }
+  | { type: 'equipFromBag'; bagIndex: number; playerIndex: number }
+  | { type: 'unequipToBag'; playerIndex: number }
   | { type: 'scoutLegend' }
   | { type: 'declineLegend' }
   | { type: 'skipNode' }
@@ -155,6 +165,7 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     gamePlan: DEFAULT_GAME_PLAN,
     wins: 0,
     boosts: [],
+    bag: [],
     legend: { dryStreak: homeRoster.legendDryStreak ?? 0, offeredThisRun: false },
     game: null,
   };
@@ -220,6 +231,33 @@ function withEquippedItem(
   defId: string
 ): RunState['roster'] {
   return mapRoster(roster, (p, i) => (i === index ? { ...p, item: { defId } } : p));
+}
+
+/** Remove the item from the player at `index` (combined order). */
+function withUnequippedItem(roster: RunState['roster'], index: number): RunState['roster'] {
+  return mapRoster(roster, (p, i) => {
+    if (i !== index || !p.item) return p;
+    const next = { ...p };
+    delete next.item;
+    return next;
+  });
+}
+
+/**
+ * Equip `defId` onto the player at `index`, moving any item they already hold
+ * into the bag so gear is never lost. Returns null when the index is invalid.
+ */
+function equipWithBagSwap(
+  roster: RunState['roster'],
+  bag: string[],
+  index: number,
+  defId: string
+): { roster: RunState['roster']; bag: string[] } | null {
+  const all = [...roster.starters, ...roster.bench];
+  const target = all[index];
+  if (!target) return null;
+  const nextBag = target.item ? [...bag, target.item.defId] : bag;
+  return { roster: withEquippedItem(roster, index, defId), bag: nextBag };
 }
 
 /**
@@ -580,10 +618,14 @@ export function runReducer(
       if (model.phase.kind !== 'boost') return model;
       const def = ITEM_BY_ID[action.defId];
       if (!def) return model;
-      const all = [...model.core.roster.starters, ...model.core.roster.bench];
-      if (!all[action.playerIndex]) return model;
-      const roster = withEquippedItem(model.core.roster, action.playerIndex, def.id);
-      return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
+      const res = equipWithBagSwap(model.core.roster, model.bag, action.playerIndex, def.id);
+      if (!res) return model;
+      return {
+        ...model,
+        core: { ...model.core, roster: res.roster },
+        bag: res.bag,
+        phase: { kind: 'map' },
+      };
     }
 
     case 'leaveBoost':
@@ -592,12 +634,51 @@ export function runReducer(
     case 'takeDrop': {
       if (model.phase.kind !== 'itemDrop') return model;
       const { drop, returnTo } = model.phase;
-      const roster = withEquippedItem(model.core.roster, action.playerIndex, drop.id);
-      return { ...model, core: { ...model.core, roster }, phase: returnTo };
+      const res = equipWithBagSwap(model.core.roster, model.bag, action.playerIndex, drop.id);
+      if (!res) return model;
+      return { ...model, core: { ...model.core, roster: res.roster }, bag: res.bag, phase: returnTo };
     }
 
     case 'skipDrop':
       return model.phase.kind === 'itemDrop' ? { ...model, phase: model.phase.returnTo } : model;
+
+    case 'addToBag': {
+      // "Keep in bag" from a Boost node or a gear drop: store it, do not equip.
+      if (!ITEM_BY_ID[action.defId]) return model;
+      const bag = [...model.bag, action.defId];
+      if (model.phase.kind === 'boost') return { ...model, bag, phase: { kind: 'map' } };
+      if (model.phase.kind === 'itemDrop') return { ...model, bag, phase: model.phase.returnTo };
+      return { ...model, bag };
+    }
+
+    case 'openBag':
+      return model.phase.kind === 'bag'
+        ? model
+        : { ...model, phase: { kind: 'bag', returnTo: model.phase } };
+
+    case 'leaveBag':
+      return model.phase.kind === 'bag' ? { ...model, phase: model.phase.returnTo } : model;
+
+    case 'equipFromBag': {
+      if (model.phase.kind !== 'bag') return model;
+      const defId = model.bag[action.bagIndex];
+      if (!defId) return model;
+      // Take the chosen item out of the bag first; any displaced item returns to it.
+      const baseBag = model.bag.filter((_, i) => i !== action.bagIndex);
+      const res = equipWithBagSwap(model.core.roster, baseBag, action.playerIndex, defId);
+      if (!res) return model;
+      return { ...model, core: { ...model.core, roster: res.roster }, bag: res.bag };
+    }
+
+    case 'unequipToBag': {
+      if (model.phase.kind !== 'bag') return model;
+      const all = [...model.core.roster.starters, ...model.core.roster.bench];
+      const target = all[action.playerIndex];
+      if (!target?.item) return model;
+      const bag = [...model.bag, target.item.defId];
+      const roster = withUnequippedItem(model.core.roster, action.playerIndex);
+      return { ...model, core: { ...model.core, roster }, bag };
+    }
 
     case 'scoutLegend': {
       if (model.phase.kind !== 'legendReveal') return model;
