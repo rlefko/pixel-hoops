@@ -2,6 +2,7 @@ import type { Roster, RosterPlayer } from '@/types/roster';
 import type { RunRewards } from '@/types/run-map';
 import type { RNG } from './rng';
 import { buildStartingRoster } from './tournament';
+import { expandStats, isLegacyStats } from './stat-migration';
 
 /**
  * The persistent "home roster" that compounds across runs. A run operates on a
@@ -18,7 +19,8 @@ export interface HomeRoster {
 /** Owned players beyond the starting five are capped so the roster cannot bloat. */
 const EXTRA_CAP = 12;
 const MAX_PLAYERS = 5 + EXTRA_CAP;
-const HOME_ROSTER_VERSION = 1;
+// v2 expands the four-stat model to ten ratings; v1 saves are migrated on load.
+const HOME_ROSTER_VERSION = 2;
 
 export interface SerializedHomeRoster {
   version: number;
@@ -61,26 +63,37 @@ export function serializeHomeRoster(home: HomeRoster): SerializedHomeRoster {
   return { version: HOME_ROSTER_VERSION, data: home };
 }
 
-/** Restore a home roster from storage, tolerating missing/garbage fields. */
+/**
+ * Restore a home roster from storage, tolerating missing/garbage fields and
+ * upgrading legacy four-stat saves (v1) to the ten-rating model. A player is
+ * accepted if it has the always-present `clutch`/`athleticism` plus either the
+ * legacy `shooting` or the new `outside`; legacy lines are run through
+ * expandStats so old saves keep playing without a wipe.
+ */
 export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
   if (!raw || typeof raw !== 'object') return null;
   const data = (raw as Partial<SerializedHomeRoster>).data;
   if (!data || !Array.isArray(data.players) || data.players.length < 5)
     return null;
   const playersOk = data.players.every((p) => {
-    const stats = p?.player?.stats;
+    const stats = p?.player?.stats as unknown as Record<string, unknown> | undefined;
+    // Accept a player only if it is already the new shape (has `outside`) or a
+    // migratable legacy line. This matches the migration predicate below exactly,
+    // so nothing slips through accepted-but-unmigrated.
     return (
       !!stats &&
       typeof p.position === 'string' &&
-      typeof stats.shooting === 'number' &&
-      typeof stats.speed === 'number' &&
-      typeof stats.athleticism === 'number' &&
-      typeof stats.clutch === 'number'
+      (typeof stats.outside === 'number' || isLegacyStats(stats))
     );
   });
   if (!playersOk) return null;
+  const players = data.players.map((p): RosterPlayer =>
+    isLegacyStats(p.player.stats)
+      ? { ...p, player: { ...p.player, stats: expandStats(p.player.stats, p.position) } }
+      : p
+  );
   return {
-    players: data.players,
+    players,
     coins: typeof data.coins === 'number' ? data.coins : 0,
     reputation: typeof data.reputation === 'number' ? data.reputation : 0,
   };

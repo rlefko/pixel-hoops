@@ -1,8 +1,9 @@
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { PixelPlayer } from '@/components/fx';
+import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
-import { POSITION_COLOR } from '@/components/game/LineupBoard';
+import { POSITION_COLOR } from '@/components/game/positionColor';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Roster } from '@/types/roster';
 
@@ -36,25 +37,35 @@ export function RosterStrip({ roster, onPress }: RosterStripProps) {
         {onPress ? <Text style={styles.edit}>EDIT</Text> : null}
       </View>
       <View style={styles.row}>
-        {roster.starters.map((rp, i) => (
-          <View key={i} style={styles.member}>
-            <PixelPlayer
-              color={palette.homeTeam}
-              accent={palette.homeTeamAccent}
-              number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
-              skinIndex={skinIndexFor(rp.player.name)}
-              size={24}
-            />
-            <View style={[styles.posChip, { borderColor: POSITION_COLOR[rp.position] }]}>
-              <Text style={[styles.pos, { color: POSITION_COLOR[rp.position] }]}>
-                {rp.position}
+        {roster.starters.map((rp, i) => {
+          const out = rp.gamesOut ?? 0;
+          return (
+            <View key={i} style={[styles.member, out > 0 && styles.injured]}>
+              <View style={styles.avatar}>
+                <PixelPlayer
+                  color={palette.homeTeam}
+                  accent={palette.homeTeamAccent}
+                  number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
+                  skinIndex={skinIndexFor(rp.player.name)}
+                  size={24}
+                />
+                {out > 0 ? (
+                  <View style={styles.injuryBadge}>
+                    <InjuryIcon size={10} />
+                  </View>
+                ) : null}
+              </View>
+              <View style={[styles.posChip, { borderColor: POSITION_COLOR[rp.position] }]}>
+                <Text style={[styles.pos, { color: POSITION_COLOR[rp.position] }]}>
+                  {rp.position}
+                </Text>
+              </View>
+              <Text style={styles.name} numberOfLines={1}>
+                {out > 0 ? `OUT ${out}` : shortName(rp.player.name)}
               </Text>
             </View>
-            <Text style={styles.name} numberOfLines={1}>
-              {shortName(rp.player.name)}
-            </Text>
-          </View>
-        ))}
+          );
+        })}
         {roster.bench.length > 0 ? (
           <View style={styles.bench}>
             <Text style={styles.benchCount}>+{roster.bench.length}</Text>
@@ -99,6 +110,13 @@ const styles = StyleSheet.create({
   member: {
     alignItems: 'center',
     width: 48,
+  },
+  injured: { opacity: 0.5 },
+  avatar: { position: 'relative' },
+  injuryBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
   },
   posChip: {
     paddingHorizontal: space(1),

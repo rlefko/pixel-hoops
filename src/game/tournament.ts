@@ -4,6 +4,7 @@ import {
   type Player,
   type PlayerStats,
   randomInt,
+  SKILL_STAT_KEYS,
 } from '@/types/player';
 import type { Roster, RosterPlayer, Position } from '@/types/roster';
 import {
@@ -171,29 +172,12 @@ export function generateOpponent(round: number, playerName?: string): Player {
   const basePlayer = createPlayer(name, archetype);
   const range = getRoundStatRange(round);
 
-  // Scale each stat within the round's range with some variance
-  const stats: PlayerStats = {
-    shooting: clamp(
-      basePlayer.stats.shooting + randomInt(-1, 2),
-      range.min,
-      range.max
-    ),
-    speed: clamp(
-      basePlayer.stats.speed + randomInt(-1, 2),
-      range.min,
-      range.max
-    ),
-    athleticism: clamp(
-      basePlayer.stats.athleticism + randomInt(-1, 2),
-      range.min,
-      range.max
-    ),
-    clutch: clamp(
-      basePlayer.stats.clutch + randomInt(-1, 2),
-      range.min,
-      range.max
-    ),
-  };
+  // Scale each skill rating within the round's range with some variance;
+  // condition ratings (stamina/durability) carry over unscaled.
+  const stats: PlayerStats = { ...basePlayer.stats };
+  for (const key of SKILL_STAT_KEYS) {
+    stats[key] = clamp(basePlayer.stats[key] + randomInt(-1, 2), range.min, range.max);
+  }
 
   return { ...basePlayer, stats };
 }
@@ -274,6 +258,9 @@ function fakePlayerAt(
  * src/game/opponent-preview.ts), and that preview depends on this ordering, so
  * keep `pickRealTeam` first if you reorder the draws here.
  */
+/** Bench players an opponent carries for in-game rotation. */
+const OPPONENT_BENCH_SIZE = 3;
+
 export function generateOpponentTeam(
   round: number,
   rng: RNG
@@ -284,9 +271,14 @@ export function generateOpponentTeam(
     const real = useReal ? realPlayerAt(position, round, rng) : null;
     return real ?? fakePlayerAt(position, round, rng);
   });
+  // A short bench so opponents rotate too (drawn AFTER starters so the franchise
+  // identity stays the first draw; see src/game/opponent-preview.ts).
+  const bench = Array.from({ length: OPPONENT_BENCH_SIZE }, () =>
+    fakePlayerAt(rng.pick(POSITIONS), round, rng)
+  );
   return {
     name: `${team.city} ${team.name}`,
-    roster: { starters, bench: [] },
+    roster: { starters, bench },
     colorHex: team.primaryHex,
     accentHex: team.secondaryHex,
   };

@@ -30,6 +30,13 @@ export const palette = {
   homeTeamAccent: '#FFD54F', // brand gold trim for "Your Squad"
   awayTeam: '#EF5350',
 
+  // Condition semantics (aliases, no new hex): energy pips and injury badges read
+  // green/gold/red, and an injury reuses the lighter miss red.
+  energyHigh: '#66BB6A', // = makeGreen
+  energyMid: '#FFD54F', // = gold
+  energyLow: '#EF5350', // = missRed
+  injury: '#E57373', // = missRedLt
+
   // Card categories (from CardDisplay)
   offenseBg: '#1B5E20',
   offenseBorder: '#66BB6A',

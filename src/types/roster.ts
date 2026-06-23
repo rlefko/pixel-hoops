@@ -44,6 +44,8 @@ export interface RosterPlayer {
   usage?: number;
   /** Real jersey number for baked NBA players; fakes derive one from the name. */
   jerseyNumber?: number;
+  /** Games this player must sit out from a between-game injury (0/undefined = healthy). */
+  gamesOut?: number;
 }
 
 /** The full owned squad: five starters plus bench depth. */

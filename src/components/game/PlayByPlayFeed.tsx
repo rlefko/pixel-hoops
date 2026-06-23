@@ -192,20 +192,28 @@ export function PlayByPlayFeed({
   const start = Math.max(0, cursor - VISIBLE_ROWS + 1);
   const rows = cursor >= 0 ? timeline.slice(start, cursor + 1) : [];
 
-  // The callout: a streak milestone takes precedence over the play's own callout.
+  // The callout: a streak milestone takes precedence over the play's own
+  // callout, which in turn outranks a routine substitution. Subs are derived
+  // purely from the landed event (no timers touched), so a fresh body checking
+  // in gets a quiet steel-blue "SUB: X IN" only when nothing louder is happening.
   const landedHot = landed ? hotState.get(landed.seq) : undefined;
   const streakCallout = landedHot?.igniting
     ? 'ON FIRE!'
     : landedHot?.heating
       ? 'HEATING UP!'
       : undefined;
-  const calloutText =
-    streakCallout ?? (landed?.isBigPlay ? landed.callout : undefined);
+  const bigPlayCallout = landed?.isBigPlay ? landed.callout : undefined;
+  const sub = landed?.subs?.[0];
+  const subCallout = sub ? `SUB: ${sub.inName} IN` : undefined;
+  const isSubCallout = !streakCallout && !bigPlayCallout && subCallout != null;
+  const calloutText = streakCallout ?? bigPlayCallout ?? subCallout;
   const calloutColor = streakCallout
     ? palette.flame
-    : landed
-      ? colorForEvent(landed)
-      : palette.gold;
+    : isSubCallout
+      ? palette.steelBlue
+      : landed
+        ? colorForEvent(landed)
+        : palette.gold;
 
   return (
     <View style={styles.wrap}>

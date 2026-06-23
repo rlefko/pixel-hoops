@@ -21,8 +21,52 @@ export type SimActionId =
   | 'block'
   | 'rebound';
 
+/** The five offensive actions a possession can choose (a shot is always taken). */
+export type OffActionId = 'three' | 'midrange' | 'drive' | 'layup' | 'dunk';
+
 /** home = the player's team, away = the opponent. */
 export type SimTeamSide = 'home' | 'away';
+
+/** The five on the floor for one side at an instant: court slot -> player name. */
+export type OnCourtFive = Record<Position, string>;
+
+/** Both sides' on-court fives at an event, so the watch renders the right sprites. */
+export interface OnCourtSnapshot {
+  home: OnCourtFive;
+  away: OnCourtFive;
+}
+
+/** A substitution: who left and entered a given court slot (drives the watch). */
+export interface SimSub {
+  team: SimTeamSide;
+  slot: Position;
+  outName: string;
+  inName: string;
+}
+
+/** One player's accumulated line for the post-game box score. */
+export interface BoxLine {
+  name: string;
+  /** Court slot the player last occupied. */
+  slot: Position;
+  starter: boolean;
+  pts: number;
+  fgm: number;
+  fga: number;
+  tpm: number;
+  tpa: number;
+  reb: number;
+  ast: number;
+  stl: number;
+  blk: number;
+  tov: number;
+  /** Seconds played (minutes = seconds / 60). */
+  seconds: number;
+  /** Energy remaining at game end (0..100). */
+  energy: number;
+  /** Accumulated fatigue load, used by the run layer's injury roll. */
+  load: number;
+}
 
 /**
  * One atomic moment in the game: enough to drive play-by-play + score + juice.
@@ -60,6 +104,10 @@ export interface SimEvent {
   callout?: string;
   /** Full play-by-play line, e.g. "Jonez drains a three!". */
   text: string;
+  /** Both sides' on-court fives at this moment (the watch reads sprites here). */
+  onCourt: OnCourtSnapshot;
+  /** Substitutions that happened just before this possession (for the watch). */
+  subs?: SimSub[];
 }
 
 export interface SimResult {
@@ -67,6 +115,8 @@ export interface SimResult {
   finalHome: number;
   finalAway: number;
   winner: SimTeamSide;
+  /** Per-player box score for both sides (starters first, then bench). */
+  box: { home: BoxLine[]; away: BoxLine[] };
   /** Echoed seed, so a result can be re-simulated identically. */
   seed: number | string;
 }

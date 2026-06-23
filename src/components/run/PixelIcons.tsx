@@ -197,6 +197,54 @@ export function StarIcon({ size, color }: IconProps) {
   );
 }
 
+/**
+ * energy: three stacked cells that fill green/gold/red by an energy (0..100)
+ * reading. Full energy lights all three green, mid lights two gold, low lights
+ * one red. A quiet at-a-glance condition glyph for box scores and cards.
+ */
+export function EnergyPips({ energy, size = 10 }: { energy: number; size?: number }) {
+  const cells = 3;
+  const lit =
+    energy >= 67 ? 3 : energy >= 34 ? 2 : energy > 0 ? 1 : 0;
+  const litColor =
+    lit >= 3 ? palette.energyHigh : lit === 2 ? palette.energyMid : palette.energyLow;
+  const cellW = size;
+  const cellH = Math.max(2, Math.round(size * 0.4));
+  return (
+    <View style={{ gap: Math.max(1, Math.round(size * 0.15)) }}>
+      {Array.from({ length: cells }).map((_, i) => {
+        // Fill bottom-up so the bar drains from the top as energy falls.
+        const on = i >= cells - lit;
+        return (
+          <View
+            key={i}
+            style={{
+              width: cellW,
+              height: cellH,
+              backgroundColor: on ? litColor : palette.bgPanel,
+            }}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
+/** injury: a small red cross (two crossing bars). */
+export function InjuryIcon({ size = 12 }: { size?: number }) {
+  const bar = Math.max(2, Math.round(size * 0.32));
+  return (
+    <View style={box(size)}>
+      <View
+        style={{ position: 'absolute', width: size, height: bar, backgroundColor: palette.injury }}
+      />
+      <View
+        style={{ position: 'absolute', width: bar, height: size, backgroundColor: palette.injury }}
+      />
+    </View>
+  );
+}
+
 const ICONS: Record<MapNodeType, (p: IconProps) => React.ReactElement> = {
   game: BasketballIcon,
   elite: FlameIcon,

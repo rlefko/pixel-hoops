@@ -12,6 +12,7 @@ import {
 import { runReducer, initRun, type RunModel } from '@/game/run-machine';
 import { generateRunMap } from '@/game/run-map';
 import { POSITIONS } from '@/types/roster';
+import { SKILL_STAT_KEYS } from '@/types/player';
 
 function rookie(seed = 'home'): HomeRoster {
   return createRookieRoster(createRNG(seed));
@@ -31,13 +32,15 @@ describe('generateRecruitOffers', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('scales stats into the round range with valid positions', () => {
+  it('scales skill stats into the round range with valid positions', () => {
     const { min, max } = getRoundStatRange(5);
     const offers = generateRecruitOffers(5, 8, createRNG('rs'));
     for (const o of offers) {
-      for (const stat of Object.values(o.player.stats)) {
-        expect(stat).toBeGreaterThanOrEqual(min);
-        expect(stat).toBeLessThanOrEqual(max);
+      // Only the eight skill ratings are round-scaled; stamina/durability
+      // stay at their neutral baseline (condition is not a difficulty tier).
+      for (const key of SKILL_STAT_KEYS) {
+        expect(o.player.stats[key]).toBeGreaterThanOrEqual(min);
+        expect(o.player.stats[key]).toBeLessThanOrEqual(max);
       }
       expect(POSITIONS).toContain(o.position);
     }
@@ -204,12 +207,12 @@ describe('run reducer', () => {
 
   it('training boosts a stat, capped at 10', () => {
     const m = start();
-    const before = m.core.roster.starters[0].player.stats.shooting;
+    const before = m.core.roster.starters[0].player.stats.outside;
     const next = runReducer(
       { ...m, phase: { kind: 'training', nodeId: 'n' } },
-      { type: 'trainPlayer', index: 0, stat: 'shooting' }
+      { type: 'trainPlayer', index: 0, stat: 'outside' }
     )!;
-    expect(next.core.roster.starters[0].player.stats.shooting).toBe(
+    expect(next.core.roster.starters[0].player.stats.outside).toBe(
       Math.min(10, before + 1)
     );
     expect(next.phase.kind).toBe('map');
@@ -234,5 +237,66 @@ describe('run reducer', () => {
       bench: [],
     })!;
     expect(bad.phase.kind).toBe('lineup');
+  });
+});
+
+describe('between-game injuries', () => {
+  const playWonGame = (seed: string): RunModel => {
+    let m = initRun(seed, rookie(`inj-${seed}`));
+    const nodeId = m.core.map.startNodeIds[0];
+    m = runReducer(m, { type: 'chooseNode', nodeId })!;
+    m = runReducer(m, { type: 'enterGame' })!;
+    m = runReducer(m, { type: 'finishReplay' })!;
+    return runReducer(
+      { ...m, phase: { kind: 'postgame', nodeId, won: true } },
+      { type: 'resolveGameResult' }
+    )!;
+  };
+  const gamesOut = (m: RunModel): number[] =>
+    [...m.core.roster.starters, ...m.core.roster.bench].map((p) => p.gamesOut ?? 0);
+
+  it('is reproducible from the run seed', () => {
+    expect(gamesOut(playWonGame('repro'))).toEqual(gamesOut(playWonGame('repro')));
+  });
+
+  it('keeps injuries rare and bounded', () => {
+    let injuredGames = 0;
+    const games = 40;
+    for (let s = 0; s < games; s++) {
+      const outs = gamesOut(playWonGame(`rare-${s}`));
+      for (const g of outs) expect(g).toBeLessThanOrEqual(2); // never sidelines too long
+      if (outs.some((g) => g > 0)) injuredGames += 1;
+    }
+    // Most games injure nobody; a roguelike injury should be the exception.
+    expect(injuredGames).toBeLessThan(games * 0.5);
+  });
+
+  it('a rest node clears injuries', () => {
+    const m = initRun('rest', rookie('rest'));
+    const [first, ...rest] = m.core.roster.starters;
+    const injured = { ...m, core: {
+      ...m.core,
+      roster: { ...m.core.roster, starters: [{ ...first, gamesOut: 2 }, ...rest] },
+    }, phase: { kind: 'rest' as const, nodeId: 'n' } };
+    const rested = runReducer(injured, { type: 'rest' })!;
+    expect(rested.core.roster.starters[0].gamesOut).toBe(0);
+  });
+
+  it('sits an injured starter when healthy depth covers it', () => {
+    let m = initRun('dress', rookie('dress'));
+    const bench = generateRecruitOffers(1, 1, createRNG('bp'));
+    const [first, ...rest] = m.core.roster.starters;
+    m = { ...m, core: {
+      ...m.core,
+      roster: { starters: [{ ...first, gamesOut: 1 }, ...rest], bench },
+    } };
+    const nodeId = m.core.map.startNodeIds[0];
+    m = runReducer(m, { type: 'chooseNode', nodeId })!;
+    m = runReducer(m, { type: 'enterGame' })!;
+    const dressed = [
+      ...m.game!.home.lineup.players,
+      ...m.game!.home.bench,
+    ].map((p) => p.player.name);
+    expect(dressed).not.toContain(first.player.name);
   });
 });

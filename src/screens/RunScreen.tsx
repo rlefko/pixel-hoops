@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
@@ -13,6 +14,7 @@ import { TrainingView } from '@/components/run/TrainingView';
 import { RestView } from '@/components/run/RestView';
 import { ShopView } from '@/components/run/ShopView';
 import { RunSummaryView } from '@/components/run/RunSummaryView';
+import { BoxScoreView } from '@/components/run/BoxScoreView';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { RunModel } from '@/game/run-machine';
 
@@ -82,6 +84,7 @@ export default function RunScreen() {
     case 'rest':
       return (
         <RestView
+          roster={model.core.roster}
           onRebuild={actions.openLineupBuilder}
           onContinue={actions.rest}
         />
@@ -152,23 +155,43 @@ function Postgame({
   model: RunModel;
   onContinue: () => void;
 }) {
+  // Default collapsed so the win/loss headline reads instantly and the retry
+  // stays one tap away; the box score is opt-in detail.
+  const [showBox, setShowBox] = useState(false);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
-  const result = model.game.result;
+  const { result, home, away } = model.game;
   return (
-    <View style={styles.center}>
-      <Text
-        style={[
-          styles.result,
-          { color: won ? palette.makeGreen : palette.missRed },
-        ]}
-      >
-        {won ? 'WIN!' : 'LOSS'}
-      </Text>
-      <Text style={styles.score}>
-        {result.finalHome} - {result.finalAway}
-      </Text>
-      <Text style={styles.vs}>vs {model.game.opponentName}</Text>
+    <View style={styles.postgame}>
+      <View style={styles.postgameHeadline}>
+        <Text
+          style={[
+            styles.result,
+            { color: won ? palette.makeGreen : palette.missRed },
+          ]}
+        >
+          {won ? 'WIN!' : 'LOSS'}
+        </Text>
+        <Text style={styles.score}>
+          {result.finalHome} - {result.finalAway}
+        </Text>
+        <Text style={styles.vs}>vs {model.game.opponentName}</Text>
+      </View>
+
+      <Pressable onPress={() => setShowBox((v) => !v)}>
+        <Text style={styles.link}>
+          {showBox ? 'Hide Box Score' : 'Show Box Score'}
+        </Text>
+      </Pressable>
+
+      {showBox ? (
+        <View style={styles.postgameBox}>
+          <BoxScoreView home={home} away={away} box={result.box} />
+        </View>
+      ) : (
+        <View style={styles.postgameBox} />
+      )}
+
       <Pressable style={[styles.button, styles.primary]} onPress={onContinue}>
         <Text style={styles.buttonText}>{won ? 'CONTINUE' : 'END RUN'}</Text>
       </Pressable>
@@ -191,6 +214,20 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
   },
   pregame: { padding: space(5), paddingTop: space(8) },
+  postgame: {
+    flex: 1,
+    backgroundColor: palette.bgDeep,
+    alignItems: 'center',
+    paddingHorizontal: space(5),
+    paddingTop: space(10),
+    paddingBottom: space(6),
+  },
+  postgameHeadline: { alignItems: 'center' },
+  postgameBox: {
+    flex: 1,
+    alignSelf: 'stretch',
+    marginTop: space(3),
+  },
   depth: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.small,
