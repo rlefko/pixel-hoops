@@ -1,6 +1,6 @@
 import type { QuarterResult } from '@/types/game-state';
 import { POSITIONS } from '@/types/roster';
-import type { Team } from '@/types/team';
+import type { Team, TeamStats } from '@/types/team';
 import type { Focus } from '@/types/tactics';
 import type {
   OffActionId,
@@ -13,6 +13,7 @@ import { TOTAL_QUARTERS } from '@/types/game-state';
 import {
   makeProbability,
   missFlavor,
+  expectedValue,
   ACTION_OFF,
   ACTION_DEF,
   SHOT_PROFILE,
@@ -45,6 +46,12 @@ const LOCKDOWN_BONUS = 1.5;
  * what keeps upsets alive: a cold favorite can drop one to a hot underdog.
  */
 const FORM_RANGE = 1.6;
+/**
+ * How hard basketball IQ pulls shot selection toward the highest expected-value
+ * looks (rim and threes) and away from contested long twos. A smart five hunts
+ * good shots (the NBA-2K tendency vs ability split); a low-IQ five chucks.
+ */
+const IQ_PULL = 0.6;
 /** Fourth-quarter margin (abs) within which clutch matters. */
 const CLUTCH_MARGIN = 6;
 /** How strongly clutch nudges the success rate in crunch time. */
@@ -88,18 +95,44 @@ export interface SimConfig {
 
 // --- Action selection ---
 
-/** Weighted offensive action choice, biased by focus and risk posture. */
-function actionWeights(focus: Focus, posture: RiskPosture): [OffActionId, number][] {
-  const w: Record<SimActionId, number> = {
+/**
+ * Weighted offensive action choice. Three layers, in order: a base mix, an
+ * IQ-driven reshape toward the highest expected-value shots (tendency), then the
+ * game plan's focus/posture nudges (so player agency still reads through). The
+ * EV is computed against a neutral defender so selection does not leak the
+ * actual opponent. Pure: it only builds weights; the single RNG draw is at the
+ * call site.
+ */
+export function actionWeights(
+  stats: TeamStats,
+  focus: Focus,
+  posture: RiskPosture
+): [OffActionId, number][] {
+  const w: Record<OffActionId, number> = {
     three: 3,
     midrange: 3,
     drive: 3,
     layup: 2,
     dunk: 2,
-    steal: 0,
-    block: 0,
-    rebound: 0,
   };
+
+  // IQ reshape: pull toward high-EV looks. Midrange takes an EV haircut so a
+  // smart five shuns the contested long two even when it can shoot.
+  const evs = OFFENSIVE_ACTIONS.map((a) => {
+    const p = makeProbability({
+      action: a,
+      offRating: ACTION_OFF[a](stats),
+      defRating: 5,
+      iq: stats.iq,
+    });
+    const ev = expectedValue(a, p);
+    return a === 'midrange' ? ev * 0.92 : ev;
+  });
+  const meanEv = evs.reduce((sum, e) => sum + e, 0) / evs.length;
+  const pull = (IQ_PULL * (stats.iq - 5)) / 5;
+  OFFENSIVE_ACTIONS.forEach((a, i) => {
+    w[a] *= Math.max(0.2, 1 + pull * (evs[i] / meanEv - 1));
+  });
 
   switch (focus) {
     case 'outside':
@@ -230,7 +263,7 @@ export function simulateGame(config: SimConfig): SimResult {
         ? homeFocusOverride
         : offense.tactic.focus;
 
-    const action = rng.weightedPick(actionWeights(focus, posture));
+    const action = rng.weightedPick(actionWeights(offense.teamStats, focus, posture));
 
     // Pick the scorer by lineup INDEX so the event carries their court slot
     // (POSITIONS[index]), not their intrinsic position. This keeps the active

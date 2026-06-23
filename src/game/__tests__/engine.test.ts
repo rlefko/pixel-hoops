@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { createRNG, deriveSeed } from '@/game/rng';
 import { buildStartingRoster, generateOpponentTeam } from '@/game/tournament';
 import { buildTeam } from '@/game/lineup';
-import { simulateGame } from '@/game/simulation';
+import { simulateGame, actionWeights } from '@/game/simulation';
+import type { TeamStats } from '@/types/team';
 import { generateRunMap, getReachableNodes } from '@/game/run-map';
 import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
 import type { Roster } from '@/types/roster';
@@ -144,6 +145,38 @@ describe('simulateGame integrity', () => {
     }
     expect(homeWins).toBeGreaterThan(games * 0.3);
     expect(homeWins).toBeLessThan(games * 0.7);
+  });
+
+  it('a smarter five hunts better shots (fewer contested midranges)', () => {
+    // Unit-test the tendency directly: two identical stat lines differing only
+    // in IQ, at a neutral game state. (A timeline-level count is confounded
+    // because the better team leads more and a lead biases toward safe shots.)
+    const stats = (iq: number): TeamStats => ({
+      inside: 6,
+      outside: 6,
+      playmaking: 6,
+      perimeterD: 6,
+      interiorD: 6,
+      athleticism: 6,
+      iq,
+      clutch: 5,
+      stamina: 5,
+      durability: 5,
+      pace: 7,
+      off: 6,
+      def: 6,
+      ovr: 6,
+    });
+    const share = (iq: number) => {
+      const w = actionWeights(stats(iq), 'balanced', 'mixed');
+      const total = w.reduce((sum, [, x]) => sum + x, 0);
+      const of = (a: string) => (w.find(([k]) => k === a)?.[1] ?? 0) / total;
+      return { mid: of('midrange'), good: of('layup') + of('dunk') + of('three') };
+    };
+    const smart = share(10);
+    const dumb = share(3);
+    expect(smart.mid).toBeLessThan(dumb.mid); // shuns the contested long two
+    expect(smart.good).toBeGreaterThan(dumb.good); // leans rim + three
   });
 });
 
