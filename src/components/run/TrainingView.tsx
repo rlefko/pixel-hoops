@@ -1,5 +1,6 @@
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Roster } from '@/types/roster';
@@ -54,7 +55,7 @@ interface TrainingViewProps {
 export function TrainingView({ roster, onTrain, onSkip }: TrainingViewProps) {
   const pool = [...roster.starters, ...roster.bench];
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container}>
       <Text style={styles.title}>TRAINING</Text>
       <Text style={styles.subtitle}>Boost one stat (+1) for one player</Text>
 
@@ -96,16 +97,13 @@ export function TrainingView({ roster, onTrain, onSkip }: TrainingViewProps) {
       <Pressable onPress={onSkip}>
         <Text style={styles.skip}>Skip</Text>
       </Pressable>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: palette.bgDeep,
-    padding: space(4),
-    paddingTop: space(10),
+    paddingHorizontal: space(4),
   },
   title: {
     fontFamily: FONT.display,

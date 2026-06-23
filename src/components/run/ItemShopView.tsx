@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { PlayerCard } from './PlayerCard';
 import { CoinIcon } from './PixelIcons';
 import { ITEM_RARITY_COLOR } from './item-ui';
@@ -26,7 +27,7 @@ export function ItemShopView({ stock, coins, roster, onBuy, onLeave }: ItemShopV
 
   if (selected) {
     return (
-      <View style={styles.container}>
+      <Screen style={styles.container}>
         <Text style={styles.title}>EQUIP TO</Text>
         <Text style={styles.subtitle}>
           {selected.name}: {selected.blurb}
@@ -48,12 +49,12 @@ export function ItemShopView({ stock, coins, roster, onBuy, onLeave }: ItemShopV
         <Pressable onPress={() => setSelected(null)}>
           <Text style={styles.skip}>Back</Text>
         </Pressable>
-      </View>
+      </Screen>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>ITEM SHOP</Text>
         <View style={styles.coinRow}>
@@ -89,12 +90,12 @@ export function ItemShopView({ stock, coins, roster, onBuy, onLeave }: ItemShopV
       <Pressable onPress={onLeave}>
         <Text style={styles.skip}>Leave Shop</Text>
       </Pressable>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.bgDeep, padding: space(5), paddingTop: space(10) },
+  container: { paddingHorizontal: space(5) },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

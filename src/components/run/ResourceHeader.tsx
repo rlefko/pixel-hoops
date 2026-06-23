@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: space(4),
-    paddingTop: space(8),
+    paddingTop: space(2),
     paddingBottom: space(2),
   },
   left: {

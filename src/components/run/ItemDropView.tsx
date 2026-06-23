@@ -1,5 +1,6 @@
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { Screen } from '@/components/Screen';
 import { PlayerCard } from './PlayerCard';
 import { ITEM_RARITY_COLOR } from './item-ui';
 import type { ItemDef } from '@/game/items';
@@ -18,7 +19,7 @@ export function ItemDropView({ drop, roster, onTake, onSkip }: ItemDropViewProps
   const players = [...roster.starters, ...roster.bench];
   const color = ITEM_RARITY_COLOR[drop.rarity];
   return (
-    <View style={styles.container}>
+    <Screen style={styles.container}>
       <Text style={styles.title}>GEAR DROP!</Text>
       <View style={[styles.dropCard, { borderColor: color }]}>
         <Text style={[styles.dropName, { color }]}>{drop.name}</Text>
@@ -36,12 +37,12 @@ export function ItemDropView({ drop, roster, onTake, onSkip }: ItemDropViewProps
       <Pressable onPress={onSkip}>
         <Text style={styles.skip}>Leave it</Text>
       </Pressable>
-    </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: palette.bgDeep, padding: space(5), paddingTop: space(10) },
+  container: { paddingHorizontal: space(5) },
   title: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.h3,
