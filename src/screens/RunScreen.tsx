@@ -202,9 +202,9 @@ function Postgame({
   model: RunModel;
   onContinue: () => void;
 }) {
-  // Default collapsed so the win/loss headline reads instantly and the retry
-  // stays one tap away; the box score is opt-in detail.
-  const [showBox, setShowBox] = useState(false);
+  // Default open so the box score is right there after a game; still collapsible
+  // to put the win/loss headline and the retry one tap away.
+  const [showBox, setShowBox] = useState(true);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
   const { result, home, away } = model.game;

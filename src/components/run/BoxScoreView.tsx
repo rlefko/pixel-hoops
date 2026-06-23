@@ -8,8 +8,8 @@ import type { Team } from '@/types/team';
 /**
  * The post-game box score: a compact, tabular read of who did what. Grouped by
  * team under a team-colored header, monospace body for column alignment, each
- * team's top scorer crowned. Stays collapsed behind a toggle in the postgame so
- * the retry stays one tap away (see RunScreen Postgame).
+ * team's top scorer crowned. Shown by default in the postgame, with a toggle to
+ * collapse it and put the retry one tap away (see RunScreen Postgame).
  */
 
 interface BoxScoreViewProps {
