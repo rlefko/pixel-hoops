@@ -50,6 +50,11 @@ Every player has a deck of basketball cards representing offensive and defensive
 
 #### Player Stats (4 Core Attributes)
 
+> Note: the auto-sim uses an expanded ten-rating model (offense/defense split,
+> plus IQ, stamina, and durability) with surface composites. See
+> [stat-and-sim-system.md](stat-and-sim-system.md). The four attributes below
+> describe the original card game.
+
 | Stat            | What it Does                                             | Example Cards Using It                   |
 | --------------- | -------------------------------------------------------- | ---------------------------------------- |
 | **Shooting%**   | Base accuracy of shot plays                              | 3-POINTER, BANK SHOT, STEP-BACK          |
