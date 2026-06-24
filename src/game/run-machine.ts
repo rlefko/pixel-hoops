@@ -9,6 +9,7 @@ import { buildTeam, validateLineup } from './lineup';
 import { simulateGame } from './simulation';
 import { homeToRunRoster, type HomeRoster } from './home-roster';
 import { budgetFor, lineupCost, cheapestFiveCost, playerCost } from './budget';
+import { tierMods } from './ascension';
 import { effectivePlayers, teamModifierFor } from './apply-effects';
 import { MAX_TRAINED_STAT, trainedStat } from './effects';
 import { legendRecruit } from './player-pool';
@@ -63,10 +64,9 @@ const DOMINANCE_CAP = 12;
 // --- Between-game injuries (gentle: never bricks a run) ---
 /** Base per-game injury chance for a heavily-used, average-durability player. */
 const INJURY_BASE = 0.05;
-/** Game load that maps to "full minutes" (load / this ~ 1 for a full game). */
+/** Game load that maps to "full minutes" (load / this ~ 1 for a full game). The
+ * base cap on games sidelined lives in the tier table (src/game/ascension.ts). */
 const INJURY_LOAD_NORM = 90;
-/** Most games an injury can sideline a player. */
-const MAX_GAMES_OUT = 2;
 
 export type RunPhase =
   | { kind: 'map' }
@@ -105,6 +105,9 @@ export interface RunModel {
   /** The League tier this run is played at (from the home roster's selection).
    * Opponents harden with it; see src/game/ascension.ts. */
   tier: number;
+  /** Whether this run is at the player's unlock frontier, so a championship will
+   * unlock the next tier (drives the run-summary reward beat). */
+  atFrontier: boolean;
   /** The starting-five salary cap for this run, from the home roster's tier. */
   budgetCap: number;
   /** Equipped passive boosts (max 5). Lives here, not in RunState, so it never
@@ -192,7 +195,8 @@ function lineupWithinBudget(starters: RosterPlayer[], bench: RosterPlayer[], cap
 
 /** Build a fresh run from a seed and the player's home roster. */
 export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
-  const map = generateFixedMap({ seed: deriveSeed(seed, 'map-0'), mapIndex: 0 });
+  const tier = homeRoster.selectedTier ?? 0;
+  const map = generateFixedMap({ seed: deriveSeed(seed, 'map-0'), mapIndex: 0, tier });
   const budgetCap = budgetFor(homeRoster.leagueTier);
   const roster = homeToRunRoster(homeRoster);
   const { starters, bench } = defaultLegalFive(roster, budgetCap);
@@ -211,7 +215,8 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     phase: { kind: 'prepareLineup', starters, bench },
     gamePlan: DEFAULT_GAME_PLAN,
     wins: 0,
-    tier: homeRoster.selectedTier ?? 0,
+    tier,
+    atFrontier: tier >= (homeRoster.leagueTier ?? 0),
     budgetCap,
     boosts: [],
     bag: [],
@@ -222,15 +227,16 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
 
 // --- Coin payout ---
 
-/** Coins for a win: round-scaled, node-type multiplied, plus a dominance bonus. */
-function coinsForWin(node: MapNode, result: SimResult): number {
+/** Coins for a win: round-scaled, node-type multiplied, plus a dominance bonus.
+ * A high League tier trims the payout (meta-progression slows as you climb). */
+function coinsForWin(node: MapNode, result: SimResult, tier = 0): number {
   const round = node.round ?? node.layer + 1;
   let coins = COIN_BASE + COIN_PER_ROUND * (round - 1);
   if (node.type === 'elite') coins *= 1.5;
   else if (node.type === 'boss') coins *= 2;
   const margin = result.finalHome - result.finalAway;
   coins += Math.min(DOMINANCE_CAP, Math.max(0, margin - 5) * 0.6);
-  return Math.round(coins);
+  return Math.round(coins * tierMods(tier).coinMul);
 }
 
 /** Training points a win awards, scaled by the opponent's difficulty. */
@@ -366,14 +372,15 @@ export function buildHomeTeam(model: RunModel): Team {
  * game always build the identical five from the same seed (see the determinism
  * note on generateOpponentTeam).
  */
-export function buildOpponentTeam(core: RunState, nodeId: string): Team {
+export function buildOpponentTeam(core: RunState, nodeId: string, tier = 0): Team {
   const node = core.map.nodes[nodeId];
-  const level = node.difficulty ?? node.round ?? node.layer + 1;
+  const mods = tierMods(tier);
+  const level = (node.difficulty ?? node.round ?? node.layer + 1) + mods.statShift;
   const isBoss = node.type === 'boss' || nodeId === core.map.bossNodeId;
   const opp = generateOpponentTeam(
     level,
     createRNG(deriveSeed(core.seed, `opp-${nodeId}`)),
-    { isBoss }
+    { isBoss, extraLegend: isBoss && mods.bossExtraLegend }
   );
   return buildTeam(
     opp.name,
@@ -394,8 +401,10 @@ export function buildOpponentTeam(core: RunState, nodeId: string): Team {
 function applyInjuries(
   core: RunState,
   homeBox: BoxLine[],
-  nodeId: string
+  nodeId: string,
+  tier = 0
 ): RunState['roster'] {
+  const mods = tierMods(tier);
   const rng = createRNG(deriveSeed(core.seed, `injury-${nodeId}`));
   const lineByName = new Map(homeBox.map((b) => [b.name, b]));
   const update = (p: RosterPlayer): RosterPlayer => {
@@ -403,8 +412,9 @@ function applyInjuries(
     const line = lineByName.get(p.player.name);
     if (line && line.seconds > 0) {
       const risk =
-        (INJURY_BASE * (line.load / INJURY_LOAD_NORM) * (11 - p.player.stats.durability)) / 8;
-      if (rng.chance(risk)) gamesOut = rng.int(1, MAX_GAMES_OUT);
+        (INJURY_BASE * mods.injuryMul * (line.load / INJURY_LOAD_NORM) *
+          (11 - p.player.stats.durability)) / 8;
+      if (rng.chance(risk)) gamesOut = rng.int(1, mods.maxGamesOut);
     }
     return { ...p, gamesOut };
   };
@@ -474,13 +484,15 @@ function advanceToNextMap(model: RunModel): RunModel {
   const map = generateFixedMap({
     seed: deriveSeed(model.core.seed, `map-${nextIndex}`),
     mapIndex: nextIndex,
+    tier: model.tier,
   });
   const core = { ...model.core, map, currentMapIndex: nextIndex, currentNodeId: null };
   const round = nextIndex + 1;
   const offers = drawBoostOffers(
     round,
     model.boosts,
-    createRNG(deriveSeed(model.core.seed, `boost-m${nextIndex}`))
+    createRNG(deriveSeed(model.core.seed, `boost-m${nextIndex}`)),
+    tierMods(model.tier).boostOfferCount
   );
   return {
     ...model,
@@ -503,7 +515,12 @@ export function runReducer(
       const { starters, bench } = action;
       if (!validateLineup(starters).ok) return model;
       if (!lineupWithinBudget(starters, bench, model.budgetCap)) return model;
-      const offers = drawBoostOffers(1, [], createRNG(deriveSeed(model.core.seed, 'boost-m0')));
+      const offers = drawBoostOffers(
+        1,
+        [],
+        createRNG(deriveSeed(model.core.seed, 'boost-m0')),
+        tierMods(model.tier).boostOfferCount
+      );
       return {
         ...model,
         core: { ...model.core, roster: { starters, bench } },
@@ -542,7 +559,7 @@ export function runReducer(
       if (model.phase.kind !== 'pregame') return model;
       const nodeId = model.phase.nodeId;
       const home = buildHomeTeam(model);
-      const away = buildOpponentTeam(model.core, nodeId);
+      const away = buildOpponentTeam(model.core, nodeId, model.tier);
       const result = simulateGame({
         home,
         away,
@@ -571,7 +588,7 @@ export function runReducer(
       }
       const node = model.core.map.nodes[nodeId];
       const isBoss = node.type === 'boss' || nodeId === model.core.map.bossNodeId;
-      const coins = model.game ? coinsForWin(node, model.game.result) : COIN_BASE;
+      const coins = model.game ? coinsForWin(node, model.game.result, model.tier) : COIN_BASE;
       const rewards = {
         ...model.core.rewards,
         coins: model.core.rewards.coins + coins,
@@ -579,7 +596,7 @@ export function runReducer(
         trainingPoints: model.core.rewards.trainingPoints + trainingPointsFor(node),
       };
       const roster = model.game
-        ? applyInjuries(model.core, model.game.result.box.home, nodeId)
+        ? applyInjuries(model.core, model.game.result.box.home, nodeId, model.tier)
         : model.core.roster;
       const core = { ...model.core, rewards, roster };
       const wins = model.wins + 1;

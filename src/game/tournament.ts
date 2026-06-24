@@ -231,7 +231,7 @@ const OPPONENT_BENCH_SIZE = 3;
 export function generateOpponentTeam(
   level: number,
   rng: RNG,
-  opts?: { isBoss?: boolean }
+  opts?: { isBoss?: boolean; extraLegend?: boolean }
 ): { name: string; roster: Roster; colorHex: string; accentHex: string } {
   const team = pickRealTeam(rng); // MUST remain the first draw
   const isBoss = opts?.isBoss ?? false;
@@ -239,15 +239,26 @@ export function generateOpponentTeam(
 
   // Every boss is headlined by its own franchise legend (unscaled, gold) at the
   // legend's natural position; the other four slots are real franchise starters.
+  // A high League tier can stack a SECOND legend at a different slot.
   let legend: RosterPlayer | null = null;
   let legendSlot: Position | null = null;
+  let legend2: RosterPlayer | null = null;
+  let legend2Slot: Position | null = null;
   if (isBoss) {
     legend = legendForTeam(team.abbreviation, rng);
     if (legend) legendSlot = legend.position;
+    if (opts?.extraLegend) {
+      const l2 = legendForTeam(team.abbreviation, rng);
+      if (l2 && l2.position !== legendSlot) {
+        legend2 = l2;
+        legend2Slot = l2.position;
+      }
+    }
   }
 
   const starters = POSITIONS.map((position) => {
     if (legend && legendSlot === position) return legend;
+    if (legend2 && legend2Slot === position) return legend2;
     return realStarterAt(position, level, rng, pool);
   });
   // A short bench so opponents rotate too (procedural fakes only).

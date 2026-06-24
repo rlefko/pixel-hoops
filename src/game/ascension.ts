@@ -31,8 +31,6 @@ export interface TierMods {
   coinMul: number;
   /** Extra weight added to the elite node-type roll (more elites per map). */
   eliteWeightBonus: number;
-  /** Bosses gain a second signature ability. */
-  bossSecondAbility: boolean;
   /** Whether the guaranteed pre-boss rest node remains (false removes it). */
   preBossRest: boolean;
 }
@@ -40,7 +38,7 @@ export interface TierMods {
 /** Cumulative modifiers active at a given league tier. */
 export function tierMods(tier: number): TierMods {
   const t = clamp(tier, 0, MAX_LEAGUE_TIER);
-  const statShift = t >= 9 ? 1.2 : t >= 5 ? 0.8 : t >= 1 ? 0.4 : 0;
+  const statShift = t >= 10 ? 1.6 : t >= 9 ? 1.2 : t >= 5 ? 0.8 : t >= 1 ? 0.4 : 0;
   return {
     statShift,
     elitesFromMap0: t >= 2,
@@ -50,7 +48,6 @@ export function tierMods(tier: number): TierMods {
     maxGamesOut: t >= 6 ? 3 : 2,
     coinMul: t >= 7 ? 0.85 : 1,
     eliteWeightBonus: t >= 8 ? 2 : 0,
-    bossSecondAbility: t >= 10,
     preBossRest: t < 10,
   };
 }
@@ -67,7 +64,7 @@ export const TIER_LABELS: { name: string; blurb: string }[] = [
   { name: 'Lean Payouts', blurb: 'Win coins are reduced' },
   { name: 'Elite Country', blurb: 'More elite teams every map' },
   { name: 'Steeper Climb', blurb: 'The whole difficulty curve rises' },
-  { name: 'The Gauntlet', blurb: 'Bosses gain a second ability; no rest before the finale' },
+  { name: 'The Gauntlet', blurb: 'Opponents peak, and no rest before the finale' },
 ];
 
 /** Short label for a tier badge, e.g. "T3". Tier 0 has no badge. */
