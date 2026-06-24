@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { Text, FitText } from '@/components/StyledText';
+import { Text } from '@/components/StyledText';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, BORDER } from '@/theme';
 import type { Team } from '@/types/team';
@@ -44,9 +44,9 @@ export function LineupBoard({
       {steppingIn && steppingIn.length > 0 ? (
         <View style={styles.steppingIn}>
           <Text style={styles.steppingInLabel}>STEPPING IN</Text>
-          <FitText style={styles.steppingInNames} numberOfLines={2} minScale={0.8}>
+          <Text style={styles.steppingInNames} numberOfLines={2}>
             {steppingIn.map((p) => p.player.name).join(', ')}
-          </FitText>
+          </Text>
         </View>
       ) : null}
       {team.synergy.labels.length > 0 ? (

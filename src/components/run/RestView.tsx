@@ -1,5 +1,5 @@
 import { View, StyleSheet, Pressable } from 'react-native';
-import { Text, FitText } from '@/components/StyledText';
+import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { InjuryIcon } from '@/components/run/PixelIcons';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -30,9 +30,9 @@ export function RestView({ roster, onRebuild, onContinue }: RestViewProps) {
           {injured.map((rp, i) => (
             <View key={i} style={styles.injuredRow}>
               <InjuryIcon size={12} />
-              <FitText style={styles.injuredName} minScale={0.7}>
+              <Text style={styles.injuredName} numberOfLines={2}>
                 {rp.player.name}
-              </FitText>
+              </Text>
               <Text style={styles.injuredOut}>OUT {rp.gamesOut}</Text>
             </View>
           ))}
