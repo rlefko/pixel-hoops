@@ -1,4 +1,4 @@
-import { StyleSheet, View, Pressable, ScrollView } from 'react-native';
+import { StyleSheet, View, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
@@ -21,7 +21,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
 
-  // First launch: welcome the player with their five real free agents, once.
+  // First launch: welcome the player with their starting free agents, once.
   if (loaded && homeRoster && !homeRoster.seenWelcome) {
     return (
       <FreeAgentRevealView
@@ -66,11 +66,7 @@ export default function HomeScreen() {
       {loaded && homeRoster ? (
         <View style={styles.selectBox}>
           <Text style={styles.selectLabel}>DIFFICULTY</Text>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.chipRow}
-          >
+          <View style={styles.chipRow}>
             {DIFFICULTIES.map((d) => {
               const active = homeRoster.selectedDifficulty === d;
               return (
@@ -85,7 +81,7 @@ export default function HomeScreen() {
                 </Pressable>
               );
             })}
-          </ScrollView>
+          </View>
           <Text style={styles.selectBlurb}>
             {DIFFICULTY_LABELS[homeRoster.selectedDifficulty].blurb}
           </Text>
