@@ -10,6 +10,7 @@ import {
   type TeamModifier,
 } from './effects';
 import { getAbility } from './abilities';
+import { getGachaAbility } from './abilities-gacha';
 import { ITEM_BY_ID, itemDelta } from './items';
 import { boostsToModifier, type PassiveBoost } from './boosts';
 
@@ -33,9 +34,9 @@ const LEGEND_CHEMISTRY: Partial<TeamModifier> = {
   labels: ['On-Loan Star'],
 };
 
-/** Return effective-stat COPIES of a five/bench (items + legend self-auras +
- * run-scoped training baked in). Items/abilities cap at 10; training folds on
- * top, the only path past 10 (up to 15). */
+/** Return effective-stat COPIES of a five/bench (item + legend self-aura + equipped
+ * gacha ability + run-scoped training baked in). Item/abilities cap at 10; training
+ * folds on top, the only path past 10 (up to 15). */
 export function effectivePlayers(players: RosterPlayer[]): RosterPlayer[] {
   return players.map((rp) => {
     let delta: StatDelta = {};
@@ -45,6 +46,10 @@ export function effectivePlayers(players: RosterPlayer[]): RosterPlayer[] {
     }
     const ability = getAbility(rp.ability);
     if (ability?.selfDelta) delta = addStatDelta(delta, ability.selfDelta);
+    // The gacha-equipped ability is a SEPARATE channel from the legend signature
+    // and the run-scoped item; its self-delta stacks in the same single bake pass.
+    const gacha = getGachaAbility(rp.equippedAbility?.id);
+    if (gacha?.selfDelta) delta = addStatDelta(delta, gacha.selfDelta);
     const hasTraining = !!rp.trainingDelta && hasDelta(rp.trainingDelta);
     if (!hasDelta(delta) && !hasTraining) return rp;
     let stats = applyStatDelta(rp.player.stats, delta);
@@ -67,9 +72,13 @@ export function teamModifierFor(
   for (const rp of five) {
     if (rp.onLoan) hasOnLoan = true;
     const ability = getAbility(rp.ability);
-    if (!ability) continue;
-    if (ability.teamAura) mods.push(teamModifierFromPartial(ability.teamAura));
-    if (ability.hooks?.length) mods.push(teamModifierFromPartial({ hooks: ability.hooks }));
+    if (ability) {
+      if (ability.teamAura) mods.push(teamModifierFromPartial(ability.teamAura));
+      if (ability.hooks?.length) mods.push(teamModifierFromPartial({ hooks: ability.hooks }));
+    }
+    // The equipped gacha ability can also carry a team aura (rare/legendary team boosts).
+    const gacha = getGachaAbility(rp.equippedAbility?.id);
+    if (gacha?.teamAura) mods.push(teamModifierFromPartial(gacha.teamAura));
   }
   if (hasOnLoan) mods.push(teamModifierFromPartial(LEGEND_CHEMISTRY));
   return mergeTeamModifiers(mods);

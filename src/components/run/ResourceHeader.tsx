@@ -19,8 +19,8 @@ interface ResourceHeaderProps {
   totalMaps: number;
   /** Equipped passive-boost count (shown as n/5). Omitted hides the pill. */
   boostCount?: number;
-  /** League tier this run is played at; a badge shows when above the base tier. */
-  tier?: number;
+  /** Short run label, e.g. "HARD · A". */
+  modeLabel?: string;
 }
 
 function Pill({
@@ -46,7 +46,7 @@ export function ResourceHeader({
   mapNumber,
   totalMaps,
   boostCount,
-  tier,
+  modeLabel,
 }: ResourceHeaderProps) {
   return (
     <View style={styles.header}>
@@ -55,7 +55,7 @@ export function ResourceHeader({
         <Text style={styles.round}>
           MAP {mapNumber}/{totalMaps}
         </Text>
-        {tier && tier > 0 ? <Text style={styles.tier}>LEAGUE T{tier}</Text> : null}
+        {modeLabel ? <Text style={styles.tier}>{modeLabel}</Text> : null}
       </View>
       <View style={styles.right}>
         <Pill icon={<CoinIcon size={12} color={palette.gold} />} value={rewards.coins} label="COINS" />

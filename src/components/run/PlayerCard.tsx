@@ -12,6 +12,7 @@ import { ovr, off, def, ath, tierFor, classForOvr, type TierKey } from '@/game/r
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
+import { getGachaAbility } from '@/game/abilities-gacha';
 import { ITEM_RARITY_COLOR } from './item-ui';
 import type { PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
@@ -101,6 +102,7 @@ export function PlayerCard({
   const isLegendary = rp.legendary ?? false;
   const itemDef = rp.item ? ITEM_BY_ID[rp.item.defId] : undefined;
   const abilityDef = getAbility(rp.ability);
+  const gachaDef = getGachaAbility(rp.equippedAbility?.id);
   // A slow gold breathe behind a legendary's name, so a real great reads as a
   // jackpot wherever the card appears (recruit, lineup, pregame).
   const { glowStyle } = usePulse();
@@ -185,9 +187,17 @@ export function PlayerCard({
         <View style={styles.panel}>
           {abilityDef ? (
             <View style={styles.metaRow}>
-              <Text style={[styles.metaLabel, { color: palette.gold }]}>ABILITY</Text>
+              <Text style={[styles.metaLabel, { color: palette.gold }]}>SIGNATURE</Text>
               <Text style={styles.metaText}>
                 {abilityDef.name}: {abilityDef.blurb}
+              </Text>
+            </View>
+          ) : null}
+          {gachaDef ? (
+            <View style={styles.metaRow}>
+              <Text style={[styles.metaLabel, { color: palette.steelBlue }]}>ABILITY</Text>
+              <Text style={styles.metaText}>
+                {gachaDef.name}: {gachaDef.blurb}
               </Text>
             </View>
           ) : null}

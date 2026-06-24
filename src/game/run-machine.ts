@@ -7,9 +7,20 @@ import {
 } from './tournament';
 import { buildTeam, validateLineup } from './lineup';
 import { simulateGame } from './simulation';
-import { homeToRunRoster, type HomeRoster } from './home-roster';
-import { budgetFor, lineupCost, cheapestFiveCost, playerCost } from './budget';
-import { tierMods } from './ascension';
+import { ownedRosterPlayers, type HomeRoster } from './home-roster';
+import {
+  difficultyMods,
+  LADDER_CLASSES,
+  type Difficulty,
+  type DifficultyMods,
+  type LadderClass,
+} from './difficulty-mode';
+import { classLevel } from './classes';
+import {
+  canConfirmDraft,
+  suggestDraft,
+  MAX_RUN_ROSTER,
+} from './draft';
 import { effectivePlayers, teamModifierFor } from './apply-effects';
 import { MAX_TRAINED_STAT, trainedStat } from './effects';
 import { legendRecruit } from './player-pool';
@@ -36,9 +47,10 @@ import { palette } from '@/theme/palette';
  * No React, no storage, no theme barrel, so it unit-tests headless. The hook
  * (src/hooks/useRun.ts) wraps this with state + persistence side effects.
  *
- * A run is a sequence of TOTAL_MAPS short fixed-shape maps. A passive-boost draft
- * opens each map; clearing a map's boss opens the next map (and its draft), and
- * clearing the final boss wins the run.
+ * A run is a sequence of TOTAL_MAPS short fixed-shape maps on a chosen
+ * (difficulty x ladder class). It opens with a points DRAFT from the owned
+ * collection; a passive-boost draft opens each map; clearing a map's boss opens
+ * the next map, and clearing the final boss wins the run (advancing the ladder).
  */
 
 /** Maps in a run; each ends in a boss and opens with a passive-boost draft. */
@@ -51,7 +63,7 @@ const TP_GAME = 1;
 const TP_ELITE = 2;
 const TP_BOSS = 4;
 
-// --- Coin economy (spent only in the Locker Room between runs) ---
+// --- Coin economy (spent only in the Locker Room / Arcade between runs) ---
 /** Round-1 standard-game floor. */
 const COIN_BASE = 10;
 /** Each deeper round adds this much to a win's payout. */
@@ -65,21 +77,23 @@ const DOMINANCE_CAP = 12;
 /** Base per-game injury chance for a heavily-used, average-durability player. */
 const INJURY_BASE = 0.05;
 /** Game load that maps to "full minutes" (load / this ~ 1 for a full game). The
- * base cap on games sidelined lives in the tier table (src/game/ascension.ts). */
+ * cap on games sidelined comes from the difficulty (src/game/difficulty-mode.ts). */
 const INJURY_LOAD_NORM = 90;
 
 export type RunPhase =
   | { kind: 'map' }
-  // Pick the starting five under the salary cap before the run opens. Defaults to
-  // the most recent five (excluding legends), trimmed to fit the budget.
-  | { kind: 'prepareLineup'; starters: RosterPlayer[]; bench: RosterPlayer[] }
+  // Draft a rotation (5-8) from the owned collection under the difficulty's point
+  // budget, paying by each player's class relative to the run's ladder class.
+  | { kind: 'draft'; available: RosterPlayer[] }
   | { kind: 'pregame'; nodeId: string }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
   | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[] }
+  // Recruiting past the 12-man run cap: pick a player to drop for the incoming one.
+  | { kind: 'dropForRecruit'; nodeId: string; incoming: RosterPlayer }
   | { kind: 'training'; nodeId: string }
   | { kind: 'rest'; nodeId: string }
-  // A 1-of-3 passive-boost draft, opened once before each map. `forced` is set
+  // A 1-of-N passive-boost draft, opened once before each map. `forced` is set
   // when the boost list is full and a drop is required.
   | {
       kind: 'boostDraft';
@@ -102,19 +116,19 @@ export interface RunModel {
   phase: RunPhase;
   gamePlan: GamePlan;
   wins: number;
-  /** The League tier this run is played at (from the home roster's selection).
-   * Opponents harden with it; see src/game/ascension.ts. */
-  tier: number;
-  /** Whether this run is at the player's unlock frontier, so a championship will
-   * unlock the next tier (drives the run-summary reward beat). */
+  /** The difficulty this run is played at (sets draft points + opponent modifiers). */
+  difficulty: Difficulty;
+  /** The ladder class this run centers on; clearing it advances that difficulty's ladder. */
+  ladderClass: LadderClass;
+  /** Cached difficulty modifiers, applied at consumption time. */
+  mods: DifficultyMods;
+  /** Whether this run is at the player's ladder frontier, so a championship unlocks
+   * the next class (drives the run-summary reward beat). */
   atFrontier: boolean;
-  /** The starting-five salary cap for this run, from the home roster's tier. */
-  budgetCap: number;
   /** Equipped passive boosts (max 5). Lives here, not in RunState, so it never
    * leaks into the home roster at merge. */
   boosts: PassiveBoost[];
-  /** Run-scoped item bag: defIds of unequipped items kept for later. Lives here,
-   * not in RunState, so items are never lost mid-run and never persist home. */
+  /** Run-scoped item bag: defIds of unequipped items kept for later. */
   bag: string[];
   /** Legendary on-loan offer tracking (once per run + soft pity). */
   legend: { dryStreak: number; offeredThisRun: boolean };
@@ -129,7 +143,7 @@ export interface RunModel {
 
 export type RunAction =
   | { type: 'newRun'; seed: string; homeRoster: HomeRoster }
-  | { type: 'confirmPrepareLineup'; starters: RosterPlayer[]; bench: RosterPlayer[] }
+  | { type: 'confirmDraft'; rotation: RosterPlayer[] }
   | { type: 'chooseNode'; nodeId: string }
   | { type: 'setGamePlan'; plan: GamePlan }
   | { type: 'openLineupBuilder' }
@@ -139,6 +153,7 @@ export type RunAction =
   | { type: 'finishReplay' }
   | { type: 'resolveGameResult' }
   | { type: 'recruit'; player: RosterPlayer }
+  | { type: 'dropForRecruit'; index: number }
   | { type: 'trainPlayer'; index: number; stat: keyof PlayerStats }
   | { type: 'rest' }
   | { type: 'draftBoost'; offer: BoostOffer }
@@ -159,65 +174,44 @@ export type RunAction =
   | { type: 'backToMap' }
   | { type: 'endRun' };
 
-/**
- * A legal default starting five for the pre-run picker: the most recent five
- * (legends pushed to the bench, since on-loan stars do not persist anyway), then
- * greedily swap the priciest starter for the cheapest bench body until the five
- * fits the cap. Deterministic. Falls back to the cheapest achievable five when a
- * pool of nothing-but-expensive players cannot fit (the picker grants grace).
- */
-function defaultLegalFive(roster: RunState['roster'], cap: number): RunState['roster'] {
-  const all = [...roster.starters, ...roster.bench];
-  const preferred = [...all.filter((p) => !p.legendary), ...all.filter((p) => p.legendary)];
-  let starters = preferred.slice(0, 5);
-  let bench = preferred.slice(5);
-  for (let guard = 0; guard < 30 && lineupCost(starters) > cap && bench.length > 0; guard++) {
-    const hi = starters.reduce((m, p, i) => (playerCost(p) > playerCost(starters[m]) ? i : m), 0);
-    const lo = bench.reduce((m, p, i) => (playerCost(p) < playerCost(bench[m]) ? i : m), 0);
-    if (playerCost(bench[lo]) >= playerCost(starters[hi])) break; // no cheaper swap
-    const out = starters[hi];
-    const inn = bench[lo];
-    starters = starters.map((p, i) => (i === hi ? inn : p));
-    bench = bench.map((p, i) => (i === lo ? out : p));
-  }
-  return { starters, bench };
-}
-
-/**
- * Whether a five may be fielded under the salary cap: under it, or already at the
- * cheapest achievable cost (the grace floor, so a pool of nothing-but-expensive
- * players never soft-locks the picker).
- */
-function lineupWithinBudget(starters: RosterPlayer[], bench: RosterPlayer[], cap: number): boolean {
-  const used = lineupCost(starters);
-  return used <= cap || used <= cheapestFiveCost([...starters, ...bench]);
+/** Whether the run's ladder class is at/above the cleared frontier, so a
+ * championship advances the ladder (drives the summary "unlocked" beat). */
+function isFrontierRun(home: HomeRoster, difficulty: Difficulty, ladderClass: LadderClass): boolean {
+  const cleared = home.ladderProgress[difficulty];
+  const clearedIdx = cleared == null ? -1 : LADDER_CLASSES.indexOf(cleared);
+  return LADDER_CLASSES.indexOf(ladderClass) > clearedIdx;
 }
 
 /** Build a fresh run from a seed and the player's home roster. */
 export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
-  const tier = homeRoster.selectedTier ?? 0;
-  const map = generateFixedMap({ seed: deriveSeed(seed, 'map-0'), mapIndex: 0, tier });
-  const budgetCap = budgetFor(homeRoster.leagueTier);
-  const roster = homeToRunRoster(homeRoster);
-  const { starters, bench } = defaultLegalFive(roster, budgetCap);
+  const difficulty = homeRoster.selectedDifficulty ?? 'easy';
+  const ladderClass = homeRoster.selectedLadderClass ?? 'C';
+  const mods = difficultyMods(difficulty);
+  const map = generateFixedMap({
+    seed: deriveSeed(seed, 'map-0'),
+    mapIndex: 0,
+    difficulty,
+    ladderLevel: classLevel(ladderClass),
+  });
+  const available = ownedRosterPlayers(homeRoster);
   const core: RunState = {
     map,
     currentMapIndex: 0,
     currentNodeId: null,
-    roster,
+    // The run roster is empty until the draft confirms a rotation.
+    roster: { starters: [], bench: [] },
     seed,
     rewards: { coins: 0, reputation: 0, trainingPoints: 0 },
   };
-  // The run opens on the pre-run starting-five pick; the Map-1 boost draft (and
-  // its seeded offers) follows once the five is confirmed.
   return {
     core,
-    phase: { kind: 'prepareLineup', starters, bench },
+    phase: { kind: 'draft', available },
     gamePlan: DEFAULT_GAME_PLAN,
     wins: 0,
-    tier,
-    atFrontier: tier >= (homeRoster.leagueTier ?? 0),
-    budgetCap,
+    difficulty,
+    ladderClass,
+    mods,
+    atFrontier: isFrontierRun(homeRoster, difficulty, ladderClass),
     boosts: [],
     bag: [],
     legend: { dryStreak: homeRoster.legendDryStreak ?? 0, offeredThisRun: false },
@@ -228,15 +222,15 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
 // --- Coin payout ---
 
 /** Coins for a win: round-scaled, node-type multiplied, plus a dominance bonus.
- * A high League tier trims the payout (meta-progression slows as you climb). */
-function coinsForWin(node: MapNode, result: SimResult, tier = 0): number {
+ * A harder difficulty trims the payout (meta-progression slows as you climb). */
+function coinsForWin(node: MapNode, result: SimResult, mods: DifficultyMods): number {
   const round = node.round ?? node.layer + 1;
   let coins = COIN_BASE + COIN_PER_ROUND * (round - 1);
   if (node.type === 'elite') coins *= 1.5;
   else if (node.type === 'boss') coins *= 2;
   const margin = result.finalHome - result.finalAway;
   coins += Math.min(DOMINANCE_CAP, Math.max(0, margin - 5) * 0.6);
-  return Math.round(coins * tierMods(tier).coinMul);
+  return Math.round(coins * mods.coinMul);
 }
 
 /** Training points a win awards, scaled by the opponent's difficulty. */
@@ -246,7 +240,7 @@ function trainingPointsFor(node: MapNode): number {
   return TP_GAME;
 }
 
-// --- Legendary recruit gate ---
+// --- Legendary recruit gate (S / S+ ladders only) ---
 
 /** Base per-recruit-node legendary chance, ramping by round. */
 function recruitLegendChance(round: number): number {
@@ -315,11 +309,15 @@ function equipWithBagSwap(
   return { roster: withEquippedItem(roster, index, defId), bag: nextBag };
 }
 
+/** The combined run-roster size (starters + bench). */
+function rosterSize(roster: RunState['roster']): number {
+  return roster.starters.length + roster.bench.length;
+}
+
 /**
  * The five (plus bench) that actually dress for a game: healthy players first,
  * injured players backfilled only if there are fewer than five healthy, so a run
- * can never be bricked by injuries. With a deep, healthy roster the player's
- * chosen order is preserved.
+ * can never be bricked by injuries.
  */
 export function dressedRoster(roster: RunState['roster']): RunState['roster'] {
   const all = [...roster.starters, ...roster.bench];
@@ -336,22 +334,17 @@ export function dressedRoster(roster: RunState['roster']): RunState['roster'] {
 
 /**
  * The healthy players who start in place of injured starters this game: the dressed
- * five minus the player's chosen starters. Empty when nobody is hurt. The pregame
- * board names these subs so an injured starter is shown as OUT in their slot rather
- * than silently swapped out of the five.
+ * five minus the player's chosen starters. Empty when nobody is hurt.
  */
 export function steppingInSubs(roster: RunState['roster']): RosterPlayer[] {
-  // Identity by object reference, not name: real rosters can carry duplicate
-  // player names, and a name-based check would wrongly treat a same-named bench
-  // call-up as already starting (returning no sub for an injured starter).
   const chosen = new Set<RosterPlayer>(roster.starters);
   return dressedRoster(roster).starters.filter((p) => !chosen.has(p));
 }
 
 /**
  * The player's effective home Team for a game: the dressed five plus bench, with
- * items, legend self-auras, and passive boosts baked in. Shared by the pregame
- * preview and the game sim so both read the exact same lineup.
+ * items, abilities, and passive boosts baked in. Shared by the pregame preview and
+ * the game sim so both read the exact same lineup.
  */
 export function buildHomeTeam(model: RunModel): Team {
   const dressed = dressedRoster(model.core.roster);
@@ -367,14 +360,13 @@ export function buildHomeTeam(model: RunModel): Team {
 }
 
 /**
- * The deterministic opponent Team for a combat node. Round and boss status are
- * derived from the node here so the pregame scouting preview and the simulated
- * game always build the identical five from the same seed (see the determinism
- * note on generateOpponentTeam).
+ * The deterministic opponent Team for a combat node. The node's baked difficulty
+ * (already centered on the run's ladder class) plus the difficulty stat-shift gives
+ * the opponent level, so the pregame scouting preview and the simulated game always
+ * build the identical five from the same seed.
  */
-export function buildOpponentTeam(core: RunState, nodeId: string, tier = 0): Team {
+export function buildOpponentTeam(core: RunState, nodeId: string, mods: DifficultyMods): Team {
   const node = core.map.nodes[nodeId];
-  const mods = tierMods(tier);
   const level = (node.difficulty ?? node.round ?? node.layer + 1) + mods.statShift;
   const isBoss = node.type === 'boss' || nodeId === core.map.bossNodeId;
   const opp = generateOpponentTeam(
@@ -395,16 +387,15 @@ export function buildOpponentTeam(core: RunState, nodeId: string, tier = 0): Tea
 
 /**
  * After a game, recover everyone one game (decrement gamesOut) and roll fresh
- * injuries for the players who dressed. Risk rises with accumulated load and
- * falls with durability. Deterministic from the game's derived seed.
+ * injuries for the players who dressed. Risk rises with accumulated load and falls
+ * with durability. Deterministic from the game's derived seed.
  */
 function applyInjuries(
   core: RunState,
   homeBox: BoxLine[],
   nodeId: string,
-  tier = 0
+  mods: DifficultyMods
 ): RunState['roster'] {
-  const mods = tierMods(tier);
   const rng = createRNG(deriveSeed(core.seed, `injury-${nodeId}`));
   const lineByName = new Map(homeBox.map((b) => [b.name, b]));
   const update = (p: RosterPlayer): RosterPlayer => {
@@ -421,10 +412,16 @@ function applyInjuries(
   return mapRoster(core.roster, update);
 }
 
+/** Fraction of the run completed by map index (0 on the first map, ~1 on the last). */
+function mapProgress(mapIndex: number): number {
+  return TOTAL_MAPS > 1 ? mapIndex / (TOTAL_MAPS - 1) : 0;
+}
+
 /**
- * Resolve a chosen node into its phase. Combat opens pregame; recruit nodes can
- * roll a rare on-loan legendary (else procedural offers); boost nodes roll a free
- * item stock. Shared by chooseNode and the post-draft continuation.
+ * Resolve a chosen node into its phase. Combat opens pregame; recruit nodes offer
+ * real players at the ladder class (with a growing chance of the class above), and
+ * on the S / S+ ladders can roll a rare on-loan legendary; boost nodes roll a free
+ * item stock.
  */
 function enterNode(model: RunModel, nodeId: string): RunModel {
   const core = traverseTo(model.core, nodeId);
@@ -436,18 +433,21 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
     case 'boss':
       return { ...model, core, phase: { kind: 'pregame', nodeId } };
     case 'recruit': {
-      // Don't offer a free agent the squad already owns.
       const owned = new Set(
         [...core.roster.starters, ...core.roster.bench].map((p) => p.player.name)
       );
       const fallback = generateRecruitOffers(
-        node.difficulty ?? round,
+        model.ladderClass,
+        mapProgress(core.currentMapIndex),
         RECRUIT_OFFER_COUNT,
         createRNG(deriveSeed(core.seed, `recruit-${nodeId}`)),
         owned
       );
+      // Legendaries (S+) surface only on the S / S+ ladders.
+      const legendsAllowed = model.ladderClass === 'S' || model.ladderClass === 'S+';
       const gateRng = createRNG(deriveSeed(core.seed, `legend-${nodeId}`));
       if (
+        legendsAllowed &&
         !model.legend.offeredThisRun &&
         gateRng.chance(legendGateChance(round, model.legend.dryStreak))
       ) {
@@ -484,7 +484,8 @@ function advanceToNextMap(model: RunModel): RunModel {
   const map = generateFixedMap({
     seed: deriveSeed(model.core.seed, `map-${nextIndex}`),
     mapIndex: nextIndex,
-    tier: model.tier,
+    difficulty: model.difficulty,
+    ladderLevel: classLevel(model.ladderClass),
   });
   const core = { ...model.core, map, currentMapIndex: nextIndex, currentNodeId: null };
   const round = nextIndex + 1;
@@ -492,7 +493,7 @@ function advanceToNextMap(model: RunModel): RunModel {
     round,
     model.boosts,
     createRNG(deriveSeed(model.core.seed, `boost-m${nextIndex}`)),
-    tierMods(model.tier).boostOfferCount
+    model.mods.boostOfferCount
   );
   return {
     ...model,
@@ -500,6 +501,18 @@ function advanceToNextMap(model: RunModel): RunModel {
     game: null,
     phase: { kind: 'boostDraft', round, offers, pendingFull: false },
   };
+}
+
+/** Add a recruit to the bench, enforcing the 12-man run cap (else ask for a drop). */
+function recruitOrDrop(model: RunModel, nodeId: string, player: RosterPlayer): RunModel {
+  if (rosterSize(model.core.roster) >= MAX_RUN_ROSTER) {
+    return { ...model, phase: { kind: 'dropForRecruit', nodeId, incoming: player } };
+  }
+  const roster = {
+    ...model.core.roster,
+    bench: [...model.core.roster.bench, player],
+  };
+  return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
 }
 
 export function runReducer(
@@ -510,20 +523,20 @@ export function runReducer(
   if (model === null) return null;
 
   switch (action.type) {
-    case 'confirmPrepareLineup': {
-      if (model.phase.kind !== 'prepareLineup') return model;
-      const { starters, bench } = action;
-      if (!validateLineup(starters).ok) return model;
-      if (!lineupWithinBudget(starters, bench, model.budgetCap)) return model;
+    case 'confirmDraft': {
+      if (model.phase.kind !== 'draft') return model;
+      const rotation = action.rotation;
+      if (!canConfirmDraft(rotation, model.ladderClass, model.difficulty).ok) return model;
+      const roster = { starters: rotation.slice(0, 5), bench: rotation.slice(5) };
       const offers = drawBoostOffers(
         1,
         [],
         createRNG(deriveSeed(model.core.seed, 'boost-m0')),
-        tierMods(model.tier).boostOfferCount
+        model.mods.boostOfferCount
       );
       return {
         ...model,
-        core: { ...model.core, roster: { starters, bench } },
+        core: { ...model.core, roster },
         phase: { kind: 'boostDraft', round: 1, offers, pendingFull: false },
       };
     }
@@ -543,9 +556,6 @@ export function runReducer(
     case 'setLineup': {
       if (model.phase.kind !== 'lineup') return model;
       if (!validateLineup(action.starters).ok) return model;
-      // The salary cap also governs in-run lineup changes, so a cheap pre-run five
-      // cannot be swapped for five studs mid-run (grace prevents a soft-lock).
-      if (!lineupWithinBudget(action.starters, action.bench, model.budgetCap)) return model;
       const roster = { starters: action.starters, bench: action.bench };
       return { ...model, core: { ...model.core, roster }, phase: model.phase.returnTo };
     }
@@ -559,7 +569,7 @@ export function runReducer(
       if (model.phase.kind !== 'pregame') return model;
       const nodeId = model.phase.nodeId;
       const home = buildHomeTeam(model);
-      const away = buildOpponentTeam(model.core, nodeId, model.tier);
+      const away = buildOpponentTeam(model.core, nodeId, model.mods);
       const result = simulateGame({
         home,
         away,
@@ -582,13 +592,12 @@ export function runReducer(
       if (model.phase.kind !== 'postgame') return model;
       const { won, nodeId } = model.phase;
       if (!won) {
-        // Coins are kept even on a loss, so the run is never wasted.
         const rewards = { ...model.core.rewards, coins: model.core.rewards.coins + LOSS_COINS };
         return { ...model, core: { ...model.core, rewards }, phase: { kind: 'summary', champion: false } };
       }
       const node = model.core.map.nodes[nodeId];
       const isBoss = node.type === 'boss' || nodeId === model.core.map.bossNodeId;
-      const coins = model.game ? coinsForWin(node, model.game.result, model.tier) : COIN_BASE;
+      const coins = model.game ? coinsForWin(node, model.game.result, model.mods) : COIN_BASE;
       const rewards = {
         ...model.core.rewards,
         coins: model.core.rewards.coins + coins,
@@ -596,12 +605,11 @@ export function runReducer(
         trainingPoints: model.core.rewards.trainingPoints + trainingPointsFor(node),
       };
       const roster = model.game
-        ? applyInjuries(model.core, model.game.result.box.home, nodeId, model.tier)
+        ? applyInjuries(model.core, model.game.result.box.home, nodeId, model.mods)
         : model.core.roster;
       const core = { ...model.core, rewards, roster };
       const wins = model.wins + 1;
       if (isBoss) {
-        // The final map's boss wins the run; earlier bosses open the next map.
         if (core.currentMapIndex >= TOTAL_MAPS - 1) {
           return { ...model, core, wins, phase: { kind: 'summary', champion: true } };
         }
@@ -611,12 +619,10 @@ export function runReducer(
           node.round ?? node.layer + 1,
           createRNG(deriveSeed(model.core.seed, `drop-${nodeId}`))
         );
-        // Grab the boss relic first, then fall through to the next map's draft.
         return drop
           ? { ...advanced, phase: { kind: 'itemDrop', nodeId, drop, returnTo: advanced.phase } }
           : advanced;
       }
-      // Elite wins drop a piece of gear before returning to the map.
       if (node.type === 'elite') {
         const drop = rollDrop(
           'elite',
@@ -638,11 +644,21 @@ export function runReducer(
 
     case 'recruit': {
       if (model.phase.kind !== 'recruit') return model;
-      const roster = {
-        ...model.core.roster,
-        bench: [...model.core.roster.bench, action.player],
-      };
-      return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
+      return recruitOrDrop(model, model.phase.nodeId, action.player);
+    }
+
+    case 'dropForRecruit': {
+      if (model.phase.kind !== 'dropForRecruit') return model;
+      const incoming = model.phase.incoming;
+      const all = [...model.core.roster.starters, ...model.core.roster.bench];
+      const dropped = all[action.index];
+      if (!dropped) return model;
+      // Dropping returns any held item to the bag; the player leaves the run roster.
+      const bag = dropped.item ? [...model.bag, dropped.item.defId] : model.bag;
+      const kept = all.filter((_, i) => i !== action.index);
+      kept.push(incoming);
+      const roster = { starters: kept.slice(0, 5), bench: kept.slice(5) };
+      return { ...model, core: { ...model.core, roster }, bag, phase: { kind: 'map' } };
     }
 
     case 'trainPlayer': {
@@ -651,7 +667,7 @@ export function runReducer(
       const all = [...model.core.roster.starters, ...model.core.roster.bench];
       const target = all[action.index];
       if (!target) return model;
-      if (trainedStat(target, action.stat) >= MAX_TRAINED_STAT) return model; // already maxed
+      if (trainedStat(target, action.stat) >= MAX_TRAINED_STAT) return model;
       const next: RosterPlayer = {
         ...target,
         trainingDelta: {
@@ -664,7 +680,6 @@ export function runReducer(
         ...model.core.rewards,
         trainingPoints: model.core.rewards.trainingPoints - 1,
       };
-      // Stay on the Training node so banked points can be spent in one visit.
       return { ...model, core: { ...model.core, roster, rewards } };
     }
 
@@ -694,7 +709,6 @@ export function runReducer(
         const boosts = [...model.boosts, { id: offer.defId, tier: 1 }];
         return afterBoostDraft({ ...model, boosts });
       }
-      // Full: ask the player which boost to drop for the new one.
       return { ...model, phase: { ...phase, pendingFull: true, forced: offer } };
     }
 
@@ -702,15 +716,12 @@ export function runReducer(
       if (model.phase.kind !== 'boostDraft') return model;
       const forced = model.phase.forced;
       if (!forced || forced.kind !== 'new') return model;
-      // Lossy: the dropped boost is gone (no refund), the new one takes its slot.
       const boosts = model.boosts.filter((_, i) => i !== action.dropIndex);
       boosts.push({ id: forced.defId, tier: 1 });
       return afterBoostDraft({ ...model, boosts });
     }
 
     case 'skipBoostDraft': {
-      // Skipping (in the draft or the full-slots drop screen) takes nothing and
-      // returns to the map. Coins are earned only by winning games.
       if (model.phase.kind !== 'boostDraft') return model;
       return afterBoostDraft(model);
     }
@@ -744,7 +755,6 @@ export function runReducer(
       return model.phase.kind === 'itemDrop' ? { ...model, phase: model.phase.returnTo } : model;
 
     case 'addToBag': {
-      // "Keep in bag" from a Boost node or a gear drop: store it, do not equip.
       if (!ITEM_BY_ID[action.defId]) return model;
       const bag = [...model.bag, action.defId];
       if (model.phase.kind === 'boost') return { ...model, bag, phase: { kind: 'map' } };
@@ -764,7 +774,6 @@ export function runReducer(
       if (model.phase.kind !== 'bag') return model;
       const defId = model.bag[action.bagIndex];
       if (!defId) return model;
-      // Take the chosen item out of the bag first; any displaced item returns to it.
       const baseBag = model.bag.filter((_, i) => i !== action.bagIndex);
       const res = equipWithBagSwap(model.core.roster, baseBag, action.playerIndex, defId);
       if (!res) return model;
@@ -783,16 +792,11 @@ export function runReducer(
 
     case 'scoutLegend': {
       if (model.phase.kind !== 'legendReveal') return model;
-      const roster = {
-        ...model.core.roster,
-        bench: [...model.core.roster.bench, model.phase.offer],
-      };
-      return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
+      return recruitOrDrop(model, model.phase.nodeId, model.phase.offer);
     }
 
     case 'declineLegend': {
       if (model.phase.kind !== 'legendReveal') return model;
-      // Passing on the legend still leaves the node's procedural recruit offers.
       return {
         ...model,
         phase: { kind: 'recruit', nodeId: model.phase.nodeId, offers: model.phase.fallback },
@@ -807,3 +811,7 @@ export function runReducer(
       return { ...model, phase: { kind: 'summary', champion: false } };
   }
 }
+
+/** A sensible default rotation for the pre-run draft, exposed so the draft view can
+ * pre-select it. */
+export { suggestDraft };

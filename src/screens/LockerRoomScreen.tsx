@@ -87,7 +87,7 @@ export default function LockerRoomScreen() {
                       const value = rp.player.stats[s.key];
                       const bought = upgradeCount(homeRoster, rp, s.key);
                       const cost = upgradeCost(s.key, bought);
-                      const upgradable = canUpgrade(s.key, value, bought, perStatMax(homeRoster.leagueTier));
+                      const upgradable = canUpgrade(s.key, value, bought, perStatMax());
                       const afford = coins >= cost;
                       const disabled = !upgradable || !afford;
                       return (

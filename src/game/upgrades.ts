@@ -9,22 +9,20 @@ import { SKILL_STAT_KEYS, type PlayerStats } from '@/types/player';
  * 3-10 scale and feel like paying for nothing).
  */
 
-/** Base most +1s a single stat can be bought past its origin (the run-1 cap). */
-export const PER_STAT_MAX = 5;
-/** Ceiling the League-raised per-stat cap can reach. RATING_CAP still bounds the
- * absolute value, so permanent power stays bounded even at the top tier. */
-export const PER_STAT_HARD_MAX = 8;
+/**
+ * The hard per-stat permanent-upgrade cap: at most +2 in any single category, ever.
+ * This is the central meta-power bound (the user found the old +5..+8 ramp made
+ * upgrading "too easy / too cheap"): permanent power can only nudge a player, never
+ * reclass them, so the class ladder and the draft stay the real levers. RATING_CAP
+ * still bounds the absolute value on top of this.
+ */
+export const PER_STAT_MAX = 2;
 /** Hard rating ceiling (shared with training and the 3-10 model). */
 export const RATING_CAP = 10;
 
-/**
- * The per-stat permanent-purchase cap at a given League tier. It starts low
- * (PER_STAT_MAX) and only grows by clearing hard content (climbing the ladder),
- * the Pokelike-style bound: permanent power raises the floor without ever letting
- * a fielded five outrun the difficulty curve. The salary cap is the main limiter.
- */
-export function perStatMax(leagueTier: number): number {
-  return Math.min(PER_STAT_HARD_MAX, PER_STAT_MAX + Math.floor(Math.max(0, leagueTier) / 2));
+/** The per-stat permanent-purchase cap. Flat at PER_STAT_MAX (no ladder ramp). */
+export function perStatMax(): number {
+  return PER_STAT_MAX;
 }
 /** The eight upgradeable skills (condition ratings are not difficulty tiers). */
 export const UPGRADEABLE_STATS = SKILL_STAT_KEYS;

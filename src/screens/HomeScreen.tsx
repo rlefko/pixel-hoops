@@ -1,11 +1,19 @@
-import { StyleSheet, View, Pressable } from 'react-native';
+import { StyleSheet, View, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { CoinIcon } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
+import { CLASS_COLOR } from '@/components/run/class-ui';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { TIER_LABELS } from '@/game/ascension';
+import {
+  DIFFICULTIES,
+  DIFFICULTY_LABELS,
+  LADDER_CLASSES,
+  unlockedClasses,
+  type Difficulty,
+  type LadderClass,
+} from '@/game/difficulty-mode';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** Main menu screen — entry point for the game. */
@@ -23,11 +31,21 @@ export default function HomeScreen() {
     );
   }
 
-  // Choose which unlocked League tier the next run is played at (StS-style).
-  const setSelectedTier = (next: number) => {
+  const unlocked = homeRoster ? unlockedClasses(homeRoster.ladderProgress[homeRoster.selectedDifficulty]) : [];
+
+  const setDifficulty = (d: Difficulty) => {
     if (!homeRoster) return;
-    const clamped = Math.min(homeRoster.leagueTier, Math.max(0, next));
-    saveHomeRoster({ ...homeRoster, selectedTier: clamped });
+    // Keep the selected ladder class valid for the new difficulty's unlocks.
+    const nowUnlocked = unlockedClasses(homeRoster.ladderProgress[d]);
+    const cls = nowUnlocked.includes(homeRoster.selectedLadderClass)
+      ? homeRoster.selectedLadderClass
+      : nowUnlocked[nowUnlocked.length - 1];
+    saveHomeRoster({ ...homeRoster, selectedDifficulty: d, selectedLadderClass: cls });
+  };
+
+  const setLadderClass = (cls: LadderClass) => {
+    if (!homeRoster || !unlocked.includes(cls)) return;
+    saveHomeRoster({ ...homeRoster, selectedLadderClass: cls });
   };
 
   return (
@@ -45,39 +63,60 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {loaded && homeRoster && homeRoster.leagueTier > 0 ? (
-        <View style={styles.tierBox}>
-          <View style={styles.tierRow}>
-            <Pressable
-              onPress={() => setSelectedTier(homeRoster.selectedTier - 1)}
-              disabled={homeRoster.selectedTier <= 0}
-            >
-              <Text style={[styles.tierArrow, homeRoster.selectedTier <= 0 && styles.tierArrowOff]}>
-                ‹
-              </Text>
-            </Pressable>
-            <Text style={styles.tierName}>LEAGUE T{homeRoster.selectedTier}</Text>
-            <Pressable
-              onPress={() => setSelectedTier(homeRoster.selectedTier + 1)}
-              disabled={homeRoster.selectedTier >= homeRoster.leagueTier}
-            >
-              <Text
-                style={[
-                  styles.tierArrow,
-                  homeRoster.selectedTier >= homeRoster.leagueTier && styles.tierArrowOff,
-                ]}
-              >
-                ›
-              </Text>
-            </Pressable>
+      {loaded && homeRoster ? (
+        <View style={styles.selectBox}>
+          <Text style={styles.selectLabel}>DIFFICULTY</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.chipRow}
+          >
+            {DIFFICULTIES.map((d) => {
+              const active = homeRoster.selectedDifficulty === d;
+              return (
+                <Pressable
+                  key={d}
+                  onPress={() => setDifficulty(d)}
+                  style={[styles.chip, active && styles.chipActive]}
+                >
+                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                    {DIFFICULTY_LABELS[d].name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          <Text style={styles.selectBlurb}>
+            {DIFFICULTY_LABELS[homeRoster.selectedDifficulty].blurb}
+          </Text>
+
+          <Text style={styles.selectLabel}>LADDER</Text>
+          <View style={styles.chipRow}>
+            {LADDER_CLASSES.map((cls) => {
+              const isUnlocked = unlocked.includes(cls);
+              const active = homeRoster.selectedLadderClass === cls;
+              const color = CLASS_COLOR[cls];
+              return (
+                <Pressable
+                  key={cls}
+                  onPress={() => setLadderClass(cls)}
+                  disabled={!isUnlocked}
+                  style={[
+                    styles.classChip,
+                    { borderColor: color },
+                    active && { backgroundColor: color + '33' },
+                    !isUnlocked && styles.chipLocked,
+                  ]}
+                >
+                  <Text style={[styles.classChipText, { color: isUnlocked ? color : palette.inkDim }]}>
+                    {isUnlocked ? cls : '🔒'}
+                  </Text>
+                </Pressable>
+              );
+            })}
           </View>
-          <Text style={styles.tierBlurb}>{TIER_LABELS[homeRoster.selectedTier]?.blurb}</Text>
         </View>
       ) : null}
-
-      <Text style={styles.instructions}>
-        {'Build a roster. Run the bracket.\nKeep what you earn.'}
-      </Text>
 
       <View style={styles.buttonContainer}>
         <Pressable
@@ -85,6 +124,12 @@ export default function HomeScreen() {
           onPress={() => router.push('/run')}
         >
           <Text style={styles.primaryText}>NEW RUN</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={() => router.push('/roster')}>
+          <Text style={styles.secondaryText}>Roster</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={() => router.push('/arcade')}>
+          <Text style={styles.secondaryText}>Arcade</Text>
         </Pressable>
         <Pressable style={styles.button} onPress={() => router.push('/locker')}>
           <Text style={styles.secondaryText}>Locker Room</Text>
@@ -139,37 +184,54 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.label,
     color: palette.gold,
   },
-  tierBox: {
+  selectBox: {
     alignItems: 'center',
-    marginTop: space(4),
-    paddingHorizontal: space(4),
-    paddingVertical: space(2),
+    marginTop: space(5),
+    maxWidth: 300,
+  },
+  selectLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+    marginTop: space(3),
+    marginBottom: space(1),
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space(2),
+  },
+  chip: {
+    paddingHorizontal: space(3),
+    paddingVertical: space(1.5),
     borderWidth: BORDER.thin,
-    borderColor: palette.orange + '88',
+    borderColor: palette.inkDim,
     borderRadius: RADIUS.chip,
   },
-  tierRow: { flexDirection: 'row', alignItems: 'center', gap: space(4) },
-  tierArrow: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: palette.orange },
-  tierArrowOff: { color: palette.inkDim, opacity: 0.4 },
-  tierName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.orange },
-  tierBlurb: {
+  chipActive: { borderColor: palette.gold, backgroundColor: palette.gold + '1A' },
+  chipText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  chipTextActive: { color: palette.gold },
+  selectBlurb: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
     color: palette.inkDim,
     textAlign: 'center',
-    marginTop: space(1),
-    maxWidth: 240,
+    marginTop: space(2),
+    maxWidth: 260,
   },
-  instructions: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.label,
-    color: palette.ink,
-    textAlign: 'center',
-    marginTop: space(8),
-    lineHeight: 22,
+  classChip: {
+    minWidth: 40,
+    alignItems: 'center',
+    paddingHorizontal: space(2.5),
+    paddingVertical: space(1.5),
+    borderWidth: BORDER.chunk,
+    borderRadius: RADIUS.chip,
   },
+  classChipText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small },
+  chipLocked: { opacity: 0.4, borderColor: palette.inkDim },
   buttonContainer: {
-    marginTop: space(10),
+    marginTop: space(6),
     alignItems: 'center',
   },
   button: {

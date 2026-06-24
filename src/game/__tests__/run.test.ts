@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createRNG } from '@/game/rng';
-import { generateRecruitOffers, getStatRangeForLevel } from '@/game/tournament';
+import { generateRecruitOffers } from '@/game/tournament';
 import {
   applyUpgrade,
   createRookieRoster,
@@ -18,58 +18,70 @@ import {
   buildHomeTeam,
   buildOpponentTeam,
   steppingInSubs,
+  suggestDraft,
   TOTAL_MAPS,
   type RunModel,
 } from '@/game/run-machine';
 import { generateFixedMap } from '@/game/run-map';
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { tierFor } from '@/game/ratings';
-import { budgetFor, lineupCost } from '@/game/budget';
-import { RATING_CAP } from '@/game/upgrades';
-import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
-import { createPlayer, SKILL_STAT_KEYS } from '@/types/player';
+import { MAX_DRAFT_ROTATION, MAX_RUN_ROSTER } from '@/game/draft';
+import { POSITIONS } from '@/types/roster';
 import type { MapNode } from '@/types/run-map';
 
 function rookie(seed = 'home'): HomeRoster {
   return createRookieRoster(createRNG(seed));
 }
 
+/** Start a run and confirm the draft (suggested rotation), landing on the boost
+ * draft, the way the downstream reducer tests expect. */
+function started(runSeed: string, homeSeed = runSeed): RunModel {
+  const m = initRun(runSeed, rookie(homeSeed));
+  if (m.phase.kind !== 'draft') return m;
+  const rotation = suggestDraft(m.phase.available, m.ladderClass, m.difficulty);
+  return runReducer(m, { type: 'confirmDraft', rotation })!;
+}
+
 describe('generateRecruitOffers', () => {
   it('is deterministic and honors count', () => {
-    const a = generateRecruitOffers(3, 3, createRNG('r1'));
-    const b = generateRecruitOffers(3, 3, createRNG('r1'));
+    const a = generateRecruitOffers('C', 0, 3, createRNG('r1'));
+    const b = generateRecruitOffers('C', 0, 3, createRNG('r1'));
     expect(a).toEqual(b);
     expect(a).toHaveLength(3);
   });
 
   it('differs by seed', () => {
-    const a = generateRecruitOffers(3, 3, createRNG('r1'));
-    const b = generateRecruitOffers(3, 3, createRNG('r2'));
+    const a = generateRecruitOffers('C', 0, 3, createRNG('r1'));
+    const b = generateRecruitOffers('C', 0, 3, createRNG('r2'));
     expect(a).not.toEqual(b);
   });
 
-  it('scales skill stats into the difficulty band with valid positions', () => {
-    const { min, max } = getStatRangeForLevel(5);
-    const offers = generateRecruitOffers(5, 8, createRNG('rs'));
+  it('offers real players at the ladder class on the first map', () => {
+    const offers = generateRecruitOffers('C', 0, 8, createRNG('rs'));
     for (const o of offers) {
-      // Only the eight skill ratings are round-scaled; stamina/durability
-      // stay at their neutral baseline (condition is not a difficulty tier).
-      for (const key of SKILL_STAT_KEYS) {
-        expect(o.player.stats[key]).toBeGreaterThanOrEqual(min);
-        expect(o.player.stats[key]).toBeLessThanOrEqual(max);
-      }
+      // mapProgress 0 -> no class-above chance, so every offer is a C-class real.
+      expect(o.originalClass).toBe('C');
       expect(POSITIONS).toContain(o.position);
+      expect(o.legendary).toBeFalsy();
     }
   });
 
-  it('offers real free agents, never an excluded or duplicate name', () => {
+  it('mixes in the class above by the last map (growing chance)', () => {
+    // mapProgress ~1 -> up to 50% chance of the class above (B from a C ladder).
+    const offers = generateRecruitOffers('C', 1, 12, createRNG('above'));
+    const classes = new Set(offers.map((o) => o.originalClass));
+    expect(classes.has('B')).toBe(true);
+    for (const o of offers) expect(['C', 'B']).toContain(o.originalClass);
+  });
+
+  it('offers real players, never an excluded or duplicate name', () => {
     const exclude = new Set(['Trae Young', 'LaMelo Ball']);
-    const offers = generateRecruitOffers(4, 12, createRNG('ex'), exclude);
-    const starterNames = new Set(NBA_POOL.map((p) => p.name));
+    const offers = generateRecruitOffers('B', 0.5, 12, createRNG('ex'), exclude);
+    const poolNames = new Set(NBA_POOL.map((p) => p.name));
     for (const o of offers) {
       expect(exclude.has(o.player.name)).toBe(false);
-      expect(starterNames.has(o.player.name)).toBe(true); // a real free agent
-      expect(o.legendary).toBeFalsy(); // keepable reals are never gold legends
+      expect(poolNames.has(o.player.name)).toBe(true); // a real player
+      expect(o.legendary).toBeFalsy();
     }
     expect(new Set(offers.map((o) => o.player.name)).size).toBe(offers.length);
   });
@@ -126,50 +138,54 @@ describe('generateFixedMap (fixed shape, random types)', () => {
 });
 
 describe('home roster persistence', () => {
-  it('rookie roster owns five real free agents, one per position, pre-welcome', () => {
+  it('rookie roster owns the starting twelve (5 D + 5 C + 2 B), pre-welcome', () => {
     const r = rookie('fa-seed');
-    expect(r.players).toHaveLength(5);
+    expect(r.players).toHaveLength(12);
     expect(r.seenWelcome).toBe(false);
-    expect(r.players.map((p) => p.position)).toEqual([...POSITIONS]);
-    const starterNames = new Set(NBA_POOL.map((p) => p.name));
-    expect(r.players.every((p) => starterNames.has(p.player.name))).toBe(true);
+    expect(r.selectedDifficulty).toBe('easy');
+    expect(r.selectedLadderClass).toBe('C');
+    const classes = r.players.map((p) => p.originalClass);
+    expect(classes.filter((c) => c === 'D')).toHaveLength(5);
+    expect(classes.filter((c) => c === 'C')).toHaveLength(5);
+    expect(classes.filter((c) => c === 'B')).toHaveLength(2);
+    // C and B starters are real players; D are procedural.
+    const poolNames = new Set(NBA_POOL.map((p) => p.name));
+    const realCount = r.players.filter((p) => poolNames.has(p.player.name)).length;
+    expect(realCount).toBe(7);
   });
 
   it('homeToRunRoster puts five in starters and the rest on the bench', () => {
     const base = rookie();
     const home = {
       ...base,
-      players: [
-        ...base.players,
-        ...generateRecruitOffers(1, 3, createRNG('x')),
-      ],
+      players: [...base.players, ...generateRecruitOffers('C', 0, 3, createRNG('x'))],
     };
     const run = homeToRunRoster(home);
     expect(run.starters).toHaveLength(5);
-    expect(run.bench).toHaveLength(3);
+    expect(run.bench).toHaveLength(home.players.length - 5);
   });
 
-  it('merge appends recruits, carries rewards, and caps growth', () => {
+  it('merge adds only new recruits (uncapped collection), carries rewards', () => {
     const home = rookie();
     const run = homeToRunRoster(home);
-    const grown = {
-      ...run,
-      bench: [...run.bench, ...generateRecruitOffers(2, 4, createRNG('m'))],
-    };
+    const recruits = generateRecruitOffers('B', 0.5, 4, createRNG('m'));
+    const grown = { ...run, bench: [...run.bench, ...recruits] };
     const merged = mergeRunGainsIntoHome(home, grown, {
       coins: 5,
       reputation: 3,
       trainingPoints: 0,
     });
-    expect(merged.players).toHaveLength(9);
+    // Home's 12 are preserved; the new recruits (not already owned) are appended.
+    expect(merged.players.length).toBeGreaterThan(home.players.length);
     expect(merged.coins).toBe(5);
     expect(merged.reputation).toBe(3);
+    // Unique by name|position (no duplicates).
+    const keys = merged.players.map((p) => `${p.player.name}|${p.position}`);
+    expect(new Set(keys).size).toBe(keys.length);
 
-    const flooded = {
-      ...run,
-      bench: generateRecruitOffers(1, 30, createRNG('big')),
-    };
-    expect(mergeRunGainsIntoHome(home, flooded).players).toHaveLength(17); // 5 + cap(12)
+    // Flooding with many recruits grows past any old 17-player cap (uncapped now).
+    const flooded = { ...run, bench: generateRecruitOffers('C', 0, 30, createRNG('big')) };
+    expect(mergeRunGainsIntoHome(home, flooded).players.length).toBeGreaterThan(17);
   });
 
   it('serialize/deserialize round-trips and rejects garbage', () => {
@@ -260,19 +276,53 @@ describe('home roster persistence', () => {
     expect([...next.starters, ...next.bench].every((p) => !p.gamesOut)).toBe(true);
   });
 
-  it('healing an injury at merge keeps the chosen five and the 17 cap', () => {
+  it('grows the collection uncapped and never leaks injuries at merge', () => {
     const home = rookie('inj-cap');
     const run = homeToRunRoster(home);
     const flooded = {
       starters: [{ ...run.starters[0], gamesOut: 2 }, ...run.starters.slice(1)],
-      bench: generateRecruitOffers(1, 30, createRNG('flood')),
+      bench: generateRecruitOffers('C', 0, 30, createRNG('flood')),
     };
     const merged = mergeRunGainsIntoHome(home, flooded);
-    expect(merged.players).toHaveLength(17); // 5 + cap(12)
-    expect(merged.players.slice(0, 5).map((p) => p.player.name)).toEqual(
-      run.starters.map((p) => p.player.name)
+    expect(merged.players.length).toBeGreaterThan(17); // no 17-player cap any more
+    // The owned collection is preserved verbatim at the front.
+    expect(merged.players.slice(0, home.players.length).map((p) => p.player.name)).toEqual(
+      home.players.map((p) => p.player.name)
     );
     expect(merged.players.every((p) => !p.gamesOut)).toBe(true);
+  });
+
+  it('migrates a pre-v6 (League-tier) save and backfills new fields', () => {
+    const home = rookie('mig');
+    // Simulate an old serialized save: v5 fields, no v6 fields.
+    const legacy = {
+      version: 5,
+      data: {
+        players: home.players.map((p) => {
+          const { originalClass: _omit, ...rest } = p;
+          return rest;
+        }),
+        coins: 42,
+        reputation: 7,
+        upgrades: {},
+        legendDryStreak: 2,
+        leagueTier: 3,
+        selectedTier: 1,
+        seenWelcome: true,
+      },
+    };
+    const restored = deserializeHomeRoster(legacy);
+    expect(restored).not.toBeNull();
+    expect(restored!.coins).toBe(42);
+    expect(restored!.selectedDifficulty).toBe('easy');
+    expect(restored!.selectedLadderClass).toBe('C');
+    expect(restored!.abilityInventory).toEqual({});
+    expect(restored!.equippedAbilities).toEqual({});
+    expect(restored!.ladderProgress.easy).toBeNull();
+    // originalClass is backfilled from base stats for every player.
+    expect(restored!.players.every((p) => !!p.originalClass)).toBe(true);
+    // The dropped League-tier fields are gone.
+    expect('leagueTier' in restored!).toBe(false);
   });
 });
 
@@ -282,9 +332,9 @@ describe('run reducer', () => {
   // model at the Map-1 boost draft, the way the downstream tests expect.
   const start = (): RunModel => {
     const m = initRun('seed-1', home);
-    return m.phase.kind === 'prepareLineup'
-      ? runReducer(m, { type: 'confirmPrepareLineup', starters: m.phase.starters, bench: m.phase.bench })!
-      : m;
+    if (m.phase.kind !== 'draft') return m;
+    const rotation = suggestDraft(m.phase.available, m.ladderClass, m.difficulty);
+    return runReducer(m, { type: 'confirmDraft', rotation })!;
   };
   /** A bare combat node injected for resolveGameResult flow tests. */
   const node = (over: Partial<MapNode>): MapNode => ({
@@ -302,14 +352,16 @@ describe('run reducer', () => {
     core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
   });
 
-  it('opens on the pre-run lineup pick with a legal default five', () => {
+  it('opens on the pre-run draft with the full owned collection available', () => {
     const m = initRun('seed-1', home);
-    expect(m.phase.kind).toBe('prepareLineup');
-    expect(m.budgetCap).toBe(budgetFor(home.leagueTier));
-    expect(m.tier).toBe(home.selectedTier);
-    if (m.phase.kind === 'prepareLineup') {
-      expect(m.phase.starters).toHaveLength(5);
-      expect(lineupCost(m.phase.starters)).toBeLessThanOrEqual(m.budgetCap);
+    expect(m.phase.kind).toBe('draft');
+    expect(m.difficulty).toBe(home.selectedDifficulty);
+    expect(m.ladderClass).toBe(home.selectedLadderClass);
+    if (m.phase.kind === 'draft') {
+      expect(m.phase.available).toHaveLength(home.players.length);
+      const rotation = suggestDraft(m.phase.available, m.ladderClass, m.difficulty);
+      expect(rotation.length).toBeGreaterThanOrEqual(5);
+      expect(rotation.length).toBeLessThanOrEqual(MAX_DRAFT_ROTATION);
     }
   });
 
@@ -322,40 +374,31 @@ describe('run reducer', () => {
     expect(m.core.roster.starters).toHaveLength(5);
   });
 
-  it('confirming the five opens the boost draft and sets the roster', () => {
+  it('confirming the draft opens the boost draft and sets the roster', () => {
     const m = initRun('seed-1', home);
-    if (m.phase.kind !== 'prepareLineup') throw new Error('expected prepareLineup');
-    const { starters, bench } = m.phase;
-    const next = runReducer(m, { type: 'confirmPrepareLineup', starters, bench })!;
+    if (m.phase.kind !== 'draft') throw new Error('expected draft');
+    const rotation = suggestDraft(m.phase.available, m.ladderClass, m.difficulty);
+    const next = runReducer(m, { type: 'confirmDraft', rotation })!;
     expect(next.phase.kind).toBe('boostDraft');
-    expect(next.core.roster.starters).toEqual(starters);
+    expect(next.core.roster.starters).toEqual(rotation.slice(0, 5));
   });
 
-  it('rejects an over-budget five when a cheaper one exists', () => {
-    // A pool of five maxed studs plus two cheap players: starting all five studs
-    // is over the cap, and a cheaper five exists, so confirm is a no-op.
-    const maxed = (name: string, pos: Position): RosterPlayer => {
-      const p = createPlayer(name, 'point-guard', createRNG(name).int);
-      for (const k of SKILL_STAT_KEYS) p.stats[k] = RATING_CAP;
-      return { player: p, position: pos };
+  it('rejects a draft over the difficulty point budget', () => {
+    // Insane = 0 draft points: only below-class (free) players are draftable.
+    const insaneHome = {
+      ...rookie('reducer'),
+      selectedDifficulty: 'insane' as const,
+      selectedLadderClass: 'C' as const,
     };
-    const cheap = (name: string, pos: Position): RosterPlayer => {
-      const p = createPlayer(name, 'point-guard', createRNG(name).int);
-      for (const k of SKILL_STAT_KEYS) p.stats[k] = 4;
-      return { player: p, position: pos };
-    };
-    const studs = POSITIONS.map((pos, i) => maxed(`Stud${i}`, pos));
-    const cheaps = [cheap('Cheap0', 'PG'), cheap('Cheap1', 'SG')];
-    const richHome: HomeRoster = {
-      players: [...studs, ...cheaps],
-      coins: 0, reputation: 0, upgrades: {}, legendDryStreak: 0,
-      leagueTier: 0, selectedTier: 0, seenWelcome: true,
-    };
-    const m = initRun('rich', richHome);
-    if (m.phase.kind !== 'prepareLineup') throw new Error('expected prepareLineup');
-    // Try to start all five studs (over the cap) while two cheap subs exist.
-    const over = runReducer(m, { type: 'confirmPrepareLineup', starters: studs, bench: cheaps })!;
-    expect(over.phase.kind).toBe('prepareLineup'); // rejected, still picking
+    const m = initRun('rich', insaneHome);
+    if (m.phase.kind !== 'draft') throw new Error('expected draft');
+    const dOnly = m.phase.available.filter((p) => p.originalClass === 'D').slice(0, 5);
+    const ok = runReducer(m, { type: 'confirmDraft', rotation: dOnly })!;
+    expect(ok.phase.kind).toBe('boostDraft'); // five free D players fit 0 points
+    // Adding a C player (cost 1) blows the 0-point budget -> rejected.
+    const withC = [...dOnly, m.phase.available.find((p) => p.originalClass === 'C')!];
+    const over = runReducer(m, { type: 'confirmDraft', rotation: withC })!;
+    expect(over.phase.kind).toBe('draft'); // rejected, still drafting
   });
 
   it('chooseNode on the recruit entry opens the recruit screen', () => {
@@ -447,13 +490,33 @@ describe('run reducer', () => {
 
   it('recruit appends to the bench and returns to the map', () => {
     const m = start();
-    const [offer] = generateRecruitOffers(1, 1, createRNG('o'));
+    const before = m.core.roster.bench.length;
+    const [offer] = generateRecruitOffers('C', 0, 1, createRNG('o'));
     const next = runReducer(
       { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer] } },
       { type: 'recruit', player: offer }
     )!;
-    expect(next.core.roster.bench).toHaveLength(1);
+    expect(next.core.roster.bench).toHaveLength(before + 1);
+    expect(next.core.roster.bench).toContainEqual(offer);
     expect(next.phase.kind).toBe('map');
+  });
+
+  it('recruiting past the 12-man cap asks for a drop', () => {
+    let m = start();
+    // Pad the roster to the 12-man cap.
+    const fillers = generateRecruitOffers('C', 0, 12, createRNG('fill'));
+    const all = [...m.core.roster.starters, ...m.core.roster.bench, ...fillers].slice(0, MAX_RUN_ROSTER);
+    m = { ...m, core: { ...m.core, roster: { starters: all.slice(0, 5), bench: all.slice(5) } } };
+    const [offer] = generateRecruitOffers('B', 0, 1, createRNG('over'));
+    const next = runReducer(
+      { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer] } },
+      { type: 'recruit', player: offer }
+    )!;
+    expect(next.phase.kind).toBe('dropForRecruit');
+    // Dropping a player takes the recruit and returns to the map at the cap.
+    const dropped = runReducer(next, { type: 'dropForRecruit', index: 0 })!;
+    expect(dropped.phase.kind).toBe('map');
+    expect(dropped.core.roster.starters.length + dropped.core.roster.bench.length).toBe(MAX_RUN_ROSTER);
   });
 
   it('grabbing a free boost item equips it without spending coins', () => {
@@ -498,26 +561,26 @@ describe('run reducer', () => {
 
 describe('pregame team builders', () => {
   it('builds a deterministic opponent for the same seed and node', () => {
-    const m = initRun('det', rookie('det'));
+    const m = started('det');
     const nodeId = m.core.map.bossNodeId;
-    expect(buildOpponentTeam(m.core, nodeId)).toEqual(
-      buildOpponentTeam(m.core, nodeId)
+    expect(buildOpponentTeam(m.core, nodeId, m.mods)).toEqual(
+      buildOpponentTeam(m.core, nodeId, m.mods)
     );
   });
 
   it('previews the exact opponent the game then simulates', () => {
-    let m = initRun('preview', rookie('preview'));
+    let m = started('preview');
     const nodeId = m.core.map.bossNodeId;
     m = runReducer(m, { type: 'chooseNode', nodeId })!;
     expect(m.phase.kind).toBe('pregame');
-    const preview = buildOpponentTeam(m.core, nodeId);
+    const preview = buildOpponentTeam(m.core, nodeId, m.mods);
     m = runReducer(m, { type: 'enterGame' })!;
     expect(preview.name).toBe(m.game!.opponentName);
     expect(preview).toEqual(m.game!.away);
   });
 
   it('previews the dressed home five the game then uses', () => {
-    let m = initRun('home-preview', rookie('home-preview'));
+    let m = started('home-preview');
     const nodeId = m.core.map.bossNodeId;
     m = runReducer(m, { type: 'chooseNode', nodeId })!;
     const preview = buildHomeTeam(m);
@@ -528,7 +591,7 @@ describe('pregame team builders', () => {
 
 describe('training points', () => {
   const withPoints = (points: number): RunModel => {
-    const m = initRun('train', rookie('train'));
+    const m = started('train');
     return {
       ...m,
       core: { ...m.core, rewards: { coins: 0, reputation: 0, trainingPoints: points } },
@@ -591,7 +654,7 @@ describe('training ratings (S+/S++ tiers and the 15 ceiling)', () => {
 });
 
 describe('item bag (run-scoped)', () => {
-  const start = (): RunModel => initRun('seed-bag', rookie('bag'));
+  const start = (): RunModel => started('seed-bag', 'bag');
   // Give starter 0 a held item, for the swap/unequip cases.
   const withItem = (m: RunModel, defId: string): RunModel => ({
     ...m,
@@ -642,13 +705,8 @@ describe('item bag (run-scoped)', () => {
 });
 
 describe('boosts, economy, and legends', () => {
-  // Open the run and confirm the pre-run five so the helper lands on the draft.
-  const start = (): RunModel => {
-    const m = initRun('seed-econ', rookie('econ'));
-    return m.phase.kind === 'prepareLineup'
-      ? runReducer(m, { type: 'confirmPrepareLineup', starters: m.phase.starters, bench: m.phase.bench })!
-      : m;
-  };
+  // Open the run and confirm the draft so the helper lands on the boost draft.
+  const start = (): RunModel => started('seed-econ', 'econ');
 
   it('drafting a boost equips it and lands on the map (run-start draft)', () => {
     let m = start();
@@ -725,7 +783,7 @@ describe('boosts, economy, and legends', () => {
 
 describe('between-game injuries', () => {
   const playWonGame = (seed: string): RunModel => {
-    let m = initRun(seed, rookie(`inj-${seed}`));
+    let m = started(seed, `inj-${seed}`);
     const nodeId = m.core.map.bossNodeId; // any combat node; bosses always exist
     m = runReducer(m, { type: 'chooseNode', nodeId })!;
     m = runReducer(m, { type: 'enterGame' })!;
@@ -755,7 +813,7 @@ describe('between-game injuries', () => {
   });
 
   it('a rest node clears injuries', () => {
-    const m = initRun('rest', rookie('rest'));
+    const m = started('rest');
     const [first, ...rest] = m.core.roster.starters;
     const injured = {
       ...m,
@@ -770,8 +828,8 @@ describe('between-game injuries', () => {
   });
 
   it('sits an injured starter when healthy depth covers it', () => {
-    let m = initRun('dress', rookie('dress'));
-    const bench = generateRecruitOffers(1, 1, createRNG('bp'));
+    let m = started('dress');
+    const bench = generateRecruitOffers('C', 0, 1, createRNG('bp'));
     const [first, ...rest] = m.core.roster.starters;
     m = {
       ...m,
@@ -791,9 +849,9 @@ describe('between-game injuries', () => {
   });
 
   it('steppingInSubs names the healthy sub for an injured starter, else none', () => {
-    const m = initRun('subs', rookie('subs'));
+    const m = started('subs');
     expect(steppingInSubs(m.core.roster)).toEqual([]); // a healthy five subs nobody
-    const bench = generateRecruitOffers(1, 1, createRNG('sub-bp'));
+    const bench = generateRecruitOffers('C', 0, 1, createRNG('sub-bp'));
     const [first, ...rest] = m.core.roster.starters;
     const roster = { starters: [{ ...first, gamesOut: 1 }, ...rest], bench };
     const subs = steppingInSubs(roster);

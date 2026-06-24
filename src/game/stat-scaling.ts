@@ -12,9 +12,12 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-/** Surface scale bounds (the 3-10 model) the stat band is clamped within. */
+/** Surface scale bounds the stat band is clamped within. The floor is the 3-10
+ * model's base; the ceiling rises ABOVE 10 (to the trained cap) so the very top of
+ * the S / S+ ladders can field S++ apex bosses (stats past 10). Levels at or below
+ * the S band still round to <=10, so only the top-ladder finales exceed it. */
 const STAT_FLOOR = 3;
-const STAT_CEIL = 10;
+const STAT_CEIL = 14;
 
 /**
  * Expected stat band for a continuous difficulty level (see difficulty.ts). The
