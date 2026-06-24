@@ -27,10 +27,14 @@ export function perStatMax(): number {
 /** The eight upgradeable skills (condition ratings are not difficulty tiers). */
 export const UPGRADEABLE_STATS = SKILL_STAT_KEYS;
 
-const STD_BASE = 20;
-const STD_GROWTH = 1.25;
-const PREMIUM_BASE = 30;
-const PREMIUM_GROWTH = 1.3;
+// Steep, geometric costs: a +1 is a meaningful chunk of a run's income (~950
+// coins) and the 2nd +1 is 3x the 1st, so maxing one stat takes a couple of runs
+// and fully maxing a player is an aspirational, multi-run investment. The +2
+// per-stat cap (PER_STAT_MAX) is still the hard bound. Tune freely here.
+const STD_BASE = 400;
+const STD_GROWTH = 3.0;
+const PREMIUM_BASE = 600;
+const PREMIUM_GROWTH = 3.0;
 /** Defining, scarcer ratings cost more to raise. */
 const PREMIUM_STATS = new Set<keyof PlayerStats>(['outside', 'playmaking', 'clutch']);
 
@@ -40,7 +44,7 @@ export function isPremiumStat(stat: keyof PlayerStats): boolean {
 
 /**
  * Coin cost of the next +1 for `stat`, given how many have already been bought.
- * Standard: 20, 25, 31, 39, 49. Premium: 30, 39, 51, 66, 86.
+ * With the +2 cap, only two ranks apply: Standard 400, 1,200. Premium 600, 1,800.
  */
 export function upgradeCost(stat: keyof PlayerStats, alreadyBought: number): number {
   const premium = isPremiumStat(stat);

@@ -1,21 +1,24 @@
+import { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { CoinIcon } from '@/components/run/PixelIcons';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { applyUpgrade, upgradeCount } from '@/game/home-roster';
 import { canUpgrade, isPremiumStat, perStatMax, upgradeCost } from '@/game/upgrades';
+import type { PlayerClass } from '@/game/ratings';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { PlayerStats } from '@/types/player';
 
 /**
- * The Locker Room: spend coins between runs on permanent +1 stat upgrades. Each
- * purchase is a flat +1; the cost rises per tier and per-stat upgrades cap at +5
- * (and the rating ceiling of 10). Premium stats (outside/playmaking/clutch) cost
- * more. Mirrors the in-run TrainingView grid for a familiar read.
+ * The Locker Room: spend coins between runs on permanent +1 stat upgrades, capped
+ * at +2 per stat. Premium stats (outside/playmaking/clutch) cost more. The owned
+ * collection is large, so it is searchable + class-filterable, sorted by most
+ * recently used (the home-roster order). Mirrors the in-run TrainingView grid.
  */
 
 interface StatDef {
@@ -52,6 +55,8 @@ const STAT_GROUPS: { label: string; stats: StatDef[] }[] = [
 export default function LockerRoomScreen() {
   const router = useRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
+  const [query, setQuery] = useState('');
+  const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
 
   if (!loaded || !homeRoster) {
     return (
@@ -62,6 +67,22 @@ export default function LockerRoomScreen() {
   }
 
   const coins = homeRoster.coins;
+  const q = query.trim().toLowerCase();
+  // home.players is already sorted by most-recently-used; just filter.
+  const shown = homeRoster.players
+    .map((rp, i) => ({ rp, i }))
+    .filter(({ rp }) => {
+      if (q && !rp.player.name.toLowerCase().includes(q)) return false;
+      if (classes.size > 0 && (!rp.originalClass || !classes.has(rp.originalClass))) return false;
+      return true;
+    });
+  const toggleClass = (cls: PlayerClass) =>
+    setClasses((prev) => {
+      const next = new Set(prev);
+      if (next.has(cls)) next.delete(cls);
+      else next.add(cls);
+      return next;
+    });
 
   return (
     <Screen style={styles.container} onBack={() => router.back()}>
@@ -72,11 +93,12 @@ export default function LockerRoomScreen() {
           <Text style={styles.coinText}>{coins}</Text>
         </Pop>
       </View>
-      <Text style={styles.subtitle}>Spend coins on permanent +1 upgrades</Text>
+      <Text style={styles.subtitle}>Spend coins on permanent upgrades (+2 cap per stat)</Text>
+      <RosterFilterBar query={query} onQuery={setQuery} classes={classes} onToggleClass={toggleClass} />
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {homeRoster.players.map((rp, i) => (
-          <View key={i} style={styles.row}>
+        {shown.map(({ rp, i }) => (
+          <View key={`${rp.player.name}-${i}`} style={styles.row}>
             <PlayerCard rp={rp} />
             <View style={styles.groups}>
               {STAT_GROUPS.map((group) => (

@@ -70,6 +70,8 @@ export default function RunScreen() {
       return (
         <DraftView
           available={model.phase.available}
+          defaultStarters={model.phase.defaultStarters}
+          defaultBench={model.phase.defaultBench}
           difficulty={model.difficulty}
           ladderClass={model.ladderClass}
           onConfirm={actions.confirmDraft}

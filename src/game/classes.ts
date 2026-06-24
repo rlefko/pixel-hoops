@@ -1,6 +1,6 @@
 import { SKILL_STAT_KEYS, type PlayerStats } from '@/types/player';
 import type { Position } from '@/types/roster';
-import { CLASS_ORDER, classForOvr, ovrRaw, type PlayerClass } from './ratings';
+import { CLASS_ORDER, classForOvr, ovr, ovrRaw, type PlayerClass } from './ratings';
 import { clamp, getStatRangeForLevel } from './stat-scaling';
 
 /**
@@ -80,9 +80,29 @@ export function anchorStatsToClass(
   position: Position
 ): PlayerStats {
   const delta = classLevel(cls) - ovrRaw(shape, position);
-  const out: PlayerStats = { ...shape };
+  let out: PlayerStats = { ...shape };
   for (const key of SKILL_STAT_KEYS) {
     out[key] = clamp(Math.round(shape[key] + delta), 3, 10);
+  }
+  // Per-skill rounding/clamping can leave the rounded OVR just outside the target
+  // class. Nudge the whole line by 1 (preserving shape) until classForOvr(ovr)
+  // lands exactly on the class, so the badge never disagrees with the player's
+  // class (and a fresh player never shows a spurious upgrade arrow). One integer
+  // step moves OVR ~1 (about one class) and the class windows are centered on
+  // classLevel, so this converges in a couple of steps; bounded as a safety net.
+  for (let guard = 0; guard < 12; guard++) {
+    const current = classForOvr(ovr(out, position));
+    if (current === cls) break;
+    const step = compareClass(cls, current) > 0 ? 1 : -1; // need higher? +1 : lower? -1
+    const next: PlayerStats = { ...out };
+    let moved = false;
+    for (const key of SKILL_STAT_KEYS) {
+      const v = clamp(out[key] + step, 3, 10);
+      if (v !== out[key]) moved = true;
+      next[key] = v;
+    }
+    if (!moved) break; // pinned at the floor/ceiling; cannot get closer
+    out = next;
   }
   return out;
 }

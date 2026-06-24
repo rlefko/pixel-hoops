@@ -1,4 +1,4 @@
-import type { RosterPlayer } from '@/types/roster';
+import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
 import { classCost, type PlayerClass } from './classes';
 import { ovr, ovrRaw, classForOvr } from './ratings';
 import { difficultyMods, type Difficulty, type LadderClass } from './difficulty-mode';
@@ -80,59 +80,108 @@ export function evaluateDraft(
   };
 }
 
+/** Slot-ordered starting five (index 0 = PG slot ... 4 = C slot) plus bench. */
+export interface Loadout {
+  starters: RosterPlayer[];
+  bench: RosterPlayer[];
+}
+
+/** Stable identity used to match a loadout against the owned collection. */
+function key(rp: RosterPlayer): string {
+  return `${rp.player.name}|${rp.position}`;
+}
+
 /**
- * Whether a drafted rotation may start a run: 5-8 players, every one draftable,
- * and total spend within the difficulty's budget.
+ * Whether a position-slot loadout may start a run: exactly five starters, 5-8
+ * total, every pick draftable, no duplicates, and total spend within the budget.
  */
-export function canConfirmDraft(
-  rotation: readonly RosterPlayer[],
+export function canConfirmLoadout(
+  starters: readonly RosterPlayer[],
+  bench: readonly RosterPlayer[],
   ladderClass: LadderClass,
   difficulty: Difficulty
 ): { ok: boolean; reason?: string } {
-  if (rotation.length < MIN_ROTATION) return { ok: false, reason: 'Draft at least five players' };
-  if (rotation.length > MAX_DRAFT_ROTATION) {
+  if (starters.length !== MIN_ROTATION) return { ok: false, reason: 'Fill all five starting slots' };
+  const all = [...starters, ...bench];
+  if (all.length > MAX_DRAFT_ROTATION) {
     return { ok: false, reason: `Rotation is capped at ${MAX_DRAFT_ROTATION}` };
   }
-  if (rotation.some((rp) => !isDraftable(rp, ladderClass))) {
+  if (new Set(all.map(key)).size !== all.length) return { ok: false, reason: 'Duplicate pick' };
+  if (all.some((rp) => !isDraftable(rp, ladderClass))) {
     return { ok: false, reason: 'A pick is too strong for this ladder' };
   }
-  const { over } = evaluateDraft(rotation, ladderClass, difficulty);
-  if (over) return { ok: false, reason: 'Over the draft point budget' };
+  if (draftSpend(all, ladderClass) > draftPoints(difficulty)) {
+    return { ok: false, reason: 'Over the draft point budget' };
+  }
   return { ok: true };
 }
 
 /**
- * A sensible default rotation for the draft: greedily fill up to the rotation cap
- * with the cheapest draftable players within the point budget (best OVR breaking
- * cost ties), guaranteeing at least five. The player adjusts from here.
+ * The default pre-run loadout: restore the previous run's lineup (`lastRotation`,
+ * slot-ordered) when every player is still owned and the loadout is legal; else
+ * build a fresh one by filling each position slot with the best affordable player
+ * of that natural position (falling back to any draftable for an empty slot), then
+ * the best affordable bench, all within the point budget. Players keep their
+ * natural-position slot so the run starts correctly slotted.
  */
-export function suggestDraft(
+export function defaultLoadout(
   available: readonly RosterPlayer[],
   ladderClass: LadderClass,
-  difficulty: Difficulty
-): RosterPlayer[] {
-  const budget = draftPoints(difficulty);
-  const draftable = available.filter((p) => isDraftable(p, ladderClass));
-  const sorted = [...draftable].sort((a, b) => {
-    const ca = draftCostFor(a, ladderClass) ?? Infinity;
-    const cb = draftCostFor(b, ladderClass) ?? Infinity;
-    if (ca !== cb) return ca - cb;
-    return ovrRaw(b.player.stats, b.position) - ovrRaw(a.player.stats, a.position);
-  });
-  const picked: RosterPlayer[] = [];
-  let spent = 0;
-  for (const p of sorted) {
-    if (picked.length >= MAX_DRAFT_ROTATION) break;
-    const c = draftCostFor(p, ladderClass) ?? Infinity;
-    if (spent + c <= budget) {
-      picked.push(p);
-      spent += c;
+  difficulty: Difficulty,
+  lastRotation?: readonly string[]
+): Loadout {
+  const byKey = new Map(available.map((p) => [key(p), p]));
+
+  if (lastRotation && lastRotation.length >= MIN_ROTATION) {
+    const restored = lastRotation.map((k) => byKey.get(k)).filter((p): p is RosterPlayer => !!p);
+    if (restored.length === lastRotation.length) {
+      const starters = restored.slice(0, MIN_ROTATION);
+      const bench = restored.slice(MIN_ROTATION);
+      if (canConfirmLoadout(starters, bench, ladderClass, difficulty).ok) return { starters, bench };
     }
   }
-  // Backfill to five with the cheapest remaining draftable players if needed.
-  for (const p of sorted) {
-    if (picked.length >= MIN_ROTATION) break;
-    if (!picked.includes(p)) picked.push(p);
+
+  const budget = draftPoints(difficulty);
+  const draftable = available.filter((p) => isDraftable(p, ladderClass));
+  const cost = (p: RosterPlayer): number => draftCostFor(p, ladderClass) ?? Infinity;
+  // Strongest first (spend the budget on quality), cheaper breaking OVR ties.
+  const byValue = (a: RosterPlayer, b: RosterPlayer): number =>
+    ovrRaw(b.player.stats, b.position) - ovrRaw(a.player.stats, a.position) || cost(a) - cost(b);
+
+  const used = new Set<RosterPlayer>();
+  let spent = 0;
+  const take = (p: RosterPlayer): void => {
+    used.add(p);
+    spent += cost(p);
+  };
+  const bestAffordable = (pool: RosterPlayer[]): RosterPlayer | undefined =>
+    pool.filter((p) => !used.has(p) && spent + cost(p) <= budget).sort(byValue)[0];
+
+  const starters: (RosterPlayer | null)[] = POSITIONS.map(() => null);
+  // Pass 1: best affordable player at each slot's natural position.
+  POSITIONS.forEach((slot: Position, i) => {
+    const pick = bestAffordable(draftable.filter((p) => p.position === slot));
+    if (pick) {
+      starters[i] = pick;
+      take(pick);
+    }
+  });
+  // Pass 2: fill any still-empty slot with any affordable draftable player.
+  POSITIONS.forEach((_, i) => {
+    if (starters[i]) return;
+    const pick = bestAffordable(draftable);
+    if (pick) {
+      starters[i] = pick;
+      take(pick);
+    }
+  });
+  // Bench: up to three more affordable players.
+  const bench: RosterPlayer[] = [];
+  while (bench.length < MAX_DRAFT_ROTATION - MIN_ROTATION) {
+    const pick = bestAffordable(draftable);
+    if (!pick) break;
+    bench.push(pick);
+    take(pick);
   }
-  return picked.slice(0, MAX_DRAFT_ROTATION);
+  return { starters: starters.filter((p): p is RosterPlayer => !!p), bench };
 }

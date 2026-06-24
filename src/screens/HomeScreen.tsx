@@ -49,7 +49,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen style={styles.container}>
+    <Screen scroll contentContainerStyle={styles.container}>
       <View style={styles.titleBlock}>
         <Text style={styles.title}>PIXEL</Text>
         <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
@@ -148,9 +148,13 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Scroll content: top-aligned and centered horizontally so nothing overflows off
+  // a short phone viewport (the old justifyContent:'center' pushed the title and
+  // buttons off both ends). Grows downward and scrolls when it does not all fit.
   container: {
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingTop: space(4),
+    paddingHorizontal: space(4),
   },
   titleBlock: {
     alignItems: 'center',
@@ -177,7 +181,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(2),
-    marginTop: space(6),
+    marginTop: space(3),
   },
   coinText: {
     fontFamily: FONT.display,
@@ -186,8 +190,8 @@ const styles = StyleSheet.create({
   },
   selectBox: {
     alignItems: 'center',
-    marginTop: space(5),
-    maxWidth: 300,
+    marginTop: space(3),
+    maxWidth: 320,
   },
   selectLabel: {
     fontFamily: FONT.display,
@@ -231,13 +235,13 @@ const styles = StyleSheet.create({
   classChipText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small },
   chipLocked: { opacity: 0.4, borderColor: palette.inkDim },
   buttonContainer: {
-    marginTop: space(6),
+    marginTop: space(4),
     alignItems: 'center',
   },
   button: {
-    paddingVertical: space(3),
+    paddingVertical: space(2),
     paddingHorizontal: space(8),
-    marginTop: space(3),
+    marginTop: space(2),
     alignItems: 'center',
   },
   primaryButton: {
@@ -261,7 +265,7 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
     color: palette.inkDim,
-    marginTop: space(12),
+    marginTop: space(5),
     letterSpacing: 1,
   },
 });

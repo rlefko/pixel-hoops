@@ -43,6 +43,10 @@ export interface HomeRoster {
   selectedDifficulty: Difficulty;
   /** The ladder class selected for the next run (must be unlocked on the difficulty). */
   selectedLadderClass: LadderClass;
+  /** The previous run's fielded rotation as playerKeys, slot-ordered (0-4 = PG..C
+   * starters, 5-7 = bench). The pre-run draft pre-populates from this. Optional;
+   * undefined before the first run. */
+  lastRotation?: string[];
   /** Completed runs since a legendary was last offered (soft pity). */
   legendDryStreak: number;
   /** Whether the one-time, first-run welcome reveal has been shown. */
@@ -216,9 +220,10 @@ export function mergeRunGainsIntoHome(
   // must advance on the played difficulty. Defaults to the current selection.
   playedDifficulty: Difficulty = home.selectedDifficulty
 ): HomeRoster {
+  const fielded = [...runRoster.starters, ...runRoster.bench].filter((p) => !p.onLoan);
   const ownedKeys = new Set(home.players.map(playerKey));
-  const newRecruits = [...runRoster.starters, ...runRoster.bench]
-    .filter((p) => !p.onLoan && !ownedKeys.has(playerKey(p)))
+  const newRecruits = fielded
+    .filter((p) => !ownedKeys.has(playerKey(p)))
     .map((p) => {
       const copy = { ...p };
       delete copy.item; // run-scoped
@@ -236,6 +241,29 @@ export function mergeRunGainsIntoHome(
     return true;
   });
 
+  // Recency: the players fielded this run move to the FRONT of the collection (in
+  // slot order), then this run's new recruits, then everyone else in prior order.
+  // So the owned collection stays sorted by most-recently-used.
+  const fieldedOwnedKeys: string[] = [];
+  const seenF = new Set<string>();
+  for (const p of fielded) {
+    const k = playerKey(p);
+    if (ownedKeys.has(k) && !seenF.has(k)) {
+      seenF.add(k);
+      fieldedOwnedKeys.push(k);
+    }
+  }
+  const homeByKey = new Map(home.players.map((p) => [playerKey(p), p]));
+  const fieldedOwned = fieldedOwnedKeys.map((k) => homeByKey.get(k)!);
+  const restOwned = home.players.filter((p) => !seenF.has(playerKey(p)));
+  const players = [...fieldedOwned, ...deduped, ...restOwned];
+
+  // The lineup to restore next run: the five starters (slot order) plus up to three bench.
+  const lastRotation = [
+    ...runRoster.starters.map(playerKey),
+    ...runRoster.bench.filter((p) => !p.onLoan).slice(0, 3).map(playerKey),
+  ];
+
   const ladderProgress = { ...home.ladderProgress };
   let selectedLadderClass = home.selectedLadderClass;
   if (champion && clearedClass) {
@@ -249,11 +277,12 @@ export function mergeRunGainsIntoHome(
 
   return {
     ...home,
-    players: [...home.players, ...deduped],
+    players,
     coins: home.coins + (rewards?.coins ?? 0),
     reputation: home.reputation + (rewards?.reputation ?? 0),
     ladderProgress,
     selectedLadderClass,
+    lastRotation: lastRotation.length >= 5 ? lastRotation : home.lastRotation,
     legendDryStreak: legendOffered ? 0 : home.legendDryStreak + 1,
     seenWelcome: home.seenWelcome ?? true,
   };
@@ -263,11 +292,24 @@ export function serializeHomeRoster(home: HomeRoster): SerializedHomeRoster {
   return { version: HOME_ROSTER_VERSION, data: home };
 }
 
-/** Backfill a player's intrinsic class from their base stats when missing. */
-function withOriginalClass(rp: RosterPlayer): RosterPlayer {
+/**
+ * Backfill a player's intrinsic class when missing (pre-v6 saves). Reconstructs
+ * the BASE stats by subtracting the permanent-upgrade ledger first, so an already
+ * upgraded legacy player records its true STARTING class, not the upgraded one.
+ */
+function withOriginalClass(
+  rp: RosterPlayer,
+  upgrades: Record<string, Partial<Record<keyof PlayerStats, number>>>
+): RosterPlayer {
   if (rp.originalClass) return rp;
-  const cls: PlayerClass = rp.legendary ? 'S+' : classForOvr(ovr(rp.player.stats, rp.position));
-  return { ...rp, originalClass: cls };
+  if (rp.legendary) return { ...rp, originalClass: 'S+' };
+  const bought = upgrades[playerKey(rp)] ?? {};
+  const base = { ...rp.player.stats };
+  for (const key in bought) {
+    const k = key as keyof PlayerStats;
+    base[k] = Math.max(3, base[k] - (bought[k] ?? 0));
+  }
+  return { ...rp, originalClass: classForOvr(ovr(base, rp.position)) };
 }
 
 /**
@@ -289,6 +331,8 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     );
   });
   if (!playersOk) return null;
+  const savedUpgrades =
+    data.upgrades && typeof data.upgrades === 'object' ? data.upgrades : {};
   const players = data.players.map((p): RosterPlayer => {
     const migrated = isLegacyStats(p.player.stats)
       ? { ...p, player: { ...p.player, stats: expandStats(p.player.stats, p.position) } }
@@ -298,7 +342,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     delete migrated.trainingDelta;
     delete migrated.gamesOut;
     delete migrated.equippedAbility; // sourced from equippedAbilities, not the player
-    return withOriginalClass(migrated);
+    return withOriginalClass(migrated, savedUpgrades);
   });
 
   const ladderProgress = emptyLadderProgress();
@@ -323,7 +367,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     players,
     coins: typeof data.coins === 'number' ? data.coins : 0,
     reputation: typeof data.reputation === 'number' ? data.reputation : 0,
-    upgrades: data.upgrades && typeof data.upgrades === 'object' ? data.upgrades : {},
+    upgrades: savedUpgrades,
     abilityInventory:
       data.abilityInventory && typeof data.abilityInventory === 'object' ? data.abilityInventory : {},
     equippedAbilities:
@@ -331,6 +375,10 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     ladderProgress,
     selectedDifficulty,
     selectedLadderClass,
+    lastRotation:
+      Array.isArray(data.lastRotation) && data.lastRotation.every((k) => typeof k === 'string')
+        ? (data.lastRotation as string[])
+        : undefined,
     legendDryStreak: typeof data.legendDryStreak === 'number' ? data.legendDryStreak : 0,
     seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
   };
