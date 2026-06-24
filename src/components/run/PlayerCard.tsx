@@ -8,7 +8,7 @@ import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { POSITION_COLOR } from '@/components/game/positionColor';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { ovr, off, def, ath, tierFor, type TierKey } from '@/game/ratings';
+import { ovr, off, def, ath, tierFor, classForOvr, type TierKey } from '@/game/ratings';
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
@@ -45,12 +45,13 @@ interface PlayerCardProps {
 
 /** Tier key -> palette color for the badge (verified palette keys, no new hex). */
 const TIER_COLOR: Record<TierKey, string> = {
-  bronze: palette.inkDim,
-  silver: palette.steelBlue,
-  gold: palette.gold,
-  elite: palette.flame,
-  apex: palette.gold, // S+: the trained-past-10 prestige tier
-  zenith: palette.gold, // S++: animated shining gold (see TierBadge)
+  rookie: palette.inkDim, // D: the streetball floor
+  bronze: palette.steelBlue, // C
+  silver: palette.makeGreen, // B
+  gold: palette.gold, // A
+  elite: palette.flame, // S
+  apex: palette.orange, // S+: legendary tier
+  zenith: palette.gold, // S++: animated shining gold, the trained/boss apex
 };
 
 /** One rating's short label, for the expanded breakdown grid. */
@@ -90,6 +91,11 @@ export function PlayerCard({
   const overall = ovr(stats, rp.position);
   const tier = tierFor(overall);
   const tierColor = TIER_COLOR[tier.key];
+  // Show the player's fixed original class with an arrow to the current class when
+  // upgrades/abilities/training have lifted them past their starting tier.
+  const currentClass = classForOvr(overall);
+  const upgradedFrom =
+    rp.originalClass && rp.originalClass !== currentClass ? rp.originalClass : null;
   const injured = condition && (rp.gamesOut ?? 0) > 0;
   const isTile = variant === 'tile';
   const isLegendary = rp.legendary ?? false;
@@ -123,6 +129,9 @@ export function PlayerCard({
             {rp.position}
           </Text>
         </View>
+        {upgradedFrom ? (
+          <Text style={styles.classFrom}>{upgradedFrom}{'→'}</Text>
+        ) : null}
         <TierBadge label={tier.label} color={tierColor} animated={tier.key === 'zenith'} />
         <View style={styles.nameCol}>
           {isLegendary ? (
@@ -294,6 +303,12 @@ const styles = StyleSheet.create({
     marginRight: space(2),
   },
   pos: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
+  classFrom: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+    marginRight: space(0.5),
+  },
   tierWrap: { position: 'relative', marginRight: space(2) },
   tierGlow: {
     position: 'absolute',

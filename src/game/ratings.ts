@@ -96,19 +96,59 @@ export function ovr(s: PlayerStats, position: Position): number {
   return Math.round(ovrRaw(s, position));
 }
 
-export type TierKey = 'bronze' | 'silver' | 'gold' | 'elite' | 'apex' | 'zenith';
+/**
+ * The player-class ladder, lowest to highest. D is the rookie/streetball floor
+ * the player starts with; C-S are the real-NBA class ladder; S+ is the legendary
+ * tier; S++ is the emergent APEX, reached only by run-scoped training (skills past
+ * 10, up to 15) or by the toughest end-of-run bosses (the "+2 classes" ramp on the
+ * S / S+ ladders). The five SELECTABLE ladders top out at S+ (see LADDER_CLASSES
+ * in difficulty-mode.ts); S++ is never drafted, only attained.
+ *
+ * This is the single source of truth for the class a player belongs to (see
+ * classForOvr), driving the draft, opponent and recruit scaling, and the badge UI.
+ * Kept here (a pure, type-only leaf) so both ratings consumers and
+ * src/game/classes.ts can share it without an import cycle.
+ */
+export type PlayerClass = 'D' | 'C' | 'B' | 'A' | 'S' | 'S+' | 'S++';
+
+export const CLASS_ORDER: readonly PlayerClass[] = ['D', 'C', 'B', 'A', 'S', 'S+', 'S++'];
 
 /**
- * Map an OVR to a coarse tier. Most players sit on the 3-10 surface scale (top =
- * S); run-scoped training can push skills past 10 (up to 15), lifting OVR into the
- * S+ apex tier and, with deep focused training, the S++ zenith tier. The UI maps
- * the key to a palette color so this module stays free of theme dependencies.
+ * The class an OVR falls into. Most players sit on the 3-10 surface scale; D is
+ * the 3-4 floor, C is ~5, up to S at 9-10. Run-scoped training (and the hardest
+ * bosses) push OVR past 10: 11-12 reads S+, 13+ reads the S++ apex. The thresholds
+ * line up with the class "levels" in src/game/classes.ts so a class badge always
+ * matches the scaling band.
  */
-export function tierFor(ovrValue: number): { key: TierKey; label: string } {
-  if (ovrValue >= 13) return { key: 'zenith', label: 'S++' };
-  if (ovrValue >= 11) return { key: 'apex', label: 'S+' };
-  if (ovrValue >= 9) return { key: 'elite', label: 'S' };
-  if (ovrValue >= 8) return { key: 'gold', label: 'A' };
-  if (ovrValue >= 6) return { key: 'silver', label: 'B' };
-  return { key: 'bronze', label: 'C' };
+export function classForOvr(ovrValue: number): PlayerClass {
+  if (ovrValue >= 13) return 'S++';
+  if (ovrValue >= 11) return 'S+';
+  if (ovrValue >= 9) return 'S';
+  if (ovrValue >= 8) return 'A';
+  if (ovrValue >= 6) return 'B';
+  if (ovrValue >= 5) return 'C';
+  return 'D';
+}
+
+export type TierKey = 'rookie' | 'bronze' | 'silver' | 'gold' | 'elite' | 'apex' | 'zenith';
+
+/** Class -> palette-color key (the UI maps the key to a color, keeping this module
+ * free of theme dependencies). */
+const CLASS_TIER: Record<PlayerClass, TierKey> = {
+  D: 'rookie',
+  C: 'bronze',
+  B: 'silver',
+  A: 'gold',
+  S: 'elite',
+  'S+': 'apex',
+  'S++': 'zenith',
+};
+
+/**
+ * Map an OVR to its class label plus a palette-color key for the badge. A thin
+ * wrapper over {@link classForOvr} so card UIs get both at once.
+ */
+export function tierFor(ovrValue: number): { key: TierKey; label: PlayerClass } {
+  const label = classForOvr(ovrValue);
+  return { key: CLASS_TIER[label], label };
 }

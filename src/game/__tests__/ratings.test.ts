@@ -45,10 +45,17 @@ describe('derived ratings', () => {
     expect(pgGain).toBeGreaterThan(cGain);
   });
 
-  it('maps OVR to coarse tiers', () => {
+  it('maps OVR to coarse class tiers (D/C/B/A/S/S+)', () => {
+    expect(tierFor(11).label).toBe('S+');
+    expect(tierFor(10).label).toBe('S');
+    expect(tierFor(8).label).toBe('A');
+    expect(tierFor(6).label).toBe('B');
+    expect(tierFor(5).label).toBe('C');
+    expect(tierFor(4).label).toBe('D');
     expect(tierFor(10).key).toBe('elite');
     expect(tierFor(8).key).toBe('gold');
     expect(tierFor(6).key).toBe('silver');
-    expect(tierFor(4).key).toBe('bronze');
+    expect(tierFor(5).key).toBe('bronze');
+    expect(tierFor(4).key).toBe('rookie');
   });
 });

@@ -1,0 +1,107 @@
+import { SKILL_STAT_KEYS, type PlayerStats } from '@/types/player';
+import type { Position } from '@/types/roster';
+import { CLASS_ORDER, classForOvr, ovrRaw, type PlayerClass } from './ratings';
+import { clamp, getStatRangeForLevel } from './stat-scaling';
+
+/**
+ * The class system's scaling + draft helpers. Builds on the pure class labels in
+ * ratings.ts (PlayerClass / classForOvr) and the difficulty bands in
+ * stat-scaling.ts to give ONE source of truth for: the in-game OVR "level" each
+ * class centers on, how to place any stat line into a class band while preserving
+ * its shape (anchorStatsToClass, shared by the real-player bake and procedural
+ * generation), and the points cost of drafting a class relative to a ladder.
+ *
+ * Pure and deterministic. Re-uses ratings.ovrRaw and stat-scaling, so a class
+ * badge, an opponent's scaled stats, and a draft cost all agree.
+ */
+
+export { CLASS_ORDER, classForOvr, type PlayerClass } from './ratings';
+
+/**
+ * The in-game OVR each class centers on (also the "difficulty level" fed to the
+ * opponent/recruit scalers). Lines up with classForOvr's thresholds: D=3-4, C=5,
+ * B=6-7, A=8, S=9-10, S+=legendary/trained cap.
+ */
+const CLASS_LEVEL: Record<PlayerClass, number> = {
+  D: 4.0,
+  C: 5.0,
+  B: 6.5,
+  A: 8.0,
+  S: 9.5,
+  'S+': 11.0,
+  'S++': 13.0,
+};
+
+/** The scaling level a class centers on. */
+export function classLevel(cls: PlayerClass): number {
+  return CLASS_LEVEL[cls];
+}
+
+/** The class a (possibly fractional) scaling level reads as. Inverse of classLevel. */
+export function levelToClass(level: number): PlayerClass {
+  return classForOvr(Math.round(level));
+}
+
+/** The expected stat band [min,max] for a class (the class level's difficulty band). */
+export function classToBand(cls: PlayerClass): { min: number; max: number } {
+  return getStatRangeForLevel(classLevel(cls));
+}
+
+/** Index of a class in the ladder (D=0 .. S+=5); -1 if unknown. */
+function classIndex(cls: PlayerClass): number {
+  return CLASS_ORDER.indexOf(cls);
+}
+
+/** Negative if a is lower than b, positive if higher, 0 if equal. */
+export function compareClass(a: PlayerClass, b: PlayerClass): number {
+  return classIndex(a) - classIndex(b);
+}
+
+/** The class `steps` rungs above `cls`, clamped to the ladder ends. */
+export function classShift(cls: PlayerClass, steps: number): PlayerClass {
+  const i = clamp(classIndex(cls) + steps, 0, CLASS_ORDER.length - 1);
+  return CLASS_ORDER[i];
+}
+
+/**
+ * Place a stat line into a class's band while preserving its shape. The line is
+ * shifted as a whole so its position-weighted OVR lands on the class level, then
+ * each skill is clamped to the 3-10 scale; the player's relative strengths (a
+ * shooter's outside lead, a big's interior lead) are kept. Condition ratings
+ * (stamina/durability) pass through: they are not part of OVR and not a class.
+ *
+ * Used by BOTH the real-player bake (scripts/fetch-nba.ts) and procedural
+ * generation (tournament.generatePlayerOfClass), so real and fake players of the
+ * same class read the same on the surface.
+ */
+export function anchorStatsToClass(
+  shape: PlayerStats,
+  cls: PlayerClass,
+  position: Position
+): PlayerStats {
+  const delta = classLevel(cls) - ovrRaw(shape, position);
+  const out: PlayerStats = { ...shape };
+  for (const key of SKILL_STAT_KEYS) {
+    out[key] = clamp(Math.round(shape[key] + delta), 3, 10);
+  }
+  return out;
+}
+
+/**
+ * The draft point cost of a player of `playerClass` on a `ladderClass` ladder, or
+ * null when the player is too strong to draft. Below the ladder is free, at the
+ * ladder costs 1, one class above costs 2, and anything higher is barred.
+ * Legendaries are the exception: always draftable and always cost 2.
+ */
+export function classCost(
+  playerClass: PlayerClass,
+  ladderClass: PlayerClass,
+  legendary = false
+): number | null {
+  if (legendary) return 2;
+  const d = classIndex(playerClass) - classIndex(ladderClass);
+  if (d < 0) return 0;
+  if (d === 0) return 1;
+  if (d === 1) return 2;
+  return null;
+}
