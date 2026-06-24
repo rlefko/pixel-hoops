@@ -16,6 +16,7 @@ import {
   type LadderClass,
 } from './difficulty-mode';
 import { classLevel } from './classes';
+import { ovrRaw } from './ratings';
 import {
   canConfirmDraft,
   suggestDraft,
@@ -527,7 +528,13 @@ export function runReducer(
       if (model.phase.kind !== 'draft') return model;
       const rotation = action.rotation;
       if (!canConfirmDraft(rotation, model.ladderClass, model.difficulty).ok) return model;
-      const roster = { starters: rotation.slice(0, 5), bench: rotation.slice(5) };
+      // The drafted set can arrive in any selection order; start the five strongest
+      // by OVR so the default lineup is the player's best (they can reorder in the
+      // lineup builder). Bench keeps the remainder.
+      const ordered = [...rotation].sort(
+        (a, b) => ovrRaw(b.player.stats, b.position) - ovrRaw(a.player.stats, a.position)
+      );
+      const roster = { starters: ordered.slice(0, 5), bench: ordered.slice(5) };
       const offers = drawBoostOffers(
         1,
         [],
@@ -542,6 +549,9 @@ export function runReducer(
     }
 
     case 'chooseNode': {
+      // Only choosable from the map (never before the draft sets a roster, which
+      // would build a team from zero players); guards against an empty-roster sim.
+      if (model.phase.kind !== 'map') return model;
       const node = model.core.map.nodes[action.nodeId];
       if (!node) return model;
       return enterNode(model, action.nodeId);

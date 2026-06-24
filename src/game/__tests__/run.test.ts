@@ -42,6 +42,12 @@ function started(runSeed: string, homeSeed = runSeed): RunModel {
   return runReducer(m, { type: 'confirmDraft', rotation })!;
 }
 
+/** Like {@link started} but also skips the boost draft, landing on the map (where
+ * a node can be chosen). chooseNode is only valid from the map phase. */
+function atMap(runSeed: string, homeSeed = runSeed): RunModel {
+  return runReducer(started(runSeed, homeSeed), { type: 'skipBoostDraft' })!;
+}
+
 describe('generateRecruitOffers', () => {
   it('is deterministic and honors count', () => {
     const a = generateRecruitOffers('C', 0, 3, createRNG('r1'));
@@ -292,6 +298,16 @@ describe('home roster persistence', () => {
     expect(merged.players.every((p) => !p.gamesOut)).toBe(true);
   });
 
+  it('advances the ladder on the difficulty actually played, not the selection', () => {
+    // Selected easy, but the run was played on medium: clearing it must advance
+    // medium's ladder, never easy's.
+    const home = { ...rookie('played'), selectedDifficulty: 'easy' as const };
+    const run = homeToRunRoster(home);
+    const merged = mergeRunGainsIntoHome(home, run, undefined, false, true, 'C', 'medium');
+    expect(merged.ladderProgress.medium).toBe('C');
+    expect(merged.ladderProgress.easy).toBeNull();
+  });
+
   it('migrates a pre-v6 (League-tier) save and backfills new fields', () => {
     const home = rookie('mig');
     // Simulate an old serialized save: v5 fields, no v6 fields.
@@ -380,7 +396,10 @@ describe('run reducer', () => {
     const rotation = suggestDraft(m.phase.available, m.ladderClass, m.difficulty);
     const next = runReducer(m, { type: 'confirmDraft', rotation })!;
     expect(next.phase.kind).toBe('boostDraft');
-    expect(next.core.roster.starters).toEqual(rotation.slice(0, 5));
+    // Five strongest start (the draft order is the selection order, not the lineup).
+    expect(next.core.roster.starters).toHaveLength(5);
+    const fielded = [...next.core.roster.starters, ...next.core.roster.bench];
+    expect(fielded.map((p) => p.player.name).sort()).toEqual(rotation.map((p) => p.player.name).sort());
   });
 
   it('rejects a draft over the difficulty point budget', () => {
@@ -402,7 +421,7 @@ describe('run reducer', () => {
   });
 
   it('chooseNode on the recruit entry opens the recruit screen', () => {
-    const m = start();
+    const m = atMap('seed-1', 'reducer');
     const recruitId = m.core.map.startNodeIds[0];
     expect(m.core.map.nodes[recruitId].type).toBe('recruit');
     const next = runReducer(m, { type: 'chooseNode', nodeId: recruitId })!;
@@ -411,14 +430,14 @@ describe('run reducer', () => {
   });
 
   it('chooseNode on a combat node opens pregame', () => {
-    const m = start();
+    const m = atMap('seed-1', 'reducer');
     const bossId = m.core.map.bossNodeId;
     const next = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
     expect(next.phase.kind).toBe('pregame');
   });
 
   it('simulates a game from pregame through postgame', () => {
-    let m = start();
+    let m = atMap('seed-1', 'reducer');
     const bossId = m.core.map.bossNodeId;
     m = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
     m = runReducer(m, { type: 'enterGame' })!;
@@ -569,7 +588,7 @@ describe('pregame team builders', () => {
   });
 
   it('previews the exact opponent the game then simulates', () => {
-    let m = started('preview');
+    let m = atMap('preview');
     const nodeId = m.core.map.bossNodeId;
     m = runReducer(m, { type: 'chooseNode', nodeId })!;
     expect(m.phase.kind).toBe('pregame');
@@ -580,7 +599,7 @@ describe('pregame team builders', () => {
   });
 
   it('previews the dressed home five the game then uses', () => {
-    let m = started('home-preview');
+    let m = atMap('home-preview');
     const nodeId = m.core.map.bossNodeId;
     m = runReducer(m, { type: 'chooseNode', nodeId })!;
     const preview = buildHomeTeam(m);
@@ -783,7 +802,7 @@ describe('boosts, economy, and legends', () => {
 
 describe('between-game injuries', () => {
   const playWonGame = (seed: string): RunModel => {
-    let m = started(seed, `inj-${seed}`);
+    let m = atMap(seed, `inj-${seed}`);
     const nodeId = m.core.map.bossNodeId; // any combat node; bosses always exist
     m = runReducer(m, { type: 'chooseNode', nodeId })!;
     m = runReducer(m, { type: 'enterGame' })!;
@@ -828,7 +847,7 @@ describe('between-game injuries', () => {
   });
 
   it('sits an injured starter when healthy depth covers it', () => {
-    let m = started('dress');
+    let m = atMap('dress');
     const bench = generateRecruitOffers('C', 0, 1, createRNG('bp'));
     const [first, ...rest] = m.core.roster.starters;
     m = {

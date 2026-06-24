@@ -36,7 +36,8 @@ export function useRun() {
           model.core.rewards,
           model.legend.offeredThisRun,
           model.phase.champion,
-          model.ladderClass
+          model.ladderClass,
+          model.difficulty
         )
       );
     }

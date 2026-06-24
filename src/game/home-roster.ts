@@ -210,7 +210,11 @@ export function mergeRunGainsIntoHome(
   rewards?: RunRewards,
   legendOffered = false,
   champion = false,
-  clearedClass?: LadderClass
+  clearedClass?: LadderClass,
+  // The difficulty the run was actually PLAYED on (model.difficulty), which can
+  // differ from home.selectedDifficulty if the menu selection changed; the ladder
+  // must advance on the played difficulty. Defaults to the current selection.
+  playedDifficulty: Difficulty = home.selectedDifficulty
 ): HomeRoster {
   const ownedKeys = new Set(home.players.map(playerKey));
   const newRecruits = [...runRoster.starters, ...runRoster.bench]
@@ -235,8 +239,8 @@ export function mergeRunGainsIntoHome(
   const ladderProgress = { ...home.ladderProgress };
   let selectedLadderClass = home.selectedLadderClass;
   if (champion && clearedClass) {
-    const advanced = advanceLadder(ladderProgress[home.selectedDifficulty], clearedClass);
-    ladderProgress[home.selectedDifficulty] = advanced;
+    const advanced = advanceLadder(ladderProgress[playedDifficulty], clearedClass);
+    ladderProgress[playedDifficulty] = advanced;
     // Auto-select the next unlocked class (the new frontier), like the old ladder.
     const order: LadderClass[] = ['C', 'B', 'A', 'S', 'S+'];
     const nextIdx = Math.min(order.indexOf(advanced) + 1, order.length - 1);

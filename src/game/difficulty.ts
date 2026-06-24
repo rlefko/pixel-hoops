@@ -29,6 +29,9 @@ const RAMP_END = 2.0;
 const BOSS_BUMP = 0.6;
 /** >1 steepens the back half so the curve keeps pace with bounded meta power. */
 const CURVE_POW = 1.15;
+/** Cap on the opponent level. Keeps the S++ apex band a real [13,14] spread rather
+ * than collapsing to a single value at the very top of the S+ ladder on insane. */
+const MAX_OPP_LEVEL = 13.5;
 
 /**
  * Fraction of the run (0..1) a combat node sits at, blending map progress with an
@@ -56,7 +59,8 @@ export function difficultyLevel(
 ): number {
   const t = progressFraction(mapIndex, layer);
   const ramp = RAMP_START + (RAMP_END - RAMP_START) * Math.pow(t, CURVE_POW);
-  return ladderLevel + ramp + (isBoss ? BOSS_BUMP : 0) + statShift;
+  const level = ladderLevel + ramp + (isBoss ? BOSS_BUMP : 0) + statShift;
+  return Math.min(level, MAX_OPP_LEVEL);
 }
 
 /** The ramp's opening offset (a class below the ladder), shared so callers can
