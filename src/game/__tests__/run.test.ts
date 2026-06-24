@@ -213,16 +213,16 @@ describe('home roster persistence', () => {
   });
 
   it('applyUpgrade spends coins, raises the stat, and no-ops when broke', () => {
-    const home = { ...rookie('up'), coins: 1000 };
+    const home = { ...rookie('up'), coins: 5000 };
     const before = home.players[0].player.stats.inside;
     const up = applyUpgrade(home, 0, 'inside');
     expect(up.players[0].player.stats.inside).toBe(Math.min(10, before + 1));
-    expect(up.coins).toBe(980); // first standard buy costs 20
-    // Second buy of the same stat costs more (tier rises).
+    expect(up.coins).toBe(4600); // first standard buy costs 400
+    // The 2nd +1 is much steeper (3x the first).
     const up2 = applyUpgrade(up, 0, 'inside');
-    expect(up.coins - up2.coins).toBe(25);
+    expect(up.coins - up2.coins).toBe(1200);
     // Unaffordable is a no-op (same reference).
-    const broke = { ...home, coins: 0 };
+    const broke = { ...home, coins: 100 };
     expect(applyUpgrade(broke, 0, 'inside')).toBe(broke);
   });
 

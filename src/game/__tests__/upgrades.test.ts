@@ -8,16 +8,17 @@ import {
 } from '@/game/upgrades';
 
 describe('upgrade economy', () => {
-  it('standard stats follow the 20/25/31/39/49 ladder', () => {
-    const ladder = [0, 1, 2, 3, 4].map((n) => upgradeCost('inside', n));
-    expect(ladder).toEqual([20, 25, 31, 39, 49]);
+  it('standard stats cost 400 then 1,200 (steep, the only two ranks under the +2 cap)', () => {
+    expect(upgradeCost('inside', 0)).toBe(400);
+    expect(upgradeCost('inside', 1)).toBe(1200);
   });
 
-  it('premium stats follow the 30/39/51/66/86 ladder and cost more', () => {
+  it('premium stats cost 600 then 1,800 and cost more than standard', () => {
     expect(isPremiumStat('outside')).toBe(true);
     expect(isPremiumStat('inside')).toBe(false);
-    const ladder = [0, 1, 2, 3, 4].map((n) => upgradeCost('outside', n));
-    expect(ladder).toEqual([30, 39, 51, 66, 86]);
+    expect(upgradeCost('outside', 0)).toBe(600);
+    expect(upgradeCost('outside', 1)).toBe(1800);
+    expect(upgradeCost('outside', 0)).toBeGreaterThan(upgradeCost('inside', 0));
   });
 
   it('cost rises monotonically with tier', () => {
