@@ -7,7 +7,7 @@ import { PlayerCard } from '@/components/run/PlayerCard';
 import { CoinIcon } from '@/components/run/PixelIcons';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { applyUpgrade, upgradeCount } from '@/game/home-roster';
-import { canUpgrade, isPremiumStat, upgradeCost } from '@/game/upgrades';
+import { canUpgrade, isPremiumStat, perStatMax, upgradeCost } from '@/game/upgrades';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { PlayerStats } from '@/types/player';
 
@@ -87,7 +87,7 @@ export default function LockerRoomScreen() {
                       const value = rp.player.stats[s.key];
                       const bought = upgradeCount(homeRoster, rp, s.key);
                       const cost = upgradeCost(s.key, bought);
-                      const upgradable = canUpgrade(s.key, value, bought);
+                      const upgradable = canUpgrade(s.key, value, bought, perStatMax(homeRoster.leagueTier));
                       const afford = coins >= cost;
                       const disabled = !upgradable || !afford;
                       return (
