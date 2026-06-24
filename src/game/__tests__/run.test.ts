@@ -26,7 +26,7 @@ import { generateFixedMap } from '@/game/run-map';
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { tierFor } from '@/game/ratings';
 import { MAX_DRAFT_ROTATION, MAX_RUN_ROSTER } from '@/game/draft';
-import { POSITIONS } from '@/types/roster';
+import { POSITIONS, type RosterPlayer } from '@/types/roster';
 import type { MapNode } from '@/types/run-map';
 
 function rookie(seed = 'home'): HomeRoster {
@@ -291,11 +291,24 @@ describe('home roster persistence', () => {
     };
     const merged = mergeRunGainsIntoHome(home, flooded);
     expect(merged.players.length).toBeGreaterThan(17); // no 17-player cap any more
-    // The owned collection is preserved verbatim at the front.
-    expect(merged.players.slice(0, home.players.length).map((p) => p.player.name)).toEqual(
-      home.players.map((p) => p.player.name)
-    );
+    // Every owned player is still present (recency reorders, never drops).
+    const key = (p: RosterPlayer) => `${p.player.name}|${p.position}`;
+    const mergedKeys = new Set(merged.players.map(key));
+    expect(home.players.every((p) => mergedKeys.has(key(p)))).toBe(true);
+    // The five fielded starters sort to the front (most recently used).
+    expect(merged.players.slice(0, 5).map(key)).toEqual(run.starters.map(key));
     expect(merged.players.every((p) => !p.gamesOut)).toBe(true);
+  });
+
+  it('records the fielded rotation as lastRotation (5 starters + up to 3 bench)', () => {
+    const home = rookie('rot');
+    const run = homeToRunRoster(home); // 5 starters, 7 bench
+    const merged = mergeRunGainsIntoHome(home, run);
+    expect(merged.lastRotation).toBeDefined();
+    expect(merged.lastRotation).toHaveLength(8); // 5 + min(3, bench)
+    const key = (p: RosterPlayer) => `${p.player.name}|${p.position}`;
+    expect(merged.lastRotation!.slice(0, 5)).toEqual(run.starters.map(key));
+    expect(merged.lastRotation!.slice(5)).toEqual(run.bench.slice(0, 3).map(key));
   });
 
   it('advances the ladder on the difficulty actually played, not the selection', () => {

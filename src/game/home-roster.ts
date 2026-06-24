@@ -43,6 +43,10 @@ export interface HomeRoster {
   selectedDifficulty: Difficulty;
   /** The ladder class selected for the next run (must be unlocked on the difficulty). */
   selectedLadderClass: LadderClass;
+  /** The previous run's fielded rotation as playerKeys, slot-ordered (0-4 = PG..C
+   * starters, 5-7 = bench). The pre-run draft pre-populates from this. Optional;
+   * undefined before the first run. */
+  lastRotation?: string[];
   /** Completed runs since a legendary was last offered (soft pity). */
   legendDryStreak: number;
   /** Whether the one-time, first-run welcome reveal has been shown. */
@@ -216,9 +220,10 @@ export function mergeRunGainsIntoHome(
   // must advance on the played difficulty. Defaults to the current selection.
   playedDifficulty: Difficulty = home.selectedDifficulty
 ): HomeRoster {
+  const fielded = [...runRoster.starters, ...runRoster.bench].filter((p) => !p.onLoan);
   const ownedKeys = new Set(home.players.map(playerKey));
-  const newRecruits = [...runRoster.starters, ...runRoster.bench]
-    .filter((p) => !p.onLoan && !ownedKeys.has(playerKey(p)))
+  const newRecruits = fielded
+    .filter((p) => !ownedKeys.has(playerKey(p)))
     .map((p) => {
       const copy = { ...p };
       delete copy.item; // run-scoped
@@ -236,6 +241,29 @@ export function mergeRunGainsIntoHome(
     return true;
   });
 
+  // Recency: the players fielded this run move to the FRONT of the collection (in
+  // slot order), then this run's new recruits, then everyone else in prior order.
+  // So the owned collection stays sorted by most-recently-used.
+  const fieldedOwnedKeys: string[] = [];
+  const seenF = new Set<string>();
+  for (const p of fielded) {
+    const k = playerKey(p);
+    if (ownedKeys.has(k) && !seenF.has(k)) {
+      seenF.add(k);
+      fieldedOwnedKeys.push(k);
+    }
+  }
+  const homeByKey = new Map(home.players.map((p) => [playerKey(p), p]));
+  const fieldedOwned = fieldedOwnedKeys.map((k) => homeByKey.get(k)!);
+  const restOwned = home.players.filter((p) => !seenF.has(playerKey(p)));
+  const players = [...fieldedOwned, ...deduped, ...restOwned];
+
+  // The lineup to restore next run: the five starters (slot order) plus up to three bench.
+  const lastRotation = [
+    ...runRoster.starters.map(playerKey),
+    ...runRoster.bench.filter((p) => !p.onLoan).slice(0, 3).map(playerKey),
+  ];
+
   const ladderProgress = { ...home.ladderProgress };
   let selectedLadderClass = home.selectedLadderClass;
   if (champion && clearedClass) {
@@ -249,11 +277,12 @@ export function mergeRunGainsIntoHome(
 
   return {
     ...home,
-    players: [...home.players, ...deduped],
+    players,
     coins: home.coins + (rewards?.coins ?? 0),
     reputation: home.reputation + (rewards?.reputation ?? 0),
     ladderProgress,
     selectedLadderClass,
+    lastRotation: lastRotation.length >= 5 ? lastRotation : home.lastRotation,
     legendDryStreak: legendOffered ? 0 : home.legendDryStreak + 1,
     seenWelcome: home.seenWelcome ?? true,
   };
@@ -346,6 +375,10 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     ladderProgress,
     selectedDifficulty,
     selectedLadderClass,
+    lastRotation:
+      Array.isArray(data.lastRotation) && data.lastRotation.every((k) => typeof k === 'string')
+        ? (data.lastRotation as string[])
+        : undefined,
     legendDryStreak: typeof data.legendDryStreak === 'number' ? data.legendDryStreak : 0,
     seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
   };
