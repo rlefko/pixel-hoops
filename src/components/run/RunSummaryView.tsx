@@ -8,6 +8,8 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 interface RunSummaryViewProps {
   champion: boolean;
   wins: number;
+  /** The newly unlocked League tier (shown as a reward when present). */
+  unlockedTier?: number;
   onNewRun: () => void;
   onMenu: () => void;
 }
@@ -15,6 +17,7 @@ interface RunSummaryViewProps {
 export function RunSummaryView({
   champion,
   wins,
+  unlockedTier,
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
@@ -28,6 +31,9 @@ export function RunSummaryView({
       <Text style={styles.body}>
         {wins} {wins === 1 ? 'win' : 'wins'} this run
       </Text>
+      {unlockedTier ? (
+        <Text style={styles.unlock}>LEAGUE TIER {unlockedTier} UNLOCKED</Text>
+      ) : null}
       <Text style={styles.note}>Recruits and training carried home.</Text>
       <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
         <Text style={styles.buttonText}>NEW RUN</Text>
@@ -55,6 +61,13 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.label,
     color: palette.inkDim,
     marginTop: space(4),
+  },
+  unlock: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.body,
+    color: palette.orange,
+    textAlign: 'center',
+    marginTop: space(3),
   },
   note: {
     fontFamily: FONT.body,
