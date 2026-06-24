@@ -12,6 +12,7 @@ import {
 import { createPlayer } from '@/types/player';
 import { ARCHETYPE_POSITION, type RosterPlayer } from '@/types/roster';
 import { anchorStatsToClass, type PlayerClass } from '@/game/classes';
+import { ovr, classForOvr } from '@/game/ratings';
 import { createRNG } from '@/game/rng';
 
 /** A roster player anchored to a class, for cost tests. */
@@ -43,6 +44,21 @@ describe('draft costs', () => {
 
   it('reads a player class from originalClass', () => {
     expect(playerDraftClass(player('x', 'B'))).toBe('B');
+  });
+
+  it('costs an upgraded player by its ORIGINAL class, not the upgraded one', () => {
+    // A C-class player whose locker-room upgrades pushed their OVR into B territory.
+    const c = player('upgraded', 'C');
+    const upgraded: RosterPlayer = {
+      ...c,
+      player: {
+        ...c.player,
+        stats: { ...c.player.stats, inside: 10, outside: 10, playmaking: 10, iq: 9 },
+      },
+    };
+    expect(classForOvr(ovr(upgraded.player.stats, upgraded.position))).not.toBe('C');
+    expect(playerDraftClass(upgraded)).toBe('C'); // draft class stays original
+    expect(draftCostFor(upgraded, 'C')).toBe(1); // a C on the C ladder, not 2
   });
 });
 

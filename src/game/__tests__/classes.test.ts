@@ -11,8 +11,9 @@ import {
   classCost,
 } from '@/game/classes';
 import { ovr } from '@/game/ratings';
+import { createRNG } from '@/game/rng';
 import { createPlayer, SKILL_STAT_KEYS, type PlayerStats } from '@/types/player';
-import { ARCHETYPE_POSITION } from '@/types/roster';
+import { ARCHETYPE_POSITION, POSITION_ARCHETYPE, POSITIONS } from '@/types/roster';
 
 describe('class model', () => {
   it('orders the ladder D < C < B < A < S < S+ < S++', () => {
@@ -74,6 +75,21 @@ describe('class model', () => {
       const base = createPlayer('Test', 'small-forward', rng);
       const anchored = anchorStatsToClass(base.stats, cls, ARCHETYPE_POSITION['small-forward']);
       expect(classForOvr(ovr(anchored, 'SF'))).toBe(cls);
+    }
+  });
+
+  it('always lands classForOvr(ovr) exactly on the target class (every position x seed)', () => {
+    // The exactness invariant that kills spurious upgrade arrows: a freshly anchored
+    // player's badge class equals its intended class.
+    for (const position of POSITIONS) {
+      const archetype = POSITION_ARCHETYPE[position];
+      for (let s = 0; s < 50; s++) {
+        const base = createPlayer('T', archetype, createRNG(`anchor-${position}-${s}`).int);
+        for (const cls of ['D', 'C', 'B', 'A', 'S'] as const) {
+          const anchored = anchorStatsToClass(base.stats, cls, position);
+          expect(classForOvr(ovr(anchored, position)), `${position} ${cls} seed ${s}`).toBe(cls);
+        }
+      }
     }
   });
 

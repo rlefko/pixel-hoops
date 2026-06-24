@@ -263,11 +263,24 @@ export function serializeHomeRoster(home: HomeRoster): SerializedHomeRoster {
   return { version: HOME_ROSTER_VERSION, data: home };
 }
 
-/** Backfill a player's intrinsic class from their base stats when missing. */
-function withOriginalClass(rp: RosterPlayer): RosterPlayer {
+/**
+ * Backfill a player's intrinsic class when missing (pre-v6 saves). Reconstructs
+ * the BASE stats by subtracting the permanent-upgrade ledger first, so an already
+ * upgraded legacy player records its true STARTING class, not the upgraded one.
+ */
+function withOriginalClass(
+  rp: RosterPlayer,
+  upgrades: Record<string, Partial<Record<keyof PlayerStats, number>>>
+): RosterPlayer {
   if (rp.originalClass) return rp;
-  const cls: PlayerClass = rp.legendary ? 'S+' : classForOvr(ovr(rp.player.stats, rp.position));
-  return { ...rp, originalClass: cls };
+  if (rp.legendary) return { ...rp, originalClass: 'S+' };
+  const bought = upgrades[playerKey(rp)] ?? {};
+  const base = { ...rp.player.stats };
+  for (const key in bought) {
+    const k = key as keyof PlayerStats;
+    base[k] = Math.max(3, base[k] - (bought[k] ?? 0));
+  }
+  return { ...rp, originalClass: classForOvr(ovr(base, rp.position)) };
 }
 
 /**
@@ -289,6 +302,8 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     );
   });
   if (!playersOk) return null;
+  const savedUpgrades =
+    data.upgrades && typeof data.upgrades === 'object' ? data.upgrades : {};
   const players = data.players.map((p): RosterPlayer => {
     const migrated = isLegacyStats(p.player.stats)
       ? { ...p, player: { ...p.player, stats: expandStats(p.player.stats, p.position) } }
@@ -298,7 +313,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     delete migrated.trainingDelta;
     delete migrated.gamesOut;
     delete migrated.equippedAbility; // sourced from equippedAbilities, not the player
-    return withOriginalClass(migrated);
+    return withOriginalClass(migrated, savedUpgrades);
   });
 
   const ladderProgress = emptyLadderProgress();
@@ -323,7 +338,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     players,
     coins: typeof data.coins === 'number' ? data.coins : 0,
     reputation: typeof data.reputation === 'number' ? data.reputation : 0,
-    upgrades: data.upgrades && typeof data.upgrades === 'object' ? data.upgrades : {},
+    upgrades: savedUpgrades,
     abilityInventory:
       data.abilityInventory && typeof data.abilityInventory === 'object' ? data.abilityInventory : {},
     equippedAbilities:
