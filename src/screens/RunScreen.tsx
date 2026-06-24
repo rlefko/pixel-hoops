@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Text, FitText } from '@/components/StyledText';
+import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { useRun } from '@/hooks/useRun';
 import {
@@ -202,9 +202,9 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
       <Text style={styles.section}>SCOUTING REPORT</Text>
       <View style={styles.scoutHeader}>
         <View style={[styles.swatch, { backgroundColor: away.colorHex }]} />
-        <FitText style={styles.oppName} minScale={0.8}>
+        <Text style={styles.oppName} numberOfLines={1}>
           {away.name}
-        </FitText>
+        </Text>
       </View>
       <LineupBoard team={away} compact />
       <Text style={styles.section}>YOUR FIVE</Text>

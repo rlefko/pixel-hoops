@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { Text, FitText } from '@/components/StyledText';
+import { Text } from '@/components/StyledText';
 import { PixelPlayer } from '@/components/fx';
 import { usePulse } from '@/feel';
 import { InjuryIcon } from '@/components/run/PixelIcons';
@@ -129,9 +129,12 @@ export function PlayerCard({
             <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
           ) : null}
           <View style={styles.nameRow}>
-            <FitText style={[styles.name, isLegendary && styles.legendName]}>
+            <Text
+              style={[styles.name, isLegendary && styles.legendName]}
+              numberOfLines={2}
+            >
               {rp.player.name}
-            </FitText>
+            </Text>
             {isLegendary ? <Text style={styles.legendStar}>★</Text> : null}
             {itemDef ? (
               <Text style={[styles.itemMark, { color: ITEM_RARITY_COLOR[itemDef.rarity] }]}>
