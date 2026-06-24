@@ -61,6 +61,21 @@ export default function RunScreen() {
           onOpenBag={actions.openBag}
         />
       );
+    case 'prepareLineup':
+      return (
+        <LineupBuilderView
+          roster={{ starters: model.phase.starters, bench: model.phase.bench }}
+          bagCount={0}
+          budget={{ cap: model.budgetCap }}
+          title="PICK YOUR FIVE"
+          subtitle="Fit your starters under the salary cap"
+          hideBag
+          hideCancel
+          onConfirm={actions.confirmPrepareLineup}
+          onCancel={() => undefined}
+          onOpenBag={() => undefined}
+        />
+      );
     case 'boostDraft':
       return (
         <BoostDraftView
@@ -148,6 +163,7 @@ export default function RunScreen() {
         <LineupBuilderView
           roster={model.core.roster}
           bagCount={model.bag.length}
+          budget={{ cap: model.budgetCap }}
           onConfirm={actions.setLineup}
           onCancel={actions.cancelLineup}
           onOpenBag={(starters, bench) => {

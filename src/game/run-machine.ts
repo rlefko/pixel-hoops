@@ -8,6 +8,7 @@ import {
 import { buildTeam, validateLineup } from './lineup';
 import { simulateGame } from './simulation';
 import { homeToRunRoster, type HomeRoster } from './home-roster';
+import { budgetFor, lineupCost, cheapestFiveCost, playerCost } from './budget';
 import { effectivePlayers, teamModifierFor } from './apply-effects';
 import { MAX_TRAINED_STAT, trainedStat } from './effects';
 import { legendRecruit } from './player-pool';
@@ -69,6 +70,9 @@ const MAX_GAMES_OUT = 2;
 
 export type RunPhase =
   | { kind: 'map' }
+  // Pick the starting five under the salary cap before the run opens. Defaults to
+  // the most recent five (excluding legends), trimmed to fit the budget.
+  | { kind: 'prepareLineup'; starters: RosterPlayer[]; bench: RosterPlayer[] }
   | { kind: 'pregame'; nodeId: string }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
@@ -98,6 +102,11 @@ export interface RunModel {
   phase: RunPhase;
   gamePlan: GamePlan;
   wins: number;
+  /** The League tier this run is played at (from the home roster's selection).
+   * Opponents harden with it; see src/game/ascension.ts. */
+  tier: number;
+  /** The starting-five salary cap for this run, from the home roster's tier. */
+  budgetCap: number;
   /** Equipped passive boosts (max 5). Lives here, not in RunState, so it never
    * leaks into the home roster at merge. */
   boosts: PassiveBoost[];
@@ -117,6 +126,7 @@ export interface RunModel {
 
 export type RunAction =
   | { type: 'newRun'; seed: string; homeRoster: HomeRoster }
+  | { type: 'confirmPrepareLineup'; starters: RosterPlayer[]; bench: RosterPlayer[] }
   | { type: 'chooseNode'; nodeId: string }
   | { type: 'setGamePlan'; plan: GamePlan }
   | { type: 'openLineupBuilder' }
@@ -146,24 +156,63 @@ export type RunAction =
   | { type: 'backToMap' }
   | { type: 'endRun' };
 
+/**
+ * A legal default starting five for the pre-run picker: the most recent five
+ * (legends pushed to the bench, since on-loan stars do not persist anyway), then
+ * greedily swap the priciest starter for the cheapest bench body until the five
+ * fits the cap. Deterministic. Falls back to the cheapest achievable five when a
+ * pool of nothing-but-expensive players cannot fit (the picker grants grace).
+ */
+function defaultLegalFive(roster: RunState['roster'], cap: number): RunState['roster'] {
+  const all = [...roster.starters, ...roster.bench];
+  const preferred = [...all.filter((p) => !p.legendary), ...all.filter((p) => p.legendary)];
+  let starters = preferred.slice(0, 5);
+  let bench = preferred.slice(5);
+  for (let guard = 0; guard < 30 && lineupCost(starters) > cap && bench.length > 0; guard++) {
+    const hi = starters.reduce((m, p, i) => (playerCost(p) > playerCost(starters[m]) ? i : m), 0);
+    const lo = bench.reduce((m, p, i) => (playerCost(p) < playerCost(bench[m]) ? i : m), 0);
+    if (playerCost(bench[lo]) >= playerCost(starters[hi])) break; // no cheaper swap
+    const out = starters[hi];
+    const inn = bench[lo];
+    starters = starters.map((p, i) => (i === hi ? inn : p));
+    bench = bench.map((p, i) => (i === lo ? out : p));
+  }
+  return { starters, bench };
+}
+
+/**
+ * Whether a five may be fielded under the salary cap: under it, or already at the
+ * cheapest achievable cost (the grace floor, so a pool of nothing-but-expensive
+ * players never soft-locks the picker).
+ */
+function lineupWithinBudget(starters: RosterPlayer[], bench: RosterPlayer[], cap: number): boolean {
+  const used = lineupCost(starters);
+  return used <= cap || used <= cheapestFiveCost([...starters, ...bench]);
+}
+
 /** Build a fresh run from a seed and the player's home roster. */
 export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
   const map = generateFixedMap({ seed: deriveSeed(seed, 'map-0'), mapIndex: 0 });
+  const budgetCap = budgetFor(homeRoster.leagueTier);
+  const roster = homeToRunRoster(homeRoster);
+  const { starters, bench } = defaultLegalFive(roster, budgetCap);
   const core: RunState = {
     map,
     currentMapIndex: 0,
     currentNodeId: null,
-    roster: homeToRunRoster(homeRoster),
+    roster,
     seed,
     rewards: { coins: 0, reputation: 0, trainingPoints: 0 },
   };
-  // The run opens on the Map-1 passive-boost draft (the "starter pick").
-  const offers = drawBoostOffers(1, [], createRNG(deriveSeed(seed, 'boost-m0')));
+  // The run opens on the pre-run starting-five pick; the Map-1 boost draft (and
+  // its seeded offers) follows once the five is confirmed.
   return {
     core,
-    phase: { kind: 'boostDraft', round: 1, offers, pendingFull: false },
+    phase: { kind: 'prepareLineup', starters, bench },
     gamePlan: DEFAULT_GAME_PLAN,
     wins: 0,
+    tier: homeRoster.selectedTier ?? 0,
+    budgetCap,
     boosts: [],
     bag: [],
     legend: { dryStreak: homeRoster.legendDryStreak ?? 0, offeredThisRun: false },
@@ -449,6 +498,19 @@ export function runReducer(
   if (model === null) return null;
 
   switch (action.type) {
+    case 'confirmPrepareLineup': {
+      if (model.phase.kind !== 'prepareLineup') return model;
+      const { starters, bench } = action;
+      if (!validateLineup(starters).ok) return model;
+      if (!lineupWithinBudget(starters, bench, model.budgetCap)) return model;
+      const offers = drawBoostOffers(1, [], createRNG(deriveSeed(model.core.seed, 'boost-m0')));
+      return {
+        ...model,
+        core: { ...model.core, roster: { starters, bench } },
+        phase: { kind: 'boostDraft', round: 1, offers, pendingFull: false },
+      };
+    }
+
     case 'chooseNode': {
       const node = model.core.map.nodes[action.nodeId];
       if (!node) return model;
@@ -464,6 +526,9 @@ export function runReducer(
     case 'setLineup': {
       if (model.phase.kind !== 'lineup') return model;
       if (!validateLineup(action.starters).ok) return model;
+      // The salary cap also governs in-run lineup changes, so a cheap pre-run five
+      // cannot be swapped for five studs mid-run (grace prevents a soft-lock).
+      if (!lineupWithinBudget(action.starters, action.bench, model.budgetCap)) return model;
       const roster = { starters: action.starters, bench: action.bench };
       return { ...model, core: { ...model.core, roster }, phase: model.phase.returnTo };
     }

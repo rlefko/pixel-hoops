@@ -5,12 +5,17 @@ import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import { POSITIONS, type Position, type Roster, type RosterPlayer } from '@/types/roster';
+import { lineupCost, cheapestFiveCost } from '@/game/budget';
 
 /**
  * Set your starting five and assign each player to a court slot (PG/SG/SF/PF/C).
  * The slot is where they line up; the player keeps their real position (its badge
  * is unchanged), so a Center can run the point. Tap two players to swap their
  * spots; the five starters end up in slot order (index 0 = PG slot ... 4 = C).
+ *
+ * When a `budget` cap is supplied, a salary meter is shown and confirming an
+ * over-cap five is blocked (unless no cheaper five is even possible, so a pool of
+ * nothing-but-studs never soft-locks).
  */
 
 const LINEUP_SIZE = 5;
@@ -23,6 +28,15 @@ interface LineupBuilderViewProps {
   onCancel: () => void;
   /** Commit the current order and open the item bag to manage gear. */
   onOpenBag: (starters: RosterPlayer[], bench: RosterPlayer[]) => void;
+  /** Salary cap for the five; when present, shows a meter and gates CONFIRM. */
+  budget?: { cap: number };
+  /** Heading + subheading overrides (the pre-run pick reads differently). */
+  title?: string;
+  subtitle?: string;
+  /** Hide the bag button (no items exist before the run starts). */
+  hideBag?: boolean;
+  /** Hide the cancel link (you cannot back out of starting a run). */
+  hideCancel?: boolean;
 }
 
 type Cell = { zone: 'slot' | 'bench'; index: number };
@@ -36,6 +50,11 @@ export function LineupBuilderView({
   onConfirm,
   onCancel,
   onOpenBag,
+  budget,
+  title,
+  subtitle,
+  hideBag,
+  hideCancel,
 }: LineupBuilderViewProps) {
   // Seed the five slots from the whole pool so there are always five starters,
   // even if the incoming roster split is uneven.
@@ -77,13 +96,26 @@ export function LineupBuilderView({
     setPicked(null);
   };
 
+  const used = budget ? lineupCost(starters) : 0;
+  const minCost = budget ? cheapestFiveCost([...starters, ...bench]) : 0;
+  const over = !!budget && used > budget.cap;
+  // Block confirming over the cap, but never when no cheaper five is achievable.
+  const canConfirm = !budget || used <= budget.cap || used <= minCost;
+
   return (
     <Screen style={styles.container}>
-      <Text style={styles.title}>SET YOUR FIVE</Text>
-      <Text style={styles.subtitle}>Tap two players to swap their spots</Text>
-      <Pressable style={styles.bagButton} onPress={() => onOpenBag(starters, bench)}>
-        <Text style={styles.bagText}>OPEN BAG ({bagCount})</Text>
-      </Pressable>
+      <Text style={styles.title}>{title ?? 'SET YOUR FIVE'}</Text>
+      <Text style={styles.subtitle}>{subtitle ?? 'Tap two players to swap their spots'}</Text>
+      {budget ? (
+        <Text style={[styles.meter, over && styles.meterOver]}>
+          SALARY {used} / {budget.cap}
+        </Text>
+      ) : null}
+      {hideBag ? null : (
+        <Pressable style={styles.bagButton} onPress={() => onOpenBag(starters, bench)}>
+          <Text style={styles.bagText}>OPEN BAG ({bagCount})</Text>
+        </Pressable>
+      )}
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         <Text style={styles.sectionLabel}>STARTERS</Text>
@@ -119,12 +151,18 @@ export function LineupBuilderView({
         })}
       </ScrollView>
 
-      <Pressable onPress={() => onConfirm(starters, bench)} style={styles.confirm}>
-        <Text style={styles.confirmText}>CONFIRM</Text>
+      <Pressable
+        onPress={() => onConfirm(starters, bench)}
+        disabled={!canConfirm}
+        style={[styles.confirm, !canConfirm && styles.confirmDisabled]}
+      >
+        <Text style={styles.confirmText}>{canConfirm ? 'CONFIRM' : 'OVER SALARY CAP'}</Text>
       </Pressable>
-      <Pressable onPress={onCancel}>
-        <Text style={styles.cancel}>Cancel</Text>
-      </Pressable>
+      {hideCancel ? null : (
+        <Pressable onPress={onCancel}>
+          <Text style={styles.cancel}>Cancel</Text>
+        </Pressable>
+      )}
     </Screen>
   );
 }
@@ -220,11 +258,20 @@ const styles = StyleSheet.create({
     backgroundColor: palette.gold + '1A',
     alignItems: 'center',
   },
+  confirmDisabled: { opacity: 0.4, borderColor: palette.inkDim },
   confirmText: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.body,
     color: palette.gold,
   },
+  meter: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
+    textAlign: 'center',
+    marginTop: space(2),
+  },
+  meterOver: { color: palette.orange },
   cancel: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,
