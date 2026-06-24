@@ -8,6 +8,7 @@ import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { ownedRosterPlayers } from '@/game/home-roster';
 import { ovr, CLASS_ORDER, type PlayerClass } from '@/game/ratings';
+import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -30,6 +31,11 @@ export default function RosterScreen() {
   const [query, setQuery] = useState('');
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
   const [sort, setSort] = useState<Sort>('recent');
+
+  // Track the expanded player by object reference, not list slot, so an open stat
+  // spread follows the player across re-sorts and filters (the collection can hold
+  // duplicate name/position pairs, and ownedRosterPlayers returns stable instances).
+  const [expanded, setExpanded] = useState<RosterPlayer | null>(null);
 
   const players = useMemo(
     () => (homeRoster ? ownedRosterPlayers(homeRoster) : []),
@@ -92,7 +98,11 @@ export default function RosterScreen() {
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         {shown.map((rp, i) => (
           <View key={`${rp.player.name}-${rp.position}-${i}`} style={styles.row}>
-            <PlayerCard rp={rp} />
+            <PlayerCard
+              rp={rp}
+              expanded={expanded === rp}
+              onToggleExpand={() => setExpanded(expanded === rp ? null : rp)}
+            />
           </View>
         ))}
         {shown.length === 0 ? <Text style={styles.empty}>No players match.</Text> : null}
