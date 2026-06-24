@@ -6,9 +6,9 @@ import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
- * The first-run welcome: five real NBA free agents have signed on to start the
- * player's franchise. A simple, celebratory reveal of the starting five (one per
- * position) with a single button to begin. Shown once (gated on
+ * The first-run welcome: the player's starting free agents have signed on to
+ * launch their franchise. A simple, celebratory reveal of the full starting
+ * roster with a single button to begin. Shown once (gated on
  * HomeRoster.seenWelcome), then never again.
  */
 interface FreeAgentRevealViewProps {
@@ -21,8 +21,8 @@ export function FreeAgentRevealView({ players, onContinue }: FreeAgentRevealView
     <Screen style={styles.container} topGap={space(4)}>
       <Text style={styles.kicker}>WELCOME TO THE LEAGUE</Text>
       <Text style={styles.subtitle}>
-        Five free agents have signed with your franchise. Set your lineup, run the
-        bracket, and build a dynasty.
+        {players.length} free agents have signed with your franchise. Set your
+        lineup, run the bracket, and build a dynasty.
       </Text>
 
       <ScrollView
