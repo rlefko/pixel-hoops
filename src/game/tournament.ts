@@ -1,11 +1,7 @@
 import type { Archetype } from '@/types/player';
 import { createPlayer } from '@/types/player';
 import type { Roster, RosterPlayer, Position } from '@/types/roster';
-import {
-  POSITIONS,
-  POSITION_ARCHETYPE,
-  ARCHETYPE_POSITION,
-} from '@/types/roster';
+import { POSITIONS, POSITION_ARCHETYPE } from '@/types/roster';
 import type { GamePlan, Focus, Pace } from '@/types/tactics';
 import type { RNG } from './rng';
 import { clamp, scaleStatsToLevel } from './stat-scaling';
@@ -14,8 +10,12 @@ import {
   realPlayerToRosterPlayer,
   legendForTeam,
   modernStartersForTeam,
+  poolByClass,
   freeAgentPool,
 } from './player-pool';
+import { anchorStatsToClass } from './classes';
+import { classAboveLadder, type LadderClass } from './difficulty-mode';
+import type { PlayerClass } from './ratings';
 import type { RealPlayer } from '@/types/nba';
 
 // Re-exported so existing importers (and tests) can keep using
@@ -171,6 +171,27 @@ export function buildStartingRoster(rng: RNG): Roster {
   return { starters: buildSeededFive(rng), bench: [] };
 }
 
+/**
+ * A procedural player of a target class at a position. The ONLY source of D-class
+ * players (the streetball floor the player starts with) and a last-resort fill
+ * when a real-class pool is somehow empty; every class above D is otherwise a real
+ * player. Builds an archetype-shaped line, anchors it into the class band, and
+ * stamps the class so the card and draft read consistently.
+ */
+export function generatePlayerOfClass(
+  cls: PlayerClass,
+  position: Position,
+  rng: RNG
+): RosterPlayer {
+  const archetype = POSITION_ARCHETYPE[position];
+  const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
+  return {
+    player: { ...base, stats: anchorStatsToClass(base.stats, cls, position) },
+    position,
+    originalClass: cls,
+  };
+}
+
 /** A single fake, difficulty-scaled player for the given floor position. */
 function fakePlayerAt(
   position: Position,
@@ -273,48 +294,57 @@ export function generateOpponentTeam(
   };
 }
 
-/** One procedural, difficulty-scaled recruit (archetype weighted by run depth). */
-function fakeRecruit(level: number, rng: RNG): RosterPlayer {
-  const weights = Object.entries(archetypeWeightsForLevel(level)) as [
-    Archetype,
-    number,
-  ][];
-  const archetype = rng.weightedPick(weights);
-  const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
-  return {
-    player: { ...base, stats: scaleStatsToLevel(base.stats, level, rng) },
-    position: ARCHETYPE_POSITION[archetype],
-  };
+/** Pick one untaken REAL player of a class, or null if that class pool is dry.
+ * Recruits keep their real, class-banded ratings (they are not level-scaled): a
+ * C-ladder recruit is a real C-class player. */
+function pickRealOfClass(
+  cls: PlayerClass,
+  taken: Set<string>,
+  rng: RNG
+): RosterPlayer | null {
+  const available = poolByClass(cls).filter((p) => !taken.has(p.name));
+  if (available.length === 0) return null;
+  return realPlayerToRosterPlayer(rng.pick(available));
 }
 
 /**
- * Deterministic recruit candidates for a recruit node, scaled to the node's
- * difficulty level. Keepable recruits are real free agents drawn from the
- * modern-starter pool, skipping any player in `exclude` (the squad already owns
- * them) and any already offered this visit; a procedural player backfills when
- * the pool runs dry. Real all-time legends are never keepable here: they surface
- * only as the rare on-loan legendary offer, gated separately by the run machine.
+ * Deterministic recruit candidates for a recruit node. Recruits are REAL players
+ * at the run's ladder class, with a chance ramping 0 -> 50% by the final map of
+ * offering the class ABOVE instead (`mapProgress` is 0 on the first map, ~1 on the
+ * last). Above D every recruit is a real player; only if a class pool is fully
+ * exhausted does it fall back to the ladder class, then any untaken real, then a
+ * procedural player. Real all-time legends (S+) surface only as the rare on-loan
+ * offer, gated separately by the run machine (and only on the S ladder).
  */
 export function generateRecruitOffers(
-  level: number,
+  ladderClass: LadderClass,
+  mapProgress: number,
   count: number,
   rng: RNG,
   exclude: Set<string> = new Set()
 ): RosterPlayer[] {
-  const pool = freeAgentPool();
+  const aboveChance = clamp(0.5 * mapProgress, 0, 0.5);
+  const above = classAboveLadder(ladderClass);
   const taken = new Set(exclude);
   const offers: RosterPlayer[] = [];
   for (let i = 0; i < count; i++) {
-    const available = pool.filter((p) => !taken.has(p.name));
-    if (available.length === 0) {
-      offers.push(fakeRecruit(level, rng));
-      continue;
-    }
-    const chosen = rng.pick(available);
-    taken.add(chosen.name);
-    offers.push(scaledFromReal(chosen, level, rng));
+    const wantAbove = rng.chance(aboveChance);
+    const chosen =
+      (wantAbove ? pickRealOfClass(above, taken, rng) : null) ??
+      pickRealOfClass(ladderClass, taken, rng) ??
+      pickAnyUntakenReal(taken, rng) ??
+      generatePlayerOfClass(ladderClass, rng.pick(POSITIONS), rng);
+    taken.add(chosen.player.name);
+    offers.push(chosen);
   }
   return offers;
+}
+
+/** Any untaken real from the whole class pool, for the rare exhausted-bucket case. */
+function pickAnyUntakenReal(taken: Set<string>, rng: RNG): RosterPlayer | null {
+  const available = freeAgentPool().filter((p) => !taken.has(p.name));
+  if (available.length === 0) return null;
+  return realPlayerToRosterPlayer(rng.pick(available));
 }
 
 /**
@@ -338,6 +368,43 @@ export function pickFreeAgentFive(rng: RNG): RosterPlayer[] {
     used.add(chosen.slug);
     return realPlayerToRosterPlayer(chosen);
   });
+}
+
+/** Pick one untaken real of a class at a position, or null if none. */
+function pickRealAtPosition(
+  cls: PlayerClass,
+  position: Position,
+  used: Set<string>,
+  rng: RNG
+): RosterPlayer | null {
+  const available = poolByClass(cls).filter(
+    (p) => p.position === position && !used.has(p.slug)
+  );
+  if (available.length === 0) return null;
+  const chosen = rng.pick(available);
+  used.add(chosen.slug);
+  return realPlayerToRosterPlayer(chosen);
+}
+
+/**
+ * The player's starting twelve: 5 D-class (procedural streetball, one per
+ * position) + 5 C-class + 2 B-class (real players). The only place D-class players
+ * are seeded; every higher-class starter is a real NBA player. Deterministic.
+ */
+export function buildStartingTwelve(rng: RNG): RosterPlayer[] {
+  const players: RosterPlayer[] = [];
+  const used = new Set<string>();
+  for (const position of POSITIONS) {
+    players.push(generatePlayerOfClass('D', position, rng));
+  }
+  for (const position of POSITIONS) {
+    players.push(pickRealAtPosition('C', position, used, rng) ?? generatePlayerOfClass('C', position, rng));
+  }
+  // Two B-class anchors: a guard and a big.
+  for (const position of ['PG', 'C'] as Position[]) {
+    players.push(pickRealAtPosition('B', position, used, rng) ?? generatePlayerOfClass('B', position, rng));
+  }
+  return players;
 }
 
 /**

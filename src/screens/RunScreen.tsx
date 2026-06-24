@@ -10,12 +10,14 @@ import {
   steppingInSubs,
   type RunModel,
 } from '@/game/run-machine';
-import { MAX_LEAGUE_TIER } from '@/game/ascension';
+import { classAboveLadder } from '@/game/difficulty-mode';
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { GamePlanPicker } from '@/components/game/GamePlanPicker';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
 import { RunMapView } from '@/components/run/RunMapView';
 import { RecruitView } from '@/components/run/RecruitView';
+import { DraftView } from '@/components/run/DraftView';
+import { DropForRecruitView } from '@/components/run/DropForRecruitView';
 import { LineupBuilderView } from '@/components/run/LineupBuilderView';
 import { TrainingView } from '@/components/run/TrainingView';
 import { RestView } from '@/components/run/RestView';
@@ -55,7 +57,8 @@ export default function RunScreen() {
         <RunMapView
           core={model.core}
           boosts={model.boosts}
-          tier={model.tier}
+          difficulty={model.difficulty}
+          ladderClass={model.ladderClass}
           bagCount={model.bag.length}
           onChoose={actions.chooseNode}
           onQuit={actions.endRun}
@@ -63,19 +66,21 @@ export default function RunScreen() {
           onOpenBag={actions.openBag}
         />
       );
-    case 'prepareLineup':
+    case 'draft':
       return (
-        <LineupBuilderView
-          roster={{ starters: model.phase.starters, bench: model.phase.bench }}
-          bagCount={0}
-          budget={{ cap: model.budgetCap }}
-          title="PICK YOUR FIVE"
-          subtitle="Fit your starters under the salary cap"
-          hideBag
-          hideCancel
-          onConfirm={actions.confirmPrepareLineup}
-          onCancel={() => undefined}
-          onOpenBag={() => undefined}
+        <DraftView
+          available={model.phase.available}
+          difficulty={model.difficulty}
+          ladderClass={model.ladderClass}
+          onConfirm={actions.confirmDraft}
+        />
+      );
+    case 'dropForRecruit':
+      return (
+        <DropForRecruitView
+          incoming={model.phase.incoming}
+          roster={model.core.roster}
+          onDrop={actions.dropForRecruit}
         />
       );
     case 'boostDraft':
@@ -165,7 +170,6 @@ export default function RunScreen() {
         <LineupBuilderView
           roster={model.core.roster}
           bagCount={model.bag.length}
-          budget={{ cap: model.budgetCap }}
           onConfirm={actions.setLineup}
           onCancel={actions.cancelLineup}
           onOpenBag={(starters, bench) => {
@@ -186,15 +190,17 @@ export default function RunScreen() {
         />
       );
     case 'summary': {
-      const unlockedTier =
-        model.phase.champion && model.atFrontier && model.tier < MAX_LEAGUE_TIER
-          ? model.tier + 1
+      const unlockedClass =
+        model.phase.champion && model.atFrontier && model.ladderClass !== 'S+'
+          ? classAboveLadder(model.ladderClass)
           : undefined;
       return (
         <RunSummaryView
           champion={model.phase.champion}
           wins={model.wins}
-          unlockedTier={unlockedTier}
+          difficulty={model.difficulty}
+          ladderClass={model.ladderClass}
+          unlockedClass={unlockedClass}
           onNewRun={actions.newRun}
           onMenu={goMenu}
         />
@@ -217,7 +223,7 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   // sim is named under the five. Synergy comes from `home` (the five that actually
   // dress), so the preview still never lies about the matchup.
   const home = buildHomeTeam(model);
-  const away = buildOpponentTeam(model.core, nodeId, model.tier);
+  const away = buildOpponentTeam(model.core, nodeId, model.mods);
   const chosen = model.core.roster.starters;
   const steppingIn = steppingInSubs(model.core.roster);
   return (

@@ -1,4 +1,5 @@
 import type { Archetype, Player, PlayerStats } from './player';
+import type { PlayerClass } from '@/game/ratings';
 
 /**
  * Floor positions for the 5-on-5 model. PG/SG are guards, SF is the wing,
@@ -44,6 +45,14 @@ export interface RosterPlayer {
   usage?: number;
   /** Real jersey number for baked NBA players; fakes derive one from the name. */
   jerseyNumber?: number;
+  /**
+   * The player's intrinsic class (D/C/B/A/S/S+), fixed from their BASE stats at
+   * creation/recruit and never changed by upgrades, abilities, or training. Drives
+   * draft cost and recruit/opponent class gating; the card shows it with an arrow
+   * to the current class (classForOvr of the effective OVR). Optional for legacy
+   * saves; backfilled on load.
+   */
+  originalClass?: PlayerClass;
   /** Games this player must sit out from a between-game injury (0/undefined = healthy). */
   gamesOut?: number;
   /** A 90+ real NBA great: gold nameplate, signature ability, very rare. */
@@ -54,6 +63,14 @@ export interface RosterPlayer {
   onLoan?: boolean;
   /** Run-scoped equipped item (max 1/player; reset each run, never persists home). */
   item?: { defId: string };
+  /**
+   * Equipped gacha ability (a SEPARATE slot from {@link item} and the legend
+   * signature {@link ability}). Stamped onto the run player from the home record's
+   * equippedAbilities at run start and kept for the whole run (persists between
+   * rounds, cannot change mid-run), but never persisted home at merge: the home
+   * source of truth is HomeRoster.equippedAbilities. See src/game/abilities-gacha.ts.
+   */
+  equippedAbility?: { id: string };
   /**
    * Run-scoped training gains: accumulated +1s bought at Training nodes with
    * training points. The only path past the normal 10 cap (up to 15). Baked into

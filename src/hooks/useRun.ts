@@ -35,7 +35,9 @@ export function useRun() {
           model.core.roster,
           model.core.rewards,
           model.legend.offeredThisRun,
-          model.phase.champion
+          model.phase.champion,
+          model.ladderClass,
+          model.difficulty
         )
       );
     }
@@ -45,8 +47,8 @@ export function useRun() {
   const actions = useMemo(
     () => ({
       chooseNode: (nodeId: string) => dispatch({ type: 'chooseNode', nodeId }),
-      confirmPrepareLineup: (starters: RosterPlayer[], bench: RosterPlayer[]) =>
-        dispatch({ type: 'confirmPrepareLineup', starters, bench }),
+      confirmDraft: (rotation: RosterPlayer[]) => dispatch({ type: 'confirmDraft', rotation }),
+      dropForRecruit: (index: number) => dispatch({ type: 'dropForRecruit', index }),
       setGamePlan: (plan: GamePlan) => dispatch({ type: 'setGamePlan', plan }),
       openLineupBuilder: () => dispatch({ type: 'openLineupBuilder' }),
       setLineup: (starters: RosterPlayer[], bench: RosterPlayer[]) =>

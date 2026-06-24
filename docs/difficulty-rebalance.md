@@ -4,64 +4,56 @@ This is the reference for how Pixel Hoops keeps difficulty fair-but-punishing ac
 
 ## The problem it fixes
 
-The game used to be impossibly hard on run 1 and trivially easy after one or two runs. Two causes:
+The game used to be impossibly hard on run 1 and trivially easy after one or two runs. Meta power (permanent +5..+8 stat upgrades, an ever-growing roster) outran a merely linear opponent curve within two runs, and the only difficulty knob was a single hidden ladder.
 
-1. **Difficulty reset every map.** Opponent strength was keyed only to the map index, so every regular game in a map was the same, and each new map dropped back to barely above the last while the player's power had jumped.
-2. **Meta-progression with no ceiling.** Coins bought permanent +1 stats forever and kept recruits carried inflated stats, so power outran a merely linear opponent curve within two runs.
+## The model: a player-class ladder
 
-A separate sim bug let star players log all 48 minutes while weaker bench players got none.
+Every player belongs to a **class** on a single ladder, derived from their in-game OVR on the 3-10 surface scale (`classForOvr` in `src/game/ratings.ts`, scaling math in `src/game/classes.ts`):
 
-## The continuous difficulty curve
+| Class | OVR band | Source |
+| ----- | -------- | ------ |
+| D | 3-4 | procedural streetball rookies (the only auto-generated class) |
+| C | 5 | real NBA players (2K overall 67-74) |
+| B | 6-7 | real NBA players (75-81) |
+| A | 8 | real NBA players (82-88) |
+| S | 9-10 | real NBA players (89-99) |
+| S+ | 11+ | hand-curated all-time legends |
+| S++ | 13+ | the emergent apex: reached only by deep run-scoped training or the toughest end-of-run bosses |
 
-`src/game/difficulty.ts` computes a float **difficulty level** from a node's absolute position in the run, blending map progress with an intra-map ramp:
+Real players are baked offline from the NBA 2K API into `src/data/nba-pool.json`, each carrying an `originalClass` and stats anchored into that class's band (`anchorStatsToClass` preserves a player's shape while setting its magnitude). A player's class for the draft is always their **original** class (before any Locker Room upgrade, ability, or training); the card shows `original -> current` with an arrow.
 
-- The level rises smoothly node to node across all 7 maps, with **no reset** at map boundaries: the first game of map N+1 sits just above map N's late games.
-- A **boss** is its map's local peak (a bump on top of its ramp).
-- It opens near a rookie roster's strength (~5 on the 3-10 scale) and reaches the cap (~10) at the final boss.
+## The run configuration: 4 difficulties x 5 ladders
 
-`src/game/stat-scaling.ts` turns that float into a stat band (`getStatRangeForLevel`), replacing the old eight-bucket integer-round table. Opponent and recruit stats scale on this band. The coarse integer `node.round` is kept only for the economy and rarity gates (coins, legend chance, item drops, boost stock), which deliberately did not need the continuous treatment.
+A run is chosen as a **(difficulty, ladder class)** pair on the home screen (`src/game/difficulty-mode.ts`):
 
-## In-run "EV" upgrades (keeping pace)
+- **Difficulty** (easy / medium / hard / insane) sets the **draft point budget** (8 / 5 / 2 / 0) and folds in the old escalation modifiers: early elites, leaner boost drafts, glass-bones injuries, lean coin payouts, and (insane) no pre-boss rest plus an opponent stat-floor shift. All four are selectable from the start.
+- **Ladder class** (C / B / A / S / S+) sets the opponent class the run centers on. Within a difficulty you climb **C -> B -> A -> S -> S+**, unlocking the next rung only by clearing the current one (per difficulty). Legendaries (S+) only appear on the S / S+ ladders.
 
-Training points earned from wins are spent at Training nodes on run-scoped per-stat `+1`s (`trainingDelta`), the Pokelike effort-value analog. These reset every run, so each run is a fresh climb against the rising curve. This is the primary lever for staying ahead of the bracket within a run.
+## Within-run scaling (ladder-relative)
+
+`src/game/difficulty.ts` computes an opponent **level** relative to the run's ladder: `ladderLevel + ramp + bossBump + difficultyStatShift`, where the ramp runs from **a class below** the ladder on the first map to **two classes above** at the final boss, smoothly and with no reset at map boundaries. On the S / S+ ladders the late ramp pushes opponents past 10 into the **S++ apex** (the difficulty band ceiling in `src/game/stat-scaling.ts` rises to 14 to allow it), so the finale is genuinely brutal. Opponents are staffed from real franchise players scaled to the node level; bosses are headlined by their franchise legend.
+
+Recruits are real players at the **ladder class**, with a chance ramping **0 -> 50%** by the last map of offering the **class above** (`generateRecruitOffers`).
+
+## The pre-run draft (replaces the salary cap)
+
+Before a run you **draft** a rotation from your owned collection under the difficulty's point budget, paying by class relative to the ladder (`src/game/draft.ts`):
+
+- **0** points below the ladder class, **1** at it, **2** one class above; anything higher is barred. Legendaries always cost **2**.
+- A hard **8-man rotation** cap at the draft, and a **12-man** cap during the run (recruiting past 12 forces a drop, returning any held item to the bag).
+
+So on easy (8 points) you can splurge on a couple of above-class stars; on insane (0 points) you can only field below-class players, and the punishment comes from opponent strength, not removed agency.
 
 ## Bounded meta-progression (no snowball)
 
-Three bounds keep later runs hard:
+- **Capped permanent upgrades.** Coins buy a permanent +1 in the Locker Room, but the per-stat cap is a flat **+2** (`src/game/upgrades.ts`). Permanent power can nudge a player, never reclass them.
+- **The class ladder is the gate.** Winning unlocks the *next class* on that difficulty, so progress makes the next run harder, not easier (the Slay the Spire "Ascension" / Hades "Heat" pattern, reframed as a class climb).
+- **In-run training** (the Pokelike "EV" analog) still spends banked training points on run-scoped +1s (up to the 15 cap, the only path to S++), resetting every run.
 
-### Salary-cap budget (`src/game/budget.ts`)
+## The ability gacha (separate, bounded power)
 
-Each player has a **cost** that is a convex function of OVR (roughly: OVR 5 ~ 1, 7 ~ 5, 8 ~ 9, 10 ~ 22). Before each run you pick your starting five under a **cap** (run-1 cap is 40); the bench is free. Five maxed studs (~110) never fit, and five strong recruits do not either, so you must choose which upgraded players to field and keep cheaper role players around them. The cap grows slowly with the earned League tier. The cap is enforced both on the pre-run pick and on in-run lineup changes, with a grace floor so a pool of nothing-but-expensive players never soft-locks the picker.
+Three coin machines (`src/game/abilities-gacha.ts`) dispense passive abilities equipped onto players before a run (a slot separate from the run-scoped boost items): Common (100 coins, only commons), Rare (1,000, 10% rare), Legendary (10,000, 10% legendary). Commons are a +1 boost with a -1 drawback; rares are two boosts or a team boost with a drawback; legendaries are pure upside. Abilities persist between runs, one per player, duplicates allowed, swapped freely between runs. They fold into effective stats through the same `effectivePlayers` / `teamModifierFor` path as items and legend abilities, without interfering.
 
-### Capped permanent upgrades (`src/game/upgrades.ts`)
+## No run is wasted
 
-Coins still buy permanent `+1`s in the Locker Room, but the per-stat purchase cap starts at 5 and only rises (toward 8) by climbing the League ladder. The rating ceiling of 10 still bounds the absolute value. So permanent power raises the floor without ever letting a fielded five outrun the curve; the salary cap is the main limiter.
-
-### The League Tier ladder (`src/game/ascension.ts`)
-
-A persistent, escalating difficulty (Slay the Spire "Ascension" / Hades "Heat"). Clearing a run **at your top unlocked tier** unlocks (and auto-selects) the next one, so winning makes the next run harder. You can replay any unlocked tier from the home screen. Each tier adds one legible, known-mechanic modifier on top of the lower tiers:
-
-| Tier | Modifier |
-| ---- | -------- |
-| 1 | Opponent stat floor +0.4 level |
-| 2 | Elites appear from the first map |
-| 3 | Boost draft offers 2 picks, not 3 |
-| 4 | Bosses field a second franchise legend |
-| 5 | Opponent stat floor +0.8 level |
-| 6 | Injuries strike 1.5x as often and sideline up to 3 games |
-| 7 | Win coins x0.85 |
-| 8 | More elites per map |
-| 9 | Opponent stat floor +1.2 level |
-| 10 | Opponent stat floor +1.6 level, and no rest before the finale |
-
-The `tier` is stored on the home roster as `leagueTier` (highest unlocked) and `selectedTier` (chosen next). Map generation stays tier-agnostic; every effect is applied at consumption time in the run machine, so a tier-0 run is byte-identical to the pre-ladder behavior and determinism holds.
-
-## The rotation fix (`src/game/simulation.ts`)
-
-The old `substitute` only swapped in a fresh player if they were *better* than the tired starter, and fatigue capped degradation at ~20%, so any bench player more than ~20% worse never entered. The fix adds three layered rules:
-
-1. A **hard rest floor**: below ~28 energy a starter is always pulled for the best rested body, even a worse one.
-2. A **good-enough soft sub**: above the floor, a fresh bench player who is at least ~90% as effective spells a tired starter.
-3. **Blowout rest**: in a late-game blowout the stars yield to the bench (garbage time).
-
-Drain and recovery were retuned so a normal starter dips into the sub zone a couple of times a game. Result: stars play roughly 30-36 minutes, the bench earns real minutes, blowouts clear the bench, and 48-minute games are rare. High stamina still earns more minutes, and a deep bench still outlasts a thin one. The per-side minutes invariant and full determinism are preserved.
+Recruits, coins, and ladder progress bank every run; the home roster is an uncapped, de-duplicated collection (searchable/filterable in the roster browser). But power and difficulty rise together rather than power outpacing the bracket.

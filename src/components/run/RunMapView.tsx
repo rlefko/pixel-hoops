@@ -12,6 +12,7 @@ import { DottedPath } from './DottedPath';
 import { MapNodeTile } from './MapNodeTile';
 import { PositionMarker, EntryBanner } from './PositionMarker';
 import { ResourceHeader } from './ResourceHeader';
+import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import { RosterStrip } from './RosterStrip';
 import { BoostRow } from './BoostRow';
 import {
@@ -31,8 +32,9 @@ interface RunMapViewProps {
   core: RunState;
   /** Equipped passive boosts, shown in the HUD pill and the boost row. */
   boosts: PassiveBoost[];
-  /** League tier this run is played at (for the HUD badge). */
-  tier: number;
+  /** The run's difficulty + ladder class, shown in the HUD badge. */
+  difficulty: Difficulty;
+  ladderClass: LadderClass;
   /** Number of items in the run bag, shown on the Bag button. */
   bagCount: number;
   onChoose: (nodeId: string) => void;
@@ -56,7 +58,8 @@ const LEGEND: MapNodeType[] = [
 export function RunMapView({
   core,
   boosts,
-  tier,
+  difficulty,
+  ladderClass,
   bagCount,
   onChoose,
   onQuit,
@@ -113,7 +116,7 @@ export function RunMapView({
         mapNumber={core.currentMapIndex + 1}
         totalMaps={TOTAL_MAPS}
         boostCount={boosts.length}
-        tier={tier}
+        modeLabel={`${DIFFICULTY_LABELS[difficulty].name} · ${ladderClass}`}
       />
       <BoostRow boosts={boosts} />
 

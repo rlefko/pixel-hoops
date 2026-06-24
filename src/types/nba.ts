@@ -1,5 +1,6 @@
 import type { Position } from './roster';
 import type { PlayerStats } from './player';
+import type { PlayerClass } from '@/game/ratings';
 
 /**
  * Real-player and real-team data, sourced (offline) from the NBA 2K API
@@ -37,6 +38,9 @@ export interface RealPlayer {
   jerseyNumber: number;
   /** 2K overall rating (0-99) from the source dataset; surfaced in-game later. */
   overall: number;
+  /** Intrinsic class (C/B/A/S), computed at bake time from the 2K overall and
+   * baked into the in-game stat band (see src/game/classes.ts). Legends are S+. */
+  originalClass?: PlayerClass;
   /** A 90+ all-time great: rare, on-loan only, gold nameplate, signature ability. */
   legendary?: boolean;
   /** Signature ability id (legends only; see src/game/abilities.ts). */

@@ -1,6 +1,8 @@
 import { StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
+import type { PlayerClass } from '@/game/ratings';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** End-of-run summary. The home roster has already banked the run's gains. */
@@ -8,8 +10,10 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 interface RunSummaryViewProps {
   champion: boolean;
   wins: number;
-  /** The newly unlocked League tier (shown as a reward when present). */
-  unlockedTier?: number;
+  difficulty: Difficulty;
+  ladderClass: LadderClass;
+  /** The newly unlocked ladder class (shown as a reward when present). */
+  unlockedClass?: PlayerClass;
   onNewRun: () => void;
   onMenu: () => void;
 }
@@ -17,7 +21,9 @@ interface RunSummaryViewProps {
 export function RunSummaryView({
   champion,
   wins,
-  unlockedTier,
+  difficulty,
+  ladderClass,
+  unlockedClass,
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
@@ -29,12 +35,13 @@ export function RunSummaryView({
         {champion ? 'CHAMPIONS!' : 'RUN OVER'}
       </Text>
       <Text style={styles.body}>
-        {wins} {wins === 1 ? 'win' : 'wins'} this run
+        {DIFFICULTY_LABELS[difficulty].name} · {ladderClass} ladder · {wins}{' '}
+        {wins === 1 ? 'win' : 'wins'}
       </Text>
-      {unlockedTier ? (
-        <Text style={styles.unlock}>LEAGUE TIER {unlockedTier} UNLOCKED</Text>
+      {unlockedClass ? (
+        <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
       ) : null}
-      <Text style={styles.note}>Recruits and training carried home.</Text>
+      <Text style={styles.note}>Recruits carried home.</Text>
       <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
         <Text style={styles.buttonText}>NEW RUN</Text>
       </Pressable>

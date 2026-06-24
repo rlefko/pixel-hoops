@@ -1,7 +1,8 @@
 import type { MapNode, MapNodeType, RunMap, RunState } from '@/types/run-map';
 import { createRNG, type RNG } from './rng';
 import { difficultyLevel } from './difficulty';
-import { tierMods, type TierMods } from './ascension';
+import { difficultyMods, type DifficultyMods, type Difficulty } from './difficulty-mode';
+import { classLevel } from './classes';
 
 /**
  * Generates and traverses one short fixed-SHAPE map of the pokelike run. Every
@@ -15,9 +16,12 @@ export interface FixedMapConfig {
   seed: number | string;
   /** Which map of the run this is (0-based). Drives difficulty and node ids. */
   mapIndex: number;
-  /** League tier (0 default). Higher tiers seed more elites and may drop the
-   * guaranteed pre-boss rest. See src/game/ascension.ts. */
-  tier?: number;
+  /** The run's difficulty (default 'easy'). Harder difficulties seed more elites
+   * and may drop the guaranteed pre-boss rest. See src/game/difficulty-mode.ts. */
+  difficulty?: Difficulty;
+  /** The selected ladder class's level (default C), the center the opponent curve
+   * is offset around. See src/game/classes.ts and difficulty.ts. */
+  ladderLevel?: number;
 }
 
 /** Nodes per row, entry (0) to boss. The map's fixed shape (a tall pokelike map). */
@@ -42,8 +46,8 @@ const EDGES: number[][][] = [
 const COMBAT: ReadonlySet<MapNodeType> = new Set<MapNodeType>(['game', 'elite', 'boss']);
 
 /** Weighted random interior type, game-heavy. Elites normally start on map 2; a
- * high League tier opens them on map 1 and/or weights them heavier. */
-function randomInteriorType(mapIndex: number, rng: RNG, mods: TierMods): MapNodeType {
+ * harder difficulty opens them on map 1 and/or weights them heavier. */
+function randomInteriorType(mapIndex: number, rng: RNG, mods: DifficultyMods): MapNodeType {
   const elitesOn = mods.elitesFromMap0 || mapIndex >= 1;
   const entries: [MapNodeType, number][] = [
     ['game', 6],
@@ -78,7 +82,8 @@ function roundFor(type: MapNodeType, mapIndex: number): number | undefined {
 
 export function generateFixedMap(config: FixedMapConfig): RunMap {
   const { mapIndex } = config;
-  const mods = tierMods(config.tier ?? 0);
+  const mods = difficultyMods(config.difficulty ?? 'easy');
+  const ladderLevel = config.ladderLevel ?? classLevel('C');
   const rng = createRNG(config.seed);
   const nodes: Record<string, MapNode> = {};
   const layers: string[][] = [];
@@ -100,7 +105,7 @@ export function generateFixedMap(config: FixedMapConfig): RunMap {
         layer,
         next: [],
         round: roundFor(type, mapIndex),
-        difficulty: difficultyLevel(mapIndex, layer, type === 'boss'),
+        difficulty: difficultyLevel(mapIndex, layer, type === 'boss', ladderLevel),
         visited: false,
         cleared: false,
       };
