@@ -16,10 +16,9 @@ import {
   type LadderClass,
 } from './difficulty-mode';
 import { classLevel } from './classes';
-import { ovrRaw } from './ratings';
 import {
-  canConfirmDraft,
-  suggestDraft,
+  canConfirmLoadout,
+  defaultLoadout,
   MAX_RUN_ROSTER,
 } from './draft';
 import { effectivePlayers, teamModifierFor } from './apply-effects';
@@ -83,9 +82,15 @@ const INJURY_LOAD_NORM = 90;
 
 export type RunPhase =
   | { kind: 'map' }
-  // Draft a rotation (5-8) from the owned collection under the difficulty's point
-  // budget, paying by each player's class relative to the run's ladder class.
-  | { kind: 'draft'; available: RosterPlayer[] }
+  // Draft a position-slot loadout (5 starters + up to 3 bench) from the owned
+  // collection under the difficulty's point budget, paying by each player's class
+  // relative to the ladder. Defaults to the previous run's lineup.
+  | {
+      kind: 'draft';
+      available: RosterPlayer[];
+      defaultStarters: RosterPlayer[];
+      defaultBench: RosterPlayer[];
+    }
   | { kind: 'pregame'; nodeId: string }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
@@ -144,7 +149,7 @@ export interface RunModel {
 
 export type RunAction =
   | { type: 'newRun'; seed: string; homeRoster: HomeRoster }
-  | { type: 'confirmDraft'; rotation: RosterPlayer[] }
+  | { type: 'confirmDraft'; starters: RosterPlayer[]; bench: RosterPlayer[] }
   | { type: 'chooseNode'; nodeId: string }
   | { type: 'setGamePlan'; plan: GamePlan }
   | { type: 'openLineupBuilder' }
@@ -195,6 +200,12 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     ladderLevel: classLevel(ladderClass),
   });
   const available = ownedRosterPlayers(homeRoster);
+  const { starters: defaultStarters, bench: defaultBench } = defaultLoadout(
+    available,
+    ladderClass,
+    difficulty,
+    homeRoster.lastRotation
+  );
   const core: RunState = {
     map,
     currentMapIndex: 0,
@@ -206,7 +217,7 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
   };
   return {
     core,
-    phase: { kind: 'draft', available },
+    phase: { kind: 'draft', available, defaultStarters, defaultBench },
     gamePlan: DEFAULT_GAME_PLAN,
     wins: 0,
     difficulty,
@@ -526,15 +537,11 @@ export function runReducer(
   switch (action.type) {
     case 'confirmDraft': {
       if (model.phase.kind !== 'draft') return model;
-      const rotation = action.rotation;
-      if (!canConfirmDraft(rotation, model.ladderClass, model.difficulty).ok) return model;
-      // The drafted set can arrive in any selection order; start the five strongest
-      // by OVR so the default lineup is the player's best (they can reorder in the
-      // lineup builder). Bench keeps the remainder.
-      const ordered = [...rotation].sort(
-        (a, b) => ovrRaw(b.player.stats, b.position) - ovrRaw(a.player.stats, a.position)
-      );
-      const roster = { starters: ordered.slice(0, 5), bench: ordered.slice(5) };
+      const { starters, bench } = action;
+      if (!canConfirmLoadout(starters, bench, model.ladderClass, model.difficulty).ok) return model;
+      // Starters arrive already slot-ordered (index 0 = PG ... 4 = C) from the
+      // loadout, so the run starts correctly positioned. No OVR re-sort.
+      const roster = { starters, bench };
       const offers = drawBoostOffers(
         1,
         [],
@@ -821,7 +828,3 @@ export function runReducer(
       return { ...model, phase: { kind: 'summary', champion: false } };
   }
 }
-
-/** A sensible default rotation for the pre-run draft, exposed so the draft view can
- * pre-select it. */
-export { suggestDraft };

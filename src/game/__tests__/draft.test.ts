@@ -4,21 +4,26 @@ import {
   draftCostFor,
   isDraftable,
   evaluateDraft,
-  canConfirmDraft,
-  suggestDraft,
+  canConfirmLoadout,
+  defaultLoadout,
   playerDraftClass,
   MAX_DRAFT_ROTATION,
 } from '@/game/draft';
 import { createPlayer } from '@/types/player';
-import { ARCHETYPE_POSITION, type RosterPlayer } from '@/types/roster';
+import {
+  ARCHETYPE_POSITION,
+  POSITION_ARCHETYPE,
+  POSITIONS,
+  type Position,
+  type RosterPlayer,
+} from '@/types/roster';
 import { anchorStatsToClass, type PlayerClass } from '@/game/classes';
 import { ovr, classForOvr } from '@/game/ratings';
 import { createRNG } from '@/game/rng';
 
-/** A roster player anchored to a class, for cost tests. */
-function player(name: string, cls: PlayerClass, legendary = false): RosterPlayer {
-  const archetype = 'small-forward';
-  const position = ARCHETYPE_POSITION[archetype];
+/** A roster player anchored to a class at a position, for cost/loadout tests. */
+function playerAt(name: string, cls: PlayerClass, position: Position, legendary = false): RosterPlayer {
+  const archetype = POSITION_ARCHETYPE[position];
   const base = createPlayer(name, archetype, createRNG(name).int);
   return {
     player: { ...base, stats: anchorStatsToClass(base.stats, cls, position) },
@@ -26,6 +31,16 @@ function player(name: string, cls: PlayerClass, legendary = false): RosterPlayer
     originalClass: cls,
     legendary: legendary || undefined,
   };
+}
+
+/** A small-forward roster player anchored to a class (cost tests). */
+function player(name: string, cls: PlayerClass, legendary = false): RosterPlayer {
+  return playerAt(name, cls, ARCHETYPE_POSITION['small-forward'], legendary);
+}
+
+/** One player per position at a class, plus extras, for loadout tests. */
+function poolOfClass(cls: PlayerClass, prefix = ''): RosterPlayer[] {
+  return POSITIONS.map((pos) => playerAt(`${prefix}${cls}-${pos}`, cls, pos));
 }
 
 describe('draft costs', () => {
@@ -62,39 +77,42 @@ describe('draft costs', () => {
   });
 });
 
-describe('draft budget + confirmation', () => {
-  const rotation = [
-    player('d1', 'D'), player('d2', 'D'), player('d3', 'D'),
-    player('c1', 'C'), player('c2', 'C'),
-  ];
+describe('draft budget + loadout', () => {
+  const starters = poolOfClass('C'); // one C at each position (1 point each = 5)
 
   it('evaluates spend against the difficulty budget', () => {
-    // 3 D (free) + 2 C (1 each) = 2 points.
-    const state = evaluateDraft(rotation, 'C', 'easy');
-    expect(state.spent).toBe(2);
+    const state = evaluateDraft(starters, 'C', 'easy');
+    expect(state.spent).toBe(5); // five C players, 1 point each
     expect(state.budget).toBe(draftPoints('easy'));
     expect(state.over).toBe(false);
   });
 
-  it('rejects over-budget, too-strong, or too-small rotations', () => {
-    expect(canConfirmDraft(rotation, 'C', 'easy').ok).toBe(true);
-    // Insane = 0 points; any C (cost 1) is over budget.
-    expect(canConfirmDraft(rotation, 'C', 'insane').ok).toBe(false);
-    // A too-strong pick (A on a C ladder) is barred.
-    expect(canConfirmDraft([...rotation, player('a', 'A')], 'C', 'easy').ok).toBe(false);
-    // Fewer than five is invalid.
-    expect(canConfirmDraft(rotation.slice(0, 4), 'C', 'easy').ok).toBe(false);
+  it('canConfirmLoadout requires five starters, draftable picks, and budget', () => {
+    expect(canConfirmLoadout(starters, [], 'C', 'easy').ok).toBe(true);
+    // Five C players (5 points) exceed the 2-point hard budget.
+    expect(canConfirmLoadout(starters, [], 'C', 'hard').ok).toBe(false);
+    // A too-strong bench pick (A on a C ladder) is barred.
+    expect(canConfirmLoadout(starters, [playerAt('a', 'A', 'PG')], 'C', 'easy').ok).toBe(false);
+    // Fewer than five starters is invalid.
+    expect(canConfirmLoadout(starters.slice(0, 4), [], 'C', 'easy').ok).toBe(false);
+    // More than eight total is invalid.
+    expect(canConfirmLoadout(starters, poolOfClass('D', 'x'), 'C', 'easy').ok).toBe(false);
   });
 
-  it('suggestDraft returns a valid 5-8 rotation within budget', () => {
-    const pool = [
-      ...Array.from({ length: 6 }, (_, i) => player(`d${i}`, 'D')),
-      ...Array.from({ length: 4 }, (_, i) => player(`c${i}`, 'C')),
-      ...Array.from({ length: 2 }, (_, i) => player(`b${i}`, 'B')),
-    ];
-    const picked = suggestDraft(pool, 'C', 'easy');
-    expect(picked.length).toBeGreaterThanOrEqual(5);
-    expect(picked.length).toBeLessThanOrEqual(MAX_DRAFT_ROTATION);
-    expect(canConfirmDraft(picked, 'C', 'easy').ok).toBe(true);
+  it('defaultLoadout fills one slot per position within budget', () => {
+    const pool = [...poolOfClass('D'), ...poolOfClass('C'), ...poolOfClass('B')];
+    const { starters: s, bench } = defaultLoadout(pool, 'C', 'easy');
+    expect(s).toHaveLength(5);
+    expect(s.map((p) => p.position)).toEqual([...POSITIONS]); // slot-ordered by position
+    expect(s.length + bench.length).toBeLessThanOrEqual(MAX_DRAFT_ROTATION);
+    expect(canConfirmLoadout(s, bench, 'C', 'easy').ok).toBe(true);
+  });
+
+  it('defaultLoadout restores a still-owned, affordable lastRotation', () => {
+    const want = poolOfClass('D'); // the exact players to restore (all free on C)
+    const lastRotation = want.map((p) => `${p.player.name}|${p.position}`);
+    const pool = [...want, ...poolOfClass('C')]; // collection contains the same identities
+    const { starters: s } = defaultLoadout(pool, 'C', 'easy', lastRotation);
+    expect(s.map((p) => `${p.player.name}|${p.position}`)).toEqual(lastRotation.slice(0, 5));
   });
 });

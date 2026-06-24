@@ -47,7 +47,8 @@ export function useRun() {
   const actions = useMemo(
     () => ({
       chooseNode: (nodeId: string) => dispatch({ type: 'chooseNode', nodeId }),
-      confirmDraft: (rotation: RosterPlayer[]) => dispatch({ type: 'confirmDraft', rotation }),
+      confirmDraft: (starters: RosterPlayer[], bench: RosterPlayer[]) =>
+        dispatch({ type: 'confirmDraft', starters, bench }),
       dropForRecruit: (index: number) => dispatch({ type: 'dropForRecruit', index }),
       setGamePlan: (plan: GamePlan) => dispatch({ type: 'setGamePlan', plan }),
       openLineupBuilder: () => dispatch({ type: 'openLineupBuilder' }),

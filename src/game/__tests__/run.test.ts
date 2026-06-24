@@ -18,7 +18,6 @@ import {
   buildHomeTeam,
   buildOpponentTeam,
   steppingInSubs,
-  suggestDraft,
   TOTAL_MAPS,
   type RunModel,
 } from '@/game/run-machine';
@@ -33,13 +32,16 @@ function rookie(seed = 'home'): HomeRoster {
   return createRookieRoster(createRNG(seed));
 }
 
-/** Start a run and confirm the draft (suggested rotation), landing on the boost
- * draft, the way the downstream reducer tests expect. */
+/** Start a run and confirm the default loadout, landing on the boost draft, the
+ * way the downstream reducer tests expect. */
 function started(runSeed: string, homeSeed = runSeed): RunModel {
   const m = initRun(runSeed, rookie(homeSeed));
   if (m.phase.kind !== 'draft') return m;
-  const rotation = suggestDraft(m.phase.available, m.ladderClass, m.difficulty);
-  return runReducer(m, { type: 'confirmDraft', rotation })!;
+  return runReducer(m, {
+    type: 'confirmDraft',
+    starters: m.phase.defaultStarters,
+    bench: m.phase.defaultBench,
+  })!;
 }
 
 /** Like {@link started} but also skips the boost draft, landing on the map (where
@@ -362,8 +364,11 @@ describe('run reducer', () => {
   const start = (): RunModel => {
     const m = initRun('seed-1', home);
     if (m.phase.kind !== 'draft') return m;
-    const rotation = suggestDraft(m.phase.available, m.ladderClass, m.difficulty);
-    return runReducer(m, { type: 'confirmDraft', rotation })!;
+    return runReducer(m, {
+      type: 'confirmDraft',
+      starters: m.phase.defaultStarters,
+      bench: m.phase.defaultBench,
+    })!;
   };
   /** A bare combat node injected for resolveGameResult flow tests. */
   const node = (over: Partial<MapNode>): MapNode => ({
@@ -381,16 +386,19 @@ describe('run reducer', () => {
     core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
   });
 
-  it('opens on the pre-run draft with the full owned collection available', () => {
+  it('opens on the pre-run draft with the full collection and a default loadout', () => {
     const m = initRun('seed-1', home);
     expect(m.phase.kind).toBe('draft');
     expect(m.difficulty).toBe(home.selectedDifficulty);
     expect(m.ladderClass).toBe(home.selectedLadderClass);
     if (m.phase.kind === 'draft') {
       expect(m.phase.available).toHaveLength(home.players.length);
-      const rotation = suggestDraft(m.phase.available, m.ladderClass, m.difficulty);
-      expect(rotation.length).toBeGreaterThanOrEqual(5);
-      expect(rotation.length).toBeLessThanOrEqual(MAX_DRAFT_ROTATION);
+      // Default loadout fills all five starter slots, one per position by default.
+      expect(m.phase.defaultStarters).toHaveLength(5);
+      expect(m.phase.defaultStarters.map((p) => p.position)).toEqual([...POSITIONS]);
+      expect(m.phase.defaultStarters.length + m.phase.defaultBench.length).toBeLessThanOrEqual(
+        MAX_DRAFT_ROTATION
+      );
     }
   });
 
@@ -403,16 +411,19 @@ describe('run reducer', () => {
     expect(m.core.roster.starters).toHaveLength(5);
   });
 
-  it('confirming the draft opens the boost draft and sets the roster', () => {
+  it('confirming the draft opens the boost draft and slots the starters as given', () => {
     const m = initRun('seed-1', home);
     if (m.phase.kind !== 'draft') throw new Error('expected draft');
-    const rotation = suggestDraft(m.phase.available, m.ladderClass, m.difficulty);
-    const next = runReducer(m, { type: 'confirmDraft', rotation })!;
+    const { defaultStarters, defaultBench } = m.phase;
+    const next = runReducer(m, {
+      type: 'confirmDraft',
+      starters: defaultStarters,
+      bench: defaultBench,
+    })!;
     expect(next.phase.kind).toBe('boostDraft');
-    // Five strongest start (the draft order is the selection order, not the lineup).
-    expect(next.core.roster.starters).toHaveLength(5);
-    const fielded = [...next.core.roster.starters, ...next.core.roster.bench];
-    expect(fielded.map((p) => p.player.name).sort()).toEqual(rotation.map((p) => p.player.name).sort());
+    // Starters are set verbatim (slot order preserved, no OVR re-sort).
+    expect(next.core.roster.starters).toEqual(defaultStarters);
+    expect(next.core.roster.bench).toEqual(defaultBench);
   });
 
   it('rejects a draft over the difficulty point budget', () => {
@@ -425,11 +436,11 @@ describe('run reducer', () => {
     const m = initRun('rich', insaneHome);
     if (m.phase.kind !== 'draft') throw new Error('expected draft');
     const dOnly = m.phase.available.filter((p) => p.originalClass === 'D').slice(0, 5);
-    const ok = runReducer(m, { type: 'confirmDraft', rotation: dOnly })!;
+    const ok = runReducer(m, { type: 'confirmDraft', starters: dOnly, bench: [] })!;
     expect(ok.phase.kind).toBe('boostDraft'); // five free D players fit 0 points
-    // Adding a C player (cost 1) blows the 0-point budget -> rejected.
-    const withC = [...dOnly, m.phase.available.find((p) => p.originalClass === 'C')!];
-    const over = runReducer(m, { type: 'confirmDraft', rotation: withC })!;
+    // Adding a C player (cost 1) to the bench blows the 0-point budget -> rejected.
+    const c = m.phase.available.find((p) => p.originalClass === 'C')!;
+    const over = runReducer(m, { type: 'confirmDraft', starters: dOnly, bench: [c] })!;
     expect(over.phase.kind).toBe('draft'); // rejected, still drafting
   });
 
