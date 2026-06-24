@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { ABILITIES, getAbility } from '@/game/abilities';
-import { NBA_PLAYERS, NBA_LEGENDS, NBA_STARTERS, NBA_TEAMS } from '@/data/nba';
+import { NBA_PLAYERS, NBA_LEGENDS, NBA_POOL, NBA_TEAMS } from '@/data/nba';
 import { STAT_KEYS } from '@/types/player';
+import { CLASS_ORDER } from '@/game/classes';
 
 describe('legendary dataset + abilities', () => {
   it('has 40 legends, all 90+ legendary with an ability', () => {
@@ -14,14 +15,15 @@ describe('legendary dataset + abilities', () => {
     }
   });
 
-  it('has 150 modern starters: real, sub-90, no ability, ratings in 3..10', () => {
-    expect(NBA_STARTERS).toHaveLength(150);
-    for (const p of NBA_STARTERS) {
+  it('has a large class pool: real current players, classes C-S, no ability, ratings 3..10', () => {
+    expect(NBA_POOL.length).toBeGreaterThanOrEqual(300);
+    for (const p of NBA_POOL) {
       expect(p.legendary).toBeFalsy();
       expect(p.ability).toBeUndefined();
       expect(p.era).toBe('modern');
-      expect(p.overall).toBeGreaterThanOrEqual(70);
-      expect(p.overall).toBeLessThan(90);
+      // Reals are C/B/A/S (D is procedural, S+ is the legend tier).
+      expect(['C', 'B', 'A', 'S']).toContain(p.originalClass);
+      expect(CLASS_ORDER).toContain(p.originalClass);
       const stats = p.stats as unknown as Record<string, number>;
       for (const key of STAT_KEYS) {
         expect(stats[key]).toBeGreaterThanOrEqual(3);
@@ -30,20 +32,20 @@ describe('legendary dataset + abilities', () => {
     }
   });
 
-  it('keeps the legend and starter pools disjoint and globally unique by slug', () => {
+  it('keeps the legend and class pools disjoint and globally unique by slug', () => {
     const legendSlugs = new Set(NBA_LEGENDS.map((p) => p.slug));
-    for (const p of NBA_STARTERS) expect(legendSlugs.has(p.slug)).toBe(false);
-    const allSlugs = [...NBA_LEGENDS, ...NBA_STARTERS].map((p) => p.slug);
+    for (const p of NBA_POOL) expect(legendSlugs.has(p.slug)).toBe(false);
+    const allSlugs = [...NBA_LEGENDS, ...NBA_POOL].map((p) => p.slug);
     expect(new Set(allSlugs).size).toBe(allSlugs.length);
   });
 
-  it('covers all 30 teams: each has >=1 legend and a full five of starters', () => {
+  it('covers all 30 teams: each has >=1 legend and several pool players across all positions', () => {
     for (const team of NBA_TEAMS) {
       const legends = NBA_LEGENDS.filter((p) => p.teamAbbr === team.abbreviation);
-      const starters = NBA_STARTERS.filter((p) => p.teamAbbr === team.abbreviation);
+      const roster = NBA_POOL.filter((p) => p.teamAbbr === team.abbreviation);
       expect(legends.length, `legend for ${team.abbreviation}`).toBeGreaterThanOrEqual(1);
-      expect(starters.length, `starters for ${team.abbreviation}`).toBe(5);
-      expect(new Set(starters.map((p) => p.position)).size).toBe(5);
+      expect(roster.length, `pool for ${team.abbreviation}`).toBeGreaterThanOrEqual(5);
+      expect(new Set(roster.map((p) => p.position)).size).toBe(5);
     }
   });
 

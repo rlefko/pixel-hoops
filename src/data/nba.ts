@@ -3,20 +3,22 @@ import type { NbaTeam, RealPlayer } from '@/types/nba';
 import { expandStats, isLegacyStats } from '@/game/stat-migration';
 import teams from './nba-teams.json';
 import legends from './nba-legends.json';
-import starters from './nba-starters.json';
+import pool from './nba-pool.json';
 
 /**
  * Typed access to the baked NBA dataset, split into two pools so the rare
- * "legend" tier can never bleed into the bulk "starter" tier (and vice versa):
+ * "legend" tier can never bleed into the bulk class pool (and vice versa):
  *
- *  - NBA_LEGENDS  all-time greats (90+): gold, unscaled, boss/on-loan only.
- *  - NBA_STARTERS modern role-player starters (sub-90): round-scaled opponents
- *                 and keepable free agents.
+ *  - NBA_LEGENDS  all-time greats (90+): the S+ tier, gold, boss/on-loan only.
+ *  - NBA_POOL     ~575 current players, each baked with an `originalClass`
+ *                 (C/B/A/S) and stats anchored into that class band. The
+ *                 draftable / recruitable / opponent-staffing population.
  *
- * Both files are produced offline by scripts/fetch-nba.ts (or hand-curated);
- * this module is the single import point so the raw JSON shape stays in one
- * place. Legacy four-stat lines are normalized through expandStats on load; the
- * curated ten-rating lines pass through untouched. No runtime API calls.
+ * Both files are produced offline by scripts/fetch-nba.ts (legends via --mode=
+ * legends, the pool via --mode=pool); this module is the single import point so
+ * the raw JSON shape stays in one place. Legacy four-stat lines are normalized
+ * through expandStats on load; the curated/baked ten-rating lines pass through
+ * untouched. No runtime API calls.
  */
 
 type RawPlayer = Omit<RealPlayer, 'stats'> & { stats: unknown };
@@ -32,14 +34,15 @@ function normalize(p: RawPlayer): RealPlayer {
 
 export const NBA_TEAMS = teams as NbaTeam[];
 
-/** All-time legends (90+): rare, gold, unscaled, boss + on-loan recruit only. */
+/** All-time legends (90+): rare, gold, the S+ boss + on-loan recruit tier. */
 export const NBA_LEGENDS: RealPlayer[] = (
   legends as unknown as RawPlayer[]
 ).map(normalize);
 
-/** Modern starters (sub-90): round-scaled opponents and keepable free agents. */
-export const NBA_STARTERS: RealPlayer[] = (
-  starters as unknown as RawPlayer[]
+/** The class-bucketed current-player pool (C/B/A/S): the draftable / recruitable
+ * / opponent-staffing population. Each carries an `originalClass`. */
+export const NBA_POOL: RealPlayer[] = (
+  pool as unknown as RawPlayer[]
 ).map(normalize);
 
 /**

@@ -1,22 +1,24 @@
-import { NBA_PLAYERS, NBA_LEGENDS, NBA_STARTERS, NBA_TEAMS } from '@/data/nba';
+import { NBA_PLAYERS, NBA_LEGENDS, NBA_POOL, NBA_TEAMS } from '@/data/nba';
 import type { NbaTeam, RealPlayer } from '@/types/nba';
 import type { Player } from '@/types/player';
 import { POSITION_ARCHETYPE, type RosterPlayer } from '@/types/roster';
+import { classForOvr, ovr, type PlayerClass } from './ratings';
 import type { RNG } from './rng';
 
 /**
  * The real-player pools. Two tiers:
- *  - LEGENDS (90+, gold): the rare crown jewels. They headline bosses (one per
+ *  - LEGENDS (90+, gold): the rare S+ crown jewels. They headline bosses (one per
  *    boss, from that boss's own franchise) and appear as on-loan recruit offers.
- *    Kept at their authored elite ratings (NOT round-scaled), so fielding or
- *    facing one is a genuine power spike.
- *  - STARTERS (sub-90): every franchise's real modern five. They staff regular
- *    opponents (round-scaled) and seed the player's free-agent roster.
+ *    Kept at their authored elite ratings, so fielding or facing one is a spike.
+ *  - POOL (~575 current players, classes C/B/A/S): every franchise's real players,
+ *    each carrying an `originalClass`. They staff opponents (class-scaled), seed
+ *    the player's starting roster, and fill recruit/draft pools.
  *
  * Everything is driven by the seeded RNG, keeping sims deterministic.
  */
 
-/** Wrap a baked real player as a deployable roster player (carries legendary + ability). */
+/** Wrap a baked real player as a deployable roster player (carries legendary +
+ * ability + intrinsic class). */
 export function realPlayerToRosterPlayer(rp: RealPlayer): RosterPlayer {
   const player: Player = {
     name: rp.name,
@@ -31,6 +33,9 @@ export function realPlayerToRosterPlayer(rp: RealPlayer): RosterPlayer {
     jerseyNumber: rp.jerseyNumber,
     legendary: rp.legendary ?? false,
     ability: rp.ability,
+    // Legends are S+; pool players carry a baked class; fall back to deriving it.
+    originalClass:
+      rp.originalClass ?? (rp.legendary ? 'S+' : classForOvr(ovr(rp.stats, rp.position))),
   };
 }
 
@@ -60,15 +65,24 @@ export function legendForTeam(teamAbbr: string, rng: RNG): RosterPlayer | null {
 }
 
 /**
- * A franchise's modern role-player starters (sub-90, not legendary). Pure data
- * (no RNG): callers round-scale these before deploying, so the difficulty curve
- * is preserved while opponents wear real names, teams, and jersey numbers.
+ * A franchise's real players (class-bucketed, not legendary). Pure data (no RNG):
+ * callers scale these to the node's class/level before deploying, so the
+ * difficulty curve is preserved while opponents wear real names, teams, and
+ * jersey numbers.
  */
-export function modernStartersForTeam(teamAbbr: string): RealPlayer[] {
-  return NBA_STARTERS.filter((p) => p.teamAbbr === teamAbbr);
+export function poolForTeam(teamAbbr: string): RealPlayer[] {
+  return NBA_POOL.filter((p) => p.teamAbbr === teamAbbr);
 }
 
-/** The keepable, free-agent-eligible reals (every modern starter). */
+/** Back-compat alias for the franchise pool (opponent staffing). */
+export const modernStartersForTeam = poolForTeam;
+
+/** Every real player of a given intrinsic class, for class-bucketed recruit/draft. */
+export function poolByClass(cls: PlayerClass): RealPlayer[] {
+  return NBA_POOL.filter((p) => (p.originalClass ?? classForOvr(ovr(p.stats, p.position))) === cls);
+}
+
+/** The keepable, free-agent-eligible reals (the whole class pool). */
 export function freeAgentPool(): RealPlayer[] {
-  return NBA_STARTERS;
+  return NBA_POOL;
 }

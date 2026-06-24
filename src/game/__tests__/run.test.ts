@@ -11,7 +11,7 @@ import {
   type HomeRoster,
 } from '@/game/home-roster';
 import { legendRecruit } from '@/game/player-pool';
-import { NBA_STARTERS } from '@/data/nba';
+import { NBA_POOL } from '@/data/nba';
 import {
   runReducer,
   initRun,
@@ -65,7 +65,7 @@ describe('generateRecruitOffers', () => {
   it('offers real free agents, never an excluded or duplicate name', () => {
     const exclude = new Set(['Trae Young', 'LaMelo Ball']);
     const offers = generateRecruitOffers(4, 12, createRNG('ex'), exclude);
-    const starterNames = new Set(NBA_STARTERS.map((p) => p.name));
+    const starterNames = new Set(NBA_POOL.map((p) => p.name));
     for (const o of offers) {
       expect(exclude.has(o.player.name)).toBe(false);
       expect(starterNames.has(o.player.name)).toBe(true); // a real free agent
@@ -131,7 +131,7 @@ describe('home roster persistence', () => {
     expect(r.players).toHaveLength(5);
     expect(r.seenWelcome).toBe(false);
     expect(r.players.map((p) => p.position)).toEqual([...POSITIONS]);
-    const starterNames = new Set(NBA_STARTERS.map((p) => p.name));
+    const starterNames = new Set(NBA_POOL.map((p) => p.name));
     expect(r.players.every((p) => starterNames.has(p.player.name))).toBe(true);
   });
 

@@ -10,7 +10,7 @@ import {
   freeAgentPool,
 } from '@/game/player-pool';
 import { generateOpponentTeam, pickFreeAgentFive } from '@/game/tournament';
-import { NBA_PLAYERS, NBA_LEGENDS, NBA_STARTERS, NBA_TEAMS } from '@/data/nba';
+import { NBA_PLAYERS, NBA_LEGENDS, NBA_POOL, NBA_TEAMS } from '@/data/nba';
 import { POSITIONS } from '@/types/roster';
 
 describe('nba rating mapping', () => {
@@ -74,17 +74,17 @@ describe('player pool', () => {
     }
   });
 
-  it('modernStartersForTeam returns five non-legend reals per team, one per position', () => {
+  it('poolForTeam returns several non-legend reals per team covering all five positions', () => {
     for (const team of NBA_TEAMS) {
-      const five = modernStartersForTeam(team.abbreviation);
-      expect(five, team.abbreviation).toHaveLength(5);
-      expect(five.every((p) => !p.legendary)).toBe(true);
-      expect(new Set(five.map((p) => p.position)).size).toBe(5);
+      const roster = modernStartersForTeam(team.abbreviation);
+      expect(roster.length, team.abbreviation).toBeGreaterThanOrEqual(5);
+      expect(roster.every((p) => !p.legendary)).toBe(true);
+      expect(new Set(roster.map((p) => p.position)).size).toBe(5);
     }
   });
 
-  it('freeAgentPool is the modern starter pool (no legends)', () => {
-    expect(freeAgentPool()).toBe(NBA_STARTERS);
+  it('freeAgentPool is the class pool (no legends)', () => {
+    expect(freeAgentPool()).toBe(NBA_POOL);
     expect(freeAgentPool().every((p) => !p.legendary)).toBe(true);
   });
 
