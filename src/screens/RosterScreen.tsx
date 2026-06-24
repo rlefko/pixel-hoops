@@ -16,8 +16,9 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
  * and the shared RosterFilterBar so it reads the same as the draft.
  */
 
-type Sort = 'power' | 'class' | 'name';
+type Sort = 'recent' | 'power' | 'class' | 'name';
 const SORTS: { id: Sort; label: string }[] = [
+  { id: 'recent', label: 'RECENT' },
   { id: 'power', label: 'POWER' },
   { id: 'class', label: 'CLASS' },
   { id: 'name', label: 'NAME' },
@@ -28,7 +29,7 @@ export default function RosterScreen() {
   const { homeRoster, loaded } = useHomeRoster();
   const [query, setQuery] = useState('');
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
-  const [sort, setSort] = useState<Sort>('power');
+  const [sort, setSort] = useState<Sort>('recent');
 
   const players = useMemo(
     () => (homeRoster ? ownedRosterPlayers(homeRoster) : []),
@@ -44,6 +45,7 @@ export default function RosterScreen() {
     });
     const classIdx = (rp: (typeof players)[number]) =>
       rp.originalClass ? CLASS_ORDER.indexOf(rp.originalClass) : -1;
+    if (sort === 'recent') return filtered; // the collection is already recency-ordered
     return filtered.sort((a, b) => {
       if (sort === 'name') return a.player.name.localeCompare(b.player.name);
       if (sort === 'class') return classIdx(b) - classIdx(a) || a.player.name.localeCompare(b.player.name);

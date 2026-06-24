@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
@@ -46,11 +46,14 @@ export default function ArcadeScreen() {
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const [selected, setSelected] = useState<string | null>(null);
   const [lastPull, setLastPull] = useState<{ id: string; rarity: AbilityRarity } | null>(null);
+  const [query, setQuery] = useState('');
 
-  const players = useMemo(
-    () => (homeRoster ? ownedRosterPlayers(homeRoster) : []),
-    [homeRoster]
-  );
+  const players = useMemo(() => {
+    if (!homeRoster) return [];
+    const q = query.trim().toLowerCase();
+    const all = ownedRosterPlayers(homeRoster); // recency-ordered
+    return q ? all.filter((rp) => rp.player.name.toLowerCase().includes(q)) : all;
+  }, [homeRoster, query]);
   const ownedAbilities = useMemo(
     () => (homeRoster ? GACHA_ABILITIES.filter((a) => abilityOwned(homeRoster, a.id) > 0) : []),
     [homeRoster]
@@ -156,6 +159,15 @@ export default function ArcadeScreen() {
         <Text style={styles.section}>
           {selected ? 'TAP A PLAYER TO EQUIP' : 'EQUIPPED LOADOUT'}
         </Text>
+        <TextInput
+          style={styles.search}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search players..."
+          placeholderTextColor={palette.inkDim}
+          autoCorrect={false}
+          autoCapitalize="none"
+        />
         {players.map((rp, i) => {
           const key = playerKey(rp);
           const equippedId = homeRoster.equippedAbilities[key];
@@ -242,6 +254,17 @@ const styles = StyleSheet.create({
     marginBottom: space(1),
   },
   empty: { fontFamily: FONT.body, fontSize: FONT_SIZE.body, color: palette.inkDim },
+  search: {
+    height: 38,
+    paddingHorizontal: space(3),
+    marginBottom: space(2),
+    borderWidth: BORDER.thin,
+    borderColor: palette.inkDim,
+    borderRadius: RADIUS.chip,
+    color: palette.ink,
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.body,
+  },
   abilityChips: { gap: space(1.5) },
   abilityChip: {
     padding: space(2),
