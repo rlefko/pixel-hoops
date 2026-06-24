@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Text } from '@/components/StyledText';
+import { Text, FitText } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { useRun } from '@/hooks/useRun';
 import {
@@ -202,13 +202,13 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
       <Text style={styles.section}>SCOUTING REPORT</Text>
       <View style={styles.scoutHeader}>
         <View style={[styles.swatch, { backgroundColor: away.colorHex }]} />
-        <Text style={styles.oppName} numberOfLines={1}>
+        <FitText style={styles.oppName} minScale={0.8}>
           {away.name}
-        </Text>
+        </FitText>
       </View>
-      <LineupBoard team={away} />
+      <LineupBoard team={away} compact />
       <Text style={styles.section}>YOUR FIVE</Text>
-      <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} />
+      <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} compact />
       <Pressable onPress={actions.openLineupBuilder}>
         <Text style={styles.link}>Change Lineup</Text>
       </Pressable>
@@ -310,8 +310,8 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
     color: palette.gold,
-    marginTop: space(6),
-    marginBottom: space(2),
+    marginTop: space(4),
+    marginBottom: space(1),
   },
   scoutHeader: {
     flexDirection: 'row',
@@ -337,8 +337,8 @@ const styles = StyleSheet.create({
     marginTop: space(2),
   },
   button: {
-    marginTop: space(7),
-    paddingVertical: space(4),
+    marginTop: space(4),
+    paddingVertical: space(3),
     paddingHorizontal: space(6),
     borderRadius: RADIUS.chip,
     borderWidth: BORDER.chunk,

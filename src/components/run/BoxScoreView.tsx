@@ -1,5 +1,5 @@
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text } from '@/components/StyledText';
+import { Text, FitText } from '@/components/StyledText';
 import { CrownIcon, EnergyPips } from '@/components/run/PixelIcons';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { BoxLine } from '@/types/sim';
@@ -49,9 +49,9 @@ function TeamBox({ team, lines }: { team: Team; lines: BoxLine[] }) {
   return (
     <View style={styles.teamBlock}>
       <View style={[styles.teamHeader, { backgroundColor: team.colorHex }]}>
-        <Text style={styles.teamName} numberOfLines={1}>
+        <FitText style={styles.teamName} minScale={0.8}>
           {team.name}
-        </Text>
+        </FitText>
       </View>
 
       <View style={styles.headerRow}>
@@ -80,12 +80,9 @@ function StatRow({ line, top }: { line: BoxLine; top: boolean }) {
     <View style={[styles.row, benched && styles.benched, top && styles.topRow]}>
       <View style={styles.cellName}>
         {top ? <CrownIcon size={12} color={palette.gold} /> : null}
-        <Text
-          style={[styles.name, top && styles.topName]}
-          numberOfLines={1}
-        >
+        <FitText style={[styles.name, top && styles.topName]} minScale={0.7}>
           {line.name}
-        </Text>
+        </FitText>
       </View>
       {values.map((v, i) => (
         <Text key={i} style={[styles.cell, styles.value, top && styles.topName]}>
@@ -148,7 +145,7 @@ const styles = StyleSheet.create({
   },
   topName: { color: palette.gold },
   cell: {
-    width: 34,
+    width: 30,
     textAlign: 'center',
   },
   energyCell: {

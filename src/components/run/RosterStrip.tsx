@@ -1,5 +1,5 @@
 import { View, StyleSheet, Pressable } from 'react-native';
-import { Text } from '@/components/StyledText';
+import { Text, FitText } from '@/components/StyledText';
 import { PixelPlayer } from '@/components/fx';
 import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
@@ -60,9 +60,9 @@ export function RosterStrip({ roster, onPress }: RosterStripProps) {
                   {rp.position}
                 </Text>
               </View>
-              <Text style={styles.name} numberOfLines={1}>
+              <FitText style={styles.name} minScale={0.75}>
                 {out > 0 ? `OUT ${out}` : shortName(rp.player.name)}
-              </Text>
+              </FitText>
             </View>
           );
         })}

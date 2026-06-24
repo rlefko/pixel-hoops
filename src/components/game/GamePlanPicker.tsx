@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
     color: palette.inkDim,
-    marginTop: space(2),
+    marginTop: space(1),
     marginBottom: space(1),
   },
   segment: {
