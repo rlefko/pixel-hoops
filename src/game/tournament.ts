@@ -1,11 +1,5 @@
 import type { Archetype } from '@/types/player';
-import {
-  createPlayer,
-  type Player,
-  type PlayerStats,
-  randomInt,
-  SKILL_STAT_KEYS,
-} from '@/types/player';
+import { createPlayer } from '@/types/player';
 import type { Roster, RosterPlayer, Position } from '@/types/roster';
 import {
   POSITIONS,
@@ -14,7 +8,7 @@ import {
 } from '@/types/roster';
 import type { GamePlan, Focus, Pace } from '@/types/tactics';
 import type { RNG } from './rng';
-import { clamp, getRoundStatRange, scaleStatsToRound } from './stat-scaling';
+import { clamp, scaleStatsToLevel } from './stat-scaling';
 import {
   pickRealTeam,
   realPlayerToRosterPlayer,
@@ -25,8 +19,8 @@ import {
 import type { RealPlayer } from '@/types/nba';
 
 // Re-exported so existing importers (and tests) can keep using
-// `@/game/tournament` as the entry point for round scaling.
-export { getRoundStatRange } from './stat-scaling';
+// `@/game/tournament` as the entry point for difficulty scaling.
+export { getStatRangeForLevel } from './stat-scaling';
 
 // ---------------------------------------------------------------------------
 // Streetball name generator
@@ -63,10 +57,10 @@ export function generateOpponentName(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Archetype selection by round
+// Archetype selection by difficulty band
 // ---------------------------------------------------------------------------
 
-/** Which archetypes appear at each round and how heavily weighted. */
+/** Which archetypes appear in each difficulty band (1-7) and how heavily. */
 const ARCHETYPE_WEIGHTS: Record<string, Record<Archetype, number>> = {
   '1': {
     'point-guard': 5,
@@ -119,55 +113,15 @@ const ARCHETYPE_WEIGHTS: Record<string, Record<Archetype, number>> = {
   },
 };
 
-/** Weighted random archetype selection for a given round. */
-function pickArchetype(round: number): Archetype {
-  const weights = ARCHETYPE_WEIGHTS[String(Math.min(round, 7))];
-  if (!weights) return 'point-guard';
-
-  const entries = Object.entries(weights) as [Archetype, number][];
-  const totalWeight = entries.reduce((sum, [, w]) => sum + w, 0);
-  let roll = Math.random() * totalWeight;
-
-  for (const [archetype, weight] of entries) {
-    roll -= weight;
-    if (roll <= 0) return archetype;
-  }
-
-  return 'point-guard'; // Fallback
+/** Map a continuous difficulty level (~5-10) to an integer archetype band 1-7,
+ * preserving the old progression: guard-heavy early, big-heavy late. */
+function levelToBand(level: number): number {
+  return clamp(Math.round(level - 4), 1, 7);
 }
 
-// ---------------------------------------------------------------------------
-// Stat scaling by round
-// ---------------------------------------------------------------------------
-
-/** Scale the archetypes that appear at a given round. */
-export function getRoundArchetypeWeights(
-  round: number
-): Record<Archetype, number> {
-  return (
-    ARCHETYPE_WEIGHTS[String(Math.min(round, 7))] ?? ARCHETYPE_WEIGHTS['1']
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Opponent generation
-// ---------------------------------------------------------------------------
-
-/** Generate a procedurally-scaled opponent for the given tournament round. */
-export function generateOpponent(round: number, playerName?: string): Player {
-  const archetype = pickArchetype(round);
-  const name = playerName ?? generateOpponentName();
-  const basePlayer = createPlayer(name, archetype);
-  const range = getRoundStatRange(round);
-
-  // Scale each skill rating within the round's range with some variance;
-  // condition ratings (stamina/durability) carry over unscaled.
-  const stats: PlayerStats = { ...basePlayer.stats };
-  for (const key of SKILL_STAT_KEYS) {
-    stats[key] = clamp(basePlayer.stats[key] + randomInt(-1, 2), range.min, range.max);
-  }
-
-  return { ...basePlayer, stats };
+/** The archetypes (and weights) that appear at a given difficulty level. */
+export function archetypeWeightsForLevel(level: number): Record<Archetype, number> {
+  return ARCHETYPE_WEIGHTS[String(levelToBand(level))] ?? ARCHETYPE_WEIGHTS['1'];
 }
 
 // ---------------------------------------------------------------------------
@@ -200,13 +154,13 @@ export function generateTeamName(rng: RNG): string {
 }
 
 /** Build a five, one player per position, via the seeded RNG. */
-function buildSeededFive(rng: RNG, scaleRound?: number): RosterPlayer[] {
+function buildSeededFive(rng: RNG, scaleLevel?: number): RosterPlayer[] {
   return POSITIONS.map((position: Position) => {
     const archetype = POSITION_ARCHETYPE[position];
     const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
     const player =
-      scaleRound !== undefined
-        ? { ...base, stats: scaleStatsToRound(base.stats, scaleRound, rng) }
+      scaleLevel !== undefined
+        ? { ...base, stats: scaleStatsToLevel(base.stats, scaleLevel, rng) }
         : base;
     return { player, position };
   });
@@ -217,57 +171,57 @@ export function buildStartingRoster(rng: RNG): Roster {
   return { starters: buildSeededFive(rng), bench: [] };
 }
 
-/** A single fake, round-scaled player for the given floor position. */
+/** A single fake, difficulty-scaled player for the given floor position. */
 function fakePlayerAt(
   position: Position,
-  round: number,
+  level: number,
   rng: RNG
 ): RosterPlayer {
   const archetype = POSITION_ARCHETYPE[position];
   const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
   return {
-    player: { ...base, stats: scaleStatsToRound(base.stats, round, rng) },
+    player: { ...base, stats: scaleStatsToLevel(base.stats, level, rng) },
     position,
   };
 }
 
-/** Wrap a real player as a round-scaled roster player: real identity, scaled stats. */
-function scaledFromReal(rp: RealPlayer, round: number, rng: RNG): RosterPlayer {
+/** Wrap a real player as a difficulty-scaled roster player: real identity, scaled stats. */
+function scaledFromReal(rp: RealPlayer, level: number, rng: RNG): RosterPlayer {
   const base = realPlayerToRosterPlayer(rp);
   return {
     ...base,
     player: {
       ...base.player,
-      stats: scaleStatsToRound(base.player.stats, round, rng),
+      stats: scaleStatsToLevel(base.player.stats, level, rng),
     },
   };
 }
 
 /**
- * A real franchise starter at `position`, round-scaled so the difficulty curve
- * holds while the opponent wears a real name, team, and jersey number. Falls
- * back to a procedural fake when the franchise has no real starter at the slot.
+ * A real franchise starter at `position`, difficulty-scaled so the curve holds
+ * while the opponent wears a real name, team, and jersey number. Falls back to a
+ * procedural fake when the franchise has no real starter at the slot.
  */
 function realStarterAt(
   position: Position,
-  round: number,
+  level: number,
   rng: RNG,
   pool: RealPlayer[]
 ): RosterPlayer {
   const matches = pool.filter((p) => p.position === position);
-  if (matches.length === 0) return fakePlayerAt(position, round, rng);
-  return scaledFromReal(rng.pick(matches), round, rng);
+  if (matches.length === 0) return fakePlayerAt(position, level, rng);
+  return scaledFromReal(rng.pick(matches), level, rng);
 }
 
 /** Bench players an opponent carries for in-game rotation. */
 const OPPONENT_BENCH_SIZE = 3;
 
 /**
- * A round-scaled opponent: a real NBA franchise (name + colors) fielding its
- * REAL starting five (round-scaled, so balance is unchanged), with a procedural
- * fallback per slot when the franchise lacks a real there. A boss additionally
- * is headlined by that franchise's all-time LEGEND (unscaled, gold) at the
- * legend's own position. Regular games never field a legend. Fully seeded.
+ * A difficulty-scaled opponent: a real NBA franchise (name + colors) fielding its
+ * REAL starting five (scaled to the node's difficulty level, so balance holds),
+ * with a procedural fallback per slot when the franchise lacks a real there. A
+ * boss additionally is headlined by that franchise's all-time LEGEND (unscaled,
+ * gold) at the legend's own position. Regular games never field a legend. Seeded.
  *
  * DETERMINISM: the franchise identity is the FIRST RNG draw (`pickRealTeam`).
  * The run map previews each opponent's color from that exact draw before the
@@ -275,9 +229,9 @@ const OPPONENT_BENCH_SIZE = 3;
  * first. The boss-legend draw follows immediately, then the per-slot starters.
  */
 export function generateOpponentTeam(
-  round: number,
+  level: number,
   rng: RNG,
-  opts?: { isBoss?: boolean }
+  opts?: { isBoss?: boolean; extraLegend?: boolean }
 ): { name: string; roster: Roster; colorHex: string; accentHex: string } {
   const team = pickRealTeam(rng); // MUST remain the first draw
   const isBoss = opts?.isBoss ?? false;
@@ -285,20 +239,31 @@ export function generateOpponentTeam(
 
   // Every boss is headlined by its own franchise legend (unscaled, gold) at the
   // legend's natural position; the other four slots are real franchise starters.
+  // A high League tier can stack a SECOND legend at a different slot.
   let legend: RosterPlayer | null = null;
   let legendSlot: Position | null = null;
+  let legend2: RosterPlayer | null = null;
+  let legend2Slot: Position | null = null;
   if (isBoss) {
     legend = legendForTeam(team.abbreviation, rng);
     if (legend) legendSlot = legend.position;
+    if (opts?.extraLegend) {
+      const l2 = legendForTeam(team.abbreviation, rng);
+      if (l2 && l2.position !== legendSlot) {
+        legend2 = l2;
+        legend2Slot = l2.position;
+      }
+    }
   }
 
   const starters = POSITIONS.map((position) => {
     if (legend && legendSlot === position) return legend;
-    return realStarterAt(position, round, rng, pool);
+    if (legend2 && legend2Slot === position) return legend2;
+    return realStarterAt(position, level, rng, pool);
   });
   // A short bench so opponents rotate too (procedural fakes only).
   const bench = Array.from({ length: OPPONENT_BENCH_SIZE }, () =>
-    fakePlayerAt(rng.pick(POSITIONS), round, rng)
+    fakePlayerAt(rng.pick(POSITIONS), level, rng)
   );
   return {
     name: `${team.city} ${team.name}`,
@@ -308,30 +273,30 @@ export function generateOpponentTeam(
   };
 }
 
-/** One procedural, round-scaled recruit (archetype weighted by run depth). */
-function fakeRecruit(round: number, rng: RNG): RosterPlayer {
-  const weights = Object.entries(getRoundArchetypeWeights(round)) as [
+/** One procedural, difficulty-scaled recruit (archetype weighted by run depth). */
+function fakeRecruit(level: number, rng: RNG): RosterPlayer {
+  const weights = Object.entries(archetypeWeightsForLevel(level)) as [
     Archetype,
     number,
   ][];
   const archetype = rng.weightedPick(weights);
   const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
   return {
-    player: { ...base, stats: scaleStatsToRound(base.stats, round, rng) },
+    player: { ...base, stats: scaleStatsToLevel(base.stats, level, rng) },
     position: ARCHETYPE_POSITION[archetype],
   };
 }
 
 /**
- * Deterministic recruit candidates for a recruit node, scaled to run depth.
- * Keepable recruits are now real free agents (round-scaled) drawn from the
+ * Deterministic recruit candidates for a recruit node, scaled to the node's
+ * difficulty level. Keepable recruits are real free agents drawn from the
  * modern-starter pool, skipping any player in `exclude` (the squad already owns
  * them) and any already offered this visit; a procedural player backfills when
  * the pool runs dry. Real all-time legends are never keepable here: they surface
  * only as the rare on-loan legendary offer, gated separately by the run machine.
  */
 export function generateRecruitOffers(
-  round: number,
+  level: number,
   count: number,
   rng: RNG,
   exclude: Set<string> = new Set()
@@ -342,12 +307,12 @@ export function generateRecruitOffers(
   for (let i = 0; i < count; i++) {
     const available = pool.filter((p) => !taken.has(p.name));
     if (available.length === 0) {
-      offers.push(fakeRecruit(round, rng));
+      offers.push(fakeRecruit(level, rng));
       continue;
     }
     const chosen = rng.pick(available);
     taken.add(chosen.name);
-    offers.push(scaledFromReal(chosen, round, rng));
+    offers.push(scaledFromReal(chosen, level, rng));
   }
   return offers;
 }

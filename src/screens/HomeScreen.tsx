@@ -5,6 +5,7 @@ import { Screen } from '@/components/Screen';
 import { CoinIcon } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { useHomeRoster } from '@/context/HomeRosterContext';
+import { TIER_LABELS } from '@/game/ascension';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** Main menu screen — entry point for the game. */
@@ -22,6 +23,13 @@ export default function HomeScreen() {
     );
   }
 
+  // Choose which unlocked League tier the next run is played at (StS-style).
+  const setSelectedTier = (next: number) => {
+    if (!homeRoster) return;
+    const clamped = Math.min(homeRoster.leagueTier, Math.max(0, next));
+    saveHomeRoster({ ...homeRoster, selectedTier: clamped });
+  };
+
   return (
     <Screen style={styles.container}>
       <View style={styles.titleBlock}>
@@ -34,6 +42,36 @@ export default function HomeScreen() {
         <View style={styles.coinRow}>
           <CoinIcon size={14} color={palette.gold} />
           <Text style={styles.coinText}>{homeRoster.coins}</Text>
+        </View>
+      ) : null}
+
+      {loaded && homeRoster && homeRoster.leagueTier > 0 ? (
+        <View style={styles.tierBox}>
+          <View style={styles.tierRow}>
+            <Pressable
+              onPress={() => setSelectedTier(homeRoster.selectedTier - 1)}
+              disabled={homeRoster.selectedTier <= 0}
+            >
+              <Text style={[styles.tierArrow, homeRoster.selectedTier <= 0 && styles.tierArrowOff]}>
+                ‹
+              </Text>
+            </Pressable>
+            <Text style={styles.tierName}>LEAGUE T{homeRoster.selectedTier}</Text>
+            <Pressable
+              onPress={() => setSelectedTier(homeRoster.selectedTier + 1)}
+              disabled={homeRoster.selectedTier >= homeRoster.leagueTier}
+            >
+              <Text
+                style={[
+                  styles.tierArrow,
+                  homeRoster.selectedTier >= homeRoster.leagueTier && styles.tierArrowOff,
+                ]}
+              >
+                ›
+              </Text>
+            </Pressable>
+          </View>
+          <Text style={styles.tierBlurb}>{TIER_LABELS[homeRoster.selectedTier]?.blurb}</Text>
         </View>
       ) : null}
 
@@ -100,6 +138,27 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.label,
     color: palette.gold,
+  },
+  tierBox: {
+    alignItems: 'center',
+    marginTop: space(4),
+    paddingHorizontal: space(4),
+    paddingVertical: space(2),
+    borderWidth: BORDER.thin,
+    borderColor: palette.orange + '88',
+    borderRadius: RADIUS.chip,
+  },
+  tierRow: { flexDirection: 'row', alignItems: 'center', gap: space(4) },
+  tierArrow: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: palette.orange },
+  tierArrowOff: { color: palette.inkDim, opacity: 0.4 },
+  tierName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.orange },
+  tierBlurb: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+    textAlign: 'center',
+    marginTop: space(1),
+    maxWidth: 240,
   },
   instructions: {
     fontFamily: FONT.body,

@@ -25,10 +25,10 @@ function teamFromRoster(name: string, roster: Roster, plan: GamePlan = DEFAULT_G
   return buildTeam(name, roster.starters, plan, '#FFD54F', '#1D428A');
 }
 
-function makeMatchup(seed: number | string, round = 1): { home: Team; away: Team } {
+function makeMatchup(seed: number | string, level = 5): { home: Team; away: Team } {
   const rng = createRNG(seed);
   const home = teamFromRoster('You', buildStartingRoster(rng));
-  const opp = generateOpponentTeam(round, rng);
+  const opp = generateOpponentTeam(level, rng);
   return { home, away: teamFromRoster(opp.name, opp.roster) };
 }
 
@@ -85,7 +85,7 @@ describe('simulateGame determinism', () => {
 describe('simulateGame integrity', () => {
   it('never ends in a tie and the winner has the higher score', () => {
     for (let s = 0; s < 50; s++) {
-      const { home, away } = makeMatchup(`tie-${s}`, (s % 7) + 1);
+      const { home, away } = makeMatchup(`tie-${s}`, (s % 6) + 5);
       const r = simulateGame({ home, away, seed: `g-${s}` });
       expect(r.finalHome).not.toBe(r.finalAway);
       const winnerScore = r.winner === 'home' ? r.finalHome : r.finalAway;
@@ -116,7 +116,7 @@ describe('simulateGame integrity', () => {
     let total = 0;
     let count = 0;
     for (let s = 0; s < 40; s++) {
-      const { home, away } = makeMatchup(`score-${s}`, (s % 7) + 1);
+      const { home, away } = makeMatchup(`score-${s}`, (s % 6) + 5);
       const r = simulateGame({ home, away, seed: `sg-${s}` });
       for (const side of [r.finalHome, r.finalAway]) {
         // Floor allows the occasional cold-shooting blowout: the rookie home five
@@ -134,12 +134,12 @@ describe('simulateGame integrity', () => {
   });
 
   it('rewards the stronger roster but still allows upsets', () => {
-    // The player's baseline five vs a weaker round-1 opponent: should win a
-    // clear majority, but not every time (upsets keep tension alive).
+    // The player's baseline five vs a weaker opponent (below the curve's opener):
+    // should win a clear majority, but not every time (upsets keep tension alive).
     let homeWins = 0;
     const games = 60;
     for (let s = 0; s < games; s++) {
-      const { home, away } = makeMatchup('strength', 1);
+      const { home, away } = makeMatchup('strength', 4);
       const r = simulateGame({ home, away, seed: `str-${s}` });
       if (r.winner === 'home') homeWins += 1;
     }
@@ -245,6 +245,63 @@ describe('fatigue, rotation, and box score', () => {
     const a = simulateGame({ home: deep(), away: thin(), seed: 'det-box' });
     const b = simulateGame({ home: deep(), away: thin(), seed: 'det-box' });
     expect(a.box).toEqual(b.box);
+  });
+
+  it('keeps healthy starters off a 48-minute night when a bench exists', () => {
+    // The bug this guards: starters used to play all 48 while the bench got 0,
+    // because a sub only fired when the fresh player was strictly better than the
+    // tired starter. With a viable bench, nobody should run the full game.
+    for (let s = 0; s < 20; s++) {
+      const r = simulateGame({ home: deep(), away: deep(), seed: `mins-${s}` });
+      for (const box of [r.box.home, r.box.away]) {
+        for (const line of box.filter((b) => b.starter)) {
+          expect(line.seconds / 60).toBeLessThanOrEqual(44);
+        }
+      }
+    }
+  });
+
+  it('gives every bench player real minutes with a deep bench', () => {
+    const r = simulateGame({ home: deep(), away: deep(), seed: 'bench-mins' });
+    for (const box of [r.box.home, r.box.away]) {
+      const bench = box.filter((b) => !b.starter);
+      expect(bench.length).toBeGreaterThan(0);
+      for (const line of bench) expect(line.seconds).toBeGreaterThan(0);
+    }
+  });
+
+  it('rests starters more in blowouts than in even games', () => {
+    // Same strong home team; only the opponent strength (and thus the margin)
+    // changes. Garbage-time rest should hand the bench more minutes when the home
+    // team is blowing the game open than when the game stays close.
+    const strongStarters = generateOpponentTeam(6, createRNG('bw-strong')).roster.starters;
+    const strongHome = (): Team =>
+      buildTeam('Strong', strongStarters, DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(5, 'bw-bench'));
+    const benchSeconds = (away: () => Team, label: string): number => {
+      let total = 0;
+      const games = 20;
+      for (let s = 0; s < games; s++) {
+        const r = simulateGame({ home: strongHome(), away: away(), seed: `${label}-${s}` });
+        total += r.box.home.filter((b) => !b.starter).reduce((n, b) => n + b.seconds, 0);
+      }
+      return total / games;
+    };
+    const blowout = benchSeconds(thin, 'bw'); // weak opponent => frequent blowouts
+    const even = benchSeconds(strongHome, 'ev'); // mirror => few blowouts
+    expect(blowout).toBeGreaterThan(even);
+  });
+
+  it('rewards stamina with more minutes at equal skill', () => {
+    // Two runs identical except the SG-slot player's stamina: the high-stamina
+    // version drains slower, dips to the sub zone less, and logs more minutes.
+    const base = createPlayer('Iron', POSITION_ARCHETYPE.SG, createRNG('iron').int);
+    const sgMinutes = (stamina: number): number => {
+      const five = buildStartingRoster(createRNG('rot')).starters.slice();
+      five[1] = { player: { ...base, stats: { ...base.stats, stamina } }, position: 'SG' };
+      const team = buildTeam('Stamina', five, DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(5, 'sbench'));
+      return simulateGame({ home: team, away: deep(), seed: 'stamina' }).box.home[1].seconds;
+    };
+    expect(sgMinutes(10)).toBeGreaterThan(sgMinutes(3));
   });
 });
 

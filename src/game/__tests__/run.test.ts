@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createRNG } from '@/game/rng';
-import { generateRecruitOffers, getRoundStatRange } from '@/game/tournament';
+import { generateRecruitOffers, getStatRangeForLevel } from '@/game/tournament';
 import {
   applyUpgrade,
   createRookieRoster,
@@ -24,8 +24,10 @@ import {
 import { generateFixedMap } from '@/game/run-map';
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { tierFor } from '@/game/ratings';
-import { POSITIONS } from '@/types/roster';
-import { SKILL_STAT_KEYS } from '@/types/player';
+import { budgetFor, lineupCost } from '@/game/budget';
+import { RATING_CAP } from '@/game/upgrades';
+import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
+import { createPlayer, SKILL_STAT_KEYS } from '@/types/player';
 import type { MapNode } from '@/types/run-map';
 
 function rookie(seed = 'home'): HomeRoster {
@@ -46,8 +48,8 @@ describe('generateRecruitOffers', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('scales skill stats into the round range with valid positions', () => {
-    const { min, max } = getRoundStatRange(5);
+  it('scales skill stats into the difficulty band with valid positions', () => {
+    const { min, max } = getStatRangeForLevel(5);
     const offers = generateRecruitOffers(5, 8, createRNG('rs'));
     for (const o of offers) {
       // Only the eight skill ratings are round-scaled; stamina/durability
@@ -276,7 +278,14 @@ describe('home roster persistence', () => {
 
 describe('run reducer', () => {
   const home = rookie('reducer');
-  const start = (): RunModel => initRun('seed-1', home);
+  // A run now opens on the pre-run five pick; confirm it so the helper returns the
+  // model at the Map-1 boost draft, the way the downstream tests expect.
+  const start = (): RunModel => {
+    const m = initRun('seed-1', home);
+    return m.phase.kind === 'prepareLineup'
+      ? runReducer(m, { type: 'confirmPrepareLineup', starters: m.phase.starters, bench: m.phase.bench })!
+      : m;
+  };
   /** A bare combat node injected for resolveGameResult flow tests. */
   const node = (over: Partial<MapNode>): MapNode => ({
     id: 'x',
@@ -293,6 +302,17 @@ describe('run reducer', () => {
     core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
   });
 
+  it('opens on the pre-run lineup pick with a legal default five', () => {
+    const m = initRun('seed-1', home);
+    expect(m.phase.kind).toBe('prepareLineup');
+    expect(m.budgetCap).toBe(budgetFor(home.leagueTier));
+    expect(m.tier).toBe(home.selectedTier);
+    if (m.phase.kind === 'prepareLineup') {
+      expect(m.phase.starters).toHaveLength(5);
+      expect(lineupCost(m.phase.starters)).toBeLessThanOrEqual(m.budgetCap);
+    }
+  });
+
   it('opens on the Map-1 boost draft with five starters and no boosts', () => {
     const m = start();
     expect(m.phase.kind).toBe('boostDraft');
@@ -300,6 +320,42 @@ describe('run reducer', () => {
     expect(m.core.currentMapIndex).toBe(0);
     expect(m.core.currentNodeId).toBeNull();
     expect(m.core.roster.starters).toHaveLength(5);
+  });
+
+  it('confirming the five opens the boost draft and sets the roster', () => {
+    const m = initRun('seed-1', home);
+    if (m.phase.kind !== 'prepareLineup') throw new Error('expected prepareLineup');
+    const { starters, bench } = m.phase;
+    const next = runReducer(m, { type: 'confirmPrepareLineup', starters, bench })!;
+    expect(next.phase.kind).toBe('boostDraft');
+    expect(next.core.roster.starters).toEqual(starters);
+  });
+
+  it('rejects an over-budget five when a cheaper one exists', () => {
+    // A pool of five maxed studs plus two cheap players: starting all five studs
+    // is over the cap, and a cheaper five exists, so confirm is a no-op.
+    const maxed = (name: string, pos: Position): RosterPlayer => {
+      const p = createPlayer(name, 'point-guard', createRNG(name).int);
+      for (const k of SKILL_STAT_KEYS) p.stats[k] = RATING_CAP;
+      return { player: p, position: pos };
+    };
+    const cheap = (name: string, pos: Position): RosterPlayer => {
+      const p = createPlayer(name, 'point-guard', createRNG(name).int);
+      for (const k of SKILL_STAT_KEYS) p.stats[k] = 4;
+      return { player: p, position: pos };
+    };
+    const studs = POSITIONS.map((pos, i) => maxed(`Stud${i}`, pos));
+    const cheaps = [cheap('Cheap0', 'PG'), cheap('Cheap1', 'SG')];
+    const richHome: HomeRoster = {
+      players: [...studs, ...cheaps],
+      coins: 0, reputation: 0, upgrades: {}, legendDryStreak: 0,
+      leagueTier: 0, selectedTier: 0, seenWelcome: true,
+    };
+    const m = initRun('rich', richHome);
+    if (m.phase.kind !== 'prepareLineup') throw new Error('expected prepareLineup');
+    // Try to start all five studs (over the cap) while two cheap subs exist.
+    const over = runReducer(m, { type: 'confirmPrepareLineup', starters: studs, bench: cheaps })!;
+    expect(over.phase.kind).toBe('prepareLineup'); // rejected, still picking
   });
 
   it('chooseNode on the recruit entry opens the recruit screen', () => {
@@ -586,7 +642,13 @@ describe('item bag (run-scoped)', () => {
 });
 
 describe('boosts, economy, and legends', () => {
-  const start = (): RunModel => initRun('seed-econ', rookie('econ'));
+  // Open the run and confirm the pre-run five so the helper lands on the draft.
+  const start = (): RunModel => {
+    const m = initRun('seed-econ', rookie('econ'));
+    return m.phase.kind === 'prepareLineup'
+      ? runReducer(m, { type: 'confirmPrepareLineup', starters: m.phase.starters, bench: m.phase.bench })!
+      : m;
+  };
 
   it('drafting a boost equips it and lands on the map (run-start draft)', () => {
     let m = start();
@@ -735,7 +797,9 @@ describe('between-game injuries', () => {
     const [first, ...rest] = m.core.roster.starters;
     const roster = { starters: [{ ...first, gamesOut: 1 }, ...rest], bench };
     const subs = steppingInSubs(roster);
-    expect(subs.map((p) => p.player.name)).toEqual([bench[0].player.name]);
-    expect(subs.map((p) => p.player.name)).not.toContain(first.player.name);
+    // Identity by reference, not name: real data can have two players share a
+    // name, so the bench call-up steps in and the injured starter does not.
+    expect(subs).toEqual([bench[0]]);
+    expect(subs).not.toContain(roster.starters[0]);
   });
 });

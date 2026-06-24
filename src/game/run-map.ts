@@ -1,5 +1,7 @@
 import type { MapNode, MapNodeType, RunMap, RunState } from '@/types/run-map';
 import { createRNG, type RNG } from './rng';
+import { difficultyLevel } from './difficulty';
+import { tierMods, type TierMods } from './ascension';
 
 /**
  * Generates and traverses one short fixed-SHAPE map of the pokelike run. Every
@@ -13,6 +15,9 @@ export interface FixedMapConfig {
   seed: number | string;
   /** Which map of the run this is (0-based). Drives difficulty and node ids. */
   mapIndex: number;
+  /** League tier (0 default). Higher tiers seed more elites and may drop the
+   * guaranteed pre-boss rest. See src/game/ascension.ts. */
+  tier?: number;
 }
 
 /** Nodes per row, entry (0) to boss. The map's fixed shape (a tall pokelike map). */
@@ -36,11 +41,13 @@ const EDGES: number[][][] = [
 
 const COMBAT: ReadonlySet<MapNodeType> = new Set<MapNodeType>(['game', 'elite', 'boss']);
 
-/** Weighted random interior type, game-heavy; elites only from the second map. */
-function randomInteriorType(mapIndex: number, rng: RNG): MapNodeType {
+/** Weighted random interior type, game-heavy. Elites normally start on map 2; a
+ * high League tier opens them on map 1 and/or weights them heavier. */
+function randomInteriorType(mapIndex: number, rng: RNG, mods: TierMods): MapNodeType {
+  const elitesOn = mods.elitesFromMap0 || mapIndex >= 1;
   const entries: [MapNodeType, number][] = [
     ['game', 6],
-    ['elite', mapIndex >= 1 ? 2 : 0],
+    ['elite', elitesOn ? 2 + mods.eliteWeightBonus : 0],
     ['recruit', 2],
     ['boost', 1],
     ['rest', 1],
@@ -49,11 +56,17 @@ function randomInteriorType(mapIndex: number, rng: RNG): MapNodeType {
   return rng.weightedPick(entries);
 }
 
-/** Pinned types: entry [recruit, boost], the pre-boss rest, and the boss. */
-function pinnedType(layer: number, index: number, restSlot: number): MapNodeType | null {
+/** Pinned types: entry [recruit, boost], the pre-boss rest, and the boss. The
+ * pre-boss rest is dropped at the top tier (no free heal before the finale). */
+function pinnedType(
+  layer: number,
+  index: number,
+  restSlot: number,
+  preBossRest: boolean
+): MapNodeType | null {
   if (layer === 0) return index === 0 ? 'recruit' : 'boost';
   if (layer === BOSS_ROW) return 'boss';
-  if (layer === PRE_BOSS_ROW && index === restSlot) return 'rest';
+  if (preBossRest && layer === PRE_BOSS_ROW && index === restSlot) return 'rest';
   return null;
 }
 
@@ -65,6 +78,7 @@ function roundFor(type: MapNodeType, mapIndex: number): number | undefined {
 
 export function generateFixedMap(config: FixedMapConfig): RunMap {
   const { mapIndex } = config;
+  const mods = tierMods(config.tier ?? 0);
   const rng = createRNG(config.seed);
   const nodes: Record<string, MapNode> = {};
   const layers: string[][] = [];
@@ -77,13 +91,16 @@ export function generateFixedMap(config: FixedMapConfig): RunMap {
     const ids: string[] = [];
     for (let index = 0; index < ROW_SIZES[layer]; index++) {
       const id = `m${mapIndex}-n-${layer}-${index}`;
-      const type = pinnedType(layer, index, restSlot) ?? randomInteriorType(mapIndex, rng);
+      const type =
+        pinnedType(layer, index, restSlot, mods.preBossRest) ??
+        randomInteriorType(mapIndex, rng, mods);
       nodes[id] = {
         id,
         type,
         layer,
         next: [],
         round: roundFor(type, mapIndex),
+        difficulty: difficultyLevel(mapIndex, layer, type === 'boss'),
         visited: false,
         cleared: false,
       };

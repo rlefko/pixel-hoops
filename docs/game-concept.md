@@ -113,31 +113,23 @@ Example: A speed-based point guard might unlock "Quick Hands" (more steals) at l
 
 ## Difficulty Design
 
-### Within-Run Scaling (The Exponential Curve)
+The central tension is the one named in [addictive-blueprint.md](addictive-blueprint.md): **can I grow faster than the bracket does?** Difficulty and player power climb together, the way the project's north star pokelike.xyz handles it, rather than an older "every run gets easier" model that made the game trivial after a couple of runs. Full details and tuning live in [difficulty-rebalance.md](difficulty-rebalance.md).
 
-Opponent stats scale with tournament round. This is not linear -- it compounds like Balatro's ante system:
+### Within-Run Scaling (The Continuous Curve)
 
-| Round | Opponent Avg Stats                                 | Special Mechanics Introduced          |
-| ----- | -------------------------------------------------- | ------------------------------------- |
-| 1     | 4-5                                                | None -- full tutorialization          |
-| 2     | 5                                                  | Opponent defense tightens             |
-| 3     | 5.5                                                | Opponents run real lineup synergies   |
-| 4     | 6.5                                                | Deeper benches, smarter rotations     |
-| 5     | 7.5                                                | Signature player abilities in play    |
-| 6     | 8+                                                 | Stacked synergies, elite execution    |
-| 7     | 9+ (Championship) Boss-level with unique abilities |
+Opponent strength rises **continuously with absolute progress through the run**, not in flat per-map steps. Each combat node is a notch stronger than the last; a boss is its map's local peak; and the first game of a new map continues from the previous map rather than resetting to "weak." The curve opens near a fresh roster's strength and climbs to a championship-caliber final boss (`src/game/difficulty.ts`, `src/game/stat-scaling.ts`).
 
-This exponential progression mirrors Balatro's approach: target scores multiply by roughly 1.5x-2x per phase, creating a silent but escalating pressure curve that forces players to internalize rising difficulty without explicit warnings (eJAW analysis). The key principle from successful roguelike design: "difficulty comes from known mechanics rather than opaque systems" so losses feel like calculation errors, not unfair RNG.
+Within a run, the player keeps pace by spending **training points on run-scoped upgrades** (the Pokelike "EV" analog): pick a stat for a specific player and raise it, resetting every run. This is the per-run power climb against the rising curve. Difficulty comes from known mechanics rather than opaque systems, so losses read as calculation errors, not unfair RNG.
 
-### Between-Run Softening (Vampire Survivors Pattern)
+### Bounded Meta-Progression (No Snowball)
 
-Small meta-progression bonuses make the next run slightly easier:
+Meta-progression compounds, but it is bounded so later runs stay challenging:
 
-- Recruited players with base 6+ stats immediately boost your team's average competitiveness
-- Equipment purchases reduce difficulty (higher ratings = better odds on every possession)
-- Training XP spent on home roster carries forward, meaning every hour invested permanently lowers the barrier to deeper tournament runs
+- **Salary-cap budget.** Before each run you pick your starting five under a cap (each player costs by OVR), so you cannot field five maxed-out studs. The cap grows slowly with the League tier (`src/game/budget.ts`).
+- **Capped permanent upgrades.** Coins still buy permanent +1s, but the per-stat cap starts low and only rises by climbing the League ladder (`src/game/upgrades.ts`).
+- **The League Tier ladder.** Clearing a run unlocks a tougher tier (the Slay the Spire "Ascension" / Hades "Heat" pattern), so winning makes the *next* run harder, not easier (`src/game/ascension.ts`).
 
-This "monotonically decreasing" difficulty curve is the signature of successful roguelites: hardest at the start, gets progressively easier over time as your investment compounds.
+No run is wasted: recruits, coins, and reputation still bank every run. But power and difficulty rise together rather than power outpacing the bracket.
 
 ## Mobile UX Design Patterns
 

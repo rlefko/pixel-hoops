@@ -93,7 +93,7 @@ The first pass achieves the 8-bit feel **programmatically**: a bundled pixel fon
 ## How this scores on the blueprint
 
 - **Synergy-first:** lineup and game plan are the game; combat is automatic.
-- **Escalating stakes and power fantasy:** opponents scale per round while the roster compounds.
+- **Escalating stakes and power fantasy:** opponents scale continuously across the run while the roster compounds under a salary cap, so power and difficulty climb together (see [difficulty-rebalance.md](difficulty-rebalance.md)).
 - **Snappy layered juice:** count-up, shake, flash, callout, and haptics on every beat, in well under half a second.
 - **Short, interruptible sessions:** games auto-sim in seconds; runs are short and resume cleanly.
 - **Variable-ratio rewards:** recruit, gear, and synergy payoffs vary run to run.
@@ -104,4 +104,4 @@ Run the `addictive-blueprint` skill against any feature in this redesign to conf
 
 The run is one screen (`RunScreen`) driven by `useRun`, a thin wrapper over a pure, headless-tested reducer (`src/game/run-machine.ts`). The reducer holds a `RunPhase` discriminated union; choosing a node dispatches to the matching sub-view (map, pregame, game, recruit, training, rest, boost, lineup builder, summary). Keeping the run in one screen means run state survives every step (no navigation can drop it), and keeping the reducer pure means the whole state machine is unit-tested without a device.
 
-**Compounding home roster.** A persistent home roster (`src/game/home-roster.ts`, owned by `HomeRosterContext`, saved through a Platform-split storage wrapper: AsyncStorage on native, guarded `localStorage` on web) is the "permadeath per run, permanent growth" hook. A run starts from a copy of the home roster; recruits join the bench and training boosts stats during the run; when the run ends (win or loss) those gains are merged back home and saved. So no run is wasted: each one fields a stronger team. The owned roster is capped so it cannot bloat, and the player builds their starting five from it before each game.
+**Compounding home roster.** A persistent home roster (`src/game/home-roster.ts`, owned by `HomeRosterContext`, saved through a Platform-split storage wrapper: AsyncStorage on native, guarded `localStorage` on web) is the "permadeath per run, permanent growth" hook. A run starts from a copy of the home roster; recruits join the bench and training boosts stats during the run; when the run ends (win or loss) those gains are merged back home and saved. So no run is wasted: each one fields a stronger team. The owned roster is capped so it cannot bloat. Before each run the player picks a starting five under a **salary cap** (so an all-stars five never fits), and an escalating **League tier** ladder keeps cleared runs challenging instead of trivial. See [difficulty-rebalance.md](difficulty-rebalance.md).

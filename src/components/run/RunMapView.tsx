@@ -31,6 +31,8 @@ interface RunMapViewProps {
   core: RunState;
   /** Equipped passive boosts, shown in the HUD pill and the boost row. */
   boosts: PassiveBoost[];
+  /** League tier this run is played at (for the HUD badge). */
+  tier: number;
   /** Number of items in the run bag, shown on the Bag button. */
   bagCount: number;
   onChoose: (nodeId: string) => void;
@@ -54,6 +56,7 @@ const LEGEND: MapNodeType[] = [
 export function RunMapView({
   core,
   boosts,
+  tier,
   bagCount,
   onChoose,
   onQuit,
@@ -110,6 +113,7 @@ export function RunMapView({
         mapNumber={core.currentMapIndex + 1}
         totalMaps={TOTAL_MAPS}
         boostCount={boosts.length}
+        tier={tier}
       />
       <BoostRow boosts={boosts} />
 

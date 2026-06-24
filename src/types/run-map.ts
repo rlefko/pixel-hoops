@@ -27,8 +27,13 @@ export interface MapNode {
   layer: number;
   /** Ids of nodes in the next layer this connects to (the branching edges). */
   next: string[];
-  /** Round number for game/elite/boss nodes (feeds difficulty scaling). */
+  /** Coarse integer round (map-indexed) for combat nodes: drives the run's
+   * economy and rarity gates (coins, legend chance, drops, boost stock). */
   round?: number;
+  /** Continuous difficulty level (float) from the node's absolute run position:
+   * drives opponent/recruit stat scaling so difficulty rises smoothly across the
+   * run instead of resetting each map. See src/game/difficulty.ts. */
+  difficulty?: number;
   visited: boolean;
   cleared: boolean;
 }

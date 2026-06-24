@@ -4,7 +4,8 @@ import type { PlayerStats } from '@/types/player';
 import type { RNG } from './rng';
 import { pickFreeAgentFive } from './tournament';
 import { expandStats, isLegacyStats } from './stat-migration';
-import { RATING_CAP, canUpgrade, upgradeCost } from './upgrades';
+import { RATING_CAP, canUpgrade, perStatMax, upgradeCost } from './upgrades';
+import { MAX_LEAGUE_TIER } from './ascension';
 
 /**
  * The persistent "home roster" that compounds across runs. A run operates on a
@@ -24,6 +25,12 @@ export interface HomeRoster {
   upgrades: Record<string, Partial<Record<keyof PlayerStats, number>>>;
   /** Completed runs since a legendary was last offered (soft pity). */
   legendDryStreak: number;
+  /** Highest unlocked League tier (0 = base). Ratchets +1 each cleared run at the
+   * frontier. Drives the salary cap and the permanent per-stat upgrade cap. */
+  leagueTier: number;
+  /** The League tier selected for the next run (0..leagueTier). Opponents harden
+   * with this; clearing a frontier run auto-advances it (you can still pick lower). */
+  selectedTier: number;
   /** Whether the one-time, first-run free-agent welcome reveal has been shown. */
   seenWelcome?: boolean;
 }
@@ -31,10 +38,10 @@ export interface HomeRoster {
 /** Owned players beyond the starting five are capped so the roster cannot bloat. */
 const EXTRA_CAP = 12;
 const MAX_PLAYERS = 5 + EXTRA_CAP;
-// v4 adds the first-run welcome flag (additive optional). v3 added the
-// permanent-upgrade ledger and legendary pity counter; v1's four-stat lines are
-// still migrated to the ten-rating model.
-const HOME_ROSTER_VERSION = 4;
+// v5 adds the League tier fields (additive optionals, default 0). v4 added the
+// first-run welcome flag; v3 added the permanent-upgrade ledger and legendary
+// pity counter; v1's four-stat lines are still migrated to the ten-rating model.
+const HOME_ROSTER_VERSION = 5;
 
 export interface SerializedHomeRoster {
   version: number;
@@ -49,6 +56,8 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     reputation: 0,
     upgrades: {},
     legendDryStreak: 0,
+    leagueTier: 0,
+    selectedTier: 0,
     seenWelcome: false,
   };
 }
@@ -90,7 +99,7 @@ export function applyUpgrade(
   if (!rp) return home;
   const key = playerKey(rp);
   const bought = home.upgrades[key]?.[stat] ?? 0;
-  if (!canUpgrade(stat, rp.player.stats[stat], bought)) return home;
+  if (!canUpgrade(stat, rp.player.stats[stat], bought, perStatMax(home.leagueTier))) return home;
   const cost = upgradeCost(stat, bought);
   if (home.coins < cost) return home;
   const players = home.players.map((p, i) =>
@@ -120,7 +129,8 @@ export function mergeRunGainsIntoHome(
   home: HomeRoster,
   runRoster: Roster,
   rewards?: RunRewards,
-  legendOffered = false
+  legendOffered = false,
+  champion = false
 ): HomeRoster {
   const all = [...runRoster.starters, ...runRoster.bench]
     .filter((p) => !p.onLoan)
@@ -133,12 +143,19 @@ export function mergeRunGainsIntoHome(
       return copy;
     })
     .slice(0, MAX_PLAYERS);
+  // Winning at your top unlocked tier unlocks (and auto-selects) the next one, so
+  // the next run is harder; winning a lower tier never lowers your ceiling.
+  const advanced = champion && home.selectedTier >= home.leagueTier;
+  const leagueTier = Math.min(MAX_LEAGUE_TIER, home.leagueTier + (advanced ? 1 : 0));
+  const selectedTier = advanced ? leagueTier : Math.min(home.selectedTier, leagueTier);
   return {
     players: all,
     coins: home.coins + (rewards?.coins ?? 0),
     reputation: home.reputation + (rewards?.reputation ?? 0),
     upgrades: home.upgrades,
     legendDryStreak: legendOffered ? 0 : home.legendDryStreak + 1,
+    leagueTier,
+    selectedTier,
     seenWelcome: home.seenWelcome ?? true,
   };
 }
@@ -176,12 +193,21 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     delete migrated.gamesOut; // injuries are run-scoped; heal any save that leaked one
     return migrated;
   });
+  // League tier fields are additive (v5); pre-v5 saves default to the base tier.
+  const leagueTier =
+    typeof data.leagueTier === 'number'
+      ? Math.min(MAX_LEAGUE_TIER, Math.max(0, data.leagueTier))
+      : 0;
+  const selectedTier =
+    typeof data.selectedTier === 'number' ? Math.min(Math.max(0, data.selectedTier), leagueTier) : 0;
   return {
     players,
     coins: typeof data.coins === 'number' ? data.coins : 0,
     reputation: typeof data.reputation === 'number' ? data.reputation : 0,
     upgrades: data.upgrades && typeof data.upgrades === 'object' ? data.upgrades : {},
     legendDryStreak: typeof data.legendDryStreak === 'number' ? data.legendDryStreak : 0,
+    leagueTier,
+    selectedTier,
     // Restored saves already have a roster, so the first-run welcome is "seen".
     seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
   };

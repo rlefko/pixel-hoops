@@ -124,7 +124,8 @@ const RARITY_WEIGHT: Record<BoostRarity, number> = {
 export function drawBoostOffers(
   round: number,
   owned: readonly PassiveBoost[],
-  rng: RNG
+  rng: RNG,
+  offerCount: number = OFFER_COUNT
 ): BoostOffer[] {
   const ownedById = new Map(owned.map((b) => [b.id, b]));
   const pool: { offer: BoostOffer; weight: number }[] = [];
@@ -142,7 +143,7 @@ export function drawBoostOffers(
 
   const offers: BoostOffer[] = [];
   const remaining = [...pool];
-  while (offers.length < OFFER_COUNT && remaining.length > 0) {
+  while (offers.length < offerCount && remaining.length > 0) {
     const idx = rng.weightedPick(remaining.map((p, i): [number, number] => [i, p.weight]));
     offers.push(remaining[idx].offer);
     remaining.splice(idx, 1);

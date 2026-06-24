@@ -10,6 +10,7 @@ import {
   steppingInSubs,
   type RunModel,
 } from '@/game/run-machine';
+import { MAX_LEAGUE_TIER } from '@/game/ascension';
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { GamePlanPicker } from '@/components/game/GamePlanPicker';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
@@ -54,11 +55,27 @@ export default function RunScreen() {
         <RunMapView
           core={model.core}
           boosts={model.boosts}
+          tier={model.tier}
           bagCount={model.bag.length}
           onChoose={actions.chooseNode}
           onQuit={actions.endRun}
           onOpenLineup={actions.openLineupBuilder}
           onOpenBag={actions.openBag}
+        />
+      );
+    case 'prepareLineup':
+      return (
+        <LineupBuilderView
+          roster={{ starters: model.phase.starters, bench: model.phase.bench }}
+          bagCount={0}
+          budget={{ cap: model.budgetCap }}
+          title="PICK YOUR FIVE"
+          subtitle="Fit your starters under the salary cap"
+          hideBag
+          hideCancel
+          onConfirm={actions.confirmPrepareLineup}
+          onCancel={() => undefined}
+          onOpenBag={() => undefined}
         />
       );
     case 'boostDraft':
@@ -148,6 +165,7 @@ export default function RunScreen() {
         <LineupBuilderView
           roster={model.core.roster}
           bagCount={model.bag.length}
+          budget={{ cap: model.budgetCap }}
           onConfirm={actions.setLineup}
           onCancel={actions.cancelLineup}
           onOpenBag={(starters, bench) => {
@@ -167,15 +185,21 @@ export default function RunScreen() {
           onDone={actions.leaveBag}
         />
       );
-    case 'summary':
+    case 'summary': {
+      const unlockedTier =
+        model.phase.champion && model.atFrontier && model.tier < MAX_LEAGUE_TIER
+          ? model.tier + 1
+          : undefined;
       return (
         <RunSummaryView
           champion={model.phase.champion}
           wins={model.wins}
+          unlockedTier={unlockedTier}
           onNewRun={actions.newRun}
           onMenu={goMenu}
         />
       );
+    }
   }
 }
 
@@ -193,7 +217,7 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   // sim is named under the five. Synergy comes from `home` (the five that actually
   // dress), so the preview still never lies about the matchup.
   const home = buildHomeTeam(model);
-  const away = buildOpponentTeam(model.core, nodeId);
+  const away = buildOpponentTeam(model.core, nodeId, model.tier);
   const chosen = model.core.roster.starters;
   const steppingIn = steppingInSubs(model.core.roster);
   return (
