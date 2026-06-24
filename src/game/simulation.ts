@@ -76,16 +76,39 @@ const SECONDS_PER_QUARTER = 720;
 
 // --- Fatigue + rotation tunables ---
 
-/** Energy a normal-stamina starter loses per possession on the floor. */
-const DRAIN_BASE = 1.6;
-/** Energy a benched player recovers per possession off the floor. */
-const RECOVER = 2.6;
+/**
+ * Energy a normal-stamina starter loses per offensive possession on the floor.
+ * Tuned so a stamina-5 starter dips into the sub zone a couple of times a game,
+ * producing a real rotation (~32-36 minutes) rather than a 48-minute iron man.
+ */
+const DRAIN_BASE = 2.6;
+/** Energy a benched player recovers per possession off the floor (fast enough
+ * that a spelled starter is ready to re-enter the same game). */
+const RECOVER = 4;
 /** The ball-handler/scorer works harder, so drains faster. */
 const SCORER_DRAIN_MULT = 1.5;
-/** Pull a starter once energy drops below this. */
-const SUB_OUT_ENERGY = 45;
+/** Pull a starter once energy drops below this (the soft sub zone). */
+const SUB_OUT_ENERGY = 50;
 /** Only bring in a bench player who has recovered above this (hysteresis). */
-const SUB_IN_ENERGY = 78;
+const SUB_IN_ENERGY = 72;
+/**
+ * A gassed starter below this is ALWAYS pulled for the best rested body, even a
+ * worse one: nobody plays a full game spent. This guarantees the bench gets real
+ * minutes and the stars are not run into the ground for 48.
+ */
+const HARD_FLOOR = 28;
+/**
+ * Soft-sub acceptance: spell a tired starter when a fresh bench player is at
+ * least this fraction as effective right now. The fatigue penalty only maxes
+ * near 20%, so this lets a fresh body within ~10% of a tired star come in.
+ */
+const SUB_OUT_GOOD_ENOUGH = 0.9;
+/** Abs score margin (in a late quarter) that counts as garbage time. */
+const BLOWOUT_MARGIN = 18;
+/** Extra sub-out threshold for starters in garbage time, so the bench plays. */
+const BLOWOUT_SUB_OUT_BONUS = 18;
+/** Garbage-time rest only kicks in from this quarter on (keep Q1-Q3 honest). */
+const BLOWOUT_QUARTER = 4;
 /** Share of made field goals that are assisted, scaled by team playmaking. */
 const ASSIST_RATE = 0.9;
 
@@ -423,31 +446,53 @@ function applyHooks(
 }
 
 /**
- * Deterministic rotation. Pull any starter below SUB_OUT_ENERGY for the best
- * rested off-court player (same position first, then higher energy-weighted
- * overall, roster index as the tie-break), but only if the fresh player is
- * actually more valuable right now. Hysteresis (out at 45, in at 78) prevents
- * thrashing, and a benchless team simply never subs. No RNG, so subs are fully
+ * Deterministic rotation, three layered rules per slot (priority order):
+ *
+ *  1. HARD_FLOOR: a starter below it is ALWAYS pulled for the best rested body,
+ *     even a worse one, so nobody plays a full game spent and the bench gets run.
+ *  2. Soft sub: above the floor but below SUB_OUT_ENERGY, spell the starter for a
+ *     fresh player who is at least SUB_OUT_GOOD_ENOUGH as effective right now.
+ *  3. Blowout rest: in a late-game blowout, raise a starter's sub-out threshold
+ *     so the stars rest and the bench plays garbage time.
+ *
+ * Same-position first, then higher fatigue-weighted overall, roster index as the
+ * tie-break. Hysteresis (soft out at SUB_OUT_ENERGY, in at SUB_IN_ENERGY) prevents
+ * thrashing; a benchless team simply never subs. No RNG, so subs are fully
  * reproducible. Returns the subs made for the event stream.
  */
-function substitute(side: SideState, team: SimTeamSide): SimSub[] {
+function substitute(
+  side: SideState,
+  team: SimTeamSide,
+  quarter: number,
+  margin: number
+): SimSub[] {
   const subs: SimSub[] = [];
+  const blowout = quarter >= BLOWOUT_QUARTER && Math.abs(margin) >= BLOWOUT_MARGIN;
   for (let slot = 0; slot < side.onCourt.length; slot++) {
     const current = side.onCourt[slot];
-    if (current.energy >= SUB_OUT_ENERGY) continue;
     const position = POSITIONS[slot];
+
+    // A gassed starter must rest no matter what; in a late blowout the stars also
+    // yield to the bench (garbage time), with a widened sub-out threshold.
+    const forced = current.energy < HARD_FLOOR;
+    const blowoutRest = blowout && current.box.starter;
+    const subOutThreshold = SUB_OUT_ENERGY + (blowoutRest ? BLOWOUT_SUB_OUT_BONUS : 0);
+    if (!forced && current.energy >= subOutThreshold) continue;
 
     // Effective value weights overall by the real fatigue multiplier (not raw
     // energy), so a tired star is not benched for a fresh scrub: the penalty
-    // only maxes near 20%, so the fresh player must be close in quality.
+    // only maxes near 20%, so a soft sub needs a near-equal fresh player.
     const effective = (p: PlayerGameState): number =>
       ovrRaw(p.rp.player.stats, position) * fatigueMultiplier(p.energy, false);
 
+    // A forced sub takes the best rested body even if not fully recovered; a soft
+    // sub still wants a comfortably-rested replacement (the hysteresis bar).
+    const inBar = forced ? HARD_FLOOR : SUB_IN_ENERGY;
     let best: PlayerGameState | undefined;
     let bestKey = -Infinity;
     for (let index = 0; index < side.all.length; index++) {
       const p = side.all[index];
-      if (p.onCourt || p.energy < SUB_IN_ENERGY) continue;
+      if (p.onCourt || p.energy < inBar) continue;
       const samePos = p.rp.position === position ? 1 : 0;
       const key = samePos * 1000 + effective(p) - index * 0.001;
       if (key > bestKey) {
@@ -455,7 +500,11 @@ function substitute(side: SideState, team: SimTeamSide): SimSub[] {
         best = p;
       }
     }
-    if (!best || effective(best) <= effective(current)) continue;
+    if (!best) continue;
+    // A star who must rest (gassed, or garbage time) takes any rested body; a
+    // normal soft sub still needs a near-equal fresh player.
+    const acceptAny = forced || blowoutRest;
+    if (!acceptAny && effective(best) < effective(current) * SUB_OUT_GOOD_ENOUGH) continue;
 
     current.onCourt = false;
     best.onCourt = true;
@@ -557,12 +606,14 @@ export function simulateGame(config: SimConfig): SimResult {
     const offense = stateFor(offenseSide);
     const defense = stateFor(offenseSide === 'home' ? 'away' : 'home');
 
-    // Rotation first: tired starters yield to fresh legs before the play.
-    const subs = substitute(offense, offenseSide);
-
     const offenseScore = offenseSide === 'home' ? homeScore : awayScore;
     const defenseScore = offenseSide === 'home' ? awayScore : homeScore;
     const margin = offenseScore - defenseScore;
+
+    // Rotation first: tired starters yield to fresh legs before the play (and
+    // the stars rest in a late blowout).
+    const subs = substitute(offense, offenseSide, quarter, margin);
+
     const posture = pickRiskPosture(margin);
 
     const focus =
