@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { Text } from '@/components/StyledText';
+import { Text, FitText } from '@/components/StyledText';
 import { PixelPlayer } from '@/components/fx';
 import { usePulse } from '@/feel';
 import { InjuryIcon } from '@/components/run/PixelIcons';
@@ -36,6 +36,11 @@ interface PlayerCardProps {
   condition?: boolean;
   /** Layout: a horizontal row (default) or a taller tile for the recruit grid. */
   variant?: 'row' | 'tile';
+  /**
+   * Slim the card to a single row by dropping the OFF/DEF/ATH chips, for dense
+   * lists like the pregame scouting report where OVR + tier is the glance read.
+   */
+  compact?: boolean;
 }
 
 /** Tier key -> palette color for the badge (verified palette keys, no new hex). */
@@ -77,6 +82,7 @@ export function PlayerCard({
   right,
   condition = false,
   variant = 'row',
+  compact = false,
 }: PlayerCardProps) {
   // Fold run-scoped training into the displayed stats so a trained player reads
   // its true OVR/tier (up to S++) everywhere the card appears.
@@ -94,7 +100,14 @@ export function PlayerCard({
   const { glowStyle } = usePulse();
 
   return (
-    <View style={[styles.card, isTile && styles.cardTile, injured && styles.injured]}>
+    <View
+      style={[
+        styles.card,
+        isTile && styles.cardTile,
+        compact && styles.cardCompact,
+        injured && styles.injured,
+      ]}
+    >
       <View style={[styles.head, isTile && styles.headTile]}>
         <View style={styles.avatar}>
           <PixelPlayer
@@ -116,12 +129,9 @@ export function PlayerCard({
             <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
           ) : null}
           <View style={styles.nameRow}>
-            <Text
-              style={[styles.name, isLegendary && styles.legendName]}
-              numberOfLines={1}
-            >
+            <FitText style={[styles.name, isLegendary && styles.legendName]}>
               {rp.player.name}
-            </Text>
+            </FitText>
             {isLegendary ? <Text style={styles.legendStar}>★</Text> : null}
             {itemDef ? (
               <Text style={[styles.itemMark, { color: ITEM_RARITY_COLOR[itemDef.rarity] }]}>
@@ -151,11 +161,13 @@ export function PlayerCard({
         ) : null}
       </View>
 
-      <View style={styles.chips}>
-        <CompositeChip label="OFF" value={off(stats)} />
-        <CompositeChip label="DEF" value={def(stats)} />
-        <CompositeChip label="ATH" value={ath(stats)} />
-      </View>
+      {compact ? null : (
+        <View style={styles.chips}>
+          <CompositeChip label="OFF" value={off(stats)} />
+          <CompositeChip label="DEF" value={def(stats)} />
+          <CompositeChip label="ATH" value={ath(stats)} />
+        </View>
+      )}
 
       {expanded ? (
         <View style={styles.panel}>
@@ -255,6 +267,9 @@ const styles = StyleSheet.create({
     borderColor: palette.bgPanel,
     borderRadius: RADIUS.chip,
     backgroundColor: palette.bgPanel,
+  },
+  cardCompact: {
+    paddingVertical: space(0.5),
   },
   injured: { opacity: 0.55 },
   head: {

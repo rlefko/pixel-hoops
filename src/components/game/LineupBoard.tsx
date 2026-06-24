@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { Text } from '@/components/StyledText';
+import { Text, FitText } from '@/components/StyledText';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, BORDER } from '@/theme';
 import type { Team } from '@/types/team';
@@ -22,23 +22,31 @@ interface LineupBoardProps {
   condition?: boolean;
   /** Healthy subs starting in place of injured starters, named below the five. */
   steppingIn?: RosterPlayer[];
+  /** Slim each card to a single row (drops the OFF/DEF/ATH chips) to save height. */
+  compact?: boolean;
 }
 
-export function LineupBoard({ team, players, condition = false, steppingIn }: LineupBoardProps) {
+export function LineupBoard({
+  team,
+  players,
+  condition = false,
+  steppingIn,
+  compact = false,
+}: LineupBoardProps) {
   const lineup = players ?? team.lineup.players;
   return (
     <View style={styles.wrap}>
       {lineup.map((rp, i) => (
-        <View key={i} style={styles.row}>
-          <PlayerCard rp={rp} condition={condition} />
+        <View key={i} style={[styles.row, compact && styles.rowCompact]}>
+          <PlayerCard rp={rp} condition={condition} compact={compact} />
         </View>
       ))}
       {steppingIn && steppingIn.length > 0 ? (
         <View style={styles.steppingIn}>
           <Text style={styles.steppingInLabel}>STEPPING IN</Text>
-          <Text style={styles.steppingInNames} numberOfLines={2}>
+          <FitText style={styles.steppingInNames} numberOfLines={2} minScale={0.8}>
             {steppingIn.map((p) => p.player.name).join(', ')}
-          </Text>
+          </FitText>
         </View>
       ) : null}
       {team.synergy.labels.length > 0 ? (
@@ -64,6 +72,9 @@ const styles = StyleSheet.create({
     paddingVertical: space(1.5),
     borderBottomWidth: BORDER.thin,
     borderBottomColor: palette.bgPanel,
+  },
+  rowCompact: {
+    paddingVertical: space(0.75),
   },
   steppingIn: {
     flexDirection: 'row',
