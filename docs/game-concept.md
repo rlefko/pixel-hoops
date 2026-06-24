@@ -125,11 +125,11 @@ Within a run, the player keeps pace by spending **training points on run-scoped 
 
 Meta-progression compounds, but it is bounded so later runs stay challenging:
 
-- **Salary-cap budget.** Before each run you pick your starting five under a cap (each player costs by OVR), so you cannot field five maxed-out studs. The cap grows slowly with the League tier (`src/game/budget.ts`).
-- **Capped permanent upgrades.** Coins still buy permanent +1s, but the per-stat cap starts low and only rises by climbing the League ladder (`src/game/upgrades.ts`).
-- **The League Tier ladder.** Clearing a run unlocks a tougher tier (the Slay the Spire "Ascension" / Hades "Heat" pattern), so winning makes the *next* run harder, not easier (`src/game/ascension.ts`).
+- **Points draft.** Before each run you draft a rotation from your owned collection under a difficulty point budget, paying by each player's class relative to the run's ladder, so you cannot field a roster of nothing but above-class studs (`src/game/draft.ts`).
+- **Capped permanent upgrades.** Coins buy permanent +1s, but the per-stat cap is a flat +2, so permanent power nudges a player without ever reclassing them (`src/game/upgrades.ts`).
+- **The class ladder.** Clearing a run unlocks the next class on that difficulty (the Slay the Spire "Ascension" / Hades "Heat" pattern, reframed as a C -> S+ class climb), so winning makes the *next* run harder, not easier (`src/game/difficulty-mode.ts`).
 
-No run is wasted: recruits, coins, and reputation still bank every run. But power and difficulty rise together rather than power outpacing the bracket.
+No run is wasted: recruits, coins, and ladder progress still bank every run. But power and difficulty rise together rather than power outpacing the bracket. Full detail in [difficulty-rebalance.md](difficulty-rebalance.md).
 
 ## Mobile UX Design Patterns
 
