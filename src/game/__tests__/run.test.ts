@@ -735,7 +735,9 @@ describe('between-game injuries', () => {
     const [first, ...rest] = m.core.roster.starters;
     const roster = { starters: [{ ...first, gamesOut: 1 }, ...rest], bench };
     const subs = steppingInSubs(roster);
-    expect(subs.map((p) => p.player.name)).toEqual([bench[0].player.name]);
-    expect(subs.map((p) => p.player.name)).not.toContain(first.player.name);
+    // Identity by reference, not name: real data can have two players share a
+    // name, so the bench call-up steps in and the injured starter does not.
+    expect(subs).toEqual([bench[0]]);
+    expect(subs).not.toContain(roster.starters[0]);
   });
 });

@@ -286,8 +286,11 @@ export function dressedRoster(roster: RunState['roster']): RunState['roster'] {
  * than silently swapped out of the five.
  */
 export function steppingInSubs(roster: RunState['roster']): RosterPlayer[] {
-  const chosen = new Set(roster.starters.map((p) => p.player.name));
-  return dressedRoster(roster).starters.filter((p) => !chosen.has(p.player.name));
+  // Identity by object reference, not name: real rosters can carry duplicate
+  // player names, and a name-based check would wrongly treat a same-named bench
+  // call-up as already starting (returning no sub for an injured starter).
+  const chosen = new Set<RosterPlayer>(roster.starters);
+  return dressedRoster(roster).starters.filter((p) => !chosen.has(p));
 }
 
 /**
