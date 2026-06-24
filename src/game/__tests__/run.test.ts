@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createRNG } from '@/game/rng';
-import { generateRecruitOffers, getRoundStatRange } from '@/game/tournament';
+import { generateRecruitOffers, getStatRangeForLevel } from '@/game/tournament';
 import {
   applyUpgrade,
   createRookieRoster,
@@ -46,8 +46,8 @@ describe('generateRecruitOffers', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('scales skill stats into the round range with valid positions', () => {
-    const { min, max } = getRoundStatRange(5);
+  it('scales skill stats into the difficulty band with valid positions', () => {
+    const { min, max } = getStatRangeForLevel(5);
     const offers = generateRecruitOffers(5, 8, createRNG('rs'));
     for (const o of offers) {
       // Only the eight skill ratings are round-scaled; stamina/durability

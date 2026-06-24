@@ -319,10 +319,10 @@ export function buildHomeTeam(model: RunModel): Team {
  */
 export function buildOpponentTeam(core: RunState, nodeId: string): Team {
   const node = core.map.nodes[nodeId];
-  const round = node.round ?? node.layer + 1;
+  const level = node.difficulty ?? node.round ?? node.layer + 1;
   const isBoss = node.type === 'boss' || nodeId === core.map.bossNodeId;
   const opp = generateOpponentTeam(
-    round,
+    level,
     createRNG(deriveSeed(core.seed, `opp-${nodeId}`)),
     { isBoss }
   );
@@ -382,7 +382,7 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
         [...core.roster.starters, ...core.roster.bench].map((p) => p.player.name)
       );
       const fallback = generateRecruitOffers(
-        round,
+        node.difficulty ?? round,
         RECRUIT_OFFER_COUNT,
         createRNG(deriveSeed(core.seed, `recruit-${nodeId}`)),
         owned

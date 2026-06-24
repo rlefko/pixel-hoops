@@ -12,43 +12,35 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-/** Expected stat range for a given tournament round. Round 8 is the final map's
- * boss peak (one tier above the deepest regular games). */
-export function getRoundStatRange(round: number): { min: number; max: number } {
-  switch (Math.min(round, 8)) {
-    case 1:
-      return { min: 4, max: 5 };
-    case 2:
-      return { min: 4, max: 6 };
-    case 3:
-      return { min: 5, max: 6 };
-    case 4:
-      return { min: 5, max: 7 };
-    case 5:
-      return { min: 6, max: 8 };
-    case 6:
-      return { min: 7, max: 9 };
-    case 7:
-      return { min: 8, max: 10 };
-    case 8:
-      return { min: 9, max: 10 };
-    default:
-      return { min: 4, max: 5 };
-  }
+/** Surface scale bounds (the 3-10 model) the stat band is clamped within. */
+const STAT_FLOOR = 3;
+const STAT_CEIL = 10;
+
+/**
+ * Expected stat band for a continuous difficulty level (see difficulty.ts). The
+ * band centers on the level and widens slightly, so deeper opponents still show
+ * stat variety. Replaces the old 8-bucket integer-round table: a level of ~5
+ * opens near rookie strength and ~10 is the final-boss peak, with everything in
+ * between smooth (no flat-within-map step that made each map start weak).
+ */
+export function getStatRangeForLevel(level: number): { min: number; max: number } {
+  const min = clamp(Math.round(level - 1), STAT_FLOOR, STAT_CEIL);
+  const max = clamp(Math.round(level + 0.5), STAT_FLOOR, STAT_CEIL);
+  return { min, max: Math.max(min, max) };
 }
 
 /**
- * Scale a stat line into a round's range with a little variance. Only the eight
- * skill ratings are scaled by difficulty; stamina and durability are condition,
- * not a difficulty tier, so they pass through unchanged (scaling them would make
- * deep-round opponents unfatigueable). Draws happen in SKILL_STAT_KEYS order.
+ * Scale a stat line into a difficulty level's band with a little variance. Only
+ * the eight skill ratings are scaled by difficulty; stamina and durability are
+ * condition, not a difficulty tier, so they pass through unchanged (scaling them
+ * would make deep opponents unfatigueable). Draws happen in SKILL_STAT_KEYS order.
  */
-export function scaleStatsToRound(
+export function scaleStatsToLevel(
   stats: PlayerStats,
-  round: number,
+  level: number,
   rng: RNG
 ): PlayerStats {
-  const range = getRoundStatRange(round);
+  const range = getStatRangeForLevel(level);
   const scaled: PlayerStats = { ...stats };
   for (const key of SKILL_STAT_KEYS) {
     scaled[key] = clamp(stats[key] + rng.int(-1, 2), range.min, range.max);

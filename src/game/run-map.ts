@@ -1,5 +1,6 @@
 import type { MapNode, MapNodeType, RunMap, RunState } from '@/types/run-map';
 import { createRNG, type RNG } from './rng';
+import { difficultyLevel } from './difficulty';
 
 /**
  * Generates and traverses one short fixed-SHAPE map of the pokelike run. Every
@@ -84,6 +85,7 @@ export function generateFixedMap(config: FixedMapConfig): RunMap {
         layer,
         next: [],
         round: roundFor(type, mapIndex),
+        difficulty: difficultyLevel(mapIndex, layer, type === 'boss'),
         visited: false,
         cleared: false,
       };
