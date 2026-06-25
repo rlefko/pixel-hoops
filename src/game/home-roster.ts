@@ -131,6 +131,15 @@ export function upgradeCount(
   return home.upgrades[playerKey(rp)]?.[stat] ?? 0;
 }
 
+/** Total permanent +1s a player has bought across all stats (search tiebreaker). */
+export function totalUpgrades(home: HomeRoster, rp: RosterPlayer): number {
+  const ledger = home.upgrades[playerKey(rp)];
+  if (!ledger) return 0;
+  let sum = 0;
+  for (const stat in ledger) sum += ledger[stat as keyof PlayerStats] ?? 0;
+  return sum;
+}
+
 /**
  * Buy one permanent +1 of `stat` for the player at `index`. Returns a NEW home
  * roster, or the same reference when unaffordable, at the +2 per-stat cap, or at
