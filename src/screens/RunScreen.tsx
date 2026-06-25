@@ -26,6 +26,7 @@ import { ItemDropView } from '@/components/run/ItemDropView';
 import { BagView } from '@/components/run/BagView';
 import { LegendRevealView } from '@/components/run/LegendRevealView';
 import { RunSummaryView } from '@/components/run/RunSummaryView';
+import { ChampionView } from '@/components/run/ChampionView';
 import { BoxScoreView } from '@/components/run/BoxScoreView';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -195,6 +196,22 @@ export default function RunScreen() {
         model.phase.champion && model.atFrontier && model.ladderClass !== 'S+'
           ? classAboveLadder(model.ladderClass)
           : undefined;
+      // A won ladder gets the full champion celebration (it needs the final game's
+      // score and five). Losses, and the defensive champion-without-game case, fall
+      // back to the flat summary.
+      if (model.phase.champion && model.game) {
+        return (
+          <ChampionView
+            game={model.game}
+            difficulty={model.difficulty}
+            ladderClass={model.ladderClass}
+            wins={model.wins}
+            unlockedClass={unlockedClass}
+            onNewRun={actions.newRun}
+            onHome={goMenu}
+          />
+        );
+      }
       return (
         <RunSummaryView
           champion={model.phase.champion}
