@@ -1,7 +1,7 @@
 import { SKILL_STAT_KEYS, type PlayerStats } from '@/types/player';
 import type { Position } from '@/types/roster';
 import { CLASS_ORDER, classForOvr, ovr, ovrRaw, type PlayerClass } from './ratings';
-import { STAT_MIN, STAT_NORMAL_MAX, clamp, getStatRangeForLevel } from './stat-scaling';
+import { STAT_ELITE_MAX, STAT_MIN, STAT_NORMAL_MAX, clamp, getStatRangeForLevel } from './stat-scaling';
 
 /**
  * The class system's scaling + draft helpers. Builds on the pure class labels in
@@ -103,6 +103,29 @@ export function anchorStatsToClass(
     }
     if (!moved) break; // pinned at the floor/ceiling; cannot get closer
     out = next;
+  }
+  return out;
+}
+
+/**
+ * Scale a curated legend's stat line toward a target difficulty level, preserving its
+ * specialized shape. A boss legend is fielded a notch above the boss's other starters,
+ * but is NEVER buffed above its natural ability, so it grows with the run and reaches
+ * full all-time-great power only on the late maps / top ladders (where targetLevel
+ * meets or exceeds its natural OVR), instead of being an unscaled wall on map 1. Skills
+ * clamp to [STAT_MIN, STAT_ELITE_MAX] (the elite cap, so a full-power legend keeps its
+ * peaks); condition ratings (stamina/durability) pass through, like anchorStatsToClass.
+ */
+export function scaleLegendToLevel(
+  shape: PlayerStats,
+  position: Position,
+  targetLevel: number
+): PlayerStats {
+  const natural = ovrRaw(shape, position);
+  const delta = Math.min(natural, targetLevel) - natural; // <= 0: scale down only, never buff
+  const out: PlayerStats = { ...shape };
+  for (const key of SKILL_STAT_KEYS) {
+    out[key] = clamp(Math.round(shape[key] + delta), STAT_MIN, STAT_ELITE_MAX);
   }
   return out;
 }

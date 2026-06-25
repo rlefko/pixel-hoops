@@ -6,13 +6,20 @@ import {
   levelToClass,
   classToBand,
   anchorStatsToClass,
+  scaleLegendToLevel,
   compareClass,
   classShift,
   classCost,
 } from '@/game/classes';
-import { ovr } from '@/game/ratings';
+import { ovr, ovrRaw } from '@/game/ratings';
 import { createRNG } from '@/game/rng';
-import { createPlayer, SKILL_STAT_KEYS, type PlayerStats } from '@/types/player';
+import {
+  createPlayer,
+  SKILL_STAT_KEYS,
+  STAT_ELITE_MAX,
+  STAT_MIN,
+  type PlayerStats,
+} from '@/types/player';
 import { ARCHETYPE_POSITION, POSITION_ARCHETYPE, POSITIONS } from '@/types/roster';
 
 describe('class model', () => {
@@ -106,5 +113,44 @@ describe('class model', () => {
       expect(classCost('S+', 'C', true)).toBe(2);
       expect(classCost('S+', 'S', true)).toBe(2);
     });
+  });
+});
+
+describe('scaleLegendToLevel', () => {
+  // A specialized all-time-great line (Shaq-ish big: rim-dominant, no jumper).
+  const legend: PlayerStats = {
+    inside: 24,
+    outside: 10,
+    playmaking: 15,
+    perimeterD: 17,
+    interiorD: 24,
+    athleticism: 22,
+    iq: 21,
+    clutch: 19,
+    stamina: 24,
+    durability: 24,
+  };
+
+  it('scales a legend down to a low target level, preserving its shape', () => {
+    const scaled = scaleLegendToLevel(legend, 'C', 12);
+    expect(ovr(scaled, 'C')).toBeGreaterThanOrEqual(11);
+    expect(ovr(scaled, 'C')).toBeLessThanOrEqual(13);
+    // Shape preserved: still rim-dominant, still no jumper.
+    expect(scaled.inside).toBeGreaterThan(scaled.outside);
+    expect(scaled.interiorD).toBeGreaterThan(scaled.playmaking);
+    // Every skill stays within the surface band.
+    for (const key of SKILL_STAT_KEYS) {
+      expect(scaled[key]).toBeGreaterThanOrEqual(STAT_MIN);
+      expect(scaled[key]).toBeLessThanOrEqual(STAT_ELITE_MAX);
+    }
+    // Condition ratings pass through unchanged (not part of OVR or a class).
+    expect(scaled.stamina).toBe(legend.stamina);
+    expect(scaled.durability).toBe(legend.durability);
+  });
+
+  it('never buffs a legend above its natural ability', () => {
+    const natural = ovrRaw(legend, 'C');
+    const up = scaleLegendToLevel(legend, 'C', natural + 10);
+    for (const key of SKILL_STAT_KEYS) expect(up[key]).toBe(legend[key]);
   });
 });

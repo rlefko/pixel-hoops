@@ -216,19 +216,9 @@ export function PlayByPlayFeed({
   return (
     <View style={styles.wrap}>
       <View style={[styles.hud, { paddingTop: insets.top + space(2) }]}>
+        {/* The opponent is the host (home) team, billed first; the player's squad is
+            the visitor, billed second. Each name keeps its own score and color. */}
         <View style={styles.scoreRow}>
-          <View style={styles.teamCol}>
-            <Text
-              style={[styles.team, { color: homeTeam.colorHex }]}
-              numberOfLines={1}
-            >
-              {homeTeam.name}
-            </Text>
-            <View style={[styles.teamBar, { backgroundColor: homeTeam.accentHex }]} />
-          </View>
-          <Counter value={homeScore} style={styles.score} />
-          <Text style={styles.dash}>-</Text>
-          <Counter value={awayScore} style={styles.score} />
           <View style={styles.teamCol}>
             <Text
               style={[styles.team, { color: awayTeam.colorHex }]}
@@ -237,6 +227,18 @@ export function PlayByPlayFeed({
               {awayTeam.name}
             </Text>
             <View style={[styles.teamBar, { backgroundColor: awayTeam.accentHex }]} />
+          </View>
+          <Counter value={awayScore} style={styles.score} />
+          <Text style={styles.dash}>-</Text>
+          <Counter value={homeScore} style={styles.score} />
+          <View style={styles.teamCol}>
+            <Text
+              style={[styles.team, { color: homeTeam.colorHex }]}
+              numberOfLines={1}
+            >
+              {homeTeam.name}
+            </Text>
+            <View style={[styles.teamBar, { backgroundColor: homeTeam.accentHex }]} />
           </View>
         </View>
       </View>

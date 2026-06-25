@@ -13,7 +13,7 @@ import {
   poolByClass,
   freeAgentPool,
 } from './player-pool';
-import { anchorStatsToClass } from './classes';
+import { anchorStatsToClass, scaleLegendToLevel } from './classes';
 import { classAboveLadder, type LadderClass } from './difficulty-mode';
 import type { PlayerClass } from './ratings';
 import type { RealPlayer } from '@/types/nba';
@@ -239,6 +239,14 @@ function realStarterAt(
 const OPPONENT_BENCH_SIZE = 3;
 
 /**
+ * How far above the boss node's level a headlining legend is fielded. The legend is
+ * scaled to `level + this` (preserving shape, never buffed past its natural ability),
+ * so it is a tough headliner that grows with the run and only reaches full power on
+ * the late maps / top ladders, instead of an unscaled OVR-20+ wall on the first map.
+ */
+const LEGEND_BOSS_PREMIUM = 2;
+
+/**
  * A difficulty-scaled opponent: a real NBA franchise (name + colors) fielding its
  * REAL starting five (scaled to the node's difficulty level, so balance holds),
  * with a procedural fallback per slot when the franchise lacks a real there. A
@@ -278,9 +286,20 @@ export function generateOpponentTeam(
     }
   }
 
+  // The headlining legend(s) are scaled toward the node level (a notch above the
+  // other starters) instead of fielded at full, un-capped power, so an early-map boss
+  // is a real fight rather than a wall. Their specialized shape, name, and ability are
+  // kept; only the magnitude is brought down (and never up).
+  const fieldLegend = (rp: RosterPlayer): RosterPlayer => ({
+    ...rp,
+    player: {
+      ...rp.player,
+      stats: scaleLegendToLevel(rp.player.stats, rp.position, level + LEGEND_BOSS_PREMIUM),
+    },
+  });
   const starters = POSITIONS.map((position) => {
-    if (legend && legendSlot === position) return legend;
-    if (legend2 && legend2Slot === position) return legend2;
+    if (legend && legendSlot === position) return fieldLegend(legend);
+    if (legend2 && legend2Slot === position) return fieldLegend(legend2);
     return realStarterAt(position, level, rng, pool);
   });
   // A short bench so opponents rotate too (procedural fakes only).

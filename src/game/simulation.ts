@@ -751,9 +751,19 @@ export function simulateGame(config: SimConfig): SimResult {
     const awayPoss = possessionsFor(config.away);
     const maxPoss = Math.max(homePoss, awayPoss);
 
+    // Alternate which side leads each quarter. If one side always shot first it would
+    // always get the last possession of the quarter (a real ~7% edge); since the player
+    // is always the sim's "home", that quietly handicapped every game. Splitting the
+    // lead by quarter makes two evenly matched teams a true coin flip.
+    const homeLeads = quarter % 2 === 1;
     for (let i = 0; i < maxPoss; i++) {
-      if (i < homePoss) runPossession('home', quarter, i, homePoss);
-      if (i < awayPoss) runPossession('away', quarter, i, awayPoss);
+      if (homeLeads) {
+        if (i < homePoss) runPossession('home', quarter, i, homePoss);
+        if (i < awayPoss) runPossession('away', quarter, i, awayPoss);
+      } else {
+        if (i < awayPoss) runPossession('away', quarter, i, awayPoss);
+        if (i < homePoss) runPossession('home', quarter, i, homePoss);
+      }
     }
   }
 
