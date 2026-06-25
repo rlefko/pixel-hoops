@@ -31,6 +31,7 @@ export function RecruitView({
       <Text style={styles.subtitle}>
         Add one to your bench ({benchCount} benched)
       </Text>
+      <Text style={styles.provisional}>Signed for this run. Clear the run to keep them.</Text>
 
       <View style={styles.offers}>
         {offers.map((rp, i) => (
@@ -67,6 +68,13 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     textAlign: 'center',
     marginTop: space(2),
+  },
+  provisional: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
+    textAlign: 'center',
+    marginTop: space(1),
   },
   offers: { marginTop: space(6), gap: space(3) },
   card: {

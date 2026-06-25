@@ -1,4 +1,4 @@
-import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
+import { POSITIONS, nameKey, type Position, type RosterPlayer } from '@/types/roster';
 import { classCost, type PlayerClass } from './classes';
 import { ovr, ovrRaw, classForOvr } from './ratings';
 import { difficultyMods, type Difficulty, type LadderClass } from './difficulty-mode';
@@ -88,7 +88,7 @@ export interface Loadout {
 
 /** Stable identity used to match a loadout against the owned collection. */
 function key(rp: RosterPlayer): string {
-  return `${rp.player.name}|${rp.position}`;
+  return nameKey(rp.player.name, rp.position);
 }
 
 /**

@@ -173,16 +173,17 @@ describe('home roster persistence', () => {
     expect(run.bench).toHaveLength(home.players.length - 5);
   });
 
-  it('merge adds only new recruits (uncapped collection), carries rewards', () => {
+  it('a cleared run adds only new recruits (uncapped collection), carries rewards', () => {
     const home = rookie();
     const run = homeToRunRoster(home);
     const recruits = generateRecruitOffers('B', 0.5, 4, createRNG('m'));
     const grown = { ...run, bench: [...run.bench, ...recruits] };
+    // champion = true: recruits are kept only when the run is cleared.
     const merged = mergeRunGainsIntoHome(home, grown, {
       coins: 5,
       reputation: 3,
       trainingPoints: 0,
-    });
+    }, false, true);
     // Home's 12 are preserved; the new recruits (not already owned) are appended.
     expect(merged.players.length).toBeGreaterThan(home.players.length);
     expect(merged.coins).toBe(5);
@@ -193,7 +194,7 @@ describe('home roster persistence', () => {
 
     // Flooding with many recruits grows past any old 17-player cap (uncapped now).
     const flooded = { ...run, bench: generateRecruitOffers('C', 0, 30, createRNG('big')) };
-    expect(mergeRunGainsIntoHome(home, flooded).players.length).toBeGreaterThan(17);
+    expect(mergeRunGainsIntoHome(home, flooded, undefined, false, true).players.length).toBeGreaterThan(17);
   });
 
   it('serialize/deserialize round-trips and rejects garbage', () => {
@@ -284,14 +285,14 @@ describe('home roster persistence', () => {
     expect([...next.starters, ...next.bench].every((p) => !p.gamesOut)).toBe(true);
   });
 
-  it('grows the collection uncapped and never leaks injuries at merge', () => {
+  it('a cleared run grows the collection uncapped and never leaks injuries at merge', () => {
     const home = rookie('inj-cap');
     const run = homeToRunRoster(home);
     const flooded = {
       starters: [{ ...run.starters[0], gamesOut: 2 }, ...run.starters.slice(1)],
       bench: generateRecruitOffers('C', 0, 30, createRNG('flood')),
     };
-    const merged = mergeRunGainsIntoHome(home, flooded);
+    const merged = mergeRunGainsIntoHome(home, flooded, undefined, false, true); // champion keeps recruits
     expect(merged.players.length).toBeGreaterThan(17); // no 17-player cap any more
     // Every owned player is still present (recency reorders, never drops).
     const key = (p: RosterPlayer) => `${p.player.name}|${p.position}`;
