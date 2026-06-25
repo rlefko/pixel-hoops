@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop } from '@/components/fx';
+import { haptics } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { CoinIcon } from '@/components/run/PixelIcons';
@@ -142,7 +143,10 @@ export default function LockerRoomScreen() {
                         <Pressable
                           key={s.key}
                           disabled={disabled}
-                          onPress={() => saveHomeRoster(applyUpgrade(homeRoster, i, s.key))}
+                          onPress={() => {
+                            haptics.selection();
+                            saveHomeRoster(applyUpgrade(homeRoster, i, s.key));
+                          }}
                           style={[
                             styles.statBtn,
                             isPremiumStat(s.key) && styles.premium,

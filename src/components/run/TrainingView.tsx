@@ -2,6 +2,7 @@ import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { haptics } from '@/feel';
 import { MAX_TRAINED_STAT, trainedStat } from '@/game/effects';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Roster } from '@/types/roster';
@@ -83,7 +84,10 @@ export function TrainingView({ roster, trainingPoints, onTrain, onDone }: Traini
                         <Pressable
                           key={s.key}
                           disabled={disabled}
-                          onPress={() => onTrain(i, s.key)}
+                          onPress={() => {
+                            haptics.selection();
+                            onTrain(i, s.key);
+                          }}
                           style={[styles.statBtn, disabled && styles.maxed]}
                         >
                           <Text style={styles.statBtnText}>
