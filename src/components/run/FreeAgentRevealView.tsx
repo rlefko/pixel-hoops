@@ -2,6 +2,7 @@ import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from './PlayerCard';
+import { compareByRatingDesc } from '@/game/roster-filter';
 import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -17,6 +18,8 @@ interface FreeAgentRevealViewProps {
 }
 
 export function FreeAgentRevealView({ players, onContinue }: FreeAgentRevealViewProps) {
+  // Reveal the strongest signings first (these starters carry no upgrades yet).
+  const ordered = [...players].sort(compareByRatingDesc());
   return (
     <Screen style={styles.container} topGap={space(4)}>
       <Text style={styles.kicker}>WELCOME TO THE LEAGUE</Text>
@@ -30,7 +33,7 @@ export function FreeAgentRevealView({ players, onContinue }: FreeAgentRevealView
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
       >
-        {players.map((rp, i) => (
+        {ordered.map((rp, i) => (
           <View key={`${rp.player.name}-${i}`} style={styles.cardWrap}>
             <PlayerCard rp={rp} />
           </View>

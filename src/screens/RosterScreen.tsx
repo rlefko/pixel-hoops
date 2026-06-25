@@ -6,15 +6,16 @@ import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { ownedRosterPlayers } from '@/game/home-roster';
-import { ovr, CLASS_ORDER, type PlayerClass } from '@/game/ratings';
-import type { RosterPlayer } from '@/types/roster';
+import { ownedRosterPlayers, totalUpgrades } from '@/game/home-roster';
+import { CLASS_ORDER, type PlayerClass } from '@/game/ratings';
+import { availableClasses, availablePositions, compareByRatingDesc } from '@/game/roster-filter';
+import type { Position, RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
  * The roster browser: search and filter the full owned collection (now hundreds of
- * players) by name and class, sortable by power / class / name. Reuses PlayerCard
- * and the shared RosterFilterBar so it reads the same as the draft.
+ * players) by name, class, and position, sortable by power / class / name. Reuses
+ * PlayerCard and the shared RosterFilterBar so it reads the same as the draft.
  */
 
 type Sort = 'recent' | 'power' | 'class' | 'name';
@@ -30,6 +31,7 @@ export default function RosterScreen() {
   const { homeRoster, loaded } = useHomeRoster();
   const [query, setQuery] = useState('');
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
+  const [positions, setPositions] = useState<Set<Position>>(new Set());
   const [sort, setSort] = useState<Sort>('recent');
 
   // Track the expanded player by object reference, not list slot, so an open stat
@@ -42,22 +44,29 @@ export default function RosterScreen() {
     [homeRoster]
   );
 
+  const enabledClasses = useMemo(() => availableClasses(players), [players]);
+  const enabledPositions = useMemo(() => availablePositions(players), [players]);
+
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
     const filtered = players.filter((rp) => {
       if (q && !rp.player.name.toLowerCase().includes(q)) return false;
       if (classes.size > 0 && (!rp.originalClass || !classes.has(rp.originalClass))) return false;
+      if (positions.size > 0 && !positions.has(rp.position)) return false;
       return true;
     });
+    if (sort === 'recent') return filtered; // the collection is already recency-ordered
+    if (sort === 'power') {
+      const upgradesOf = homeRoster ? (rp: RosterPlayer) => totalUpgrades(homeRoster, rp) : undefined;
+      return filtered.sort(compareByRatingDesc(upgradesOf));
+    }
     const classIdx = (rp: (typeof players)[number]) =>
       rp.originalClass ? CLASS_ORDER.indexOf(rp.originalClass) : -1;
-    if (sort === 'recent') return filtered; // the collection is already recency-ordered
     return filtered.sort((a, b) => {
       if (sort === 'name') return a.player.name.localeCompare(b.player.name);
-      if (sort === 'class') return classIdx(b) - classIdx(a) || a.player.name.localeCompare(b.player.name);
-      return ovr(b.player.stats, b.position) - ovr(a.player.stats, a.position);
+      return classIdx(b) - classIdx(a) || a.player.name.localeCompare(b.player.name); // class
     });
-  }, [players, query, classes, sort]);
+  }, [players, query, classes, positions, sort, homeRoster]);
 
   if (!loaded || !homeRoster) {
     return (
@@ -74,6 +83,13 @@ export default function RosterScreen() {
       else next.add(cls);
       return next;
     });
+  const togglePosition = (pos: Position) =>
+    setPositions((prev) => {
+      const next = new Set(prev);
+      if (next.has(pos)) next.delete(pos);
+      else next.add(pos);
+      return next;
+    });
 
   return (
     <Screen style={styles.container} onBack={() => router.back()}>
@@ -84,8 +100,12 @@ export default function RosterScreen() {
       <RosterFilterBar
         query={query}
         onQuery={setQuery}
+        positions={positions}
+        onTogglePosition={togglePosition}
         classes={classes}
         onToggleClass={toggleClass}
+        enabledPositions={enabledPositions}
+        enabledClasses={enabledClasses}
         right={
           <Pressable
             onPress={() => setSort((s) => SORTS[(SORTS.findIndex((x) => x.id === s) + 1) % SORTS.length].id)}
