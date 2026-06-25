@@ -112,6 +112,26 @@ const TEAM_BY_FULLNAME = new Map<string, string>(
   ])
 );
 
+/** Lowercase hyphen slug ("Los Angeles Lakers" -> "los-angeles-lakers"). */
+function slugify(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+// Map our 3-letter abbreviation to the team's slug fragment, used to disambiguate
+// an all-time card whose slug encodes the team (michael-jordan-all-time-chicago-bulls).
+const ABBR_TO_TEAMSLUG = new Map<string, string>(
+  (teams as { name: string; city: string; abbreviation: string }[]).map((t) => [
+    t.abbreviation,
+    slugify(`${t.city} ${t.name}`),
+  ])
+);
+
+/** Expand a legacy 3-10 stat to the new elite band [6, 24] (a fallback for any
+ * curated legend not present in the API, mirroring nba-map's scaleRatingElite). */
+function expandEliteOld(old: number): number {
+  return Math.round(6 + ((old - 3) / 7) * (24 - 6));
+}
+
 /** Deterministic jersey number (0-98) from a slug, for pool players (the API list
  * endpoint does not return one). */
 function jerseyFromSlug(slug: string): number {
@@ -140,52 +160,92 @@ function firstKnownPosition(positions: unknown): Position | null {
 }
 
 // ---------------------------------------------------------------------------
-// Legend mode (per-slug)
+// Legend mode (all-time + current lists)
 // ---------------------------------------------------------------------------
 
-async function fetchPlayerBySlug(slug: string): Promise<{
-  name: string;
-  overall: number;
-  ratings: RawRatings;
-}> {
-  const res = await fetch(`${API_BASE}/api/players/slug/${slug}`, {
-    headers: { 'X-API-Key': API_KEY as string },
-  });
-  if (!res.ok) {
-    throw new Error(`${slug}: HTTP ${res.status} ${res.statusText}`);
-  }
-  const body = (await res.json()) as Record<string, unknown>;
-  const data = (body.data ?? body) as Record<string, unknown>;
-  const ratings = (data.attributes ?? data) as RawRatings;
-  const name = String(data.name ?? slug);
-  const overall = Number((ratings.overall ?? ratings.overallAttribute ?? 75) as number);
-  return { name, overall, ratings };
+interface LegendMeta {
+  legendary?: boolean;
+  ability?: string;
+  stats?: Record<string, number>;
+}
+
+/**
+ * Find the API card for a curated ROSTER entry. Modern players match their exact
+ * current slug; historical greats live under `teamType=allt` with a team-encoded
+ * slug ("michael-jordan-all-time-chicago-bulls"), so match the all-time variant,
+ * preferring the one whose slug carries the entry's team.
+ */
+function matchCard(
+  entry: RosterEntry,
+  bySlug: Map<string, ApiListPlayer>,
+  allt: ApiListPlayer[]
+): ApiListPlayer | undefined {
+  const exact = bySlug.get(entry.slug);
+  if (exact) return exact;
+  const variants = allt.filter((p) => p.slug?.startsWith(`${entry.slug}-all-time`));
+  if (variants.length === 0) return undefined;
+  const teamSlug = ABBR_TO_TEAMSLUG.get(entry.teamAbbr);
+  const teamMatch = teamSlug && variants.find((p) => p.slug?.includes(teamSlug));
+  return (
+    teamMatch ||
+    [...variants].sort((a, b) => Number(b.overall ?? 0) - Number(a.overall ?? 0))[0]
+  );
 }
 
 async function bakeLegends(): Promise<void> {
+  // Carry over the hand-maintained `legendary` flag, signature `ability`, and the
+  // curated clutch flavor (the API has no clutch attribute) from the existing baked
+  // file, keyed by slug, so a re-bake preserves them.
+  const meta = new Map<string, LegendMeta>(
+    (legendsData as ({ slug: string } & LegendMeta)[]).map((l) => [
+      l.slug,
+      { legendary: l.legendary, ability: l.ability, stats: l.stats },
+    ])
+  );
+
+  const [curr, allt] = [await fetchAll('curr'), await fetchAll('allt')];
+  const bySlug = new Map<string, ApiListPlayer>();
+  for (const p of curr) if (p.slug) bySlug.set(p.slug, p); // modern players: exact slug
+
   const players = [];
   for (const entry of ROSTER) {
-    try {
-      const { name, overall, ratings } = await fetchPlayerBySlug(entry.slug);
-      players.push({
-        name,
-        slug: entry.slug,
-        teamAbbr: entry.teamAbbr,
-        era: entry.era,
-        position: entry.position,
-        jerseyNumber: entry.jerseyNumber,
-        overall,
-        stats: mapRatingsToStats(ratings),
-      });
-      console.log(`ok   ${entry.slug} -> ${name} (${overall})`);
-    } catch (err) {
-      console.warn(`skip ${entry.slug}: ${(err as Error).message}`);
+    const m = meta.get(entry.slug);
+    const card = matchCard(entry, bySlug, allt);
+    let stats;
+    let overall: number;
+    if (card?.attributes) {
+      // Inject the real overall so missing attributes (e.g. clutch) fall back to the
+      // player's level, not a flat 75. Bake into the 6-24 elite band.
+      overall = Number(card.overall ?? 0);
+      stats = mapRatingsToStats({ ...card.attributes, overall }, { elite: true });
+      // The API exposes no "clutch": keep the curated, hand-tuned clutch flavor.
+      if (typeof m?.stats?.clutch === 'number') stats.clutch = expandEliteOld(m.stats.clutch);
+      console.log(`ok   ${entry.slug} -> ${card.name} (${overall}) [${card.slug}]`);
+    } else if (m?.stats) {
+      // Not in the API: expand the existing curated 3-10 line into the elite band.
+      overall = Number((legendsData as ({ slug: string; overall?: number })[]).find((l) => l.slug === entry.slug)?.overall ?? 0);
+      stats = Object.fromEntries(Object.entries(m.stats).map(([k, v]) => [k, expandEliteOld(v)]));
+      console.log(`keep ${entry.slug} (not in API; expanded curated line)`);
+    } else {
+      console.warn(`skip ${entry.slug}: no API card and no curated fallback`);
+      continue;
     }
+    players.push({
+      name: card?.name ?? entry.slug,
+      slug: entry.slug,
+      teamAbbr: entry.teamAbbr,
+      era: entry.era,
+      position: entry.position,
+      jerseyNumber: entry.jerseyNumber,
+      overall,
+      legendary: m?.legendary ?? true,
+      ability: m?.ability,
+      stats,
+    });
   }
   const out = join(outDir, 'nba-legends.json');
   writeFileSync(out, JSON.stringify(players, null, 2) + '\n');
   console.log(`\nWrote ${players.length} legends to ${out}`);
-  console.log("Re-add each legend's `legendary` flag and `ability` by hand.");
 }
 
 // ---------------------------------------------------------------------------
@@ -202,12 +262,16 @@ interface ApiListPlayer {
   attributes?: RawRatings;
 }
 
-async function fetchPage(cursor: string | null): Promise<{
+async function fetchPage(
+  cursor: string | null,
+  teamType?: string
+): Promise<{
   players: ApiListPlayer[];
   nextCursor: string | null;
 }> {
   const url = new URL(`${API_BASE}/api/players`);
   url.searchParams.set('limit', '100');
+  if (teamType) url.searchParams.set('teamType', teamType);
   if (cursor) url.searchParams.set('cursor', cursor);
   const res = await fetch(url, { headers: { 'X-API-Key': API_KEY as string } });
   if (!res.ok) throw new Error(`list: HTTP ${res.status} ${res.statusText}`);
@@ -218,6 +282,22 @@ async function fetchPage(cursor: string | null): Promise<{
   const players = body.data ?? [];
   const pag = body.meta?.pagination;
   return { players, nextCursor: pag?.hasMore ? (pag.nextCursor ?? null) : null };
+}
+
+/** Page through every player of a teamType ("curr" current, "allt" all-time). */
+async function fetchAll(teamType: string): Promise<ApiListPlayer[]> {
+  const all: ApiListPlayer[] = [];
+  let cursor: string | null = null;
+  let page = 0;
+  do {
+    const { players, nextCursor } = await fetchPage(cursor, teamType);
+    all.push(...players);
+    cursor = nextCursor;
+    page += 1;
+    if (cursor) await sleep(300);
+  } while (cursor && page < 12);
+  console.log(`fetched ${all.length} ${teamType} players`);
+  return all;
 }
 
 async function bakePool(): Promise<void> {
@@ -258,7 +338,7 @@ async function bakePool(): Promise<void> {
       continue;
     }
     const originalClass = classFor2KOverall(overall);
-    const shape = mapRatingsToStats(p.attributes);
+    const shape = mapRatingsToStats({ ...p.attributes, overall });
     const stats = anchorStatsToClass(shape, originalClass, position);
     baked.push({
       name: String(p.name ?? p.slug),
