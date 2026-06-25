@@ -3,6 +3,7 @@ import { createRNG, deriveSeed } from '@/game/rng';
 import { buildStartingRoster, generateOpponentTeam } from '@/game/tournament';
 import { buildTeam } from '@/game/lineup';
 import { simulateGame, actionWeights } from '@/game/simulation';
+import { ovr } from '@/game/ratings';
 import type { TeamStats } from '@/types/team';
 import { generateFixedMap, getReachableNodes } from '@/game/run-map';
 import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
@@ -134,12 +135,14 @@ describe('simulateGame integrity', () => {
   });
 
   it('rewards the stronger roster but still allows upsets', () => {
-    // The player's baseline five vs a weaker opponent (below the curve's opener):
-    // should win a clear majority, but not every time (upsets keep tension alive).
+    // The player's baseline five vs a near-parity opponent: should win a clear
+    // majority, but not every time (upsets keep tension alive). A much weaker
+    // opponent is a near-certain win now that neither side has a possession edge,
+    // so this uses a level close to the player's own to exercise both bounds.
     let homeWins = 0;
     const games = 60;
     for (let s = 0; s < games; s++) {
-      const { home, away } = makeMatchup('strength', 8);
+      const { home, away } = makeMatchup('strength', 10);
       const r = simulateGame({ home, away, seed: `str-${s}` });
       if (r.winner === 'home') homeWins += 1;
     }
@@ -147,18 +150,35 @@ describe('simulateGame integrity', () => {
     expect(homeWins).toBeLessThan(games); // randomness still allows upsets
   });
 
-  it('keeps an even matchup roughly balanced', () => {
-    // Identical teams on both sides: neither should dominate.
+  it('is fair home/away: a team vs itself wins about half at home', () => {
+    // Identical teams on both sides must be a true coin flip. The possessions
+    // alternate which side leads each quarter, so neither side gets a standing
+    // last-possession edge (the player is always the sim's "home", so any home or
+    // away bias would silently handicap every game). Tight bounds catch a bias.
     const rng = createRNG('even');
     const team = teamFromRoster('Mirror', buildStartingRoster(rng));
     let homeWins = 0;
-    const games = 60;
+    const games = 200;
     for (let s = 0; s < games; s++) {
       const r = simulateGame({ home: team, away: team, seed: `even-${s}` });
       if (r.winner === 'home') homeWins += 1;
     }
-    expect(homeWins).toBeGreaterThan(games * 0.3);
-    expect(homeWins).toBeLessThan(games * 0.7);
+    const rate = homeWins / games;
+    expect(rate).toBeGreaterThan(0.42);
+    expect(rate).toBeLessThan(0.58);
+  });
+
+  it('does not field an unscaled, full-power legend on an early-map boss', () => {
+    // Regression guard: bosses headline a franchise legend, but on an early/low
+    // node the legend must be scaled to a fair headliner, not its un-capped ~20 OVR.
+    let maxLegendOvr = 0;
+    for (let k = 0; k < 24; k++) {
+      const opp = generateOpponentTeam(9, createRNG(`boss-legend-${k}`), { isBoss: true });
+      const legend = opp.roster.starters.find((p) => p.legendary);
+      if (legend) maxLegendOvr = Math.max(maxLegendOvr, ovr(legend.player.stats, legend.position));
+    }
+    expect(maxLegendOvr).toBeGreaterThan(0); // bosses do field a legend
+    expect(maxLegendOvr).toBeLessThan(16); // scaled down from the full ~20 OVR
   });
 
   it('a smarter five hunts better shots (fewer contested midranges)', () => {
