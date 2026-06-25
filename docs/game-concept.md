@@ -76,6 +76,7 @@ When you defeat an opponent in a run, they have a chance to join your roster per
 - **Base stat generation**: Opponents' stats scale with tournament round. Defeating Round 3 opponents gives you players with higher base stats (deeper into the normal 6-20 band, roughly the 13-15 range).
 - **Recruit cost**: Higher-stat players cost more "reputation" to recruit. You earn reputation based on how far you advance in the tournament each run.
 - **Player variety**: Each opponent type plays differently -- a speedy point guard, a towering center, a clutch shooter. Building a balanced roster from diverse recruits creates meaningful team synergy decisions.
+- **Recruits are kept only on a clear**: players you sign mid-run are provisional. Clear the run and they join your collection for good; lose, and they are gone (your owned collection and banked coins are never touched). This raises the stakes of every run. The reliable, permanent way to grow your collection is the Scouting gacha. See [player-gacha.md](player-gacha.md).
 
 ### Player Training
 
