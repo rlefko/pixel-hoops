@@ -143,6 +143,7 @@ export function PlayerCard({
             <Text
               style={[styles.name, isLegendary && styles.legendName]}
               numberOfLines={2}
+              ellipsizeMode="tail"
             >
               {rp.player.name}
             </Text>
@@ -336,13 +337,19 @@ const styles = StyleSheet.create({
   },
   tierSolid: { backgroundColor: palette.bgDeep }, // keeps S++ text crisp over the glow
   tierText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  nameCol: { flex: 1, justifyContent: 'center' },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
+  // minWidth: 0 lets the name column (and the row/text inside it) actually shrink
+  // within the head row. A flex child defaults to min-width: auto, which can keep
+  // the name from laying out and collapse it to zero width: the real cause of the
+  // recurring "blank player name" bug. The name itself is flex: 1 so its width is
+  // driven by the column, not by measuring its own content (which is what broke).
+  nameCol: { flex: 1, minWidth: 0, justifyContent: 'center' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', minWidth: 0, gap: space(1) },
   name: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,
     color: palette.ink,
-    flexShrink: 1,
+    flex: 1,
+    minWidth: 0,
   },
   legendName: { color: palette.gold },
   legendStar: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.gold },
