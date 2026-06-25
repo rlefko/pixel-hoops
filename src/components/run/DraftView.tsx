@@ -10,14 +10,22 @@ import {
   draftSpend,
   draftPoints,
   canConfirmLoadout,
+  isDraftable,
   playerDraftClass,
   MAX_DRAFT_ROTATION,
 } from '@/game/draft';
 import { type Difficulty, type LadderClass, DIFFICULTY_LABELS } from '@/game/difficulty-mode';
-import { ovr, type PlayerClass } from '@/game/ratings';
-import { applyTrainingDelta } from '@/game/effects';
+import { type PlayerClass } from '@/game/ratings';
+import {
+  availableClasses,
+  availablePositions,
+  compareByRatingDesc,
+  effectiveOvr,
+} from '@/game/roster-filter';
+import { totalUpgrades } from '@/game/home-roster';
+import { useHomeRoster } from '@/context/HomeRosterContext';
 import { POSITION_COLOR } from '@/components/game/positionColor';
-import { POSITIONS } from '@/types/roster';
+import { POSITIONS, type Position } from '@/types/roster';
 import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -63,11 +71,24 @@ export function DraftView({
   const [selected, setSelected] = useState<number>(() => firstEmpty(slots));
   const [query, setQuery] = useState('');
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
+  const [positions, setPositions] = useState<Set<Position>>(new Set());
+  const { homeRoster } = useHomeRoster();
 
   const inLoadout = useMemo(
     () => new Set(slots.filter((s): s is RosterPlayer => !!s).map(keyOf)),
     [slots]
   );
+
+  // Only players that can actually be drafted count toward an enabled chip, so a
+  // class/position with no draftable players (none owned, or all barred by the
+  // ladder) greys out. A draftable legendary keeps its class enabled.
+  const { enabledClasses, enabledPositions } = useMemo(() => {
+    const selectable = (rp: RosterPlayer) => isDraftable(rp, ladderClass);
+    return {
+      enabledClasses: availableClasses(available, selectable),
+      enabledPositions: availablePositions(available, selectable),
+    };
+  }, [available, ladderClass]);
 
   const assign = (rp: RosterPlayer) => {
     if (draftCostFor(rp, ladderClass) === null) return; // barred
@@ -85,13 +106,16 @@ export function DraftView({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return available.filter((rp) => {
+    const list = available.filter((rp) => {
       if (inLoadout.has(keyOf(rp))) return false;
       if (q && !rp.player.name.toLowerCase().includes(q)) return false;
       if (classes.size > 0 && (!rp.originalClass || !classes.has(rp.originalClass))) return false;
+      if (positions.size > 0 && !positions.has(rp.position)) return false;
       return true;
     });
-  }, [available, inLoadout, query, classes]);
+    const upgradesOf = homeRoster ? (rp: RosterPlayer) => totalUpgrades(homeRoster, rp) : undefined;
+    return list.sort(compareByRatingDesc(upgradesOf));
+  }, [available, inLoadout, query, classes, positions, homeRoster]);
 
   const starters = slots.slice(0, STARTER_SLOTS).filter((s): s is RosterPlayer => !!s);
   const bench = slots.slice(STARTER_SLOTS).filter((s): s is RosterPlayer => !!s);
@@ -105,6 +129,13 @@ export function DraftView({
       const next = new Set(prev);
       if (next.has(cls)) next.delete(cls);
       else next.add(cls);
+      return next;
+    });
+  const togglePosition = (pos: Position) =>
+    setPositions((prev) => {
+      const next = new Set(prev);
+      if (next.has(pos)) next.delete(pos);
+      else next.add(pos);
       return next;
     });
 
@@ -136,7 +167,16 @@ export function DraftView({
       <Text style={styles.sectionLabel}>
         {slots[selected] ? 'TAP A PLAYER TO REPLACE THE SELECTED SLOT' : 'TAP A PLAYER FOR THE SELECTED SLOT'}
       </Text>
-      <RosterFilterBar query={query} onQuery={setQuery} classes={classes} onToggleClass={toggleClass} />
+      <RosterFilterBar
+        query={query}
+        onQuery={setQuery}
+        positions={positions}
+        onTogglePosition={togglePosition}
+        classes={classes}
+        onToggleClass={toggleClass}
+        enabledPositions={enabledPositions}
+        enabledClasses={enabledClasses}
+      />
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         {filtered.map((rp, i) => {
@@ -195,7 +235,7 @@ function Slot({
   // player sees when scouting the card below. Position is the player's intrinsic
   // floor position, which can differ from this slot's label when slotted out of
   // spot or onto the bench, so a draftee's fit is legible at a glance.
-  const overall = rp ? ovr(applyTrainingDelta(rp.player.stats, rp.trainingDelta), rp.position) : null;
+  const overall = rp ? effectiveOvr(rp) : null;
   return (
     <Pressable onPress={onSelect} style={[styles.slot, selected && styles.slotSelected]}>
       <View style={styles.slotMain}>

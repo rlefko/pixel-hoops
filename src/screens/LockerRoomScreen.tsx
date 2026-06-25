@@ -8,11 +8,13 @@ import { PlayerCard } from '@/components/run/PlayerCard';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { CoinIcon } from '@/components/run/PixelIcons';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { applyUpgrade, upgradeCount } from '@/game/home-roster';
+import { applyUpgrade, totalUpgrades, upgradeCount } from '@/game/home-roster';
 import { canUpgrade, isPremiumStat, perStatMax, upgradeCost } from '@/game/upgrades';
+import { availableClasses, availablePositions, compareByRatingDesc } from '@/game/roster-filter';
 import type { PlayerClass } from '@/game/ratings';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { PlayerStats } from '@/types/player';
+import type { Position, RosterPlayer } from '@/types/roster';
 
 /**
  * The Locker Room: spend coins between runs on permanent +1 stat upgrades, capped
@@ -57,6 +59,7 @@ export default function LockerRoomScreen() {
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const [query, setQuery] = useState('');
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
+  const [positions, setPositions] = useState<Set<Position>>(new Set());
 
   if (!loaded || !homeRoster) {
     return (
@@ -68,19 +71,33 @@ export default function LockerRoomScreen() {
 
   const coins = homeRoster.coins;
   const q = query.trim().toLowerCase();
-  // home.players is already sorted by most-recently-used; just filter.
+  const enabledClasses = availableClasses(homeRoster.players);
+  const enabledPositions = availablePositions(homeRoster.players);
+  // Filter, then surface the highest-rated players first (ties broken by upgrades).
+  // The original index is carried through so each upgrade still targets the right
+  // player in the home roster.
+  const byRating = compareByRatingDesc((rp: RosterPlayer) => totalUpgrades(homeRoster, rp));
   const shown = homeRoster.players
     .map((rp, i) => ({ rp, i }))
     .filter(({ rp }) => {
       if (q && !rp.player.name.toLowerCase().includes(q)) return false;
       if (classes.size > 0 && (!rp.originalClass || !classes.has(rp.originalClass))) return false;
+      if (positions.size > 0 && !positions.has(rp.position)) return false;
       return true;
-    });
+    })
+    .sort((a, b) => byRating(a.rp, b.rp));
   const toggleClass = (cls: PlayerClass) =>
     setClasses((prev) => {
       const next = new Set(prev);
       if (next.has(cls)) next.delete(cls);
       else next.add(cls);
+      return next;
+    });
+  const togglePosition = (pos: Position) =>
+    setPositions((prev) => {
+      const next = new Set(prev);
+      if (next.has(pos)) next.delete(pos);
+      else next.add(pos);
       return next;
     });
 
@@ -94,7 +111,16 @@ export default function LockerRoomScreen() {
         </Pop>
       </View>
       <Text style={styles.subtitle}>Spend coins on permanent upgrades (+5 cap per stat)</Text>
-      <RosterFilterBar query={query} onQuery={setQuery} classes={classes} onToggleClass={toggleClass} />
+      <RosterFilterBar
+        query={query}
+        onQuery={setQuery}
+        positions={positions}
+        onTogglePosition={togglePosition}
+        classes={classes}
+        onToggleClass={toggleClass}
+        enabledPositions={enabledPositions}
+        enabledClasses={enabledClasses}
+      />
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         {shown.map(({ rp, i }) => (
