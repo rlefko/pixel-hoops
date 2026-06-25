@@ -124,11 +124,11 @@ export default function HomeScreen() {
         <Pressable style={styles.button} onPress={() => router.push('/roster')}>
           <Text style={styles.secondaryText}>Roster</Text>
         </Pressable>
-        <Pressable style={styles.button} onPress={() => router.push('/arcade')}>
-          <Text style={styles.secondaryText}>Arcade</Text>
-        </Pressable>
         <Pressable style={styles.button} onPress={() => router.push('/locker')}>
           <Text style={styles.secondaryText}>Locker Room</Text>
+        </Pressable>
+        <Pressable style={styles.button} onPress={() => router.push('/hall-of-fame')}>
+          <Text style={styles.secondaryText}>Hall of Fame</Text>
         </Pressable>
         <Pressable style={styles.button} onPress={() => router.push('/settings')}>
           <Text style={styles.secondaryText}>Settings</Text>
