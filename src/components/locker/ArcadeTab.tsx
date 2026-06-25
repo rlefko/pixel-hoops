@@ -1,11 +1,8 @@
 import { useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
-import { Screen } from '@/components/Screen';
 import { Pop } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
-import { CoinIcon } from '@/components/run/PixelIcons';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import {
   playerKey,
@@ -38,10 +35,11 @@ import { createRNG } from '@/game/rng';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
- * The Arcade: the coin gacha hub. A SCOUTING section of five machines signs new
- * players into the collection (see src/game/player-gacha.ts), and an ABILITIES
+ * The Arcade tab: the coin gacha hub. A SCOUTING section of five machines signs
+ * new players into the collection (see src/game/player-gacha.ts), and an ABILITIES
  * section of three machines pulls passive abilities plus an equip loadout to
- * assign owned abilities onto owned players (persists between runs).
+ * assign owned abilities onto owned players (persists between runs). The shell
+ * (back, title, coin pill) is owned by LockerScreen.
  */
 
 const RARITY_COLOR: Record<AbilityRarity, string> = {
@@ -53,9 +51,8 @@ const RARITY_COLOR: Record<AbilityRarity, string> = {
 let pullCounter = 0; // varies the pull seed within a session (pulls are not replayed)
 let scoutCounter = 0; // same, for the player scouting machines
 
-export default function ArcadeScreen() {
-  const router = useRouter();
-  const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
+export function ArcadeTab() {
+  const { homeRoster, saveHomeRoster } = useHomeRoster();
   const [selected, setSelected] = useState<string | null>(null);
   const [lastPull, setLastPull] = useState<{ id: string; rarity: AbilityRarity } | null>(null);
   const [lastScout, setLastScout] = useState<PlayerPullResult | null>(null);
@@ -76,13 +73,7 @@ export default function ArcadeScreen() {
     [homeRoster]
   );
 
-  if (!loaded || !homeRoster) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.loading}>LOADING...</Text>
-      </View>
-    );
-  }
+  if (!homeRoster) return null;
 
   const coins = homeRoster.coins;
 
@@ -121,15 +112,7 @@ export default function ArcadeScreen() {
       : palette.gold;
 
   return (
-    <Screen style={styles.container} onBack={() => router.back()}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>ARCADE</Text>
-        <Pop trigger={coins} style={styles.coinPill}>
-          <CoinIcon size={12} color={palette.gold} />
-          <Text style={styles.coinText}>{coins}</Text>
-        </Pop>
-      </View>
-
+    <View style={styles.tab}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <Text style={[styles.section, styles.sectionTop]}>SCOUTING</Text>
         <View style={styles.machines}>
@@ -257,35 +240,19 @@ export default function ArcadeScreen() {
                 <PlayerCard rp={rp} compact />
               </View>
               <Text style={styles.equipName}>
-                {equipped ? equipped.name : selected ? '+ equip' : '—'}
+                {equipped ? equipped.name : selected ? '+ equip' : '-'}
               </Text>
             </Pressable>
           );
         })}
       </ScrollView>
-    </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: space(4) },
-  center: { flex: 1, backgroundColor: palette.bgDeep, alignItems: 'center', justifyContent: 'center' },
-  loading: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.inkDim },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: palette.gold },
-  coinPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space(1),
-    paddingHorizontal: space(2),
-    paddingVertical: space(1),
-    backgroundColor: palette.bgPanel,
-    borderWidth: BORDER.thin,
-    borderColor: palette.gold + '55',
-    borderRadius: RADIUS.chip,
-  },
-  coinText: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.gold },
-  scroll: { marginTop: space(3), alignSelf: 'stretch' },
+  tab: { flex: 1 },
+  scroll: { flex: 1, marginTop: space(3), alignSelf: 'stretch' },
   scrollContent: { paddingBottom: space(6), gap: space(2) },
   machines: { gap: space(2) },
   machine: {
