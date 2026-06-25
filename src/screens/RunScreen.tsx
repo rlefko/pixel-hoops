@@ -278,7 +278,7 @@ function Postgame({
           {won ? 'WIN!' : 'LOSS'}
         </Text>
         <Text style={styles.score}>
-          {result.finalAway} - {result.finalHome}
+          {result.finalHome} - {result.finalAway}
         </Text>
         <Text style={styles.vs}>@ {model.game.opponentName}</Text>
       </View>
