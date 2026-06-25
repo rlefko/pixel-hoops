@@ -19,6 +19,9 @@ interface ResourceHeaderProps {
   totalMaps: number;
   /** Equipped passive-boost count (shown as n/5). Omitted hides the pill. */
   boostCount?: number;
+  /** Forgiven losses ("timeouts") left in the run. Omitted hides the pill; 0 shows
+   * a dimmed/danger pill so the no-safety-net tiers read their stakes at a glance. */
+  timeouts?: number;
   /** Short run label, e.g. "HARD · A". */
   modeLabel?: string;
 }
@@ -46,6 +49,7 @@ export function ResourceHeader({
   mapNumber,
   totalMaps,
   boostCount,
+  timeouts,
   modeLabel,
 }: ResourceHeaderProps) {
   return (
@@ -66,6 +70,15 @@ export function ResourceHeader({
             <Text style={styles.boostGlyph}>✦</Text>
             <Text style={styles.pillValue}>{boostCount}/5</Text>
             <Text style={styles.pillLabel}>BOOSTS</Text>
+          </Pop>
+        ) : null}
+        {typeof timeouts === 'number' ? (
+          <Pop trigger={timeouts} style={[styles.pill, timeouts === 0 ? styles.pillDanger : null]}>
+            <Text style={[styles.timeoutGlyph, timeouts === 0 ? styles.timeoutGlyphEmpty : null]}>
+              ⏱
+            </Text>
+            <Text style={styles.pillValue}>{timeouts}</Text>
+            <Text style={styles.pillLabel}>TIMEOUTS</Text>
           </Pop>
         ) : null}
       </View>
@@ -127,6 +140,17 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
     color: palette.gold,
+  },
+  pillDanger: {
+    borderColor: palette.missRed + '77',
+  },
+  timeoutGlyph: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.makeGreen,
+  },
+  timeoutGlyphEmpty: {
+    color: palette.missRed,
   },
   pillLabel: {
     fontFamily: FONT.body,

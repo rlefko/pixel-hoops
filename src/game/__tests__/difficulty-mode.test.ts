@@ -18,12 +18,23 @@ describe('difficulty modes', () => {
     expect(difficultyMods('insane').draftPoints).toBe(0);
   });
 
-  it('eases the opponent floor on easy and ramps the stat-shift up with difficulty', () => {
-    // Easy is a learning mode: opponents are about half a class weaker.
-    expect(difficultyMods('easy').statShift).toBe(-1);
-    expect(difficultyMods('medium').statShift).toBeGreaterThan(difficultyMods('easy').statShift);
-    expect(difficultyMods('hard').statShift).toBeGreaterThan(difficultyMods('medium').statShift);
-    expect(difficultyMods('insane').statShift).toBeGreaterThanOrEqual(difficultyMods('hard').statShift);
+  it('shapes the opponent ramp by difficulty: same opening, diverging finale', () => {
+    // The ramp END is the main lever: easy finishes near the ladder, insane far above.
+    expect(difficultyMods('medium').rampEnd).toBeGreaterThan(difficultyMods('easy').rampEnd);
+    expect(difficultyMods('hard').rampEnd).toBeGreaterThan(difficultyMods('medium').rampEnd);
+    expect(difficultyMods('insane').rampEnd).toBeGreaterThan(difficultyMods('hard').rampEnd);
+    // Easy stays a learning mode (ends roughly at the ladder class).
+    expect(difficultyMods('easy').rampEnd).toBeLessThanOrEqual(1.5);
+    // Openings stay close together so the early game is approachable on every tier.
+    const opens = DIFFICULTIES.map((d) => difficultyMods(d).rampStart);
+    expect(Math.max(...opens) - Math.min(...opens)).toBeLessThan(2);
+  });
+
+  it('hands out forgiveness ("timeouts") only on the easier tiers', () => {
+    expect(difficultyMods('easy').secondChances).toBe(2);
+    expect(difficultyMods('medium').secondChances).toBe(1);
+    expect(difficultyMods('hard').secondChances).toBe(0);
+    expect(difficultyMods('insane').secondChances).toBe(0);
   });
 
   it('folds the old League-tier modifiers into harder difficulties', () => {
@@ -31,10 +42,14 @@ describe('difficulty modes', () => {
     expect(difficultyMods('medium').elitesFromMap0).toBe(true);
     expect(difficultyMods('hard').boostOfferCount).toBe(2);
     expect(difficultyMods('insane').preBossRest).toBe(false);
-    // Opponent stat-floor shift and injuries escalate with difficulty.
-    expect(difficultyMods('insane').statShift).toBeGreaterThan(difficultyMods('easy').statShift);
     expect(difficultyMods('insane').injuryMul).toBeGreaterThan(difficultyMods('easy').injuryMul);
-    expect(difficultyMods('insane').coinMul).toBeLessThan(1);
+  });
+
+  it('rewards the grind: harder tiers pay more coins', () => {
+    expect(difficultyMods('easy').coinMul).toBe(1.0);
+    expect(difficultyMods('medium').coinMul).toBeGreaterThan(difficultyMods('easy').coinMul);
+    expect(difficultyMods('hard').coinMul).toBeGreaterThan(difficultyMods('medium').coinMul);
+    expect(difficultyMods('insane').coinMul).toBeGreaterThan(difficultyMods('hard').coinMul);
   });
 
   it('every difficulty resolves to a full mods object', () => {
@@ -42,6 +57,9 @@ describe('difficulty modes', () => {
       const m = difficultyMods(d);
       expect(typeof m.boostOfferCount).toBe('number');
       expect(typeof m.maxGamesOut).toBe('number');
+      expect(typeof m.rampStart).toBe('number');
+      expect(typeof m.rampEnd).toBe('number');
+      expect(typeof m.secondChances).toBe('number');
     }
   });
 });

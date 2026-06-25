@@ -58,6 +58,7 @@ export default function RunScreen() {
           boosts={model.boosts}
           difficulty={model.difficulty}
           ladderClass={model.ladderClass}
+          timeouts={model.secondChancesRemaining}
           bagCount={model.bag.length}
           onChoose={actions.chooseNode}
           onQuit={actions.endRun}
@@ -217,6 +218,7 @@ function depthOf(model: RunModel, nodeId: string): number {
 
 function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
+  const timeoutUsed = model.phase.kind === 'pregame' && model.phase.timeoutUsed;
   const round = depthOf(model, nodeId);
   // The away board scouts the opponent the run will field. The home board shows the
   // player's chosen five in their own slots, with an injured starter marked OUT in
@@ -230,6 +232,16 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   return (
     <Screen scroll contentContainerStyle={styles.pregame}>
       <Text style={styles.depth}>DEPTH {round}</Text>
+      {timeoutUsed ? (
+        <View style={styles.timeoutBanner}>
+          <Text style={styles.timeoutBannerTitle}>⏱ TIMEOUT</Text>
+          <Text style={styles.timeoutBannerBody}>
+            That one's forgiven. Reset your five and run it back.
+            {' '}
+            {model.secondChancesRemaining} left.
+          </Text>
+        </View>
+      ) : null}
       <Text style={styles.section}>SCOUTING REPORT</Text>
       <View style={styles.scoutHeader}>
         <View style={[styles.swatch, { backgroundColor: away.colorHex }]} />
@@ -265,22 +277,31 @@ function Postgame({
   const [showBox, setShowBox] = useState(true);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
+  // A loss with timeouts left isn't the end: the headline + CTA invite a replay,
+  // and onContinue (resolveGameResult) spends the timeout and returns to pregame.
+  const canForgive = !won && model.secondChancesRemaining > 0;
+  const headline = won ? 'WIN!' : canForgive ? 'TIMEOUT' : 'LOSS';
+  const headlineColor = won
+    ? palette.makeGreen
+    : canForgive
+      ? palette.gold
+      : palette.missRed;
+  const cta = won ? 'CONTINUE' : canForgive ? 'RUN IT BACK' : 'END RUN';
   const { result, home, away } = model.game;
   return (
     <Screen style={styles.postgame} bottomGap={space(6)}>
       <View style={styles.postgameHeadline}>
-        <Text
-          style={[
-            styles.result,
-            { color: won ? palette.makeGreen : palette.missRed },
-          ]}
-        >
-          {won ? 'WIN!' : 'LOSS'}
-        </Text>
+        <Text style={[styles.result, { color: headlineColor }]}>{headline}</Text>
         <Text style={styles.score}>
           {result.finalHome} - {result.finalAway}
         </Text>
         <Text style={styles.vs}>@ {model.game.opponentName}</Text>
+        {canForgive ? (
+          <Text style={styles.forgiveNote}>
+            Dropped it, but you've got a timeout. Replay this game.{' '}
+            {model.secondChancesRemaining} left.
+          </Text>
+        ) : null}
       </View>
 
       <Pressable onPress={() => setShowBox((v) => !v)}>
@@ -298,7 +319,7 @@ function Postgame({
       )}
 
       <Pressable style={[styles.button, styles.primary]} onPress={onContinue}>
-        <Text style={styles.buttonText}>{won ? 'CONTINUE' : 'END RUN'}</Text>
+        <Text style={styles.buttonText}>{cta}</Text>
       </Pressable>
     </Screen>
   );
@@ -319,6 +340,36 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
   },
   pregame: { paddingHorizontal: space(5) },
+  timeoutBanner: {
+    marginTop: space(3),
+    paddingVertical: space(2),
+    paddingHorizontal: space(3),
+    backgroundColor: palette.gold + '14',
+    borderWidth: BORDER.thin,
+    borderColor: palette.gold + '66',
+    borderRadius: RADIUS.chip,
+  },
+  timeoutBannerTitle: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
+    textAlign: 'center',
+  },
+  timeoutBannerBody: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+    textAlign: 'center',
+    marginTop: space(1),
+  },
+  forgiveNote: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
+    textAlign: 'center',
+    marginTop: space(3),
+    paddingHorizontal: space(4),
+  },
   postgame: {
     alignItems: 'center',
     paddingHorizontal: space(5),

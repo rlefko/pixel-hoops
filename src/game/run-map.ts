@@ -105,7 +105,14 @@ export function generateFixedMap(config: FixedMapConfig): RunMap {
         layer,
         next: [],
         round: roundFor(type, mapIndex),
-        difficulty: difficultyLevel(mapIndex, layer, type === 'boss', ladderLevel),
+        difficulty: difficultyLevel(
+          mapIndex,
+          layer,
+          type === 'boss',
+          ladderLevel,
+          mods.rampStart,
+          mods.rampEnd
+        ),
         visited: false,
         cleared: false,
       };

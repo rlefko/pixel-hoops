@@ -5,15 +5,19 @@ import { clamp } from './stat-scaling';
  * scaling reads a single float "level" derived from a node's absolute position in
  * the run, offset around the chosen ladder class's level (see src/game/classes.ts).
  *
- * The ramp opens a class BELOW the ladder on the first map and climbs to two
- * classes ABOVE at the final boss, smoothly and with no reset at map boundaries
- * (each boss is its map's local peak; the first game of the next map sits just
- * above the prior map's late games). On the S / S+ ladders the late ramp pushes
- * opponents into the S++ apex (stats past 20), which is why the difficulty band
- * ceiling in stat-scaling.ts allows values above the normal cap.
+ * The ramp opens a class or two BELOW the ladder on the first map and climbs toward
+ * the difficulty's `rampEnd` at the final regular peak (the boss adds BOSS_BUMP on
+ * top), smoothly and with no reset at map boundaries (each boss is its map's local
+ * peak; the first game of the next map sits just above the prior map's late games).
+ * The ramp ENDPOINTS are the difficulty's
+ * main lever (see src/game/difficulty-mode.ts): the early game stays similar across
+ * difficulties, but easy ends near the ladder class while insane ends ~two classes
+ * above. On the harder S / S+ ladders the late ramp pushes opponents into the S++
+ * apex (stats past 20), which is why the difficulty band ceiling in stat-scaling.ts
+ * allows values above the normal cap.
  *
  * Pure and seedless: the curve is fully determined by the authored map shape plus
- * the run's ladder level and difficulty stat-shift.
+ * the run's ladder level and the difficulty's ramp endpoints.
  *
  * Keep these in sync with the authored map: RUN_MAPS = run-machine TOTAL_MAPS,
  * MAP_ROWS = run-map ROW_SIZES.length.
@@ -21,10 +25,6 @@ import { clamp } from './stat-scaling';
 const RUN_MAPS = 7;
 const MAP_ROWS = 6;
 
-/** Offset from the ladder level at the very first combat node (a class below). */
-const RAMP_START = -2.0;
-/** Offset from the ladder level at the final regular peak (~two classes above). */
-const RAMP_END = 4.0;
 /** A boss is its map's local peak: this much above its intra-map ramp. */
 const BOSS_BUMP = 1.2;
 /** >1 steepens the back half so the curve keeps pace with bounded meta power. */
@@ -47,22 +47,20 @@ function progressFraction(mapIndex: number, layer: number): number {
 
 /**
  * The opponent level for a combat node at (mapIndex, layer), relative to the run's
- * `ladderLevel` (classLevel of the selected ladder class). `statShift` lifts the
- * whole value (the difficulty's opponent stat-floor shift, applied at consumption).
+ * `ladderLevel` (classLevel of the selected ladder class). `rampStart`/`rampEnd` are
+ * the difficulty's ramp endpoints (see src/game/difficulty-mode.ts), so the same node
+ * is gentler on easy and harsher on insane without changing the ladder it centers on.
  */
 export function difficultyLevel(
   mapIndex: number,
   layer: number,
   isBoss: boolean,
   ladderLevel: number,
-  statShift = 0
+  rampStart: number,
+  rampEnd: number
 ): number {
   const t = progressFraction(mapIndex, layer);
-  const ramp = RAMP_START + (RAMP_END - RAMP_START) * Math.pow(t, CURVE_POW);
-  const level = ladderLevel + ramp + (isBoss ? BOSS_BUMP : 0) + statShift;
+  const ramp = rampStart + (rampEnd - rampStart) * Math.pow(t, CURVE_POW);
+  const level = ladderLevel + ramp + (isBoss ? BOSS_BUMP : 0);
   return Math.min(level, MAX_OPP_LEVEL);
 }
-
-/** The ramp's opening offset (a class below the ladder), shared so callers can
- * anchor economy math to the curve's start. */
-export const DIFFICULTY_RAMP_START = RAMP_START;
