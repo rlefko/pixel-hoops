@@ -349,6 +349,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     const stats = p?.player?.stats as unknown as Record<string, unknown> | undefined;
     return (
       !!stats &&
+      typeof p.player?.name === 'string' &&
       typeof p.position === 'string' &&
       (typeof stats.outside === 'number' || isLegacyStats(stats))
     );
