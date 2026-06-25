@@ -7,8 +7,9 @@ import { ovr } from '@/game/ratings';
 import type { TeamStats } from '@/types/team';
 import { generateFixedMap, getReachableNodes } from '@/game/run-map';
 import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
-import { POSITIONS, POSITION_ARCHETYPE, type Roster, type RosterPlayer } from '@/types/roster';
-import { createPlayer } from '@/types/player';
+import { POSITIONS, POSITION_ARCHETYPE, type Position, type Roster, type RosterPlayer } from '@/types/roster';
+import { createPlayer, STAT_ELITE_MAX, type PlayerStats } from '@/types/player';
+import { teamModifierFromPartial } from '@/game/effects';
 import type { Team } from '@/types/team';
 
 /** Build N procedural bench players (cycling positions) for rotation tests. */
@@ -322,6 +323,60 @@ describe('fatigue, rotation, and box score', () => {
       return simulateGame({ home: team, away: deep(), seed: 'stamina' }).box.home[1].seconds;
     };
     expect(sgMinutes(10)).toBeGreaterThan(sgMinutes(3));
+  });
+});
+
+describe('reward stacking guard', () => {
+  // Guards the soft cap (items/abilities now reach the elite band 24, not the old
+  // hard 20) against the unclamped Q4 quarterDelta hooks: stacking the best of every
+  // reward channel must not let the make-probability clamp [0.03, 0.97] break and
+  // explode the score. If a future change removes the clamp, this catches it.
+  const eliteFive = (): RosterPlayer[] =>
+    POSITIONS.map((position: Position) => {
+      const base = createPlayer('Apex', POSITION_ARCHETYPE[position], createRNG(`apex-${position}`).int);
+      const stats = { ...base.stats };
+      for (const k of Object.keys(stats) as (keyof PlayerStats)[]) stats[k] = STAT_ELITE_MAX;
+      return { player: { ...base, stats }, position };
+    });
+
+  // The fattest plausible team modifier: boost extras at the cap, big team auras,
+  // and two Q4 spikes (Ice Water + a Dame-Time-style takeover) that bypass the clamp.
+  const stacked = teamModifierFromPartial({
+    offenseBonus: 6,
+    defenseBonus: 6,
+    paceBonus: 6,
+    clutchBonus: 6,
+    extra: { outside: 8, inside: 8, perimeterD: 8, interiorD: 8 },
+    hooks: [
+      { kind: 'quarterDelta', quarter: 4, delta: { outside: 8, clutch: 8 } },
+      { kind: 'quarterDelta', quarter: 4, delta: { inside: 8 } },
+    ],
+  });
+
+  it('keeps scores realistic (no runaway) with a maximally juiced roster', () => {
+    const home = buildTeam('Juiced', eliteFive(), DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(5, 'jb'), stacked);
+    const away = teamFromRoster('Weak', buildStartingRoster(createRNG('weak')));
+    let homeWins = 0;
+    let maxScore = 0;
+    const games = 30;
+    for (let s = 0; s < games; s++) {
+      const r = simulateGame({ home, away, seed: `stack-${s}` });
+      maxScore = Math.max(maxScore, r.finalHome, r.finalAway);
+      // The clamp holds: an arcade game over four quarters cannot run away.
+      expect(r.finalHome).toBeLessThan(200);
+      expect(r.finalAway).toBeLessThan(200);
+      if (r.winner === 'home') homeWins += 1;
+    }
+    expect(homeWins).toBe(games); // a maxed roster should never lose to rookies
+    expect(maxScore).toBeLessThan(200);
+  });
+
+  it('a maximally juiced roster is still deterministic', () => {
+    const home = buildTeam('Juiced', eliteFive(), DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(5, 'jb'), stacked);
+    const away = teamFromRoster('Weak', buildStartingRoster(createRNG('weak')));
+    const a = simulateGame({ home, away, seed: 'stack-det' });
+    const b = simulateGame({ home, away, seed: 'stack-det' });
+    expect(a.events).toEqual(b.events);
   });
 });
 

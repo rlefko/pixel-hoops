@@ -9,14 +9,20 @@ function rp(overrides: Partial<RosterPlayer> = {}): RosterPlayer {
   return { player, position: 'SF', ...overrides };
 }
 
+// Mirror of applyStatDelta's soft cap (full value to 20, diminishing to 24).
+function softCap(raw: number): number {
+  if (raw <= 20) return raw;
+  return Math.min(20 + Math.round((raw - 20) * 0.5), 24);
+}
+
 describe('effectivePlayers', () => {
   it('bakes item + legend self-aura into a COPY, never mutating the base', () => {
     const base = rp({ item: { defId: 'sniper-scope' }, ability: 'cold_blooded', legendary: true });
     const beforeOutside = base.player.stats.outside;
     const [eff] = effectivePlayers([base]);
-    // sniper-scope (+6 outside) + cold_blooded (+2 outside, +2 clutch), clamped to 20.
-    expect(eff.player.stats.outside).toBe(Math.min(20, beforeOutside + 8));
-    expect(eff.player.stats.clutch).toBe(Math.min(20, base.player.stats.clutch + 2));
+    // sniper-scope (+6 outside) + cold_blooded (+2 outside, +2 clutch), soft-capped above 20.
+    expect(eff.player.stats.outside).toBe(softCap(beforeOutside + 8));
+    expect(eff.player.stats.clutch).toBe(softCap(base.player.stats.clutch + 2));
     expect(base.player.stats.outside).toBe(beforeOutside); // input untouched
     expect(eff).not.toBe(base);
   });
@@ -37,15 +43,15 @@ describe('effectivePlayers', () => {
   });
 
   it('stacks an equipped gacha ability with the item channel (no double-count)', () => {
-    // 'deadeye' is a rare +4 outside; 'grip-tape' is +2 outside. They stack once.
+    // 'deadeye' is a rare +4 outside; 'grip-tape' is +3 outside. They stack once.
     const base = rp({ item: { defId: 'grip-tape' }, equippedAbility: { id: 'deadeye' } });
     const beforeOutside = base.player.stats.outside;
     const [eff] = effectivePlayers([base]);
-    expect(eff.player.stats.outside).toBe(Math.min(20, beforeOutside + 6));
+    expect(eff.player.stats.outside).toBe(softCap(beforeOutside + 7));
     // A common ability's drawback also applies on its own channel.
     const drawback = rp({ equippedAbility: { id: 'gunner' } }); // +2 outside, -2 perimeter D
     const [eff2] = effectivePlayers([drawback]);
-    expect(eff2.player.stats.outside).toBe(Math.min(20, drawback.player.stats.outside + 2));
+    expect(eff2.player.stats.outside).toBe(softCap(drawback.player.stats.outside + 2));
     expect(eff2.player.stats.perimeterD).toBe(Math.max(6, drawback.player.stats.perimeterD - 2));
   });
 });

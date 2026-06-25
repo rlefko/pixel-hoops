@@ -36,7 +36,7 @@ A run should fit a commute or a coffee break and should feel complete when it en
 
 ### 5. Variable-ratio rewards and near-misses (the slot-machine insight, used honestly)
 
-Unpredictable rewards condition behavior more strongly than predictable ones. Recruit offers, gear drops, and synergy payoffs should vary run to run so the player keeps pulling the lever. Near-misses matter: losing a close game in the final quarter should feel "so close," which drives an immediate retry, as long as the loss is legible as a beatable mistake and not unfair RNG.
+Unpredictable rewards condition behavior more strongly than predictable ones. Recruit offers, gear drops, and synergy payoffs should vary run to run so the player keeps pulling the lever. Reward *magnitudes* vary too: most stat pickups are a textured +1 to +3 rather than a uniform notch, rares trade a small downside for a sharper upside, and a small chance rolls one rarity band higher (a "hot" jackpot), so the size of the next reward is never fully predictable and a high roll lands as a genuine spike. Near-misses matter: losing a close game in the final quarter should feel "so close," which drives an immediate retry, as long as the loss is legible as a beatable mistake and not unfair RNG.
 
 ## Game feel: concrete juice techniques
 
@@ -50,6 +50,7 @@ Drawn from Vlambeer's "Art of Screenshake" and the "Juice it or lose it" talk. L
 - **Snappy easing** (fast-in, short) rather than slow floaty lerps. For an 8-bit read, quantize motion into discrete steps.
 - **Layered, pitch-varied audio** (deferred to the audio pass) and **haptics** mapped to event semantics (selection, success, big play, miss).
 - **Anticipation before payoff**: a short wind-up or a held beat before the reward lands.
+- **Rarity-gated reward bursts**: a reward pickup (boost draft pick, gear drop) fires a screen shake, color flash, and haptic scaled by rarity, so a capstone or a hot jackpot roll lands louder than a common, and a class promotion pops the player's tier badge. Built from the shared `src/feel` hooks (`useRewardBurst`) and gated by `FeelSettings`, so the juice scales with the reward instead of being a flat beat on everything.
 
 ## Auto-sim agency: keeping a watched sim engaging
 

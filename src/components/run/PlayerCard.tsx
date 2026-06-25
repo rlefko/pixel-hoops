@@ -1,20 +1,20 @@
-import { type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { PixelPlayer } from '@/components/fx';
-import { usePulse } from '@/feel';
+import { usePop, usePulse } from '@/feel';
 import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { POSITION_COLOR } from '@/components/game/positionColor';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { ovr, off, def, ath, tierFor, classForOvr, type TierKey } from '@/game/ratings';
+import { ovr, off, def, ath, tierFor, classForOvr, CLASS_ORDER, type TierKey } from '@/game/ratings';
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
 import { getGachaAbility } from '@/game/abilities-gacha';
 import { ITEM_RARITY_COLOR } from './item-ui';
-import type { PlayerStats } from '@/types/player';
+import { STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
 
 /**
@@ -97,6 +97,15 @@ export function PlayerCard({
   const currentClass = classForOvr(overall);
   const upgradedFrom =
     rp.originalClass && rp.originalClass !== currentClass ? rp.originalClass : null;
+  // Celebrate an in-place class promotion (a training/upgrade/reward pushing the
+  // player across a grade band): pop the badge when this card's class rises between
+  // renders. Initialized to the current class on mount, so a fresh card never pops.
+  const classRank = CLASS_ORDER.indexOf(currentClass);
+  const prevClassRank = useRef(classRank);
+  const leveledUp = classRank > prevClassRank.current;
+  useEffect(() => {
+    prevClassRank.current = classRank;
+  }, [classRank]);
   const injured = condition && (rp.gamesOut ?? 0) > 0;
   const isTile = variant === 'tile';
   const isLegendary = rp.legendary ?? false;
@@ -134,7 +143,12 @@ export function PlayerCard({
         {upgradedFrom ? (
           <Text style={styles.classFrom}>{upgradedFrom}{'→'}</Text>
         ) : null}
-        <TierBadge label={tier.label} color={tierColor} animated={tier.key === 'zenith'} />
+        <TierBadge
+          label={tier.label}
+          color={tierColor}
+          animated={tier.key === 'zenith'}
+          celebrate={leveledUp}
+        />
         <View style={styles.nameCol}>
           {isLegendary ? (
             <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
@@ -231,26 +245,33 @@ export function PlayerCard({
 }
 
 /** A small colored tier badge (C/B/A/S/S+/S++). The S++ apex animates a shining
- * gold halo (the legendary breathe), so a fully-trained player reads as a jackpot. */
+ * gold halo (the legendary breathe), so a fully-trained player reads as a jackpot.
+ * On a class promotion (`celebrate`) it scale-punches so the milestone reads. */
 function TierBadge({
   label,
   color,
   animated,
+  celebrate,
 }: {
   label: string;
   color: string;
   animated?: boolean;
+  celebrate?: boolean;
 }) {
   const { glowStyle } = usePulse();
+  const { popStyle, pop } = usePop();
+  useEffect(() => {
+    if (celebrate) pop({ scale: 1.4 });
+  }, [celebrate, pop]);
   return (
-    <View style={styles.tierWrap}>
+    <Animated.View style={[styles.tierWrap, popStyle]}>
       {animated ? (
         <Animated.View pointerEvents="none" style={[styles.tierGlow, glowStyle]} />
       ) : null}
       <View style={[styles.tier, { borderColor: color }, animated && styles.tierSolid]}>
         <Text style={[styles.tierText, { color }]}>{label}</Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -264,14 +285,31 @@ function CompositeChip({ label, value }: { label: string; value: number }) {
   );
 }
 
-/** A proportional fill bar for a single rating (full at MAX_TRAINED_STAT = 30). A
- * continuous fill reads cleanly at any cap; the exact value is shown beside it. */
+/**
+ * A proportional fill bar for a single rating. The bar fills to the NORMAL cap
+ * (STAT_NORMAL_MAX = 20), so a maxed-for-tier stat reads as a full, satisfying bar
+ * (the "max it out" milestone) instead of two-thirds full against the unreachable
+ * 30 ceiling. A trained/legend stat past 20 reads the bar as full with a growing
+ * gold "charged" tip toward the all-gold S++ apex, so over-cap reads "beyond elite"
+ * at a glance. The exact value is shown beside it.
+ */
 function PipBar({ value }: { value: number }) {
-  const frac = Math.max(0, Math.min(1, value / MAX_TRAINED_STAT));
+  const inBand = Math.max(0, Math.min(value, STAT_NORMAL_MAX)) / STAT_NORMAL_MAX;
+  const over =
+    Math.max(0, Math.min(value, MAX_TRAINED_STAT) - STAT_NORMAL_MAX) /
+    (MAX_TRAINED_STAT - STAT_NORMAL_MAX);
+  if (over <= 0) {
+    return (
+      <View style={styles.pipBar}>
+        <View style={[styles.pipFill, { flex: inBand }]} />
+        <View style={{ flex: 1 - inBand }} />
+      </View>
+    );
+  }
   return (
     <View style={styles.pipBar}>
-      <View style={[styles.pipFill, { flex: frac }]} />
-      <View style={{ flex: 1 - frac }} />
+      <View style={[styles.pipFill, { flex: 1 - over }]} />
+      <View style={[styles.pipOver, { flex: over }]} />
     </View>
   );
 }
@@ -459,4 +497,5 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   pipFill: { backgroundColor: palette.makeGreen },
+  pipOver: { backgroundColor: palette.gold }, // the over-cap "charged" tip (trained past 20)
 });

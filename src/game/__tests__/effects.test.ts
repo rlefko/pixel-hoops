@@ -23,13 +23,18 @@ describe('effects: stat deltas', () => {
     expect(a).toEqual({ outside: 1 });
   });
 
-  it('applyStatDelta clamps to 6..20 and returns a copy', () => {
+  it('applyStatDelta keeps full value in-band, soft-caps above 20, and floors at 6', () => {
     const out = applyStatDelta(baseStats, { outside: 8, perimeterD: -8 });
-    expect(out.outside).toBe(18);
+    expect(out.outside).toBe(18); // full value below the normal cap
     expect(out.perimeterD).toBe(6); // clamped at floor
     expect(baseStats.outside).toBe(10); // unchanged
-    const maxed = applyStatDelta({ ...baseStats, inside: 18 }, { inside: 10 });
-    expect(maxed.inside).toBe(20); // clamped at ceiling
+    // A big reward on a strong stat now lands with diminishing returns instead of
+    // hard-clamping at 20: 18 + 6 = raw 24 -> 20 + round(4 * 0.5) = 22.
+    const sharpened = applyStatDelta({ ...baseStats, outside: 18 }, { outside: 6 });
+    expect(sharpened.outside).toBe(22);
+    // The elite ceiling (24) holds no matter how large the delta.
+    const maxed = applyStatDelta({ ...baseStats, inside: 18 }, { inside: 20 });
+    expect(maxed.inside).toBe(24);
   });
 
   it('hasDelta detects non-zero entries', () => {

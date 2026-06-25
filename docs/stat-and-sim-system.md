@@ -17,6 +17,19 @@ band is a pure 2x of the old 3-10 model, so relative balance is unchanged; it ju
 buys more granular, specialized skillsets. They live on `PlayerStats` in
 `src/types/player.ts`.
 
+Run-scoped rewards (equipped items, gacha abilities, and the legend self-aura) bake
+into a player's effective line before the sim and **soft-cap into the elite band**:
+full value through the normal cap of 20, then diminishing returns up to 24
+(`applyStatDelta` in `src/game/effects.ts`). So a big reward still lands on an
+already-strong stat, sharpening a specialist, instead of leaking into a hard wall.
+Run-scoped **training** is the only channel that reaches the 30 hard cap. Reward
+magnitudes are deliberately **textured rather than uniform**: common boosts and items
+span +1 to +3, rares trade a small off-stat downside for a sharper upside (so a maxed
+roster reads spiky, not uniformly maxed), and a small chance bumps a drop one rarity
+band higher (the "hot" jackpot). The card stat bar fills to the normal cap of 20, with
+a gold tip past it for trained/over-cap stats, so maxing a stat for its tier reads as
+a full, satisfying bar.
+
 | Group | Rating | Drives |
 | --- | --- | --- |
 | Offense | `inside` | rim finishing: layups, dunks, post |

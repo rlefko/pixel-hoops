@@ -27,11 +27,28 @@ describe('items', () => {
     expect(['rare', 'boss']).toContain(bossDrop!.rarity);
   });
 
-  it('itemDelta folds a boss relic downside into the net effect', () => {
+  it('itemDelta folds a boss relic and a rare downside into the net effect', () => {
     const vest = ITEM_BY_ID['heavy-hitter-vest'];
     expect(itemDelta(vest)).toEqual({ inside: 8, athleticism: -4 });
+    // Rares now carry a small off-stat downside so a maxed roster reads spiky.
+    const scope = ITEM_BY_ID['sniper-scope'];
+    expect(itemDelta(scope)).toEqual({ outside: 6, perimeterD: -2 });
+    // Commons span a textured +1 / +2 / +3 rather than a uniform +2.
     const common = ITEM_BY_ID['grip-tape'];
-    expect(itemDelta(common)).toEqual({ outside: 2 });
+    expect(itemDelta(common)).toEqual({ outside: 3 });
+  });
+
+  it('a hot jackpot roll never lets an elite drop a boss relic, and stays deterministic', () => {
+    // The crit can bump an elite drop up to rare, but boss relics stay boss-exclusive.
+    for (let s = 0; s < 200; s++) {
+      const drop = rollDrop('elite', 6, createRNG(`elite-${s}`));
+      expect(drop).not.toBeNull();
+      expect(drop!.rarity).not.toBe('boss');
+    }
+    // The jackpot roll draws from the seeded RNG, so stock stays replay-stable.
+    const a = rollBoostStock(4, createRNG('hot')).map((i) => i.id);
+    const b = rollBoostStock(4, createRNG('hot')).map((i) => i.id);
+    expect(a).toEqual(b);
   });
 
   it('every item id is unique and indexed', () => {

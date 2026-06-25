@@ -1,9 +1,13 @@
+import { useEffect } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { ShakeView, FlashOverlay } from '@/components/fx';
+import { haptics } from '@/feel';
 import { PlayerCard } from './PlayerCard';
 import { ITEM_RARITY_COLOR } from './item-ui';
-import type { ItemDef } from '@/game/items';
+import { useRewardBurst, type RewardTier } from './useRewardBurst';
+import type { ItemDef, ItemRarity } from '@/game/items';
 import type { Roster } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -16,36 +20,61 @@ interface ItemDropViewProps {
   onSkip: () => void;
 }
 
+/** A drop's reveal juice scales with rarity, so a hot boss-relic jackpot lands loud. */
+function dropTier(rarity: ItemRarity): RewardTier {
+  if (rarity === 'boss' || rarity === 'rare') return 'big';
+  if (rarity === 'uncommon') return 'medium';
+  return 'small';
+}
+
 export function ItemDropView({ drop, roster, onTake, onAddToBag, onSkip }: ItemDropViewProps) {
   const players = [...roster.starters, ...roster.bench];
   const color = ITEM_RARITY_COLOR[drop.rarity];
+  const { shakeRef, flashRef, fire } = useRewardBurst();
+  const tier = dropTier(drop.rarity);
+  // Celebrate the drop the moment it reveals; a hot (bumped-rarity) relic lands big.
+  useEffect(() => {
+    fire(tier);
+  }, [fire, tier]);
+
   return (
-    <Screen style={styles.container}>
-      <Text style={styles.title}>GEAR DROP!</Text>
-      <View style={[styles.dropCard, { borderColor: color }]}>
-        <Text style={[styles.dropName, { color }]}>{drop.name}</Text>
-        <Text style={styles.dropBlurb}>{drop.blurb}</Text>
-        <Text style={styles.rarity}>{drop.rarity.toUpperCase()}</Text>
-      </View>
-      <Text style={styles.subtitle}>Equip it to a player, or keep it in your bag</Text>
-      <ScrollView contentContainerStyle={styles.list}>
-        {players.map((rp, i) => (
-          <Pressable key={i} style={styles.pick} onPress={() => onTake(i)}>
-            <PlayerCard rp={rp} />
-          </Pressable>
-        ))}
-      </ScrollView>
-      <Pressable style={styles.bagBtn} onPress={onAddToBag}>
-        <Text style={styles.bagBtnText}>Add to bag</Text>
-      </Pressable>
-      <Pressable onPress={onSkip}>
-        <Text style={styles.skip}>Leave it</Text>
-      </Pressable>
-    </Screen>
+    <ShakeView ref={shakeRef} style={styles.flex}>
+      <Screen style={styles.container}>
+        <Text style={styles.title}>GEAR DROP!</Text>
+        <View style={[styles.dropCard, { borderColor: color }]}>
+          <Text style={[styles.dropName, { color }]}>{drop.name}</Text>
+          <Text style={styles.dropBlurb}>{drop.blurb}</Text>
+          <Text style={styles.rarity}>{drop.rarity.toUpperCase()}</Text>
+        </View>
+        <Text style={styles.subtitle}>Equip it to a player, or keep it in your bag</Text>
+        <ScrollView contentContainerStyle={styles.list}>
+          {players.map((rp, i) => (
+            <Pressable
+              key={i}
+              style={styles.pick}
+              onPress={() => {
+                haptics.selection();
+                onTake(i);
+              }}
+            >
+              <PlayerCard rp={rp} />
+            </Pressable>
+          ))}
+        </ScrollView>
+        <Pressable style={styles.bagBtn} onPress={onAddToBag}>
+          <Text style={styles.bagBtnText}>Add to bag</Text>
+        </Pressable>
+        <Pressable onPress={onSkip}>
+          <Text style={styles.skip}>Leave it</Text>
+        </Pressable>
+      </Screen>
+      <FlashOverlay ref={flashRef} />
+    </ShakeView>
   );
 }
 
 const styles = StyleSheet.create({
+  flex: { flex: 1 },
   container: { paddingHorizontal: space(5) },
   title: {
     fontFamily: FONT.display,

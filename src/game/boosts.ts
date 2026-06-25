@@ -56,21 +56,21 @@ const OFFER_COUNT = 3;
 export const BOOST_DEFS: readonly BoostDef[] = [
   // --- Outside ---
   { id: 'splash-brothers', family: 'outside', name: 'Splash Brothers', blurb: '+2 to all outside shooting', minRound: 1, rarity: 'common', maxTier: 3, perTier: { extra: { outside: 2 } } },
-  { id: 'stretch-the-floor', family: 'outside', name: 'Stretch the Floor', blurb: '+2 outside and a team offense lift', minRound: 2, rarity: 'common', maxTier: 2, perTier: { offenseBonus: 1, extra: { outside: 2 } } },
-  { id: 'heat-check', family: 'outside', name: 'Heat Check', blurb: 'Deadeye range: +4 outside', minRound: 3, rarity: 'rare', maxTier: 1, perTier: { extra: { outside: 4 } } },
+  { id: 'stretch-the-floor', family: 'outside', name: 'Stretch the Floor', blurb: '+1 outside and a team offense lift', minRound: 2, rarity: 'common', maxTier: 3, perTier: { offenseBonus: 1, extra: { outside: 1 } } },
+  { id: 'heat-check', family: 'outside', name: 'Heat Check', blurb: 'Deadeye range: +4 outside, but -2 perimeter D', minRound: 3, rarity: 'rare', maxTier: 1, perTier: { extra: { outside: 4, perimeterD: -2 } } },
 
   // --- Transition ---
   { id: 'seven-seconds', family: 'transition', name: 'Seven Seconds', blurb: '+3 pace', minRound: 1, rarity: 'common', maxTier: 2, perTier: { paceBonus: 3 } },
-  { id: 'full-court-press', family: 'transition', name: 'Full-Court Press', blurb: '+2 perimeter D', minRound: 2, rarity: 'common', maxTier: 2, perTier: { extra: { perimeterD: 2 } } },
+  { id: 'full-court-press', family: 'transition', name: 'Full-Court Press', blurb: '+1 perimeter D', minRound: 2, rarity: 'common', maxTier: 3, perTier: { extra: { perimeterD: 1 } } },
   { id: 'run-and-gun', family: 'transition', name: 'Run and Gun', blurb: 'Playing fast adds +4 clutch', minRound: 2, rarity: 'rare', maxTier: 1, perTier: { hooks: [{ kind: 'paceClutch', minPace: 14, clutchAdd: 4 }] } },
 
   // --- Defense ---
   { id: 'lockdown', family: 'defense', name: 'Lockdown', blurb: '+2 perimeter and interior D', minRound: 1, rarity: 'common', maxTier: 3, perTier: { extra: { perimeterD: 2, interiorD: 2 } } },
   { id: 'no-easy-buckets', family: 'defense', name: 'No Easy Buckets', blurb: 'A team defense lift', minRound: 2, rarity: 'common', maxTier: 2, perTier: { defenseBonus: 2 } },
-  { id: 'switch-everything', family: 'defense', name: 'Switch Everything', blurb: '+4 perimeter D, +2 athleticism', minRound: 3, rarity: 'rare', maxTier: 1, perTier: { extra: { perimeterD: 4, athleticism: 2 } } },
+  { id: 'switch-everything', family: 'defense', name: 'Switch Everything', blurb: '+4 perimeter D, +2 athleticism, but -2 interior D', minRound: 3, rarity: 'rare', maxTier: 1, perTier: { extra: { perimeterD: 4, athleticism: 2, interiorD: -2 } } },
 
   // --- Depth / fatigue ---
-  { id: 'deep-rotation', family: 'depth', name: 'Deep Rotation', blurb: '+2 stamina, team-wide', minRound: 1, rarity: 'common', maxTier: 2, perTier: { extra: { stamina: 2 } } },
+  { id: 'deep-rotation', family: 'depth', name: 'Deep Rotation', blurb: '+3 stamina, team-wide', minRound: 1, rarity: 'common', maxTier: 2, perTier: { extra: { stamina: 3 } } },
   { id: 'iron-legs', family: 'depth', name: 'Iron Legs', blurb: '+2 stamina and durability', minRound: 1, rarity: 'common', maxTier: 2, perTier: { extra: { stamina: 2, durability: 2 } } },
   { id: 'sixth-man', family: 'depth', name: 'Sixth Man', blurb: 'When starters tire, the team gets +2 across the board', minRound: 2, rarity: 'rare', maxTier: 1, perTier: { hooks: [{ kind: 'tiredBench', energyBelow: 50, benchDelta: { inside: 2, outside: 2, perimeterD: 2, interiorD: 2 } }] } },
 
