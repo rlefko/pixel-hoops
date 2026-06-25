@@ -1,7 +1,7 @@
 import { SKILL_STAT_KEYS, type PlayerStats } from '@/types/player';
 import type { Position } from '@/types/roster';
 import { CLASS_ORDER, classForOvr, ovr, ovrRaw, type PlayerClass } from './ratings';
-import { clamp, getStatRangeForLevel } from './stat-scaling';
+import { STAT_MIN, STAT_NORMAL_MAX, clamp, getStatRangeForLevel } from './stat-scaling';
 
 /**
  * The class system's scaling + draft helpers. Builds on the pure class labels in
@@ -19,17 +19,17 @@ export { CLASS_ORDER, classForOvr, type PlayerClass } from './ratings';
 
 /**
  * The in-game OVR each class centers on (also the "difficulty level" fed to the
- * opponent/recruit scalers). Lines up with classForOvr's thresholds: D=3-4, C=5,
- * B=6-7, A=8, S=9-10, S+=legendary/trained cap.
+ * opponent/recruit scalers). Lines up with classForOvr's thresholds: D=6-9, C=10,
+ * B=12-15, A=16, S=18-21, S+=legendary, S++=apex.
  */
 const CLASS_LEVEL: Record<PlayerClass, number> = {
-  D: 4.0,
-  C: 5.0,
-  B: 6.5,
-  A: 8.0,
-  S: 9.5,
-  'S+': 11.0,
-  'S++': 13.0,
+  D: 8.0,
+  C: 10.0,
+  B: 13.0,
+  A: 16.0,
+  S: 19.0,
+  'S+': 22.0,
+  'S++': 26.0,
 };
 
 /** The scaling level a class centers on. */
@@ -66,7 +66,7 @@ export function classShift(cls: PlayerClass, steps: number): PlayerClass {
 /**
  * Place a stat line into a class's band while preserving its shape. The line is
  * shifted as a whole so its position-weighted OVR lands on the class level, then
- * each skill is clamped to the 3-10 scale; the player's relative strengths (a
+ * each skill is clamped to the normal band; the player's relative strengths (a
  * shooter's outside lead, a big's interior lead) are kept. Condition ratings
  * (stamina/durability) pass through: they are not part of OVR and not a class.
  *
@@ -82,7 +82,7 @@ export function anchorStatsToClass(
   const delta = classLevel(cls) - ovrRaw(shape, position);
   let out: PlayerStats = { ...shape };
   for (const key of SKILL_STAT_KEYS) {
-    out[key] = clamp(Math.round(shape[key] + delta), 3, 10);
+    out[key] = clamp(Math.round(shape[key] + delta), STAT_MIN, STAT_NORMAL_MAX);
   }
   // Per-skill rounding/clamping can leave the rounded OVR just outside the target
   // class. Nudge the whole line by 1 (preserving shape) until classForOvr(ovr)
@@ -97,7 +97,7 @@ export function anchorStatsToClass(
     const next: PlayerStats = { ...out };
     let moved = false;
     for (const key of SKILL_STAT_KEYS) {
-      const v = clamp(out[key] + step, 3, 10);
+      const v = clamp(out[key] + step, STAT_MIN, STAT_NORMAL_MAX);
       if (v !== out[key]) moved = true;
       next[key] = v;
     }

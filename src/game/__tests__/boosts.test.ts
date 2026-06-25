@@ -52,8 +52,8 @@ describe('boost drafting', () => {
   it('boostsToModifier scales magnitudes by tier', () => {
     const t1 = boostsToModifier([{ id: 'splash-brothers', tier: 1 }]);
     const t3 = boostsToModifier([{ id: 'splash-brothers', tier: 3 }]);
-    expect(t1.extra.outside).toBe(1);
-    expect(t3.extra.outside).toBe(3);
+    expect(t1.extra.outside).toBe(2);
+    expect(t3.extra.outside).toBe(6);
   });
 
   it('capstones only appear once their requirement is met', () => {

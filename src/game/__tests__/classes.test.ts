@@ -24,13 +24,13 @@ describe('class model', () => {
   });
 
   it('classForOvr buckets the surface scale, with S++ as the trained/boss apex', () => {
-    expect(classForOvr(4)).toBe('D');
-    expect(classForOvr(5)).toBe('C');
-    expect(classForOvr(7)).toBe('B');
-    expect(classForOvr(8)).toBe('A');
-    expect(classForOvr(10)).toBe('S');
-    expect(classForOvr(12)).toBe('S+');
-    expect(classForOvr(14)).toBe('S++');
+    expect(classForOvr(8)).toBe('D');
+    expect(classForOvr(10)).toBe('C');
+    expect(classForOvr(12)).toBe('B');
+    expect(classForOvr(16)).toBe('A');
+    expect(classForOvr(18)).toBe('S');
+    expect(classForOvr(22)).toBe('S+');
+    expect(classForOvr(26)).toBe('S++');
   });
 
   it('classLevel and levelToClass round-trip', () => {
@@ -49,8 +49,8 @@ describe('class model', () => {
   it('anchorStatsToClass preserves shape and lands a real-ish line in the class band', () => {
     // A shooter shape (outside lead) starting clustered high.
     const shape: PlayerStats = {
-      inside: 7, outside: 10, playmaking: 8, perimeterD: 6, interiorD: 5,
-      athleticism: 8, iq: 8, clutch: 9, stamina: 7, durability: 7,
+      inside: 14, outside: 20, playmaking: 16, perimeterD: 12, interiorD: 10,
+      athleticism: 16, iq: 16, clutch: 18, stamina: 14, durability: 14,
     };
     for (const cls of ['C', 'B', 'A', 'S'] as const) {
       const anchored = anchorStatsToClass(shape, cls, 'SG');
@@ -59,8 +59,8 @@ describe('class model', () => {
       // Within the class band.
       const band = classToBand(cls);
       for (const k of SKILL_STAT_KEYS) {
-        expect(anchored[k]).toBeGreaterThanOrEqual(3);
-        expect(anchored[k]).toBeLessThanOrEqual(10);
+        expect(anchored[k]).toBeGreaterThanOrEqual(6);
+        expect(anchored[k]).toBeLessThanOrEqual(20);
       }
       // Shape preserved: outside stays the top skill.
       const top = SKILL_STAT_KEYS.reduce((m, k) => (anchored[k] > anchored[m] ? k : m), SKILL_STAT_KEYS[0]);

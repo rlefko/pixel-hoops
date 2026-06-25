@@ -27,16 +27,16 @@ import { boostsToModifier, type PassiveBoost } from './boosts';
  * per-player deltas, so a substitution can never compound an item/ability.
  */
 
-/** −1.0 chemistry tax (split across offense/defense) for fielding an on-loan star. */
+/** −2.0 chemistry tax (split across offense/defense) for fielding an on-loan star. */
 const LEGEND_CHEMISTRY: Partial<TeamModifier> = {
-  offenseBonus: -0.5,
-  defenseBonus: -0.5,
+  offenseBonus: -1,
+  defenseBonus: -1,
   labels: ['On-Loan Star'],
 };
 
 /** Return effective-stat COPIES of a five/bench (item + legend self-aura + equipped
- * gacha ability + run-scoped training baked in). Item/abilities cap at 10; training
- * folds on top, the only path past 10 (up to 15). */
+ * gacha ability + run-scoped training baked in). Item/abilities cap at 20; training
+ * folds on top, the only path past 20 (up to 30). */
 export function effectivePlayers(players: RosterPlayer[]): RosterPlayer[] {
   return players.map((rp) => {
     let delta: StatDelta = {};

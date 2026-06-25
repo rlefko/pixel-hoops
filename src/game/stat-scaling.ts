@@ -1,4 +1,10 @@
-import { SKILL_STAT_KEYS, type PlayerStats } from '@/types/player';
+import {
+  SKILL_STAT_KEYS,
+  STAT_CEIL,
+  STAT_ELITE_MAX,
+  STAT_MIN,
+  type PlayerStats,
+} from '@/types/player';
 import type { RNG } from './rng';
 
 /**
@@ -12,12 +18,27 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
 
-/** Surface scale bounds the stat band is clamped within. The floor is the 3-10
- * model's base; the ceiling rises ABOVE 10 (to the trained cap) so the very top of
- * the S / S+ ladders can field S++ apex bosses (stats past 10). Levels at or below
- * the S band still round to <=10, so only the top-ladder finales exceed it. */
-const STAT_FLOOR = 3;
-const STAT_CEIL = 14;
+// Re-export the scale constants (declared on the type leaf) so the game layer
+// can import them from one game-side module.
+export { STAT_MIN, STAT_BASE, STAT_NORMAL_MAX, STAT_ELITE_MAX, STAT_CEIL, STAT_HARD_MAX } from '@/types/player';
+
+/** Remap an old 3-10 rating onto the new system scale (a pure 2x widening, so
+ * relative balance is preserved exactly). Used by the v7 save migration. */
+export function remapSystem(old: number): number {
+  return Math.round(old * 2);
+}
+
+/** Remap an old 3-10 rating into the curated-great band [STAT_MIN, STAT_ELITE_MAX],
+ * so legends gain a granular spread peaking near 24. Used for legend data/saves. */
+export function remapElite(old: number): number {
+  return Math.round(STAT_MIN + ((old - 3) / 7) * (STAT_ELITE_MAX - STAT_MIN));
+}
+
+/** Surface scale bounds the stat band is clamped within. The floor is the normal
+ * band's base; the ceiling (STAT_CEIL) rises ABOVE the normal cap so the very top
+ * of the S / S+ ladders can field apex bosses (stats past 20). Levels at or below
+ * the S band still round to <=20, so only the top-ladder finales exceed it. */
+const STAT_FLOOR = STAT_MIN;
 
 /**
  * Expected stat band for a continuous difficulty level (see difficulty.ts). The
@@ -27,8 +48,8 @@ const STAT_CEIL = 14;
  * between smooth (no flat-within-map step that made each map start weak).
  */
 export function getStatRangeForLevel(level: number): { min: number; max: number } {
-  const min = clamp(Math.round(level - 1), STAT_FLOOR, STAT_CEIL);
-  const max = clamp(Math.round(level + 0.5), STAT_FLOOR, STAT_CEIL);
+  const min = clamp(Math.round(level - 2), STAT_FLOOR, STAT_CEIL);
+  const max = clamp(Math.round(level + 1), STAT_FLOOR, STAT_CEIL);
   return { min, max: Math.max(min, max) };
 }
 
@@ -46,7 +67,7 @@ export function scaleStatsToLevel(
   const range = getStatRangeForLevel(level);
   const scaled: PlayerStats = { ...stats };
   for (const key of SKILL_STAT_KEYS) {
-    scaled[key] = clamp(stats[key] + rng.int(-1, 2), range.min, range.max);
+    scaled[key] = clamp(stats[key] + rng.int(-2, 4), range.min, range.max);
   }
   return scaled;
 }

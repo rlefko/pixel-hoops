@@ -44,18 +44,18 @@ import { createRNG, type RNG } from './rng';
 /** Possessions per team per quarter at a baseline pace. */
 const BASE_POSSESSIONS_PER_QUARTER = 12;
 /** Pace value that maps to exactly the base possession count. */
-const PACE_BASELINE = 7;
+const PACE_BASELINE = 14;
 const MIN_POSSESSIONS = 8;
 const MAX_POSSESSIONS = 18;
 /** A lockdown game plan adds this to the opponent's defensive counter stat. */
-const LOCKDOWN_BONUS = 1.5;
+const LOCKDOWN_BONUS = 3;
 /**
  * Per-game shooting "form": each team draws a hot/cold offset (in rating points)
  * once per game that lifts or drops their offense all night. Independent
  * per-shot luck washes out over ~60 possessions, so this correlated factor is
  * what keeps upsets alive: a cold favorite can drop one to a hot underdog.
  */
-const FORM_RANGE = 1.6;
+const FORM_RANGE = 3.2;
 /**
  * How hard basketball IQ pulls shot selection toward the highest expected-value
  * looks (rim and threes) and away from contested long twos. A smart five hunts
@@ -69,7 +69,7 @@ const CLUTCH_MARGIN = 6;
  * Deliberately small: the research shows clutch is mostly noise, not a durable
  * skill, so it is flavor here, paired with a symmetric random term, not a tax.
  */
-const CLUTCH_K = 0.8;
+const CLUTCH_K = 0.4;
 /** Symmetric crunch-time make swing (percentage points) independent of clutch. */
 const CLUTCH_NOISE = 3;
 const SECONDS_PER_QUARTER = 720;
@@ -176,14 +176,14 @@ export function actionWeights(
     const p = makeProbability({
       action: a,
       offRating: ACTION_OFF[a](stats),
-      defRating: 5,
+      defRating: 10,
       iq: stats.iq,
     });
     const ev = expectedValue(a, p);
     return a === 'midrange' ? ev * 0.92 : ev;
   });
   const meanEv = evs.reduce((sum, e) => sum + e, 0) / evs.length;
-  const pull = (IQ_PULL * (stats.iq - 5)) / 5;
+  const pull = (IQ_PULL * (stats.iq - 10)) / 10;
   OFFENSIVE_ACTIONS.forEach((a, i) => {
     w[a] *= Math.max(0.2, 1 + pull * (evs[i] / meanEv - 1));
   });
@@ -368,7 +368,7 @@ function recomputeAggregate(side: SideState): void {
 }
 
 /** Interior-D aggregate at which a post threat is considered "doubled". */
-const DOUBLE_INTERIOR_THRESHOLD = 8;
+const DOUBLE_INTERIOR_THRESHOLD = 16;
 
 /** Add a stat delta to a team stat line in place (no clamp; q() tolerates any value). */
 function addDeltaToStats(stats: TeamStats, delta: StatDelta): void {
@@ -528,8 +528,8 @@ function drainRecover(side: SideState, scorer: PlayerGameState, possInQuarter: n
   const secondsPerPoss = SECONDS_PER_QUARTER / possInQuarter;
   for (const p of side.all) {
     if (p.onCourt) {
-      // Lower stamina drains faster (13 - stamina) / 7: stamina 10 ~0.43x, 3 ~1.43x.
-      const staminaFactor = (13 - p.rp.player.stats.stamina) / 7;
+      // Lower stamina drains faster (26 - stamina) / 14: stamina 20 ~0.43x, 6 ~1.43x.
+      const staminaFactor = (26 - p.rp.player.stats.stamina) / 14;
       let drain = DRAIN_BASE * paceFactor * staminaFactor;
       if (p === scorer) drain *= SCORER_DRAIN_MULT;
       p.energy = Math.max(0, p.energy - drain);
@@ -591,7 +591,7 @@ export function simulateGame(config: SimConfig): SimResult {
   /** Decide the rebound and credit it to one side's five (defense favored). */
   function creditRebound(offense: SideState, defense: SideState): void {
     const offReb = offense.aggregate.interiorD;
-    const defReb = defense.aggregate.interiorD + 6; // boards skew defensive
+    const defReb = defense.aggregate.interiorD + 12; // boards skew defensive
     const offensive = rng.chance(offReb / (offReb + defReb));
     const board = offensive ? offense : defense;
     pickByStat(board.onCourt, 'interiorD').box.reb += 1;
@@ -641,7 +641,7 @@ export function simulateGame(config: SimConfig): SimResult {
     let clutchDelta = 0;
     if (crunch) {
       const noise = (rng.next() - 0.5) * (CLUTCH_NOISE / 100);
-      clutchDelta = ((scorer.rp.player.stats.clutch - 5) * CLUTCH_K) / 100 + noise;
+      clutchDelta = ((scorer.rp.player.stats.clutch - 10) * CLUTCH_K) / 100 + noise;
     }
     const fatigueMult = fatigueMultiplier(scorer.energy, SHOT_PROFILE[action].resilient);
 
@@ -664,7 +664,7 @@ export function simulateGame(config: SimConfig): SimResult {
       result = 'score';
       if (
         SHOT_PROFILE[action].finish &&
-        rng.chance(0.12 + Math.max(0, scorer.rp.player.stats.clutch - 5) * 0.01)
+        rng.chance(0.12 + Math.max(0, scorer.rp.player.stats.clutch - 10) * 0.005)
       ) {
         result = 'and-one';
         points += 1;
@@ -685,7 +685,7 @@ export function simulateGame(config: SimConfig): SimResult {
         scorer.box.tpa += 1;
         scorer.box.tpm += 1;
       }
-      const assistP = ASSIST_RATE * (offense.aggregate.playmaking / 10);
+      const assistP = ASSIST_RATE * (offense.aggregate.playmaking / 20);
       const others = offense.onCourt.filter((p) => p !== scorer);
       if (others.length > 0 && rng.chance(assistP)) {
         pickByStat(others, 'playmaking').box.ast += 1;

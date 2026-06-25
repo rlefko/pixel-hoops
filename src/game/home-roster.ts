@@ -4,6 +4,7 @@ import type { PlayerStats } from '@/types/player';
 import type { RNG } from './rng';
 import { buildStartingTwelve } from './tournament';
 import { expandStats, isLegacyStats } from './stat-migration';
+import { remapElite, remapSystem, STAT_MIN } from './stat-scaling';
 import { RATING_CAP, canUpgrade, perStatMax, upgradeCost } from './upgrades';
 import { classForOvr, ovr, type PlayerClass } from './ratings';
 import {
@@ -53,10 +54,13 @@ export interface HomeRoster {
   seenWelcome?: boolean;
 }
 
-// v6 replaces the League-tier fields with the (difficulty x class) ladder, adds the
-// gacha ability inventory/equips and per-player originalClass, and uncaps the
-// collection. v1's four-stat lines are still migrated to the ten-rating model.
-const HOME_ROSTER_VERSION = 6;
+// v7 widens the rating scale (the old 3-10 model doubles to a 6-20 normal band with
+// curated greats to ~24 and a hard cap of 30): owned players are remapped on load
+// (legends via the elite expansion, others x2). v6 replaced the League-tier fields
+// with the (difficulty x class) ladder, added the gacha ability inventory/equips and
+// per-player originalClass, and uncapped the collection. v1's four-stat lines are
+// still migrated to the ten-rating model before the scale remap.
+const HOME_ROSTER_VERSION = 7;
 
 export interface SerializedHomeRoster {
   version: number;
@@ -307,9 +311,28 @@ function withOriginalClass(
   const base = { ...rp.player.stats };
   for (const key in bought) {
     const k = key as keyof PlayerStats;
-    base[k] = Math.max(3, base[k] - (bought[k] ?? 0));
+    base[k] = Math.max(STAT_MIN, base[k] - (bought[k] ?? 0));
   }
   return { ...rp, originalClass: classForOvr(ovr(base, rp.position)) };
+}
+
+/**
+ * Remap a persisted player's stats onto the widened scale (v7). Legends use the
+ * elite expansion (matching the re-baked legend data); everyone else doubles
+ * (matching the re-baked pool). Idempotent guard: a line already on the new scale
+ * (any skill above the old 10 cap) is left untouched. The upgrades ledger (purchase
+ * counts) is preserved separately, so a veteran keeps their buys.
+ */
+function remapPlayerStatsToV7(rp: RosterPlayer): RosterPlayer {
+  const stats = rp.player.stats;
+  if (Object.values(stats).some((v) => v > 10)) return rp; // already widened
+  const remap = rp.legendary ? remapElite : remapSystem;
+  const next = {} as PlayerStats;
+  for (const key in stats) {
+    const k = key as keyof PlayerStats;
+    next[k] = remap(stats[k]);
+  }
+  return { ...rp, player: { ...rp.player, stats: next } };
 }
 
 /**
@@ -333,10 +356,16 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
   if (!playersOk) return null;
   const savedUpgrades =
     data.upgrades && typeof data.upgrades === 'object' ? data.upgrades : {};
+  // Pre-v7 saves carry old 3-10 stats; widen them to the new scale on load.
+  const version = typeof (raw as Partial<SerializedHomeRoster>).version === 'number'
+    ? (raw as SerializedHomeRoster).version
+    : 0;
+  const needsScaleBump = version < 7;
   const players = data.players.map((p): RosterPlayer => {
-    const migrated = isLegacyStats(p.player.stats)
+    const expanded = isLegacyStats(p.player.stats)
       ? { ...p, player: { ...p.player, stats: expandStats(p.player.stats, p.position) } }
       : { ...p };
+    const migrated = needsScaleBump ? remapPlayerStatsToV7(expanded) : expanded;
     delete migrated.item; // never trust a persisted run-scoped item
     delete migrated.onLoan;
     delete migrated.trainingDelta;

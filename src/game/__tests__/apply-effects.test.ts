@@ -14,9 +14,9 @@ describe('effectivePlayers', () => {
     const base = rp({ item: { defId: 'sniper-scope' }, ability: 'cold_blooded', legendary: true });
     const beforeOutside = base.player.stats.outside;
     const [eff] = effectivePlayers([base]);
-    // sniper-scope (+3 outside) + cold_blooded (+1 outside, +1 clutch), clamped to 10.
-    expect(eff.player.stats.outside).toBe(Math.min(10, beforeOutside + 4));
-    expect(eff.player.stats.clutch).toBe(Math.min(10, base.player.stats.clutch + 1));
+    // sniper-scope (+6 outside) + cold_blooded (+2 outside, +2 clutch), clamped to 20.
+    expect(eff.player.stats.outside).toBe(Math.min(20, beforeOutside + 8));
+    expect(eff.player.stats.clutch).toBe(Math.min(20, base.player.stats.clutch + 2));
     expect(base.player.stats.outside).toBe(beforeOutside); // input untouched
     expect(eff).not.toBe(base);
   });
@@ -27,26 +27,26 @@ describe('effectivePlayers', () => {
     expect(eff).toBe(plain);
   });
 
-  it('clamps a boss-relic downside to the 3..10 floor', () => {
+  it('clamps a boss-relic downside to the 6..20 floor', () => {
     const weak = createPlayer('Weak', 'point-guard', createRNG('w').int);
-    weak.stats.athleticism = 4;
+    weak.stats.athleticism = 8;
     const r: RosterPlayer = { player: weak, position: 'PG', item: { defId: 'heavy-hitter-vest' } };
     const [eff] = effectivePlayers([r]);
-    expect(eff.player.stats.athleticism).toBe(3); // 4 - 2 = 2, clamped to 3
-    expect(eff.player.stats.inside).toBe(Math.min(10, weak.stats.inside + 4));
+    expect(eff.player.stats.athleticism).toBe(6); // 8 - 4 = 4, clamped to 6
+    expect(eff.player.stats.inside).toBe(Math.min(20, weak.stats.inside + 8));
   });
 
   it('stacks an equipped gacha ability with the item channel (no double-count)', () => {
-    // 'deadeye' is a rare +2 outside; 'grip-tape' is +1 outside. They stack once.
+    // 'deadeye' is a rare +4 outside; 'grip-tape' is +2 outside. They stack once.
     const base = rp({ item: { defId: 'grip-tape' }, equippedAbility: { id: 'deadeye' } });
     const beforeOutside = base.player.stats.outside;
     const [eff] = effectivePlayers([base]);
-    expect(eff.player.stats.outside).toBe(Math.min(10, beforeOutside + 3));
+    expect(eff.player.stats.outside).toBe(Math.min(20, beforeOutside + 6));
     // A common ability's drawback also applies on its own channel.
-    const drawback = rp({ equippedAbility: { id: 'gunner' } }); // +1 outside, -1 perimeter D
+    const drawback = rp({ equippedAbility: { id: 'gunner' } }); // +2 outside, -2 perimeter D
     const [eff2] = effectivePlayers([drawback]);
-    expect(eff2.player.stats.outside).toBe(Math.min(10, drawback.player.stats.outside + 1));
-    expect(eff2.player.stats.perimeterD).toBe(Math.max(3, drawback.player.stats.perimeterD - 1));
+    expect(eff2.player.stats.outside).toBe(Math.min(20, drawback.player.stats.outside + 2));
+    expect(eff2.player.stats.perimeterD).toBe(Math.max(6, drawback.player.stats.perimeterD - 2));
   });
 });
 
@@ -55,8 +55,8 @@ describe('teamModifierFor', () => {
     const onLoanLegend = rp({ ability: 'chosen_one', legendary: true, onLoan: true });
     const filler = [rp(), rp(), rp(), rp()];
     const mod = teamModifierFor([onLoanLegend, ...filler], []);
-    // chosen_one: +1 offense, +0.5 defense; chemistry tax: -0.5/-0.5.
-    expect(mod.offenseBonus).toBeCloseTo(0.5);
+    // chosen_one: +2 offense, +1 defense; chemistry tax: -1/-1.
+    expect(mod.offenseBonus).toBeCloseTo(1);
     expect(mod.defenseBonus).toBeCloseTo(0);
     expect(mod.labels).toContain('On-Loan Star');
   });
@@ -64,19 +64,19 @@ describe('teamModifierFor', () => {
   it('no chemistry tax for a native (non-on-loan) legend', () => {
     const nativeLegend = rp({ ability: 'chosen_one', legendary: true });
     const mod = teamModifierFor([nativeLegend], []);
-    expect(mod.offenseBonus).toBe(1);
+    expect(mod.offenseBonus).toBe(2);
     expect(mod.labels).not.toContain('On-Loan Star');
   });
 
   it('folds passive boosts into the team modifier', () => {
     const mod = teamModifierFor([rp()], [{ id: 'lockdown', tier: 2 }]);
-    expect(mod.extra.perimeterD).toBe(2);
-    expect(mod.extra.interiorD).toBe(2);
+    expect(mod.extra.perimeterD).toBe(4);
+    expect(mod.extra.interiorD).toBe(4);
   });
 
   it('folds a gacha ability team aura into the team modifier', () => {
-    // 'gravity' is a legendary +1 team offense.
+    // 'gravity' is a legendary +2 team offense.
     const mod = teamModifierFor([rp({ equippedAbility: { id: 'gravity' } })], []);
-    expect(mod.offenseBonus).toBe(1);
+    expect(mod.offenseBonus).toBe(2);
   });
 });

@@ -9,8 +9,8 @@ import { clamp } from './stat-scaling';
  * classes ABOVE at the final boss, smoothly and with no reset at map boundaries
  * (each boss is its map's local peak; the first game of the next map sits just
  * above the prior map's late games). On the S / S+ ladders the late ramp pushes
- * opponents into the S++ apex (stats past 10), which is why the difficulty band
- * ceiling in stat-scaling.ts allows values above 10.
+ * opponents into the S++ apex (stats past 20), which is why the difficulty band
+ * ceiling in stat-scaling.ts allows values above the normal cap.
  *
  * Pure and seedless: the curve is fully determined by the authored map shape plus
  * the run's ladder level and difficulty stat-shift.
@@ -22,16 +22,16 @@ const RUN_MAPS = 7;
 const MAP_ROWS = 6;
 
 /** Offset from the ladder level at the very first combat node (a class below). */
-const RAMP_START = -1.0;
+const RAMP_START = -2.0;
 /** Offset from the ladder level at the final regular peak (~two classes above). */
-const RAMP_END = 2.0;
+const RAMP_END = 4.0;
 /** A boss is its map's local peak: this much above its intra-map ramp. */
-const BOSS_BUMP = 0.6;
+const BOSS_BUMP = 1.2;
 /** >1 steepens the back half so the curve keeps pace with bounded meta power. */
 const CURVE_POW = 1.15;
-/** Cap on the opponent level. Keeps the S++ apex band a real [13,14] spread rather
+/** Cap on the opponent level. Keeps the S++ apex band a real [26,28] spread rather
  * than collapsing to a single value at the very top of the S+ ladder on insane. */
-const MAX_OPP_LEVEL = 13.5;
+const MAX_OPP_LEVEL = 27.0;
 
 /**
  * Fraction of the run (0..1) a combat node sits at, blending map progress with an

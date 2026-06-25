@@ -113,10 +113,11 @@ const ARCHETYPE_WEIGHTS: Record<string, Record<Archetype, number>> = {
   },
 };
 
-/** Map a continuous difficulty level (~5-10) to an integer archetype band 1-7,
- * preserving the old progression: guard-heavy early, big-heavy late. */
+/** Map a continuous difficulty level (~10-22 on the widened scale) to an integer
+ * archetype band 1-7, preserving the old progression: guard-heavy early, big-heavy
+ * late. The level lives in OVR space (doubled), so halve it before banding. */
 function levelToBand(level: number): number {
-  return clamp(Math.round(level - 4), 1, 7);
+  return clamp(Math.round(level / 2 - 4), 1, 7);
 }
 
 /** The archetypes (and weights) that appear at a given difficulty level. */

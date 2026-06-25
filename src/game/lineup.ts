@@ -4,6 +4,7 @@ import type { Lineup, Team, TeamStats, SynergyResult } from '@/types/team';
 import type { GamePlan } from '@/types/tactics';
 import { computeSynergy } from './synergy';
 import { off, def } from './ratings';
+import { STAT_CEIL } from './stat-scaling';
 import { EMPTY_TEAM_MODIFIER, type StatDelta, type TeamModifier } from './effects';
 
 /**
@@ -16,9 +17,11 @@ import { EMPTY_TEAM_MODIFIER, type StatDelta, type TeamModifier } from './effect
 
 const LINEUP_SIZE = 5;
 
-/** Clamp a derived stat to a sane range so bonuses cannot run away. */
+/** Clamp a derived stat to a sane range so bonuses cannot run away. The floor sits
+ * a little below the player floor (deliberate slack); the ceiling is the apex band
+ * so synergy/auras can push an aggregate above the normal cap. */
 function clampStat(value: number): number {
-  return Math.max(1, Math.min(14, value));
+  return Math.max(2, Math.min(STAT_CEIL, value));
 }
 
 export function validateLineup(players: RosterPlayer[]): {
@@ -42,7 +45,7 @@ export function computeUsageWeights(
   const raw = players.map((rp, index) => {
     const s = rp.player.stats;
     let load = s.outside + s.inside + s.playmaking * 0.7 + s.clutch * 0.5;
-    if (rp.position === 'PG' || rp.position === 'SG') load += 2; // ball handlers
+    if (rp.position === 'PG' || rp.position === 'SG') load += 4; // ball handlers
     if (tactic.starPlayerIndex === index) load *= 1.6; // feature the star
     return Math.max(0.1, load);
   });
@@ -86,8 +89,8 @@ export function computeTeamStats(
   modifier: TeamModifier = EMPTY_TEAM_MODIFIER
 ): TeamStats {
   const avgAth = averageStat(players, 'athleticism');
-  const paceTacticMod = tactic.pace === 'fast' ? 1.5 : tactic.pace === 'slow' ? -1.5 : 0;
-  const athTacticMod = tactic.pace === 'fast' ? 1 : tactic.pace === 'slow' ? -1 : 0;
+  const paceTacticMod = tactic.pace === 'fast' ? 3 : tactic.pace === 'slow' ? -3 : 0;
+  const athTacticMod = tactic.pace === 'fast' ? 2 : tactic.pace === 'slow' ? -2 : 0;
 
   // Flat per-rating deltas the modifier carries (team-wide boosts/auras). An
   // empty modifier (the default) makes every term below a no-op, so a team with

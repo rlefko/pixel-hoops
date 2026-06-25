@@ -11,8 +11,8 @@ import {
 import type { PlayerStats } from '@/types/player';
 
 const baseStats: PlayerStats = {
-  inside: 5, outside: 5, playmaking: 5, perimeterD: 5, interiorD: 5,
-  athleticism: 5, iq: 5, clutch: 5, stamina: 5, durability: 5,
+  inside: 10, outside: 10, playmaking: 10, perimeterD: 10, interiorD: 10,
+  athleticism: 10, iq: 10, clutch: 10, stamina: 10, durability: 10,
 };
 
 describe('effects: stat deltas', () => {
@@ -23,13 +23,13 @@ describe('effects: stat deltas', () => {
     expect(a).toEqual({ outside: 1 });
   });
 
-  it('applyStatDelta clamps to 3..10 and returns a copy', () => {
-    const out = applyStatDelta(baseStats, { outside: 4, perimeterD: -4 });
-    expect(out.outside).toBe(9);
-    expect(out.perimeterD).toBe(3); // clamped at floor
-    expect(baseStats.outside).toBe(5); // unchanged
-    const maxed = applyStatDelta({ ...baseStats, inside: 9 }, { inside: 5 });
-    expect(maxed.inside).toBe(10); // clamped at ceiling
+  it('applyStatDelta clamps to 6..20 and returns a copy', () => {
+    const out = applyStatDelta(baseStats, { outside: 8, perimeterD: -8 });
+    expect(out.outside).toBe(18);
+    expect(out.perimeterD).toBe(6); // clamped at floor
+    expect(baseStats.outside).toBe(10); // unchanged
+    const maxed = applyStatDelta({ ...baseStats, inside: 18 }, { inside: 10 });
+    expect(maxed.inside).toBe(20); // clamped at ceiling
   });
 
   it('hasDelta detects non-zero entries', () => {
