@@ -11,8 +11,8 @@ export default function HomeLayout() {
     >
       <Stack.Screen name="index" />
       <Stack.Screen name="locker" />
+      <Stack.Screen name="hall-of-fame" />
       <Stack.Screen name="roster" />
-      <Stack.Screen name="arcade" />
       <Stack.Screen name="settings" />
     </Stack>
   );

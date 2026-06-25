@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useMemo, useRef } from 'react';
 import { runReducer } from '@/game/run-machine';
 import { mergeRunGainsIntoHome } from '@/game/home-roster';
+import { buildHallOfFameEntry } from '@/game/hall-of-fame';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import type { RosterPlayer } from '@/types/roster';
 import type { PlayerStats } from '@/types/player';
@@ -28,6 +29,18 @@ export function useRun() {
     if (!model) return;
     if (model.phase.kind === 'summary' && !savedRef.current && homeRoster) {
       savedRef.current = true;
+      // A championship banks a Hall of Fame snapshot of the final game. Date.now()
+      // lives here (the hook), keeping the merge and the entry builder clock-free.
+      const championEntry =
+        model.phase.champion && model.game
+          ? buildHallOfFameEntry(
+              model.game,
+              model.difficulty,
+              model.ladderClass,
+              model.wins,
+              Date.now()
+            )
+          : undefined;
       saveHomeRoster(
         mergeRunGainsIntoHome(
           homeRoster,
@@ -36,7 +49,8 @@ export function useRun() {
           model.legend.offeredThisRun,
           model.phase.champion,
           model.ladderClass,
-          model.difficulty
+          model.difficulty,
+          championEntry
         )
       );
     }

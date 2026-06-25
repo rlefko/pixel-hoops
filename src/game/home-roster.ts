@@ -15,6 +15,7 @@ import {
   type LadderClass,
 } from './difficulty-mode';
 import { pullPlayer, PLAYER_MACHINES, type PlayerGachaTier, type PlayerPullResult } from './player-gacha';
+import { HALL_OF_FAME_CAP, sanitizeHallOfFame, type HallOfFameEntry } from './hall-of-fame';
 
 /**
  * The persistent "home roster" that compounds across runs. It is now an UNCAPPED,
@@ -53,15 +54,19 @@ export interface HomeRoster {
   legendDryStreak: number;
   /** Whether the one-time, first-run welcome reveal has been shown. */
   seenWelcome?: boolean;
+  /** Championship rosters, newest first (capped at HALL_OF_FAME_CAP). */
+  hallOfFame: HallOfFameEntry[];
 }
 
-// v7 widens the rating scale (the old 3-10 model doubles to a 6-20 normal band with
-// curated greats to ~24 and a hard cap of 30): owned players are remapped on load
-// (legends via the elite expansion, others x2). v6 replaced the League-tier fields
-// with the (difficulty x class) ladder, added the gacha ability inventory/equips and
-// per-player originalClass, and uncapped the collection. v1's four-stat lines are
-// still migrated to the ten-rating model before the scale remap.
-const HOME_ROSTER_VERSION = 7;
+// v8 adds the Hall of Fame (championship snapshots); the field defaults to [] on
+// older saves (no migration needed). v7 widens the rating scale (the old 3-10 model
+// doubles to a 6-20 normal band with curated greats to ~24 and a hard cap of 30):
+// owned players are remapped on load (legends via the elite expansion, others x2). v6
+// replaced the League-tier fields with the (difficulty x class) ladder, added the
+// gacha ability inventory/equips and per-player originalClass, and uncapped the
+// collection. v1's four-stat lines are still migrated to the ten-rating model before
+// the scale remap.
+const HOME_ROSTER_VERSION = 8;
 
 export interface SerializedHomeRoster {
   version: number;
@@ -93,6 +98,7 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     selectedLadderClass: 'C',
     legendDryStreak: 0,
     seenWelcome: false,
+    hallOfFame: [],
   };
 }
 
@@ -255,7 +261,10 @@ export function mergeRunGainsIntoHome(
   // The difficulty the run was actually PLAYED on (model.difficulty), which can
   // differ from home.selectedDifficulty if the menu selection changed; the ladder
   // must advance on the played difficulty. Defaults to the current selection.
-  playedDifficulty: Difficulty = home.selectedDifficulty
+  playedDifficulty: Difficulty = home.selectedDifficulty,
+  // A pre-built Hall of Fame entry for a championship (the hook builds it, since it
+  // needs Date.now()). Prepended to the trophy case only on a win; ignored otherwise.
+  championEntry?: HallOfFameEntry
 ): HomeRoster {
   const fielded = [...runRoster.starters, ...runRoster.bench].filter((p) => !p.onLoan);
   const ownedKeys = new Set(home.players.map(playerKey));
@@ -330,6 +339,10 @@ export function mergeRunGainsIntoHome(
     lastRotation: lastRotation.length >= 5 ? lastRotation : home.lastRotation,
     legendDryStreak: legendOffered ? 0 : home.legendDryStreak + 1,
     seenWelcome: home.seenWelcome ?? true,
+    hallOfFame:
+      champion && championEntry
+        ? [championEntry, ...(home.hallOfFame ?? [])].slice(0, HALL_OF_FAME_CAP)
+        : (home.hallOfFame ?? []),
   };
 }
 
@@ -452,5 +465,6 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
         : undefined,
     legendDryStreak: typeof data.legendDryStreak === 'number' ? data.legendDryStreak : 0,
     seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
+    hallOfFame: sanitizeHallOfFame(data.hallOfFame),
   };
 }

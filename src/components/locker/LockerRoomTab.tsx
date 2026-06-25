@@ -1,14 +1,10 @@
 import { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
-import { Screen } from '@/components/Screen';
-import { Pop } from '@/components/fx';
 import { haptics } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
-import { CoinIcon } from '@/components/run/PixelIcons';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { applyUpgrade, totalUpgrades, upgradeCount } from '@/game/home-roster';
 import { canUpgrade, isPremiumStat, perStatMax, upgradeCost } from '@/game/upgrades';
@@ -19,10 +15,11 @@ import type { PlayerStats } from '@/types/player';
 import type { Position, RosterPlayer } from '@/types/roster';
 
 /**
- * The Locker Room: spend coins between runs on permanent +1 stat upgrades, capped
+ * The Locker tab: spend coins between runs on permanent +1 stat upgrades, capped
  * at +5 per stat. Premium stats (outside/playmaking/clutch) cost more. The owned
  * collection is large, so it is searchable + class-filterable, sorted by most
  * recently used (the home-roster order). Mirrors the in-run TrainingView grid.
+ * The shell (back, title, coin pill) is owned by LockerScreen.
  */
 
 interface StatDef {
@@ -56,20 +53,13 @@ const STAT_GROUPS: { label: string; stats: StatDef[] }[] = [
   },
 ];
 
-export default function LockerRoomScreen() {
-  const router = useRouter();
-  const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
+export function LockerRoomTab() {
+  const { homeRoster, saveHomeRoster } = useHomeRoster();
   const [query, setQuery] = useState('');
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
   const [positions, setPositions] = useState<Set<Position>>(new Set());
 
-  if (!loaded || !homeRoster) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.loading}>LOADING...</Text>
-      </View>
-    );
-  }
+  if (!homeRoster) return null;
 
   const coins = homeRoster.coins;
   const q = query.trim().toLowerCase();
@@ -104,14 +94,7 @@ export default function LockerRoomScreen() {
     });
 
   return (
-    <Screen style={styles.container} onBack={() => router.back()}>
-      <View style={styles.headerRow}>
-        <Text style={styles.title}>LOCKER ROOM</Text>
-        <Pop trigger={coins} style={styles.coinPill}>
-          <CoinIcon size={12} color={palette.gold} />
-          <Text style={styles.coinText}>{coins}</Text>
-        </Pop>
-      </View>
+    <View style={styles.tab}>
       <Text style={styles.subtitle}>Spend coins on permanent upgrades (+5 cap per stat)</Text>
       <RosterFilterBar
         query={query}
@@ -171,44 +154,19 @@ export default function LockerRoomScreen() {
           </View>
         ))}
       </ScrollView>
-    </Screen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { paddingHorizontal: space(4) },
-  center: {
-    flex: 1,
-    backgroundColor: palette.bgDeep,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  loading: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.inkDim },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  title: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: palette.gold },
-  coinPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space(1),
-    paddingHorizontal: space(2),
-    paddingVertical: space(1),
-    backgroundColor: palette.bgPanel,
-    borderWidth: BORDER.thin,
-    borderColor: palette.gold + '55',
-    borderRadius: RADIUS.chip,
-  },
-  coinText: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.gold },
+  tab: { flex: 1 },
   subtitle: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,
     color: palette.inkDim,
-    marginTop: space(2),
+    marginTop: space(1),
   },
-  list: { marginTop: space(4), alignSelf: 'stretch' },
+  list: { flex: 1, marginTop: space(4), alignSelf: 'stretch' },
   listContent: { gap: space(3), paddingBottom: space(4) },
   row: {
     borderBottomWidth: BORDER.thin,

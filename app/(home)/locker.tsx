@@ -1,3 +1,3 @@
-import LockerRoomScreen from '@/screens/LockerRoomScreen';
+import LockerScreen from '@/screens/LockerScreen';
 
-export default LockerRoomScreen;
+export default LockerScreen;
