@@ -8,7 +8,7 @@ The goal is not dark-pattern manipulation. It is honest engagement: a tight loop
 
 Every engaging game runs a short loop with three phases. Pixel Hoops should be able to point at each phase explicitly.
 
-1. **Anticipation.** The player forms an expectation about a reward and commits to an action. In Pixel Hoops this is choosing a lineup, setting a game plan, and choosing the next node on the run map. The stakes and the uncertainty are what create the pull.
+1. **Anticipation.** The player forms an expectation about a reward and commits to an action. In Pixel Hoops this is choosing a lineup (which also sets the team's tempo and shot tendencies automatically) and choosing the next node on the run map. The stakes and the uncertainty are what create the pull.
 2. **Action.** The committed decision resolves under controlled randomness. This is the auto-simmed game: fast, juicy, and legible, so the player can see why it went the way it did.
 3. **Reward.** An intermittent, escalating payoff reinforces the loop: points climbing on the scoreboard, a win, a recruit, a piece of gear, a deeper run than last time. The reward then seeds the next anticipation phase.
 
@@ -20,11 +20,11 @@ These come from studying the genre's most successful games (see Sources). They a
 
 ### 1. Synergy-first construction (Balatro, Slay the Spire, Luck be a Landlord, pokelike)
 
-Depth should come from how pieces combine, not from how many buttons the player presses. In pokelike the entire game is team composition and type coverage; combat is automatic. Pixel Hoops mirrors this: the interesting decisions are which five players share the floor, how their positions and stats combine into synergies, and what game plan amplifies them. Synergies should be discoverable rather than spelled out, so finding a strong lineup feels like the player's insight. Aim for most lineups being viable and no single dominant build.
+Depth should come from how pieces combine, not from how many buttons the player presses. In pokelike the entire game is team composition and type coverage; combat is automatic. Pixel Hoops mirrors this: the interesting decisions are which five players share the floor, how their positions and stats combine into synergies, and what tempo and shot tendencies that roster shape produces. Synergies should be discoverable rather than spelled out, so finding a strong lineup feels like the player's insight. Aim for most lineups being viable and no single dominant build.
 
 ### 2. Escalating challenge and power fantasy (Vampire Survivors, Risk of Rain 2)
 
-Difficulty should compound across a run while the player's power compounds alongside it, creating the central tension: can I grow faster than the bracket does? Early rounds are gentle and teach by playing. Later rounds demand a tuned roster and a sharp game plan. Between runs, permanent progression makes the next attempt slightly easier, so no run is wasted.
+Difficulty should compound across a run while the player's power compounds alongside it, creating the central tension: can I grow faster than the bracket does? Early rounds are gentle and teach by playing. Later rounds demand a tuned, well-shaped roster. Between runs, permanent progression makes the next attempt slightly easier, so no run is wasted.
 
 ### 3. Snappy, layered feedback (game juice)
 
@@ -55,7 +55,7 @@ Drawn from Vlambeer's "Art of Screenshake" and the "Juice it or lose it" talk. L
 
 Pixel Hoops auto-sims games, so the player does not control each possession. Auto-battlers (TFT, Super Auto Pets) and management sims (Football Manager) show this works when:
 
-- **Pre-game decisions are consequential.** Lineup, synergies, and game plan should be the real game. A loss should read as "my roster or plan was wrong," not "the dice hated me."
+- **Pre-game decisions are consequential.** Lineup and synergies should be the real game, including the tempo and shot tendencies the roster shape produces. A loss should read as "my roster was wrong," not "the dice hated me."
 - **Outcomes are opaque but fair.** The player should not be able to predict the exact score, but strategy should clearly move the odds.
 - **The watch is short, default-fast, and skippable.** The replay is decoupled from the sim (the engine emits a timeline, the UI replays it), so its length is a presentation choice. Target tens of seconds at the default speed, not minutes. Default to a brisk playback speed with chill and blitz tiers, plus an optional condensed highlights mode. See "Pacing the watch" below.
 - **Post-game is legible.** It should be obvious which players carried the game and where the plan succeeded or failed, so the next decision is informed.

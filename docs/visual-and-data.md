@@ -78,30 +78,41 @@ never ships:
 
 - **`src/data/nba-teams.json`**: the 30 NBA franchises with primary/secondary
   colors (drives sprite jerseys and matchup text).
-- **`src/data/nba-legends.json`**: ~40 all-time legends (90+), one or more per
-  franchise, each with a signature `ability`. Stats already on the game's 3-10
-  scale. Hand-authored; refresh with the script below.
-- **`src/data/nba-starters.json`**: the current starting five for all 30 teams
-  (~150 modern role players, sub-90, no ability). Hand-curated from live rosters.
-- **`src/data/nba.ts`**: typed loader (`NBA_TEAMS`, `NBA_LEGENDS`, `NBA_STARTERS`,
-  `NBA_PLAYERS` alias of the legend pool, `teamByAbbr`).
+- **`src/data/nba-legends.json`**: ~40 all-time legends, one or more per
+  franchise, each with a signature `ability`. Stats sit in the curated-great band
+  (6-24, peaking near 24), re-baked from the NBA 2K API via `teamType=allt`.
+  Refresh with the script below.
+- **`src/data/nba-pool.json`**: the ~559-player current pool of stars and role
+  players, re-baked from the NBA 2K API onto the normal 6-20 band, so each carries
+  a granular, specialized stat line.
+- **`src/data/nba.ts`**: typed loader (`NBA_TEAMS`, `NBA_LEGENDS`, `NBA_POOL`,
+  `NBA_PLAYERS` alias of the legend pool, `teamByAbbr`) over the baked pools.
 
 ### Ratings mapping
 
-`src/game/nba-map.ts` is a pure (dependency-free) module that condenses 2K's
-0-99 attribute space into the game's four stats, so the app and the fetch script
-share one source of truth:
+`src/game/nba-map.ts` is a pure (dependency-free) module (`mapRatingsToStats`)
+that condenses 2K's 0-99 attribute space into the game's ten ratings, so the app
+and the fetch script share one source of truth:
 
-| Game stat   | 2K attributes |
+| Game rating | 2K attributes |
 | ----------- | ------------- |
-| shooting    | three-point, mid-range, free-throw |
-| speed       | speed, acceleration, ball-handling |
-| athleticism | vertical, strength, dunk, block |
+| inside      | layup, driving/standing dunk, post control, strength |
+| outside     | three-point, mid-range, free-throw |
+| playmaking  | ball-handle, pass accuracy, pass IQ, speed-with-ball |
+| perimeterD  | perimeter defense, steal, lateral quickness |
+| interiorD   | interior defense, block, defensive rebound, strength |
+| athleticism | speed, acceleration, vertical |
+| iq          | intangibles, pass IQ, consistency |
 | clutch      | intangibles (falls back to overall) |
+| stamina     | stamina |
+| durability  | durability / hustle |
 
-`scaleRating` maps `~25..99` linearly to `3..10`, clamped. Field lookups are
-defensive (the API/2kratings naming varies), so missing fields fall back to
-overall rather than producing `NaN`.
+`scaleRating` maps `~25..99` linearly onto the normal **6-20** game band, clamped;
+`scaleRatingElite` widens the target to the curated-great **6-24** band for
+legends. Field lookups are defensive (the API/2kratings naming varies), so
+missing fields fall back to overall rather than producing `NaN`. The whole pool
+was re-baked onto this scale, so every real player carries a granular,
+specialized stat line.
 
 ### The real pools
 
@@ -118,29 +129,34 @@ overall rather than producing `NaN`.
   the squad already owns, with a procedural backfill when the pool is exhausted.
 - The rare on-loan legendary jackpot still comes from `legendRecruit`.
 
-Modern starters are scaled into the current round's range like fakes
+Pool players are scaled into the current round's range like fakes
 (`src/game/stat-scaling.ts`, shared to avoid an import cycle), so they bring real
-identity without breaking difficulty balance; legends keep their authored elite
-ratings. Everything is driven by the seeded RNG, so replays stay deterministic.
+identity without breaking difficulty balance; legends keep their authored
+curated-great ratings (up to 24). Everything is driven by the seeded RNG, so
+replays stay deterministic.
 
 ### Refreshing the data
 
 ```sh
-NBA2K_API_KEY=your_key npx tsx scripts/fetch-nba.ts
+# Legend pool (default): the curated all-time greats + current stars
+NBA2K_API_KEY=your_key npx tsx scripts/fetch-nba.ts --mode=legends
+# Current player pool (~559 players)
+NBA2K_API_KEY=your_key npx tsx scripts/fetch-nba.ts --mode=pool
 # or
 NBA2K_API_KEY=your_key npm run fetch:nba
 ```
 
-The script (`scripts/fetch-nba.ts`) manages the LEGEND pool only: it reads the
-key from the environment, fetches the curated slug list via the `X-API-Key`
-header, maps ratings with `mapRatingsToStats`, and writes
-`src/data/nba-legends.json`. The `legendary` flag and each legend's `ability` are
-re-added by hand after a bake (the API provides neither). The modern starter pool
-(`nba-starters.json`) is hand-curated from current rosters and is not touched by
-the script. Edit the `ROSTER` list to change which legends are baked. Set
-`NBA2K_API_BASE` to override the API host. `.env` is gitignored; never commit the
-key. Team colors in `nba-teams.json` are maintained by hand (the ratings API does
-not provide reliable brand colors).
+The script (`scripts/fetch-nba.ts`) has two modes. In `--mode=legends` (the
+default) it bakes the curated all-time greats (matched under `teamType=allt`)
+plus current stars from the `ROSTER` list, maps their ratings with
+`mapRatingsToStats` on the elite 6-24 band, and writes `src/data/nba-legends.json`;
+the `legendary` flag and each legend's `ability` are re-added by hand after a bake
+(the API provides neither). In `--mode=pool` it pages the current-player list
+endpoint and bakes the ~559-player pool onto the normal 6-20 band into
+`src/data/nba-pool.json` (no abilities, all classes). Edit the `ROSTER` list to
+change which legends are baked. Set `NBA2K_API_BASE` to override the API host.
+`.env` is gitignored; never commit the key. Team colors in `nba-teams.json` are
+maintained by hand (the ratings API does not provide reliable brand colors).
 
 ## 5. Map polish, team colors, and game juice
 

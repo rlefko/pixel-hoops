@@ -1,10 +1,10 @@
 # Pixel Hoops - Game Concept
 
-> **The core loop:** Pixel Hoops is an **auto-sim 5-on-5 roguelike**: build a five, set a game plan, and watch a fast, juicy simulation, with agency in the roster and a branching run map. See **[gameplay-redesign.md](gameplay-redesign.md)** for the moment-to-moment loop, **[stat-and-sim-system.md](stat-and-sim-system.md)** for the ratings and simulation engine, and **[addictive-blueprint.md](addictive-blueprint.md)** for the design principles behind it.
+> **The core loop:** Pixel Hoops is an **auto-sim 5-on-5 roguelike**: build a five and watch a fast, juicy simulation, with agency in the roster and a branching run map. See **[gameplay-redesign.md](gameplay-redesign.md)** for the moment-to-moment loop, **[stat-and-sim-system.md](stat-and-sim-system.md)** for the ratings and simulation engine, and **[addictive-blueprint.md](addictive-blueprint.md)** for the design principles behind it.
 
 ## Overview
 
-Pixel Hoops is a roster-driven basketball roguelike for mobile. You build a roster of 8-bit pixel players with unique ratings and abilities, then send them into procedurally-generated tournament brackets. Before each game you set your starting five and a game plan, then watch a fast, possession-by-possession simulation play out with arcade juice. Win games to advance. Recruit defeated opponents. Build the ultimate underground team.
+Pixel Hoops is a roster-driven basketball roguelike for mobile. You build a roster of 8-bit pixel players with unique ratings and abilities, then send them into procedurally-generated tournament brackets. Before each game you set your starting five, then watch a fast, possession-by-possession simulation play out with arcade juice. Each team's tempo and shot selection are read automatically from its roster shape, so there is no game plan to set. Win games to advance. Recruit defeated opponents. Build the ultimate underground team.
 
 > "The best casual games are deceptive: simple on the surface, deep underneath." -- Daniel Ammann, Flappy Bird creator
 
@@ -29,7 +29,7 @@ These games share a DNA: short runs → permanent progression → slightly easie
 ## Core Gameplay Loop
 
 ```
-Build Roster → Enter Tournament → Set Five + Game Plan → Watch the Sim → Win Games → Recruit Opponents → Repeat
+Build Roster → Enter Tournament → Set Your Five → Watch the Sim → Win Games → Recruit Opponents → Repeat
 ```
 
 ### Run Structure
@@ -46,21 +46,21 @@ Each round = one full game against an opponent. Outscore them over four quarters
 
 ### How a Game Plays Out
 
-You do not control possessions in real time. Each game is decided by two pre-game choices and a fast simulation of the result.
+You do not control possessions in real time. Each game is decided by one pre-game choice, your starting five, and a fast simulation of the result.
 
-1. **Set your five.** Pick a starter for each of the five floor slots (PG, SG, SF, PF, C). Ratings and how players fit together decide games, so chase synergies (speedy backcourts, twin towers, lockdown wings).
-2. **Set a game plan.** Choose a pace (slow / balanced / fast) and a focus (inside, outside, balanced, lockdown). The plan biases which actions the sim favors.
+1. **Set your five.** Pick a starter for each of the five floor slots (PG, SG, SF, PF, C). Ratings and how players fit together decide games, so chase synergies (speedy backcourts, twin towers, lockdown wings). This is the only pre-game decision.
+2. **Tempo and shot selection set themselves.** There is no game plan menu. Each team's pace (slow / balanced / fast) and focus (inside, outside, balanced) are read automatically from its roster shape: a guard-heavy five runs faster and shoots more from outside, a big-heavy five slows down and pounds it inside. This biases which actions the sim favors, the same way an explicit plan used to.
 3. **Watch the sim.** The engine plays the game possession by possession and the UI replays it quickly with juice: count-up scores, screen shake, haptics, and arcade callouts. Read the box score afterward.
 
 #### Player Ratings
 
 The sim uses a ten-rating model (offense and defense split across inside, mid, and perimeter, plus playmaking, athleticism, rebounding, IQ, stamina, and durability) surfaced as a small set of composites (OVR plus OFF / DEF / ATH). Full details, including the possession resolution math, fatigue, and rotations, live in [stat-and-sim-system.md](stat-and-sim-system.md).
 
-The higher a shooter's relevant rating relative to the defender contesting, the more likely the shot falls and the bigger the payoff. Lineup synergies and your game plan tilt those odds before each possession resolves.
+The higher a shooter's relevant rating relative to the defender contesting, the more likely the shot falls and the bigger the payoff. Lineup synergies and the roster's auto-derived tendencies tilt those odds before each possession resolves.
 
 #### How a Possession Works
 
-1. The offense picks an action shaped by the game plan and the on-court personnel (drive, three, mid-range, post-up, and so on).
+1. The offense picks an action shaped by its roster-derived tendency and the on-court personnel (drive, three, mid-range, post-up, and so on).
 2. The defense contests using the matched defender's ratings.
 3. The possession resolves through the seeded engine: a make scores 2 or 3, a miss can be rebounded, and pressure can force a steal, turnover, or block.
 4. Big plays (dunks, threes, clutch buckets, steals) trigger extra juice; the running score updates and play moves on.
@@ -73,7 +73,7 @@ A full game is four quarters and watches in about 30 seconds at the default spee
 
 When you defeat an opponent in a run, they have a chance to join your roster permanently. Each recruited player brings unique stats, visual design, and starting abilities:
 
-- **Base stat generation**: Opponents' stats scale with tournament round. Defeating Round 3 opponents gives you players with higher base stats (6-7 range).
+- **Base stat generation**: Opponents' stats scale with tournament round. Defeating Round 3 opponents gives you players with higher base stats (deeper into the normal 6-20 band, roughly the 13-15 range).
 - **Recruit cost**: Higher-stat players cost more "reputation" to recruit. You earn reputation based on how far you advance in the tournament each run.
 - **Player variety**: Each opponent type plays differently -- a speedy point guard, a towering center, a clutch shooter. Building a balanced roster from diverse recruits creates meaningful team synergy decisions.
 
@@ -92,10 +92,10 @@ Players earn training XP during games even when your run ends. Between runs you 
 
 Players can equip accessories that modify their stats during runs:
 
-- **Sneakers**: +2 Athleticism OR +1 to all ratings (multiple tiers, stackable across your roster)
+- **Sneakers**: +4 Athleticism OR +2 to all ratings (multiple tiers, stackable across your roster)
 - **Headband**: a boost to shooting ratings (perimeter and mid-range accuracy)
-- **Wristband**: +2 IQ in close quarters (becomes more valuable as tournament rounds increase)
-- **Jersey Number**: +1 to all ratings (unique visual design, each number has a retro aesthetic)
+- **Wristband**: +4 IQ in close quarters (becomes more valuable as tournament rounds increase)
+- **Jersey Number**: +2 to all ratings (unique visual design, each number has a retro aesthetic)
 
 Equipment is purchased between runs with coins and persists across all future runs. This creates the "meta-progression" pattern that Balatro and Vampire Survivors perfected: small stat increments accumulate into massive power gains over time, masking true mathematical progression while eliminating the feeling of wasted attempts (eJAW analysis of Balatro design).
 
@@ -126,7 +126,7 @@ Within a run, the player keeps pace by spending **training points on run-scoped 
 Meta-progression compounds, but it is bounded so later runs stay challenging:
 
 - **Points draft.** Before each run you draft a rotation from your owned collection under a difficulty point budget, paying by each player's class relative to the run's ladder, so you cannot field a roster of nothing but above-class studs (`src/game/draft.ts`).
-- **Capped permanent upgrades.** Coins buy permanent +1s, but the per-stat cap is a flat +2, so permanent power nudges a player without ever reclassing them (`src/game/upgrades.ts`).
+- **Capped permanent upgrades.** Coins buy permanent +1s, but the per-stat cap is a flat +5 (with the absolute rating hard cap at 30), so permanent power specializes a player without ever reclassing them outright (`src/game/upgrades.ts`).
 - **The class ladder.** Clearing a run unlocks the next class on that difficulty (the Slay the Spire "Ascension" / Hades "Heat" pattern, reframed as a C -> S+ class climb), so winning makes the *next* run harder, not easier (`src/game/difficulty-mode.ts`).
 
 No run is wasted: recruits, coins, and ladder progress still bank every run. But power and difficulty rise together rather than power outpacing the bracket. Full detail in [difficulty-rebalance.md](difficulty-rebalance.md).
@@ -143,7 +143,7 @@ Players should be able to jump back into gameplay in **5 seconds or less** with 
 
 ### One-Thumb Portrait Mode
 
-Archero pioneered the portrait-mode, one-thumb roguelite formula. Pixel Hoops keeps every decision in the thumb zone: pregame lineup and game-plan choices are tap targets at the bottom of the screen, and the game watch itself needs no input (tap to change speed or skip). No joystick required. The UI places interactive elements within easy thumb reach:
+Archero pioneered the portrait-mode, one-thumb roguelite formula. Pixel Hoops keeps every decision in the thumb zone: pregame lineup choices are tap targets at the bottom of the screen, and the game watch itself needs no input (tap to change speed or skip). No joystick required. The UI places interactive elements within easy thumb reach:
 
 ```
 ┌─────────────────────┐
@@ -193,7 +193,7 @@ Popularized by Habby (Archero, Survivor.io): start with hypercasual simplicity s
 
 ### Haptic Feedback
 
-- Pregame selection: single sharp tap confirming a lineup or game-plan choice
+- Pregame selection: single sharp tap confirming a lineup choice
 - Successful shot: strong pulse synced with swish audio and visual flash
 - Steal/block: triple-burst micro-vibration (3 quick pulses, ~50ms each) matching the impact rhythm
 - Turnover/miss: one long moderate vibration (100ms) -- conveys "bummer" without frustration
@@ -203,7 +203,7 @@ Popularized by Habby (Archero, Survivor.io): start with hypercasual simplicity s
 
 ### Daily Tournament
 
-One free daily tournament for all players. Fixed handicap applied equally to everyone (e.g., "All opponents +2 Speed this week"). Global leaderboard showing best round reached from the past 7 days. Resets at midnight local time -- creates urgency without forced engagement. Completing a daily tournament awards bonus coins, reputation, and player fragments.
+One free daily tournament for all players. Fixed handicap applied equally to everyone (e.g., "All opponents +4 Speed this week"). Global leaderboard showing best round reached from the past 7 days. Resets at midnight local time -- creates urgency without forced engagement. Completing a daily tournament awards bonus coins, reputation, and player fragments.
 
 ### Weekly Challenges
 
@@ -276,7 +276,7 @@ Possession outcomes use transparent, seeded resolution (full detail in [stat-and
 
 - A make is affine in the shooter's relevant rating minus a defensive offset, nudged by IQ and scaled by fatigue, then clamped.
 - One-on-one miss-flavor contests (steals, blocks) use a ratio a / (a + b) between the two players' ratings, the parameter-free form that feels fair.
-- Equipment, abilities, lineup synergies, and the game plan modify ratings before resolution.
+- Equipment, abilities, lineup synergies, and each team's auto-derived tendencies modify ratings and shot selection before resolution.
 - Randomness is supplied by a seeded RNG, so the same matchup and seed always produce the same game.
 
 ### Lineup Construction Between and Within Runs
@@ -284,7 +284,7 @@ Possession outcomes use transparent, seeded resolution (full detail in [stat-and
 Roster building, not deck building, is where the strategy lives:
 
 - Recruit and train players to deepen a roster of distinct archetypes.
-- Before each game, set the starting five (one per floor slot) and a game plan.
+- Before each game, set the starting five (one per floor slot); tempo and focus follow from that roster shape automatically.
 - Synergies emerge from how players fit: speedy backcourts, twin towers, lockdown wings, balanced cores.
 - The same roster can be deployed many ways, so no two games feel identical.
 
