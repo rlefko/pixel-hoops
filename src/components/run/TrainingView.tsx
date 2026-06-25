@@ -2,6 +2,7 @@ import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { StatNumber } from '@/components/run/StatNumber';
 import { haptics } from '@/feel';
 import { MAX_TRAINED_STAT, trainedStat } from '@/game/effects';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -90,9 +91,10 @@ export function TrainingView({ roster, trainingPoints, onTrain, onDone }: Traini
                           }}
                           style={[styles.statBtn, disabled && styles.maxed]}
                         >
-                          <Text style={styles.statBtnText}>
-                            {s.label} {trained}
-                          </Text>
+                          <View style={styles.statBtnLine}>
+                            <Text style={styles.statBtnText}>{s.label}</Text>
+                            <StatNumber value={trained} style={styles.statBtnText} />
+                          </View>
                         </Pressable>
                       );
                     })}
@@ -158,6 +160,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.chip,
   },
   maxed: { opacity: 0.3 },
+  statBtnLine: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
   statBtnText: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
