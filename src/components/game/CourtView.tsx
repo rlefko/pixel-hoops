@@ -320,7 +320,9 @@ export function CourtView({
           lineColor={theme.lineColor}
           accentColor={theme.accentColor}
         />
-        {/* Home team name painted along its own (bottom) baseline, under the play. */}
+        {/* The host (home) team's name painted faintly on the court floor. The player
+            is the visitor, so this is the OPPONENT's name; the player's squad still
+            plays on the bottom half. */}
         <Text
           style={[
             styles.homeName,
@@ -328,7 +330,7 @@ export function CourtView({
           ]}
           numberOfLines={1}
         >
-          {homeTeam.name.toUpperCase()}
+          {awayTeam.name.toUpperCase()}
         </Text>
         {(['away', 'home'] as SimTeamSide[]).map((side) =>
           POSITIONS.map((position) => (

@@ -278,9 +278,9 @@ function Postgame({
           {won ? 'WIN!' : 'LOSS'}
         </Text>
         <Text style={styles.score}>
-          {result.finalHome} - {result.finalAway}
+          {result.finalAway} - {result.finalHome}
         </Text>
-        <Text style={styles.vs}>vs {model.game.opponentName}</Text>
+        <Text style={styles.vs}>@ {model.game.opponentName}</Text>
       </View>
 
       <Pressable onPress={() => setShowBox((v) => !v)}>
