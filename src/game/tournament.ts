@@ -16,6 +16,7 @@ import {
 import { anchorStatsToClass, scaleLegendToLevel } from './classes';
 import { classAboveLadder, type LadderClass } from './difficulty-mode';
 import type { PlayerClass } from './ratings';
+import { isSpecialistStats } from './specialty';
 import type { RealPlayer } from '@/types/nba';
 
 // Re-exported so existing importers (and tests) can keep using
@@ -323,6 +324,27 @@ function pickRealOfClass(
   rng: RNG
 ): RosterPlayer | null {
   const available = poolByClass(cls).filter((p) => !taken.has(p.name));
+  if (available.length === 0) return null;
+  return realPlayerToRosterPlayer(rng.pick(available));
+}
+
+/**
+ * A real play-style specialist (elite blocking/stealing/strength/rebounding),
+ * preferring the run's ladder class but widening to the whole pool so the recruit
+ * pity can always surface one. Returns null only if every specialist is taken.
+ */
+export function pickSpecialistOfClass(
+  cls: PlayerClass,
+  taken: Set<string>,
+  rng: RNG
+): RosterPlayer | null {
+  const atClass = poolByClass(cls).filter(
+    (p) => !taken.has(p.name) && isSpecialistStats(p.stats)
+  );
+  const available =
+    atClass.length > 0
+      ? atClass
+      : freeAgentPool().filter((p) => !taken.has(p.name) && isSpecialistStats(p.stats));
   if (available.length === 0) return null;
   return realPlayerToRosterPlayer(rng.pick(available));
 }

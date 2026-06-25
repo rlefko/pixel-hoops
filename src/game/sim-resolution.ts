@@ -22,12 +22,17 @@ const MIN_P = 0.03;
 const MAX_P = 0.97;
 /** Max efficiency bonus (in make probability) from elite shot IQ. */
 const IQ_MAKE_BONUS = 0.04;
-/** Block frequency on rim attacks (interior D vs the finisher). */
-const BLOCK_BASE = 1.1;
-/** Block frequency on jumpers (perimeter D vs the shooter). */
-const JUMPER_BLOCK_BASE = 0.24;
-/** Turnover/steal frequency on rim attacks (perimeter D vs playmaking). */
-const TURNOVER_BASE = 1.0;
+/** Block frequency on rim attacks (team blocking vs the finisher). Tuned so a
+ * team blocks a believable handful per game on this arcade-length sim, with the
+ * rim protector hoarding them (the block check no longer starves the steal gate). */
+const BLOCK_BASE = 0.36;
+/** Block frequency on jumpers (team blocking vs the shooter). */
+const JUMPER_BLOCK_BASE = 0.09;
+/** Turnover/steal frequency (team stealing vs ball-handling/playmaking). */
+const TURNOVER_BASE = 1.35;
+/** Rating points of block resistance per strength point over 10: a strong
+ * finisher gets to the rim through contact and is swatted less often. */
+const STRENGTH_FINISH_K = 0.3;
 /** Make multiplier when a shooter is fully gassed (non-resilient shots). */
 const MIN_FATIGUE_MULT = 0.8;
 /** Make multiplier floor for spot-up threes (they resist fatigue until severe). */
@@ -132,10 +137,12 @@ export function fatigueMultiplier(energy: number, resilient: boolean): number {
 export type MissFlavor = 'block' | 'steal' | 'turnover' | 'miss';
 
 /**
- * Classify a missed possession. Rim attacks can be blocked (interior D vs the
- * finisher) or coughed up (perimeter D vs playmaking, reduced by IQ); jumpers
- * just miss, with a small chance of a perimeter block. `rng` is a chance roller
- * (probability -> boolean) so the engine keeps a single fixed draw order.
+ * Classify a missed possession. Rim attacks can be blocked (team blocking vs the
+ * finisher, who resists with strength) or coughed up (team stealing vs
+ * playmaking, reduced by IQ); jumpers just miss, with a small chance of a block
+ * by a long defender. `rng` is a chance roller (probability -> boolean) so the
+ * engine keeps a single fixed draw order. The gates read team aggregates; the
+ * resulting event is then credited to an individual specialist in simulation.ts.
  */
 export function missFlavor(
   action: OffActionId,
@@ -144,14 +151,15 @@ export function missFlavor(
   rng: { chance: (p: number) => boolean }
 ): MissFlavor {
   if (SHOT_PROFILE[action].finish) {
-    const pBlock = ratio(defense.interiorD, ACTION_OFF[action](offense)) * BLOCK_BASE;
+    const finishResist = ACTION_OFF[action](offense) + (offense.strength - 10) * STRENGTH_FINISH_K;
+    const pBlock = ratio(defense.blocking, finishResist) * BLOCK_BASE;
     if (rng.chance(pBlock)) return 'block';
-    let pTurnover = ratio(defense.perimeterD, offense.playmaking) * TURNOVER_BASE;
+    let pTurnover = ratio(defense.stealing, offense.playmaking) * TURNOVER_BASE;
     pTurnover *= clamp(1 - (offense.iq - 10) * 0.02, 0.6, 1.2);
     if (rng.chance(pTurnover)) return rng.chance(0.5) ? 'steal' : 'turnover';
     return 'miss';
   }
-  const pBlock = ratio(defense.perimeterD, offense.outside) * JUMPER_BLOCK_BASE;
+  const pBlock = ratio(defense.blocking, offense.outside) * JUMPER_BLOCK_BASE;
   if (rng.chance(pBlock)) return 'block';
   return 'miss';
 }

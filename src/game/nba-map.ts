@@ -17,6 +17,14 @@ import { STAT_ELITE_MAX, STAT_MIN, STAT_NORMAL_MAX, type PlayerStats } from '@/t
  *   clutch      <- intangibles (falls back to overall)
  *   stamina     <- stamina (falls back to overall)
  *   durability  <- durability, hustle (falls back to overall)
+ *
+ * Plus four intrinsic PLAY-STYLE ratings, mapped from their primary 2K source as
+ * standalone read-outs (they do NOT feed OVR, only the sim's box-score behavior):
+ *
+ *   blocking    <- block (double-weighted), vertical, interior defense
+ *   stealing    <- steal (double-weighted), pass perception/hands, lateral quickness (NO size)
+ *   strength    <- strength
+ *   rebounding  <- defensive + offensive rebound, strength, vertical
  */
 
 /** Loose bag of 2K attributes; the API/2kratings naming varies, so we probe. */
@@ -102,6 +110,29 @@ export function mapRatingsToStats(raw: RawRatings, opts?: { elite?: boolean }): 
   const stamina = pick(raw, ['stamina'], overall);
   const durability = pick(raw, ['durability', 'hustle'], overall);
 
+  // Play-style ratings: each leans on its primary 2K attribute so the spread is
+  // realistic by construction (a guard's `block` is low, a center's `steal` is
+  // low). The core signal is double-weighted; supporting attributes round it out.
+  const blocking = avg([
+    pick(raw, ['block'], overall),
+    pick(raw, ['block'], overall),
+    pick(raw, ['vertical'], overall),
+    pick(raw, ['interiorDefense', 'interior_defense'], overall),
+  ]);
+  const stealing = avg([
+    pick(raw, ['steal'], overall),
+    pick(raw, ['steal'], overall),
+    pick(raw, ['passPerception', 'pass_perception', 'hands'], overall),
+    pick(raw, ['perimeterDefense', 'perimeter_defense', 'agility', 'speed'], overall),
+  ]);
+  const strength = pick(raw, ['strength'], overall);
+  const rebounding = avg([
+    pick(raw, ['defensiveRebound', 'defensive_rebound', 'rebound'], overall),
+    pick(raw, ['offensiveRebound', 'offensive_rebound'], overall),
+    pick(raw, ['strength'], overall),
+    pick(raw, ['vertical'], overall),
+  ]);
+
   return {
     inside: scale(inside),
     outside: scale(outside),
@@ -113,5 +144,9 @@ export function mapRatingsToStats(raw: RawRatings, opts?: { elite?: boolean }): 
     clutch: scale(clutch),
     stamina: scale(stamina),
     durability: scale(durability),
+    blocking: scale(blocking),
+    stealing: scale(stealing),
+    strength: scale(strength),
+    rebounding: scale(rebounding),
   };
 }

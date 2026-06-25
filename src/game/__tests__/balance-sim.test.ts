@@ -48,7 +48,8 @@ import type { Team } from '@/types/team';
  *
  * Tuning: set BALANCE_N (e.g. `BALANCE_N=400 npx vitest run balance-sim`) for tight
  * estimates while iterating on the ramp endpoints in src/game/difficulty-mode.ts; the
- * shipped default stays small so CI is fast.
+ * shipped default is kept modest so CI is fast, but large enough that the boundary
+ * cells (e.g. hard + maxed) estimate stably rather than flickering on a single run.
  */
 
 const ARCHETYPES = { base: 0, someUpgrades: 2, maxed: 5, maxedAbilities: 7 } as const;
@@ -60,7 +61,7 @@ const COMBAT = new Set<MapNode['type']>(['game', 'elite', 'boss']);
 /** Peak in-run team buff (offense + defense) by the final map. */
 const INRUN_MAX = 4;
 const ENV = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
-const N = Number(ENV?.env?.BALANCE_N ?? 40);
+const N = Number(ENV?.env?.BALANCE_N ?? 100);
 
 function bump(stats: PlayerStats, delta: number): PlayerStats {
   if (delta === 0) return stats;

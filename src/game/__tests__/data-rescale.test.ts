@@ -25,7 +25,7 @@ describe('re-baked data on the widened scale', () => {
   });
 
   it('legends sit in the 6-24 elite band, all legendary with an ability and reading S+', () => {
-    expect(NBA_LEGENDS).toHaveLength(40);
+    expect(NBA_LEGENDS).toHaveLength(124);
     let topTier = 0;
     for (const p of NBA_LEGENDS) {
       expect(p.legendary).toBe(true);

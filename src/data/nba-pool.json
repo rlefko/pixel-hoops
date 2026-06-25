@@ -18,7 +18,11 @@
       "iq": 20,
       "clutch": 20,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -40,7 +44,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 20,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -62,29 +70,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Kristaps Porzingis",
-    "slug": "kristaps-porzingis",
-    "teamAbbr": "ATL",
-    "era": "modern",
-    "position": "C",
-    "jerseyNumber": 74,
-    "overall": 85,
-    "originalClass": "A",
-    "stats": {
-      "inside": 17,
-      "outside": 17,
-      "playmaking": 12,
-      "perimeterD": 13,
-      "interiorD": 17,
-      "athleticism": 17,
-      "iq": 15,
-      "clutch": 18,
-      "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 19,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -106,7 +96,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -128,7 +122,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -150,7 +148,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -172,7 +174,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 15
     }
   },
   {
@@ -194,7 +200,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -216,7 +226,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -238,7 +252,11 @@
       "iq": 8,
       "clutch": 12,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 12,
+      "strength": 12,
+      "rebounding": 14
     }
   },
   {
@@ -260,7 +278,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -282,7 +304,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -304,7 +330,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -326,7 +356,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 9,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -348,7 +382,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -370,7 +408,11 @@
       "iq": 7,
       "clutch": 11,
       "stamina": 15,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -392,7 +434,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -414,7 +460,11 @@
       "iq": 17,
       "clutch": 19,
       "stamina": 18,
-      "durability": 14
+      "durability": 14,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -436,7 +486,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 13,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -458,7 +512,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -480,7 +538,11 @@
       "iq": 15,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -502,7 +564,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 15,
+      "strength": 16,
+      "rebounding": 17
     }
   },
   {
@@ -524,7 +590,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -546,7 +616,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 16,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -568,7 +642,11 @@
       "iq": 12,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -590,7 +668,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -612,7 +694,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -634,7 +720,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -656,7 +746,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -678,7 +772,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 17,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -700,7 +798,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -722,7 +824,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -744,7 +850,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -766,7 +876,11 @@
       "iq": 9,
       "clutch": 12,
       "stamina": 16,
-      "durability": 18
+      "durability": 18,
+      "blocking": 14,
+      "stealing": 14,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -788,7 +902,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 7,
+      "rebounding": 11
     }
   },
   {
@@ -810,7 +928,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 12
     }
   },
   {
@@ -832,7 +954,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -854,7 +980,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 9,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -876,7 +1006,11 @@
       "iq": 11,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -898,29 +1032,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Jaylen Brown",
-    "slug": "jaylen-brown",
-    "teamAbbr": "BOS",
-    "era": "modern",
-    "position": "SF",
-    "jerseyNumber": 5,
-    "overall": 95,
-    "originalClass": "S",
-    "stats": {
-      "inside": 19,
-      "outside": 19,
-      "playmaking": 19,
-      "perimeterD": 17,
-      "interiorD": 16,
-      "athleticism": 20,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 19,
-      "durability": 17
+      "durability": 16,
+      "blocking": 8,
+      "stealing": 12,
+      "strength": 10,
+      "rebounding": 10
     }
   },
   {
@@ -942,7 +1058,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 14,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -964,7 +1084,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 9,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -986,7 +1110,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -1008,7 +1136,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -1030,7 +1162,11 @@
       "iq": 12,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 15
     }
   },
   {
@@ -1052,7 +1188,11 @@
       "iq": 15,
       "clutch": 16,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -1074,7 +1214,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 10,
+      "strength": 16,
+      "rebounding": 16
     }
   },
   {
@@ -1096,7 +1240,11 @@
       "iq": 15,
       "clutch": 16,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -1118,7 +1266,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 11,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -1140,7 +1292,11 @@
       "iq": 7,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 9,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -1162,7 +1318,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -1184,7 +1344,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 14,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -1206,7 +1370,11 @@
       "iq": 11,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 12
     }
   },
   {
@@ -1228,7 +1396,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -1250,7 +1422,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -1272,7 +1448,11 @@
       "iq": 18,
       "clutch": 19,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -1294,7 +1474,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -1316,7 +1500,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -1338,7 +1526,11 @@
       "iq": 10,
       "clutch": 13,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -1360,7 +1552,11 @@
       "iq": 15,
       "clutch": 15,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 17,
+      "rebounding": 14
     }
   },
   {
@@ -1382,7 +1578,11 @@
       "iq": 12,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 16
     }
   },
   {
@@ -1404,7 +1604,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -1426,7 +1630,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 17,
+      "rebounding": 14
     }
   },
   {
@@ -1448,7 +1656,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -1470,7 +1682,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -1492,7 +1708,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 9,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -1514,7 +1734,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -1536,7 +1760,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 13
     }
   },
   {
@@ -1558,7 +1786,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 16
     }
   },
   {
@@ -1580,7 +1812,11 @@
       "iq": 11,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -1602,7 +1838,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -1624,7 +1864,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -1646,7 +1890,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -1668,7 +1916,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 18,
+      "rebounding": 15
     }
   },
   {
@@ -1690,7 +1942,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -1712,7 +1968,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 13,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -1734,7 +1994,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -1756,7 +2020,11 @@
       "iq": 12,
       "clutch": 15,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -1778,7 +2046,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 16
     }
   },
   {
@@ -1800,7 +2072,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -1822,7 +2098,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 14
     }
   },
   {
@@ -1844,7 +2124,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -1866,7 +2150,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -1888,7 +2176,11 @@
       "iq": 11,
       "clutch": 16,
       "stamina": 15,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 9,
+      "strength": 13,
+      "rebounding": 15
     }
   },
   {
@@ -1910,7 +2202,11 @@
       "iq": 7,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -1932,7 +2228,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 9,
+      "rebounding": 12
     }
   },
   {
@@ -1954,7 +2254,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -1976,7 +2280,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 10,
+      "rebounding": 12
     }
   },
   {
@@ -1998,7 +2306,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 16,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -2020,7 +2332,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -2042,7 +2358,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 9,
+      "rebounding": 12
     }
   },
   {
@@ -2064,51 +2384,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 15,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Donovan Mitchell",
-    "slug": "donovan-mitchell",
-    "teamAbbr": "CLE",
-    "era": "modern",
-    "position": "SG",
-    "jerseyNumber": 88,
-    "overall": 94,
-    "originalClass": "S",
-    "stats": {
-      "inside": 17,
-      "outside": 20,
-      "playmaking": 20,
-      "perimeterD": 18,
-      "interiorD": 14,
-      "athleticism": 20,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 19,
-      "durability": 16
-    }
-  },
-  {
-    "name": "James Harden",
-    "slug": "james-harden",
-    "teamAbbr": "CLE",
-    "era": "modern",
-    "position": "PG",
-    "jerseyNumber": 2,
-    "overall": 90,
-    "originalClass": "S",
-    "stats": {
-      "inside": 18,
-      "outside": 19,
-      "playmaking": 20,
-      "perimeterD": 16,
-      "interiorD": 15,
-      "athleticism": 20,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 20,
-      "durability": 19
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -2130,29 +2410,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 19,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Evan Mobley",
-    "slug": "evan-mobley",
-    "teamAbbr": "CLE",
-    "era": "modern",
-    "position": "PF",
-    "jerseyNumber": 74,
-    "overall": 87,
-    "originalClass": "A",
-    "stats": {
-      "inside": 17,
-      "outside": 15,
-      "playmaking": 14,
-      "perimeterD": 14,
-      "interiorD": 17,
-      "athleticism": 16,
-      "iq": 16,
-      "clutch": 18,
-      "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 13,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -2174,7 +2436,11 @@
       "iq": 15,
       "clutch": 18,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 16,
+      "stealing": 12,
+      "strength": 17,
+      "rebounding": 16
     }
   },
   {
@@ -2196,7 +2462,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -2218,7 +2488,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -2240,7 +2514,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -2262,7 +2540,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 18,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -2284,7 +2566,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 16,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -2306,7 +2592,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 9,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 13
     }
   },
   {
@@ -2328,7 +2618,11 @@
       "iq": 15,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 10
     }
   },
   {
@@ -2350,7 +2644,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 9,
+      "strength": 16,
+      "rebounding": 14
     }
   },
   {
@@ -2372,7 +2670,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -2394,7 +2696,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 17,
+      "strength": 10,
+      "rebounding": 13
     }
   },
   {
@@ -2416,7 +2722,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 16,
+      "stealing": 15,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -2438,7 +2748,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 10,
+      "rebounding": 10
     }
   },
   {
@@ -2460,7 +2774,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -2482,7 +2800,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 8,
+      "strength": 13,
+      "rebounding": 15
     }
   },
   {
@@ -2504,7 +2826,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 13,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -2526,29 +2852,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Kyrie Irving",
-    "slug": "kyrie-irving",
-    "teamAbbr": "DAL",
-    "era": "modern",
-    "position": "SG",
-    "jerseyNumber": 57,
-    "overall": 90,
-    "originalClass": "S",
-    "stats": {
-      "inside": 14,
-      "outside": 20,
-      "playmaking": 20,
-      "perimeterD": 17,
-      "interiorD": 12,
-      "athleticism": 20,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -2570,7 +2878,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 13,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -2592,7 +2904,11 @@
       "iq": 14,
       "clutch": 13,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -2614,7 +2930,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -2636,7 +2956,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -2658,7 +2982,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 15,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 16
     }
   },
   {
@@ -2680,7 +3008,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -2702,29 +3034,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Klay Thompson",
-    "slug": "klay-thompson",
-    "teamAbbr": "DAL",
-    "era": "modern",
-    "position": "SF",
-    "jerseyNumber": 16,
-    "overall": 78,
-    "originalClass": "B",
-    "stats": {
-      "inside": 13,
-      "outside": 15,
-      "playmaking": 12,
-      "perimeterD": 12,
-      "interiorD": 11,
-      "athleticism": 14,
-      "iq": 14,
-      "clutch": 15,
-      "stamina": 18,
-      "durability": 19
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -2746,7 +3060,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 18
+      "durability": 18,
+      "blocking": 15,
+      "stealing": 10,
+      "strength": 16,
+      "rebounding": 17
     }
   },
   {
@@ -2768,7 +3086,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 20,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -2790,7 +3112,11 @@
       "iq": 15,
       "clutch": 16,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -2812,7 +3138,11 @@
       "iq": 12,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 13,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -2834,7 +3164,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 11,
+      "strength": 8,
+      "rebounding": 10
     }
   },
   {
@@ -2856,7 +3190,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -2878,7 +3216,11 @@
       "iq": 11,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 8,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -2900,7 +3242,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -2922,7 +3268,11 @@
       "iq": 6,
       "clutch": 11,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 18,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 17
     }
   },
   {
@@ -2944,29 +3294,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Jamal Murray",
-    "slug": "jamal-murray",
-    "teamAbbr": "DEN",
-    "era": "modern",
-    "position": "PG",
-    "jerseyNumber": 0,
-    "overall": 89,
-    "originalClass": "S",
-    "stats": {
-      "inside": 18,
-      "outside": 20,
-      "playmaking": 20,
-      "perimeterD": 17,
-      "interiorD": 13,
-      "athleticism": 20,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 9,
+      "strength": 12,
+      "rebounding": 15
     }
   },
   {
@@ -2988,7 +3320,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 13,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -3010,7 +3346,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -3032,7 +3372,11 @@
       "iq": 14,
       "clutch": 13,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -3054,7 +3398,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -3076,7 +3424,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 10,
+      "rebounding": 12
     }
   },
   {
@@ -3098,7 +3450,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 9,
+      "strength": 18,
+      "rebounding": 16
     }
   },
   {
@@ -3120,7 +3476,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -3142,7 +3502,11 @@
       "iq": 15,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -3164,7 +3528,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -3186,7 +3554,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -3208,7 +3580,11 @@
       "iq": 7,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -3230,7 +3606,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -3252,7 +3632,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -3274,7 +3658,11 @@
       "iq": 11,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 15,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -3296,7 +3684,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -3318,7 +3710,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -3340,7 +3736,11 @@
       "iq": 7,
       "clutch": 11,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -3362,7 +3762,11 @@
       "iq": 20,
       "clutch": 20,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -3384,7 +3788,11 @@
       "iq": 13,
       "clutch": 18,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 20,
+      "strength": 11,
+      "rebounding": 15
     }
   },
   {
@@ -3406,7 +3814,11 @@
       "iq": 14,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 12,
+      "strength": 19,
+      "rebounding": 18
     }
   },
   {
@@ -3428,7 +3840,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 20,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -3450,7 +3866,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 14,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -3472,7 +3892,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 14,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -3494,7 +3918,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 8,
+      "rebounding": 10
     }
   },
   {
@@ -3516,7 +3944,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 9,
+      "strength": 18,
+      "rebounding": 15
     }
   },
   {
@@ -3538,7 +3970,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -3560,7 +3996,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 17,
+      "strength": 10,
+      "rebounding": 12
     }
   },
   {
@@ -3582,7 +4022,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 14,
+      "strength": 10,
+      "rebounding": 10
     }
   },
   {
@@ -3604,7 +4048,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 15,
+      "strength": 17,
+      "rebounding": 16
     }
   },
   {
@@ -3626,7 +4074,11 @@
       "iq": 10,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 18,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -3648,7 +4100,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -3670,7 +4126,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 12
     }
   },
   {
@@ -3692,7 +4152,11 @@
       "iq": 8,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -3714,7 +4178,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 9,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -3736,7 +4204,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 12,
+      "rebounding": 14
     }
   },
   {
@@ -3758,7 +4230,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 13,
+      "strength": 18,
+      "rebounding": 15
     }
   },
   {
@@ -3780,7 +4256,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 13,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -3802,7 +4282,11 @@
       "iq": 12,
       "clutch": 15,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -3824,29 +4308,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 16,
-      "durability": 17
-    }
-  },
-  {
-    "name": "Draymond Green",
-    "slug": "draymond-green",
-    "teamAbbr": "GSW",
-    "era": "modern",
-    "position": "C",
-    "jerseyNumber": 77,
-    "overall": 79,
-    "originalClass": "B",
-    "stats": {
-      "inside": 13,
-      "outside": 13,
-      "playmaking": 14,
-      "perimeterD": 14,
-      "interiorD": 14,
-      "athleticism": 13,
-      "iq": 11,
-      "clutch": 14,
-      "stamina": 17,
-      "durability": 18
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 18,
+      "strength": 10,
+      "rebounding": 12
     }
   },
   {
@@ -3868,7 +4334,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 18,
+      "strength": 10,
+      "rebounding": 14
     }
   },
   {
@@ -3890,7 +4360,11 @@
       "iq": 15,
       "clutch": 15,
       "stamina": 16,
-      "durability": 18
+      "durability": 18,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -3912,7 +4386,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 13,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -3934,7 +4412,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -3956,7 +4438,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -3978,7 +4464,11 @@
       "iq": 14,
       "clutch": 16,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -4000,7 +4490,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 17,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -4022,7 +4516,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -4044,7 +4542,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -4066,7 +4568,11 @@
       "iq": 11,
       "clutch": 10,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 8,
+      "stealing": 9,
+      "strength": 7,
+      "rebounding": 10
     }
   },
   {
@@ -4088,7 +4594,11 @@
       "iq": 8,
       "clutch": 12,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 14,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -4110,7 +4620,11 @@
       "iq": 11,
       "clutch": 11,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 9,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -4132,7 +4646,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -4154,7 +4672,11 @@
       "iq": 7,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 15
     }
   },
   {
@@ -4176,7 +4698,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 14,
+      "strength": 18,
+      "rebounding": 15
     }
   },
   {
@@ -4198,7 +4724,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 16,
+      "strength": 12,
+      "rebounding": 15
     }
   },
   {
@@ -4220,7 +4750,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -4242,7 +4776,11 @@
       "iq": 9,
       "clutch": 15,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 17,
+      "stealing": 12,
+      "strength": 17,
+      "rebounding": 17
     }
   },
   {
@@ -4264,7 +4802,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -4286,7 +4828,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -4308,7 +4854,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 15,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -4330,7 +4880,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 17,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -4352,7 +4906,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 14,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 19,
+      "rebounding": 17
     }
   },
   {
@@ -4374,7 +4932,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 16,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -4396,7 +4958,11 @@
       "iq": 12,
       "clutch": 11,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 9,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 10
     }
   },
   {
@@ -4418,7 +4984,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -4440,7 +5010,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -4462,7 +5036,11 @@
       "iq": 9,
       "clutch": 9,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -4484,7 +5062,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -4506,7 +5088,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -4528,29 +5114,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Tyrese Haliburton",
-    "slug": "tyrese-haliburton",
-    "teamAbbr": "IND",
-    "era": "modern",
-    "position": "PG",
-    "jerseyNumber": 60,
-    "overall": 93,
-    "originalClass": "S",
-    "stats": {
-      "inside": 15,
-      "outside": 20,
-      "playmaking": 20,
-      "perimeterD": 17,
-      "interiorD": 14,
-      "athleticism": 19,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -4572,29 +5140,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 17,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Pascal Siakam",
-    "slug": "pascal-siakam",
-    "teamAbbr": "IND",
-    "era": "modern",
-    "position": "PF",
-    "jerseyNumber": 88,
-    "overall": 87,
-    "originalClass": "A",
-    "stats": {
-      "inside": 17,
-      "outside": 15,
-      "playmaking": 15,
-      "perimeterD": 14,
-      "interiorD": 14,
-      "athleticism": 17,
-      "iq": 17,
-      "clutch": 18,
-      "stamina": 19,
-      "durability": 17
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 13,
+      "strength": 10,
+      "rebounding": 10
     }
   },
   {
@@ -4616,7 +5166,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -4638,7 +5192,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -4660,7 +5218,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -4682,7 +5244,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -4704,7 +5270,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -4726,7 +5296,11 @@
       "iq": 14,
       "clutch": 16,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -4748,7 +5322,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 18,
-      "durability": 18
+      "durability": 18,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -4770,7 +5348,11 @@
       "iq": 15,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 9,
+      "rebounding": 12
     }
   },
   {
@@ -4792,7 +5374,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 17,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -4814,7 +5400,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 15,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -4836,7 +5426,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -4858,7 +5452,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -4880,7 +5478,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -4902,7 +5504,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 14
     }
   },
   {
@@ -4924,7 +5530,11 @@
       "iq": 11,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 8,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 10
     }
   },
   {
@@ -4946,7 +5556,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -4968,7 +5582,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 13,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -4990,7 +5608,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -5012,29 +5634,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Kawhi Leonard",
-    "slug": "kawhi-leonard",
-    "teamAbbr": "LAC",
-    "era": "modern",
-    "position": "SF",
-    "jerseyNumber": 87,
-    "overall": 95,
-    "originalClass": "S",
-    "stats": {
-      "inside": 18,
-      "outside": 19,
-      "playmaking": 18,
-      "perimeterD": 19,
-      "interiorD": 16,
-      "athleticism": 19,
-      "iq": 19,
-      "clutch": 20,
-      "stamina": 17,
-      "durability": 17
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 9,
+      "strength": 17,
+      "rebounding": 16
     }
   },
   {
@@ -5056,7 +5660,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -5078,7 +5686,11 @@
       "iq": 15,
       "clutch": 18,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 11,
+      "strength": 18,
+      "rebounding": 17
     }
   },
   {
@@ -5100,7 +5712,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -5122,7 +5738,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 11,
+      "strength": 18,
+      "rebounding": 13
     }
   },
   {
@@ -5144,7 +5764,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 14,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -5166,7 +5790,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 11,
+      "strength": 14,
+      "rebounding": 16
     }
   },
   {
@@ -5188,7 +5816,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -5210,7 +5842,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -5232,7 +5868,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -5254,7 +5894,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 18,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -5276,7 +5920,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 9,
+      "strength": 13,
+      "rebounding": 16
     }
   },
   {
@@ -5298,7 +5946,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -5320,7 +5972,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 9,
+      "rebounding": 12
     }
   },
   {
@@ -5342,7 +5998,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 15,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -5364,7 +6024,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -5386,7 +6050,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -5408,7 +6076,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 12,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -5430,7 +6102,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -5452,7 +6128,11 @@
       "iq": 19,
       "clutch": 19,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 12
     }
   },
   {
@@ -5474,7 +6154,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 15,
-      "durability": 17
+      "durability": 17,
+      "blocking": 16,
+      "stealing": 10,
+      "strength": 17,
+      "rebounding": 17
     }
   },
   {
@@ -5496,7 +6180,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 16,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -5518,7 +6206,11 @@
       "iq": 10,
       "clutch": 15,
       "stamina": 15,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 15,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -5540,7 +6232,11 @@
       "iq": 12,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -5562,7 +6258,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -5584,7 +6284,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 17,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -5606,7 +6310,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 16,
+      "rebounding": 13
     }
   },
   {
@@ -5628,7 +6336,11 @@
       "iq": 6,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 14,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -5650,7 +6362,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -5672,7 +6388,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 16,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -5694,7 +6414,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -5716,7 +6440,11 @@
       "iq": 11,
       "clutch": 12,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -5738,7 +6466,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -5760,7 +6492,11 @@
       "iq": 9,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 16,
+      "rebounding": 13
     }
   },
   {
@@ -5782,7 +6518,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -5804,7 +6544,11 @@
       "iq": 15,
       "clutch": 18,
       "stamina": 18,
-      "durability": 19
+      "durability": 19,
+      "blocking": 17,
+      "stealing": 13,
+      "strength": 17,
+      "rebounding": 14
     }
   },
   {
@@ -5826,7 +6570,11 @@
       "iq": 18,
       "clutch": 17,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 13,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -5848,7 +6596,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 10,
+      "strength": 17,
+      "rebounding": 17
     }
   },
   {
@@ -5870,7 +6622,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 15
     }
   },
   {
@@ -5892,7 +6648,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 10
     }
   },
   {
@@ -5914,7 +6674,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 12,
+      "rebounding": 14
     }
   },
   {
@@ -5936,7 +6700,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -5958,7 +6726,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -5980,7 +6752,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -6002,7 +6778,11 @@
       "iq": 10,
       "clutch": 13,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -6024,7 +6804,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -6046,7 +6830,11 @@
       "iq": 15,
       "clutch": 16,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -6068,7 +6856,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 16,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -6090,7 +6882,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -6112,7 +6908,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -6134,7 +6934,11 @@
       "iq": 7,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 18,
+      "stealing": 11,
+      "strength": 14,
+      "rebounding": 17
     }
   },
   {
@@ -6156,7 +6960,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -6178,7 +6986,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 17,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -6200,7 +7012,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -6222,7 +7038,11 @@
       "iq": 7,
       "clutch": 11,
       "stamina": 15,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 17,
+      "rebounding": 15
     }
   },
   {
@@ -6244,29 +7064,11 @@
       "iq": 9,
       "clutch": 12,
       "stamina": 18,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Bam Adebayo",
-    "slug": "bam-adebayo",
-    "teamAbbr": "MIA",
-    "era": "modern",
-    "position": "C",
-    "jerseyNumber": 51,
-    "overall": 89,
-    "originalClass": "S",
-    "stats": {
-      "inside": 20,
-      "outside": 19,
-      "playmaking": 18,
-      "perimeterD": 18,
-      "interiorD": 19,
-      "athleticism": 20,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 19,
-      "durability": 18
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -6288,7 +7090,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -6310,7 +7116,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -6332,7 +7142,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 14
     }
   },
   {
@@ -6354,7 +7168,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -6376,7 +7194,11 @@
       "iq": 14,
       "clutch": 13,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 17,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -6398,7 +7220,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -6420,7 +7246,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -6442,7 +7272,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 17
     }
   },
   {
@@ -6464,7 +7298,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 15
     }
   },
   {
@@ -6486,7 +7324,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -6508,7 +7350,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -6530,7 +7376,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 13,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -6552,7 +7402,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 11,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -6574,7 +7428,11 @@
       "iq": 11,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 12
     }
   },
   {
@@ -6596,7 +7454,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 20,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -6618,7 +7480,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -6640,7 +7506,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -6662,7 +7532,11 @@
       "iq": 16,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 17,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -6684,7 +7558,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -6706,7 +7584,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -6728,7 +7610,11 @@
       "iq": 12,
       "clutch": 15,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 17,
+      "rebounding": 15
     }
   },
   {
@@ -6750,7 +7636,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 18,
-      "durability": 20
+      "durability": 20,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -6772,7 +7662,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -6794,7 +7688,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -6816,7 +7714,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 17,
+      "stealing": 12,
+      "strength": 16,
+      "rebounding": 14
     }
   },
   {
@@ -6838,7 +7740,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -6860,7 +7766,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -6882,7 +7792,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -6904,7 +7818,11 @@
       "iq": 7,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 15,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -6926,7 +7844,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -6948,7 +7870,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -6970,7 +7896,11 @@
       "iq": 9,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 16
     }
   },
   {
@@ -6992,7 +7922,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 11,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -7014,7 +7948,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -7036,29 +7974,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 16,
-      "durability": 18
-    }
-  },
-  {
-    "name": "Anthony Edwards",
-    "slug": "anthony-edwards",
-    "teamAbbr": "MIN",
-    "era": "modern",
-    "position": "SG",
-    "jerseyNumber": 47,
-    "overall": 96,
-    "originalClass": "S",
-    "stats": {
-      "inside": 18,
-      "outside": 19,
-      "playmaking": 19,
-      "perimeterD": 18,
-      "interiorD": 15,
-      "athleticism": 20,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 20,
-      "durability": 17
+      "durability": 18,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 13
     }
   },
   {
@@ -7080,7 +8000,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -7102,7 +8026,11 @@
       "iq": 14,
       "clutch": 17,
       "stamina": 17,
-      "durability": 18
+      "durability": 18,
+      "blocking": 15,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -7124,7 +8052,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 18,
+      "rebounding": 14
     }
   },
   {
@@ -7146,29 +8078,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Rudy Gobert",
-    "slug": "rudy-gobert",
-    "teamAbbr": "MIN",
-    "era": "modern",
-    "position": "C",
-    "jerseyNumber": 42,
-    "overall": 85,
-    "originalClass": "A",
-    "stats": {
-      "inside": 17,
-      "outside": 11,
-      "playmaking": 11,
-      "perimeterD": 12,
-      "interiorD": 19,
-      "athleticism": 14,
-      "iq": 14,
-      "clutch": 18,
-      "stamina": 18,
-      "durability": 17
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 12,
+      "strength": 18,
+      "rebounding": 15
     }
   },
   {
@@ -7190,7 +8104,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 7,
+      "rebounding": 10
     }
   },
   {
@@ -7212,7 +8130,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -7234,7 +8156,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -7256,7 +8182,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -7278,7 +8208,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -7300,7 +8234,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -7322,7 +8260,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 16,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -7344,7 +8286,11 @@
       "iq": 8,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 16
     }
   },
   {
@@ -7366,7 +8312,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -7388,7 +8338,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -7410,7 +8364,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 12,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -7432,7 +8390,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -7454,7 +8416,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 10
     }
   },
   {
@@ -7476,7 +8442,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 17,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -7498,7 +8468,11 @@
       "iq": 19,
       "clutch": 19,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -7520,7 +8494,11 @@
       "iq": 16,
       "clutch": 17,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -7542,7 +8520,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -7564,7 +8546,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 19,
-      "durability": 19
+      "durability": 19,
+      "blocking": 17,
+      "stealing": 10,
+      "strength": 17,
+      "rebounding": 18
     }
   },
   {
@@ -7586,7 +8572,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -7608,7 +8598,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 18,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -7630,7 +8624,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -7652,7 +8650,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -7674,7 +8676,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 10,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -7696,7 +8702,11 @@
       "iq": 10,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 18,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 16
     }
   },
   {
@@ -7718,7 +8728,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -7740,7 +8754,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -7762,7 +8780,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -7784,7 +8806,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 16
     }
   },
   {
@@ -7806,7 +8832,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -7828,51 +8858,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Jalen Brunson",
-    "slug": "jalen-brunson",
-    "teamAbbr": "NYK",
-    "era": "modern",
-    "position": "PG",
-    "jerseyNumber": 34,
-    "overall": 94,
-    "originalClass": "S",
-    "stats": {
-      "inside": 15,
-      "outside": 20,
-      "playmaking": 20,
-      "perimeterD": 16,
-      "interiorD": 12,
-      "athleticism": 19,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 20,
-      "durability": 17
-    }
-  },
-  {
-    "name": "Karl-Anthony Towns",
-    "slug": "karl-anthony-towns",
-    "teamAbbr": "NYK",
-    "era": "modern",
-    "position": "C",
-    "jerseyNumber": 94,
-    "overall": 91,
-    "originalClass": "S",
-    "stats": {
-      "inside": 20,
-      "outside": 19,
-      "playmaking": 18,
-      "perimeterD": 15,
-      "interiorD": 19,
-      "athleticism": 19,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 20,
-      "durability": 17
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 10,
+      "strength": 8,
+      "rebounding": 10
     }
   },
   {
@@ -7894,29 +8884,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 20,
-      "durability": 17
-    }
-  },
-  {
-    "name": "Mikal Bridges",
-    "slug": "mikal-bridges",
-    "teamAbbr": "NYK",
-    "era": "modern",
-    "position": "SG",
-    "jerseyNumber": 14,
-    "overall": 84,
-    "originalClass": "A",
-    "stats": {
-      "inside": 15,
-      "outside": 17,
-      "playmaking": 16,
-      "perimeterD": 16,
-      "interiorD": 13,
-      "athleticism": 17,
-      "iq": 17,
-      "clutch": 17,
-      "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -7938,7 +8910,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 17,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -7960,7 +8936,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -7982,7 +8962,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 17,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -8004,7 +8988,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -8026,7 +9014,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 13,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -8048,7 +9040,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 13,
+      "strength": 17,
+      "rebounding": 18
     }
   },
   {
@@ -8070,7 +9066,11 @@
       "iq": 8,
       "clutch": 12,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 17,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -8092,7 +9092,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -8114,7 +9118,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 14
     }
   },
   {
@@ -8136,7 +9144,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -8158,7 +9170,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -8180,7 +9196,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -8202,7 +9222,11 @@
       "iq": 9,
       "clutch": 12,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 12,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -8224,7 +9248,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -8246,7 +9274,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -8268,29 +9300,11 @@
       "iq": 16,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Chet Holmgren",
-    "slug": "chet-holmgren",
-    "teamAbbr": "OKC",
-    "era": "modern",
-    "position": "PF",
-    "jerseyNumber": 85,
-    "overall": 88,
-    "originalClass": "A",
-    "stats": {
-      "inside": 15,
-      "outside": 17,
-      "playmaking": 13,
-      "perimeterD": 15,
-      "interiorD": 16,
-      "athleticism": 16,
-      "iq": 16,
-      "clutch": 18,
-      "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 19,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -8312,7 +9326,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 12,
+      "strength": 17,
+      "rebounding": 17
     }
   },
   {
@@ -8334,7 +9352,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 16,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -8356,7 +9378,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -8378,7 +9404,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 19,
+      "strength": 7,
+      "rebounding": 11
     }
   },
   {
@@ -8400,7 +9430,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 16,
-      "durability": 18
+      "durability": 18,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -8422,7 +9456,11 @@
       "iq": 15,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -8444,7 +9482,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -8466,7 +9508,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 17,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -8488,7 +9534,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 8,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -8510,7 +9560,11 @@
       "iq": 8,
       "clutch": 9,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -8532,7 +9586,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 16,
-      "durability": 18
+      "durability": 18,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -8554,7 +9612,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -8576,7 +9638,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 10
     }
   },
   {
@@ -8598,7 +9664,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 13,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -8620,7 +9690,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 15,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -8642,7 +9716,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -8664,29 +9742,11 @@
       "iq": 19,
       "clutch": 19,
       "stamina": 17,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Paolo Banchero",
-    "slug": "paolo-banchero",
-    "teamAbbr": "ORL",
-    "era": "modern",
-    "position": "PF",
-    "jerseyNumber": 41,
-    "overall": 88,
-    "originalClass": "A",
-    "stats": {
-      "inside": 17,
-      "outside": 16,
-      "playmaking": 16,
-      "perimeterD": 13,
-      "interiorD": 15,
-      "athleticism": 17,
-      "iq": 18,
-      "clutch": 18,
-      "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -8708,7 +9768,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 9,
+      "strength": 18,
+      "rebounding": 16
     }
   },
   {
@@ -8730,7 +9794,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 19,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -8752,7 +9820,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -8774,7 +9846,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -8796,7 +9872,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 14,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -8818,7 +9898,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -8840,7 +9924,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 17,
+      "rebounding": 15
     }
   },
   {
@@ -8862,7 +9950,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -8884,7 +9976,11 @@
       "iq": 9,
       "clutch": 12,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 9,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -8906,7 +10002,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -8928,7 +10028,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -8950,7 +10054,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -8972,7 +10080,11 @@
       "iq": 7,
       "clutch": 11,
       "stamina": 15,
-      "durability": 14
+      "durability": 14,
+      "blocking": 18,
+      "stealing": 17,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -8994,7 +10106,11 @@
       "iq": 8,
       "clutch": 12,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -9016,51 +10132,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 19,
-      "durability": 17
-    }
-  },
-  {
-    "name": "Tyrese Maxey",
-    "slug": "tyrese-maxey",
-    "teamAbbr": "PHI",
-    "era": "modern",
-    "position": "PG",
-    "jerseyNumber": 55,
-    "overall": 93,
-    "originalClass": "S",
-    "stats": {
-      "inside": 15,
-      "outside": 20,
-      "playmaking": 20,
-      "perimeterD": 19,
-      "interiorD": 13,
-      "athleticism": 20,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 20,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Paul George",
-    "slug": "paul-george",
-    "teamAbbr": "PHI",
-    "era": "modern",
-    "position": "PF",
-    "jerseyNumber": 29,
-    "overall": 83,
-    "originalClass": "A",
-    "stats": {
-      "inside": 16,
-      "outside": 18,
-      "playmaking": 17,
-      "perimeterD": 18,
-      "interiorD": 15,
-      "athleticism": 17,
-      "iq": 17,
-      "clutch": 18,
-      "stamina": 19,
-      "durability": 19
+      "durability": 17,
+      "blocking": 8,
+      "stealing": 12,
+      "strength": 8,
+      "rebounding": 9
     }
   },
   {
@@ -9082,7 +10158,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -9104,7 +10184,11 @@
       "iq": 10,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 16
     }
   },
   {
@@ -9126,7 +10210,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 15,
-      "durability": 17
+      "durability": 17,
+      "blocking": 16,
+      "stealing": 11,
+      "strength": 19,
+      "rebounding": 18
     }
   },
   {
@@ -9148,7 +10236,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -9170,7 +10262,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -9192,7 +10288,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 15,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -9214,7 +10314,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -9236,7 +10340,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -9258,7 +10366,11 @@
       "iq": 15,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 10,
+      "strength": 16,
+      "rebounding": 14
     }
   },
   {
@@ -9280,7 +10392,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 15,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -9302,7 +10418,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -9324,7 +10444,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 13,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -9346,7 +10470,11 @@
       "iq": 9,
       "clutch": 12,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 14
     }
   },
   {
@@ -9368,7 +10496,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -9390,7 +10522,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 16,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -9412,7 +10548,11 @@
       "iq": 7,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -9434,7 +10574,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 17,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -9456,7 +10600,11 @@
       "iq": 16,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -9478,7 +10626,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 15,
-      "durability": 12
+      "durability": 12,
+      "blocking": 16,
+      "stealing": 11,
+      "strength": 18,
+      "rebounding": 17
     }
   },
   {
@@ -9500,7 +10652,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 13,
+      "strength": 8,
+      "rebounding": 11
     }
   },
   {
@@ -9522,7 +10678,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 14,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -9544,7 +10704,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 18,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -9566,7 +10730,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -9588,7 +10756,11 @@
       "iq": 10,
       "clutch": 15,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 16,
+      "stealing": 8,
+      "strength": 14,
+      "rebounding": 16
     }
   },
   {
@@ -9610,7 +10782,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 15
     }
   },
   {
@@ -9632,7 +10808,11 @@
       "iq": 12,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 10,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -9654,7 +10834,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -9676,7 +10860,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 15,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -9698,7 +10886,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -9720,7 +10912,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 14
     }
   },
   {
@@ -9742,7 +10938,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -9764,7 +10964,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 15,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -9786,7 +10990,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -9808,7 +11016,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -9830,7 +11042,11 @@
       "iq": 7,
       "clutch": 10,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 15,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -9852,7 +11068,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -9874,29 +11094,11 @@
       "iq": 16,
       "clutch": 18,
       "stamina": 17,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Jrue Holiday",
-    "slug": "jrue-holiday",
-    "teamAbbr": "POR",
-    "era": "modern",
-    "position": "PG",
-    "jerseyNumber": 39,
-    "overall": 82,
-    "originalClass": "A",
-    "stats": {
-      "inside": 12,
-      "outside": 17,
-      "playmaking": 16,
-      "perimeterD": 17,
-      "interiorD": 11,
-      "athleticism": 16,
-      "iq": 16,
-      "clutch": 17,
-      "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 10,
+      "strength": 16,
+      "rebounding": 17
     }
   },
   {
@@ -9918,7 +11120,11 @@
       "iq": 16,
       "clutch": 17,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -9940,7 +11146,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -9962,7 +11172,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 12
     }
   },
   {
@@ -9984,7 +11198,11 @@
       "iq": 9,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 19,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -10006,7 +11224,11 @@
       "iq": 11,
       "clutch": 13,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 18,
+      "stealing": 12,
+      "strength": 17,
+      "rebounding": 17
     }
   },
   {
@@ -10028,7 +11250,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -10050,7 +11276,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 18,
+      "strength": 16,
+      "rebounding": 14
     }
   },
   {
@@ -10072,7 +11302,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -10094,7 +11328,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 17,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -10116,7 +11354,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -10138,7 +11380,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -10160,7 +11406,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -10182,7 +11432,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -10204,7 +11458,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -10226,73 +11484,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
-    }
-  },
-  {
-    "name": "DeMar DeRozan",
-    "slug": "demar-derozan",
-    "teamAbbr": "SAC",
-    "era": "modern",
-    "position": "SF",
-    "jerseyNumber": 64,
-    "overall": 84,
-    "originalClass": "A",
-    "stats": {
-      "inside": 17,
-      "outside": 17,
-      "playmaking": 16,
-      "perimeterD": 13,
-      "interiorD": 12,
-      "athleticism": 17,
-      "iq": 17,
-      "clutch": 17,
-      "stamina": 18,
-      "durability": 18
-    }
-  },
-  {
-    "name": "Domantas Sabonis",
-    "slug": "domantas-sabonis",
-    "teamAbbr": "SAC",
-    "era": "modern",
-    "position": "C",
-    "jerseyNumber": 72,
-    "overall": 86,
-    "originalClass": "A",
-    "stats": {
-      "inside": 18,
-      "outside": 17,
-      "playmaking": 15,
-      "perimeterD": 11,
-      "interiorD": 16,
-      "athleticism": 14,
-      "iq": 19,
-      "clutch": 19,
-      "stamina": 19,
-      "durability": 18
-    }
-  },
-  {
-    "name": "Zach LaVine",
-    "slug": "zach-lavine",
-    "teamAbbr": "SAC",
-    "era": "modern",
-    "position": "SG",
-    "jerseyNumber": 91,
-    "overall": 83,
-    "originalClass": "A",
-    "stats": {
-      "inside": 16,
-      "outside": 18,
-      "playmaking": 17,
-      "perimeterD": 14,
-      "interiorD": 11,
-      "athleticism": 19,
-      "iq": 17,
-      "clutch": 18,
-      "stamina": 20,
-      "durability": 17
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -10314,7 +11510,11 @@
       "iq": 15,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 12,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -10336,7 +11536,11 @@
       "iq": 13,
       "clutch": 13,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -10358,7 +11562,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 17,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -10380,7 +11588,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 10,
+      "strength": 17,
+      "rebounding": 17
     }
   },
   {
@@ -10402,7 +11614,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -10424,7 +11640,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -10446,7 +11666,11 @@
       "iq": 14,
       "clutch": 16,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -10468,7 +11692,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -10490,29 +11718,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Russell Westbrook",
-    "slug": "russell-westbrook",
-    "teamAbbr": "SAC",
-    "era": "modern",
-    "position": "PG",
-    "jerseyNumber": 69,
-    "overall": 81,
-    "originalClass": "B",
-    "stats": {
-      "inside": 13,
-      "outside": 12,
-      "playmaking": 14,
-      "perimeterD": 13,
-      "interiorD": 9,
-      "athleticism": 15,
-      "iq": 14,
-      "clutch": 14,
-      "stamina": 19,
-      "durability": 19
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 13,
+      "strength": 16,
+      "rebounding": 16
     }
   },
   {
@@ -10534,7 +11744,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -10556,7 +11770,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 13,
+      "strength": 14,
+      "rebounding": 14
     }
   },
   {
@@ -10578,7 +11796,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 9,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -10600,7 +11822,11 @@
       "iq": 8,
       "clutch": 9,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 10,
+      "strength": 10,
+      "rebounding": 10
     }
   },
   {
@@ -10622,7 +11848,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -10644,51 +11874,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Victor Wembanyama",
-    "slug": "victor-wembanyama",
-    "teamAbbr": "SAS",
-    "era": "modern",
-    "position": "C",
-    "jerseyNumber": 41,
-    "overall": 97,
-    "originalClass": "S",
-    "stats": {
-      "inside": 19,
-      "outside": 18,
-      "playmaking": 17,
-      "perimeterD": 16,
-      "interiorD": 20,
-      "athleticism": 18,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 20,
-      "durability": 18
-    }
-  },
-  {
-    "name": "De’Aaron Fox",
-    "slug": "deaaron-fox",
-    "teamAbbr": "SAS",
-    "era": "modern",
-    "position": "PG",
-    "jerseyNumber": 4,
-    "overall": 87,
-    "originalClass": "A",
-    "stats": {
-      "inside": 12,
-      "outside": 16,
-      "playmaking": 17,
-      "perimeterD": 15,
-      "interiorD": 9,
-      "athleticism": 17,
-      "iq": 17,
-      "clutch": 17,
-      "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -10710,7 +11900,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 13,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -10732,7 +11926,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -10754,7 +11952,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -10776,7 +11978,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -10798,7 +12004,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 13
     }
   },
   {
@@ -10820,7 +12030,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 14
     }
   },
   {
@@ -10842,7 +12056,11 @@
       "iq": 15,
       "clutch": 16,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 8,
+      "rebounding": 12
     }
   },
   {
@@ -10864,7 +12082,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -10886,7 +12108,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -10908,7 +12134,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 9,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -10930,7 +12160,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 15,
+      "stealing": 10,
+      "strength": 16,
+      "rebounding": 16
     }
   },
   {
@@ -10952,7 +12186,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 16,
+      "stealing": 11,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -10974,7 +12212,11 @@
       "iq": 9,
       "clutch": 11,
       "stamina": 16,
-      "durability": 18
+      "durability": 18,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -10996,7 +12238,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -11018,7 +12264,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 8,
+      "stealing": 16,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -11040,7 +12290,11 @@
       "iq": 11,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 12,
+      "strength": 8,
+      "rebounding": 11
     }
   },
   {
@@ -11062,7 +12316,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 12,
+      "rebounding": 13
     }
   },
   {
@@ -11084,29 +12342,11 @@
       "iq": 20,
       "clutch": 20,
       "stamina": 18,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Brandon Ingram",
-    "slug": "brandon-ingram",
-    "teamAbbr": "TOR",
-    "era": "modern",
-    "position": "SF",
-    "jerseyNumber": 11,
-    "overall": 86,
-    "originalClass": "A",
-    "stats": {
-      "inside": 15,
-      "outside": 19,
-      "playmaking": 17,
-      "perimeterD": 14,
-      "interiorD": 13,
-      "athleticism": 17,
-      "iq": 18,
-      "clutch": 19,
-      "stamina": 19,
-      "durability": 17
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 15,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -11128,7 +12368,11 @@
       "iq": 18,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 13,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -11150,7 +12394,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 16,
+      "rebounding": 14
     }
   },
   {
@@ -11172,7 +12420,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 16,
+      "stealing": 15,
+      "strength": 15,
+      "rebounding": 15
     }
   },
   {
@@ -11194,7 +12446,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 14,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -11216,7 +12472,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 14,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -11238,7 +12498,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -11260,7 +12524,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 14,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -11282,7 +12550,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -11304,7 +12576,11 @@
       "iq": 15,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -11326,7 +12602,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 8,
+      "rebounding": 12
     }
   },
   {
@@ -11348,7 +12628,11 @@
       "iq": 7,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 16,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -11370,7 +12654,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 17,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -11392,7 +12680,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 17,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 14,
+      "strength": 10,
+      "rebounding": 12
     }
   },
   {
@@ -11414,7 +12706,11 @@
       "iq": 8,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 13,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -11436,7 +12732,11 @@
       "iq": 17,
       "clutch": 17,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -11458,7 +12758,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 18,
-      "durability": 15
+      "durability": 15,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 18,
+      "rebounding": 16
     }
   },
   {
@@ -11480,7 +12784,11 @@
       "iq": 18,
       "clutch": 18,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -11502,7 +12810,11 @@
       "iq": 18,
       "clutch": 19,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -11524,7 +12836,11 @@
       "iq": 15,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 17,
+      "stealing": 11,
+      "strength": 15,
+      "rebounding": 16
     }
   },
   {
@@ -11546,7 +12862,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -11568,7 +12888,11 @@
       "iq": 15,
       "clutch": 16,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -11590,7 +12914,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -11612,7 +12940,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 19,
-      "durability": 17
+      "durability": 17,
+      "blocking": 14,
+      "stealing": 16,
+      "strength": 9,
+      "rebounding": 12
     }
   },
   {
@@ -11634,7 +12966,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 13,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 16,
+      "rebounding": 15
     }
   },
   {
@@ -11656,7 +12992,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -11678,7 +13018,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 9,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -11700,7 +13044,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 16
     }
   },
   {
@@ -11722,7 +13070,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 16,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -11744,7 +13096,11 @@
       "iq": 12,
       "clutch": 12,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 10,
+      "stealing": 9,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -11766,7 +13122,11 @@
       "iq": 10,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 16,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -11788,7 +13148,11 @@
       "iq": 10,
       "clutch": 12,
       "stamina": 18,
-      "durability": 17
+      "durability": 17,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 13,
+      "rebounding": 12
     }
   },
   {
@@ -11810,7 +13174,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 15,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -11832,7 +13200,11 @@
       "iq": 8,
       "clutch": 10,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 12
     }
   },
   {
@@ -11854,29 +13226,11 @@
       "iq": 9,
       "clutch": 12,
       "stamina": 16,
-      "durability": 16
-    }
-  },
-  {
-    "name": "Trae Young",
-    "slug": "trae-young",
-    "teamAbbr": "WAS",
-    "era": "modern",
-    "position": "PG",
-    "jerseyNumber": 89,
-    "overall": 89,
-    "originalClass": "S",
-    "stats": {
-      "inside": 14,
-      "outside": 20,
-      "playmaking": 20,
-      "perimeterD": 16,
-      "interiorD": 12,
-      "athleticism": 20,
-      "iq": 20,
-      "clutch": 20,
-      "stamina": 19,
-      "durability": 18
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 10,
+      "strength": 14,
+      "rebounding": 16
     }
   },
   {
@@ -11898,7 +13252,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 18,
+      "stealing": 12,
+      "strength": 14,
+      "rebounding": 15
     }
   },
   {
@@ -11920,7 +13278,11 @@
       "iq": 17,
       "clutch": 18,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 12,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -11942,7 +13304,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 19,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 16,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -11964,7 +13330,11 @@
       "iq": 14,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 11,
+      "rebounding": 11
     }
   },
   {
@@ -11986,7 +13356,11 @@
       "iq": 12,
       "clutch": 13,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 14,
+      "strength": 14,
+      "rebounding": 13
     }
   },
   {
@@ -12008,7 +13382,11 @@
       "iq": 12,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 11
     }
   },
   {
@@ -12030,7 +13408,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 11
     }
   },
   {
@@ -12052,7 +13434,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 15,
+      "strength": 12,
+      "rebounding": 14
     }
   },
   {
@@ -12074,7 +13460,11 @@
       "iq": 11,
       "clutch": 15,
       "stamina": 16,
-      "durability": 17
+      "durability": 17,
+      "blocking": 13,
+      "stealing": 10,
+      "strength": 16,
+      "rebounding": 17
     }
   },
   {
@@ -12096,7 +13486,11 @@
       "iq": 14,
       "clutch": 15,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 14,
+      "strength": 9,
+      "rebounding": 14
     }
   },
   {
@@ -12118,7 +13512,11 @@
       "iq": 11,
       "clutch": 14,
       "stamina": 15,
-      "durability": 18
+      "durability": 18,
+      "blocking": 12,
+      "stealing": 13,
+      "strength": 15,
+      "rebounding": 12
     }
   },
   {
@@ -12140,7 +13538,11 @@
       "iq": 13,
       "clutch": 14,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 12,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 12
     }
   },
   {
@@ -12162,7 +13564,11 @@
       "iq": 13,
       "clutch": 15,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 15,
+      "stealing": 9,
+      "strength": 15,
+      "rebounding": 14
     }
   },
   {
@@ -12184,7 +13590,11 @@
       "iq": 16,
       "clutch": 16,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 10,
+      "rebounding": 11
     }
   },
   {
@@ -12206,7 +13616,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 10
     }
   },
   {
@@ -12228,7 +13642,11 @@
       "iq": 11,
       "clutch": 12,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 14,
+      "stealing": 11,
+      "strength": 13,
+      "rebounding": 13
     }
   },
   {
@@ -12250,7 +13668,11 @@
       "iq": 9,
       "clutch": 12,
       "stamina": 17,
-      "durability": 16
+      "durability": 16,
+      "blocking": 13,
+      "stealing": 11,
+      "strength": 11,
+      "rebounding": 13
     }
   },
   {
@@ -12272,7 +13694,11 @@
       "iq": 10,
       "clutch": 11,
       "stamina": 18,
-      "durability": 16
+      "durability": 16,
+      "blocking": 11,
+      "stealing": 11,
+      "strength": 12,
+      "rebounding": 11
     }
   },
   {
@@ -12294,7 +13720,11 @@
       "iq": 9,
       "clutch": 10,
       "stamina": 16,
-      "durability": 16
+      "durability": 16,
+      "blocking": 10,
+      "stealing": 10,
+      "strength": 9,
+      "rebounding": 11
     }
   }
 ]

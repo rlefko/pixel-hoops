@@ -1,10 +1,12 @@
-import { createRNG, deriveSeed } from './rng';
+import { createRNG, deriveSeed, type RNG } from './rng';
 import { generateFixedMap, traverseTo } from './run-map';
 import {
   generateOpponentTeam,
   generateRecruitOffers,
+  pickSpecialistOfClass,
   planForRoster,
 } from './tournament';
+import { isSpecialist } from './specialty';
 import { buildTeam, validateLineup } from './lineup';
 import { simulateGame } from './simulation';
 import { ownedRosterPlayers, type HomeRoster } from './home-roster';
@@ -55,6 +57,9 @@ import { palette } from '@/theme/palette';
 /** Maps in a run; each ends in a boss and opens with a passive-boost draft. */
 export const TOTAL_MAPS = 7;
 const RECRUIT_OFFER_COUNT = 3;
+/** Recruit nodes without any specialist offered before pity forces one in, so a
+ * player chasing a rim protector / glass cleaner is never shut out for long. */
+const RECRUIT_PITY_THRESHOLD = 3;
 const REST_REPUTATION = 2;
 
 // --- Training points (earned per win, banked all run, spent at Training nodes) ---
@@ -95,7 +100,7 @@ export type RunPhase =
   | { kind: 'pregame'; nodeId: string; timeoutUsed?: boolean }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
-  | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[] }
+  | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[]; rerolled: boolean[] }
   // Recruiting past the 12-man run cap: pick a player to drop for the incoming one.
   | { kind: 'dropForRecruit'; nodeId: string; incoming: RosterPlayer }
   | { kind: 'training'; nodeId: string }
@@ -138,6 +143,9 @@ export interface RunModel {
   bag: string[];
   /** Legendary on-loan offer tracking (once per run + soft pity). */
   legend: { dryStreak: number; offeredThisRun: boolean };
+  /** Recruit nodes in a row without a specialist offered; pity forces one in once
+   * it reaches RECRUIT_PITY_THRESHOLD so a specialist build is always reachable. */
+  recruitDryStreak: number;
   /** Forgiven losses ("timeouts") left in the run-wide pool. While > 0, a lost game
    * is replayed instead of ending the run (seeded by difficulty's secondChances). */
   secondChancesRemaining: number;
@@ -164,6 +172,7 @@ export type RunAction =
   | { type: 'finishReplay' }
   | { type: 'resolveGameResult' }
   | { type: 'recruit'; player: RosterPlayer }
+  | { type: 'rerollRecruit'; index: number }
   | { type: 'dropForRecruit'; index: number }
   | { type: 'trainPlayer'; index: number; stat: keyof PlayerStats }
   | { type: 'rest' }
@@ -231,6 +240,7 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     boosts: [],
     bag: [],
     legend: { dryStreak: homeRoster.legendDryStreak ?? 0, offeredThisRun: false },
+    recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
     forgivenLosses: 0,
     game: null,
@@ -271,6 +281,28 @@ function recruitLegendChance(round: number): number {
 /** Legendary chance with soft pity: +5%/run after five dry runs. */
 function legendGateChance(round: number, dryStreak: number): number {
   return recruitLegendChance(round) + Math.max(0, dryStreak - 5) * 0.05;
+}
+
+/**
+ * Recruit pity. If the rolled offers already contain a play-style specialist, the
+ * streak resets. Otherwise it bumps; once it reaches RECRUIT_PITY_THRESHOLD a real
+ * specialist replaces the last slot (and the streak resets), so a player chasing a
+ * rim protector / glass cleaner is never shut out for long. Deterministic.
+ */
+function applyRecruitPity(
+  rolled: RosterPlayer[],
+  dryStreak: number,
+  owned: Set<string>,
+  ladderClass: LadderClass,
+  rng: RNG
+): { offers: RosterPlayer[]; recruitDryStreak: number } {
+  if (rolled.some(isSpecialist)) return { offers: rolled, recruitDryStreak: 0 };
+  const next = dryStreak + 1;
+  if (next < RECRUIT_PITY_THRESHOLD) return { offers: rolled, recruitDryStreak: next };
+  const taken = new Set([...owned, ...rolled.map((o) => o.player.name)]);
+  const forced = pickSpecialistOfClass(ladderClass, taken, rng);
+  if (!forced) return { offers: rolled, recruitDryStreak: next }; // none left; keep trying
+  return { offers: [...rolled.slice(0, -1), forced], recruitDryStreak: 0 };
 }
 
 /** Apply a per-player transform across the combined roster, re-split at five. */
@@ -455,12 +487,21 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
       const owned = new Set(
         [...core.roster.starters, ...core.roster.bench].map((p) => p.player.name)
       );
-      const fallback = generateRecruitOffers(
+      const rolled = generateRecruitOffers(
         model.ladderClass,
         mapProgress(core.currentMapIndex),
         RECRUIT_OFFER_COUNT,
         createRNG(deriveSeed(core.seed, `recruit-${nodeId}`)),
         owned
+      );
+      // Pity: if no specialist showed and the dry streak is long enough, force one
+      // into the last slot so a specialist build is always reachable.
+      const { offers, recruitDryStreak } = applyRecruitPity(
+        rolled,
+        model.recruitDryStreak,
+        owned,
+        model.ladderClass,
+        createRNG(deriveSeed(core.seed, `recruit-${nodeId}-pity`))
       );
       // Legendaries (S+) surface only on the S / S+ ladders.
       const legendsAllowed = model.ladderClass === 'S' || model.ladderClass === 'S+';
@@ -473,11 +514,17 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
         return {
           ...model,
           core,
+          recruitDryStreak,
           legend: { ...model.legend, offeredThisRun: true },
-          phase: { kind: 'legendReveal', nodeId, offer: legendRecruit(gateRng), fallback },
+          phase: { kind: 'legendReveal', nodeId, offer: legendRecruit(gateRng), fallback: offers },
         };
       }
-      return { ...model, core, phase: { kind: 'recruit', nodeId, offers: fallback } };
+      return {
+        ...model,
+        core,
+        recruitDryStreak,
+        phase: { kind: 'recruit', nodeId, offers, rerolled: offers.map(() => false) },
+      };
     }
     case 'training':
       return { ...model, core, phase: { kind: 'training', nodeId } };
@@ -683,6 +730,37 @@ export function runReducer(
       return recruitOrDrop(model, model.phase.nodeId, action.player);
     }
 
+    case 'rerollRecruit': {
+      if (model.phase.kind !== 'recruit') return model;
+      const { index } = action;
+      const { offers, rerolled, nodeId } = model.phase;
+      if (index < 0 || index >= offers.length || rerolled[index]) return model;
+      // Exclude owned players and ALL current offers (including the one being
+      // rerolled) so the reroll always lands on a different player.
+      const exclude = new Set([
+        ...model.core.roster.starters,
+        ...model.core.roster.bench,
+      ].map((p) => p.player.name));
+      offers.forEach((o) => exclude.add(o.player.name));
+      const replacement = generateRecruitOffers(
+        model.ladderClass,
+        mapProgress(model.core.currentMapIndex),
+        1,
+        createRNG(deriveSeed(model.core.seed, `recruit-${nodeId}-reroll-${index}`)),
+        exclude
+      )[0];
+      if (!replacement) return model;
+      return {
+        ...model,
+        phase: {
+          kind: 'recruit',
+          nodeId,
+          offers: offers.map((o, i) => (i === index ? replacement : o)),
+          rerolled: rerolled.map((r, i) => (i === index ? true : r)),
+        },
+      };
+    }
+
     case 'dropForRecruit': {
       if (model.phase.kind !== 'dropForRecruit') return model;
       const incoming = model.phase.incoming;
@@ -833,9 +911,10 @@ export function runReducer(
 
     case 'declineLegend': {
       if (model.phase.kind !== 'legendReveal') return model;
+      const { nodeId, fallback } = model.phase;
       return {
         ...model,
-        phase: { kind: 'recruit', nodeId: model.phase.nodeId, offers: model.phase.fallback },
+        phase: { kind: 'recruit', nodeId, offers: fallback, rerolled: fallback.map(() => false) },
       };
     }
 

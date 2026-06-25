@@ -110,6 +110,15 @@ export function computeTeamStats(
     clutch: clampStat(averageStat(players, 'clutch') + synergy.clutchBonus + modifier.clutchBonus + ex('clutch')),
     stamina: clampStat(averageStat(players, 'stamina') + ex('stamina')),
     durability: clampStat(averageStat(players, 'durability') + ex('durability')),
+    // Play-style aggregates set the EVENT RATE (block/steal gates, rebound split).
+    // Blocking/rebounding/stealing anchor on the best (one rim protector, glass
+    // cleaner, or ball hawk defines the unit, like defense); strength is a team-
+    // wide average. These never feed off/def/pace below: the recipient of each
+    // box-score event is chosen from individual on-court stats in the sim.
+    blocking: clampStat(anchoredStat(players, 'blocking') + ex('blocking')),
+    stealing: clampStat(anchoredStat(players, 'stealing') + ex('stealing')),
+    strength: clampStat(averageStat(players, 'strength') + ex('strength')),
+    rebounding: clampStat(anchoredStat(players, 'rebounding') + ex('rebounding')),
     pace: clampStat(avgAth + synergy.paceBonus + modifier.paceBonus + paceTacticMod),
     off: 0,
     def: 0,
