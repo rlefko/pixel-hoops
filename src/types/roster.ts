@@ -10,6 +10,15 @@ export type Position = 'PG' | 'SG' | 'SF' | 'PF' | 'C';
 
 export const POSITIONS: readonly Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
 
+/**
+ * Stable per-player identity string `name|POS`. The single source of truth for
+ * the owned-collection key, shared by home-roster.playerKey, the draft, and the
+ * scouting gacha, so the format can never drift between them.
+ */
+export function nameKey(name: string, position: Position): string {
+  return `${name}|${position}`;
+}
+
 /** Natural position for each existing archetype (no Player change needed). */
 export const ARCHETYPE_POSITION: Record<Archetype, Position> = {
   'point-guard': 'PG',

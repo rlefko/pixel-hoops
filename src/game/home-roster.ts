@@ -1,4 +1,4 @@
-import type { Roster, RosterPlayer } from '@/types/roster';
+import { nameKey, type Roster, type RosterPlayer } from '@/types/roster';
 import type { RunRewards } from '@/types/run-map';
 import type { PlayerStats } from '@/types/player';
 import type { RNG } from './rng';
@@ -14,6 +14,7 @@ import {
   type Difficulty,
   type LadderClass,
 } from './difficulty-mode';
+import { pullPlayer, PLAYER_MACHINES, type PlayerGachaTier, type PlayerPullResult } from './player-gacha';
 
 /**
  * The persistent "home roster" that compounds across runs. It is now an UNCAPPED,
@@ -98,7 +99,7 @@ export function createRookieRoster(rng: RNG): HomeRoster {
 /** Stable per-player identity (survives merge reordering; keys the upgrade ledger
  * and the equipped-ability map). */
 export function playerKey(rp: RosterPlayer): string {
-  return `${rp.player.name}|${rp.position}`;
+  return nameKey(rp.player.name, rp.position);
 }
 
 /** A copy of a player with their equipped gacha ability stamped on from the home
@@ -213,6 +214,29 @@ export function unequipAbility(home: HomeRoster, key: string): HomeRoster {
   return { ...home, equippedAbilities: next };
 }
 
+// --- Player scouting gacha ---
+
+/**
+ * Pull a player from a scouting machine and fold it into the home collection. A new
+ * signing prepends to the collection (recency-first, like a merge) and costs the
+ * full price; a repeat (only possible once the tier is fully collected) refunds half
+ * and adds no player. Unaffordable is a no-op: the home roster is returned unchanged,
+ * alongside the (unbanked) result so a caller can decide what to show. See
+ * src/game/player-gacha.ts for the pull odds and pricing.
+ */
+export function applyPlayerPull(
+  home: HomeRoster,
+  tier: PlayerGachaTier,
+  rng: RNG
+): { home: HomeRoster; result: PlayerPullResult } {
+  const ownedKeys = new Set(home.players.map(playerKey));
+  const result = pullPlayer(tier, ownedKeys, rng);
+  if (home.coins < PLAYER_MACHINES[tier].cost) return { home, result }; // unaffordable: no-op
+  const coins = home.coins - result.cost + result.refund;
+  const players = result.isDupe ? home.players : [result.player, ...home.players];
+  return { home: { ...home, coins, players }, result };
+}
+
 /**
  * Fold a finished run's gains back into the home collection. The persistent
  * collection is preserved; only NEW recruits (players not already owned by key,
@@ -235,16 +259,21 @@ export function mergeRunGainsIntoHome(
 ): HomeRoster {
   const fielded = [...runRoster.starters, ...runRoster.bench].filter((p) => !p.onLoan);
   const ownedKeys = new Set(home.players.map(playerKey));
-  const newRecruits = fielded
-    .filter((p) => !ownedKeys.has(playerKey(p)))
-    .map((p) => {
-      const copy = { ...p };
-      delete copy.item; // run-scoped
-      delete copy.trainingDelta; // run-scoped
-      delete copy.gamesOut; // injuries heal at run end
-      delete copy.equippedAbility; // the home equippedAbilities map is the source of truth
-      return copy;
-    });
+  // Recruits are kept only when the run is CLEARED. On a loss they evaporate: only
+  // already-owned players come home (coins and reputation still bank below, and the
+  // permanent collection is never reduced).
+  const newRecruits = champion
+    ? fielded
+        .filter((p) => !ownedKeys.has(playerKey(p)))
+        .map((p) => {
+          const copy = { ...p };
+          delete copy.item; // run-scoped
+          delete copy.trainingDelta; // run-scoped
+          delete copy.gamesOut; // injuries heal at run end
+          delete copy.equippedAbility; // the home equippedAbilities map is the source of truth
+          return copy;
+        })
+    : [];
   // De-dupe new recruits against each other (a run can offer the same name twice).
   const seen = new Set<string>();
   const deduped = newRecruits.filter((p) => {
@@ -271,11 +300,14 @@ export function mergeRunGainsIntoHome(
   const restOwned = home.players.filter((p) => !seenF.has(playerKey(p)));
   const players = [...fieldedOwned, ...deduped, ...restOwned];
 
-  // The lineup to restore next run: the five starters (slot order) plus up to three bench.
+  // The lineup to restore next run: the five starters (slot order) plus up to three
+  // bench, but only keys that actually came home (a lost run's recruits are gone, so
+  // they are filtered out rather than left dangling for next run's draft to restore).
+  const finalKeys = new Set(players.map(playerKey));
   const lastRotation = [
     ...runRoster.starters.map(playerKey),
     ...runRoster.bench.filter((p) => !p.onLoan).slice(0, 3).map(playerKey),
-  ];
+  ].filter((k) => finalKeys.has(k));
 
   const ladderProgress = { ...home.ladderProgress };
   let selectedLadderClass = home.selectedLadderClass;
