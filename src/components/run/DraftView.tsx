@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { DRAFT_COST_COLOR, CLASS_COLOR } from '@/components/run/class-ui';
 import {
@@ -230,12 +231,11 @@ function Slot({
   // B from its position-weighted OVR.
   const cls = rp ? playerDraftClass(rp) : null;
   const cost = rp ? draftCostFor(rp, ladderClass) : null;
-  // The selected player's natural position and effective OVR, computed exactly as
-  // PlayerCard does (training folded in) so the slot reads the same strength the
-  // player sees when scouting the card below. Position is the player's intrinsic
-  // floor position, which can differ from this slot's label when slotted out of
-  // spot or onto the bench, so a draftee's fit is legible at a glance.
-  const overall = rp ? effectiveOvr(rp) : null;
+  // The slot's effective OVR (training folded in) is computed inline below exactly
+  // as PlayerCard does, so the slot reads the same strength the player sees when
+  // scouting the card. Position is the player's intrinsic floor position, which can
+  // differ from this slot's label when slotted out of spot or onto the bench, so a
+  // draftee's fit is legible at a glance.
   return (
     <Pressable onPress={onSelect} style={[styles.slot, selected && styles.slotSelected]}>
       <View style={styles.slotMain}>
@@ -260,7 +260,7 @@ function Slot({
               {rp.position}
             </Text>
           </View>
-          <Text style={styles.slotOvr}>{overall}</Text>
+          <StatNumber value={effectiveOvr(rp)} style={styles.slotOvr} animate={false} />
           {cls ? <Text style={[styles.slotClass, { color: CLASS_COLOR[cls] }]}>{cls}</Text> : null}
           <Text style={[styles.slotCost, { color: cost != null ? DRAFT_COST_COLOR[cost] : palette.inkDim }]}>
             {cost === 0 ? 'FREE' : `${cost}p`}
@@ -324,7 +324,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   slotPosText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  slotOvr: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.ink },
+  slotOvr: { fontFamily: FONT.display, fontSize: FONT_SIZE.small },
   slotClass: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
   slotCost: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
   slotEmpty: { flex: 1, fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim, fontStyle: 'italic' },

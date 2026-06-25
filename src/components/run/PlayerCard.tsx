@@ -14,6 +14,7 @@ import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
 import { getGachaAbility } from '@/game/abilities-gacha';
 import { ITEM_RARITY_COLOR } from './item-ui';
+import { StatNumber } from './StatNumber';
 import { STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
 
@@ -175,7 +176,7 @@ export function PlayerCard({
             </View>
           ) : null}
         </View>
-        <Text style={styles.ovr}>{overall}</Text>
+        <StatNumber value={overall} style={styles.ovr} animate={false} />
         {right}
         {onToggleExpand ? (
           <Pressable
@@ -233,7 +234,7 @@ export function PlayerCard({
                 <View key={key} style={styles.ratingRow}>
                   <Text style={styles.ratingLabel}>{RATING_LABEL[key]}</Text>
                   <PipBar value={stats[key]} />
-                  <Text style={styles.ratingValue}>{stats[key]}</Text>
+                  <StatNumber value={stats[key]} style={styles.ratingValue} />
                 </View>
               ))}
             </View>
@@ -280,7 +281,7 @@ function CompositeChip({ label, value }: { label: string; value: number }) {
   return (
     <View style={styles.chip}>
       <Text style={styles.chipLabel}>{label}</Text>
-      <Text style={styles.chipValue}>{value}</Text>
+      <StatNumber value={value} style={styles.chipValue} />
     </View>
   );
 }
@@ -419,7 +420,6 @@ const styles = StyleSheet.create({
   ovr: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.h3,
-    color: palette.ink,
     marginLeft: space(2),
   },
   chevronBtn: {
@@ -455,7 +455,6 @@ const styles = StyleSheet.create({
   chipValue: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
-    color: palette.ink,
   },
   panel: {
     marginTop: space(2),
@@ -486,7 +485,6 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
-    color: palette.ink,
   },
   pipBar: {
     flex: 1,

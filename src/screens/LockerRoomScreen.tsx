@@ -6,6 +6,7 @@ import { Screen } from '@/components/Screen';
 import { Pop } from '@/components/fx';
 import { haptics } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { CoinIcon } from '@/components/run/PixelIcons';
 import { useHomeRoster } from '@/context/HomeRosterContext';
@@ -153,9 +154,10 @@ export default function LockerRoomScreen() {
                             disabled && styles.disabled,
                           ]}
                         >
-                          <Text style={styles.statBtnText}>
-                            {s.label} {value}
-                          </Text>
+                          <View style={styles.statBtnLine}>
+                            <Text style={styles.statBtnText}>{s.label}</Text>
+                            <StatNumber value={value} style={styles.statBtnText} />
+                          </View>
                           <Text style={styles.statCost}>
                             {upgradable ? `${cost}c` : 'MAX'}
                           </Text>
@@ -227,6 +229,7 @@ const styles = StyleSheet.create({
   },
   premium: { borderColor: palette.orange },
   disabled: { opacity: 0.3 },
+  statBtnLine: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
   statBtnText: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
   statCost: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.gold },
 });
