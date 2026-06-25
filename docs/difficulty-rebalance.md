@@ -26,12 +26,16 @@ The "class level" (`CLASS_LEVEL` in `src/game/classes.ts`) is the representative
 
 A run is chosen as a **(difficulty, ladder class)** pair on the home screen (`src/game/difficulty-mode.ts`):
 
-- **Difficulty** (easy / medium / hard / insane) sets the **draft point budget** (8 / 5 / 2 / 0) and folds in the old escalation modifiers: early elites, leaner boost drafts, glass-bones injuries, lean coin payouts, and (insane) no pre-boss rest plus an opponent stat-floor shift. All four are selectable from the start.
+- **Difficulty** (easy / medium / hard / insane) sets the **draft point budget** (8 / 5 / 2 / 0) and folds in the old escalation modifiers: early elites, leaner boost drafts, glass-bones injuries, lean coin payouts, and (insane) no pre-boss rest. Each difficulty also carries an opponent **stat-shift** (added to the opponent level): easy is **-1** (a learning mode where opponents are about half a class weaker), medium / hard / insane shift **up** so the climb is progressively harsher. All four are selectable from the start.
 - **Ladder class** (C / B / A / S / S+) sets the opponent class the run centers on. Within a difficulty you climb **C -> B -> A -> S -> S+**, unlocking the next rung only by clearing the current one (per difficulty). Legendaries (S+) only appear on the S / S+ ladders.
 
 ## Within-run scaling (ladder-relative)
 
 `src/game/difficulty.ts` computes an opponent **level** relative to the run's ladder: `ladderLevel + ramp + bossBump + difficultyStatShift`, where the ramp runs from **a class below** the ladder on the first map to **two classes above** at the final boss, smoothly and with no reset at map boundaries. On the S / S+ ladders the late ramp pushes opponents into the **S++ apex** (the difficulty band ceiling in `src/game/stat-scaling.ts` is 28 to allow it), so the finale is genuinely brutal. Opponents are staffed from real franchise players scaled to the node level; bosses are headlined by their franchise legend.
+
+A boss legend is a **scaled headliner**, not an unscaled all-time great. `scaleLegendToLevel` (`src/game/classes.ts`) shifts the legend's stat line to `nodeLevel + LEGEND_BOSS_PREMIUM` (a notch above the boss's other starters), preserving its specialized shape and **never buffing it above its natural ability**. So an early-map boss is a real fight rather than a wall, while a top-ladder finale (where the node level meets the legend's natural OVR) fields the legend at full all-time-great power.
+
+Games are also **fair home/away**: the auto-sim alternates which side leads possessions each quarter, so two evenly matched teams are a true coin flip (the player is always the sim's "home", so a standing last-possession edge would have quietly handicapped every game). Visually the player is billed as the **visitor** and the opponent as the host, but the player's squad still plays the bottom half of the court.
 
 Recruits are real players at the **ladder class**, with a chance ramping **0 -> 50%** by the last map of offering the **class above** (`generateRecruitOffers`).
 
