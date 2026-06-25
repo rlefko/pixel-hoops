@@ -24,14 +24,20 @@ The "class level" (`CLASS_LEVEL` in `src/game/classes.ts`) is the representative
 
 ## The run configuration: 4 difficulties x 5 ladders
 
-A run is chosen as a **(difficulty, ladder class)** pair on the home screen (`src/game/difficulty-mode.ts`):
+A run is chosen as a **(difficulty, ladder class)** pair on the home screen (`src/game/difficulty-mode.ts`). The two axes are orthogonal: the **ladder** gates on player *acquisition* (you need better acquired players for higher rungs), and the **difficulty** gates on power *investment* (upgrades and abilities).
 
-- **Difficulty** (easy / medium / hard / insane) sets the **draft point budget** (8 / 5 / 2 / 0) and folds in the old escalation modifiers: early elites, leaner boost drafts, glass-bones injuries, lean coin payouts, and (insane) no pre-boss rest. Each difficulty also carries an opponent **stat-shift** (added to the opponent level): easy is **-1** (a learning mode where opponents are about half a class weaker), medium / hard / insane shift **up** so the climb is progressively harsher. All four are selectable from the start.
+- **Difficulty** (easy / medium / hard / insane) shapes the **opponent ramp** (its endpoints, see below), grants a pool of **timeouts** (forgiven losses: 2 / 1 / 0 / 0), sets the **draft point budget** (8 / 5 / 2 / 0), and folds in the escalation modifiers: early elites, leaner boost drafts, glass-bones injuries, and (insane) no pre-boss rest. Harder tiers **reward more coins per win** (coin multiplier 1.0 / 1.1 / 1.25 / 1.5) so the grind they demand pays back in faster economy growth. All four are selectable from the start.
 - **Ladder class** (C / B / A / S / S+) sets the opponent class the run centers on. Within a difficulty you climb **C -> B -> A -> S -> S+**, unlocking the next rung only by clearing the current one (per difficulty). Legendaries (S+) only appear on the S / S+ ladders.
 
-## Within-run scaling (ladder-relative)
+## Within-run scaling (ladder-relative, difficulty-shaped)
 
-`src/game/difficulty.ts` computes an opponent **level** relative to the run's ladder: `ladderLevel + ramp + bossBump + difficultyStatShift`, where the ramp runs from **a class below** the ladder on the first map to **two classes above** at the final boss, smoothly and with no reset at map boundaries. On the S / S+ ladders the late ramp pushes opponents into the **S++ apex** (the difficulty band ceiling in `src/game/stat-scaling.ts` is 28 to allow it), so the finale is genuinely brutal. Opponents are staffed from real franchise players scaled to the node level; bosses are headlined by their franchise legend.
+`src/game/difficulty.ts` computes an opponent **level** relative to the run's ladder: `ladderLevel + ramp + bossBump`, where the ramp runs from `rampStart` on the first map to `rampEnd` at the final regular peak, smoothly and with no reset at map boundaries. The ramp **endpoints are the difficulty's main lever** (`difficultyMods` in `src/game/difficulty-mode.ts`): every tier opens at a similar gentle offset below the ladder (`rampStart` -3 to -1.5), but the finale diverges hard. Easy ends roughly **at** the ladder class (`rampEnd` +0.5, so a base roster plus good in-run play wins), while insane ends about **two classes above** (`rampEnd` +4.5, demanding maxed players and abilities). Medium (+1.5) and hard (+3.0) sit between.
+
+This replaces the old model, where every difficulty shared one ramp (finishing two classes above the ladder) and differed only by a flat stat-shift, which left even easy with an A-tier final boss that a fresh roster could not beat. On the S / S+ ladders the late insane ramp still pushes opponents into the **S++ apex** (the difficulty band ceiling in `src/game/stat-scaling.ts` is 28 to allow it), the one place that genuinely requires upgrades. Opponents are staffed from real franchise players scaled to the node level; bosses are headlined by their franchise legend.
+
+## Timeouts (a Death-Defiance pool)
+
+A run is a long, unbroken win streak (roughly a dozen routed combats, one mandatory boss per map) and a single loss ends it. To keep the easier tiers winnable for a player who is still learning, each difficulty grants a run-wide pool of **timeouts** (`secondChances`: easy 2, medium 1, hard 0, insane 0). While any remain, a lost game spends one and is **replayed** instead of ending the run: the player returns to the pregame to re-set their five, and the replay rolls a fresh seed (salted by timeouts spent in `run-machine.ts`, so it is a new contest of the same opponent rather than a deterministic repeat). When the pool is empty, the next loss ends the run as before. Hard and insane carry no timeouts: strict permadeath is part of their challenge. The remaining count is shown in the run HUD (`src/components/run/ResourceHeader.tsx`).
 
 A boss legend is a **scaled headliner**, not an unscaled all-time great. `scaleLegendToLevel` (`src/game/classes.ts`) shifts the legend's stat line to `nodeLevel + LEGEND_BOSS_PREMIUM` (a notch above the boss's other starters), preserving its specialized shape and **never buffing it above its natural ability**. So an early-map boss is a real fight rather than a wall, while a top-ladder finale (where the node level meets the legend's natural OVR) fields the legend at full all-time-great power.
 
@@ -62,3 +68,16 @@ Three coin machines (`src/game/abilities-gacha.ts`) dispense passive abilities e
 ## No run is wasted
 
 Recruits, coins, and ladder progress bank every run; the home roster is an uncapped, de-duplicated collection (searchable/filterable in the roster browser). But power and difficulty rise together rather than power outpacing the bracket.
+
+## How the curve is tuned
+
+The ramp endpoints, timeout counts, and reward multipliers are tuned against a deterministic Monte-Carlo harness (`src/game/__tests__/balance-sim.test.ts`). Because the RNG is seeded, the clear rates are reproducible, so the harness doubles as a regression guard. It plays representative full runs (real maps, a min-combat survival route, real-player rosters drafted under the difficulty budget, the live opponent curve, and the timeout pool) for four roster archetypes that stand in for investment level: **base** (no upgrades), **someUpgrades** (a few +2s), **maxed** (the +5 per-stat cap), and **maxed+abilities** (maxed plus a legendary ability). The target shape, on the C ladder, is:
+
+| difficulty | base | some upgrades | maxed | maxed + abilities |
+| ---------- | ---- | ------------- | ----- | ----------------- |
+| easy   | ~55-60% (winnable for a first-timer) | high | high | high |
+| medium | ~0% (needs investment) | ~40% (rewards some upgrades) | high | high |
+| hard   | ~0% | ~0% | ~30% (rewards maxing, with luck) | high |
+| insane | ~0% | ~0% | ~0% | ~20% (needs everything, plus luck) |
+
+Higher ladders hold the same shape with class-appropriate (acquired) players: a base roster of acquired S or S+ legends clears easy on those ladders, so the climb is gated by acquisition, not grinding. Run `BALANCE_N=400 npx vitest run balance-sim` for tight estimates while re-tuning.
