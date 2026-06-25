@@ -320,13 +320,17 @@ export function CourtView({
           lineColor={theme.lineColor}
           accentColor={theme.accentColor}
         />
-        {/* The host (home) team's name painted faintly on the court floor. The player
-            is the visitor, so this is the OPPONENT's name; the player's squad still
-            plays on the bottom half. */}
+        {/* The opponent's name painted on their own side of the floor (the top
+            half they defend), outlined in the player's team color so it reads
+            against the opponent-themed court. The player's squad plays the bottom. */}
         <Text
           style={[
-            styles.homeName,
-            { color: theme.lineColor, bottom: Math.round(size.height * 0.012) },
+            styles.courtTeamName,
+            {
+              color: theme.lineColor,
+              top: Math.round(size.height * 0.012),
+              textShadowColor: homeTeam.colorHex,
+            },
           ]}
           numberOfLines={1}
         >
@@ -387,14 +391,16 @@ const styles = StyleSheet.create({
   courtBox: {
     position: 'relative',
   },
-  homeName: {
+  courtTeamName: {
     position: 'absolute',
     left: 0,
     right: 0,
     textAlign: 'center',
     fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    opacity: 0.5,
+    fontSize: FONT_SIZE.body,
+    opacity: 0.85,
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 3,
   },
   sprite: {
     position: 'absolute',
