@@ -337,11 +337,12 @@ const styles = StyleSheet.create({
   },
   tierSolid: { backgroundColor: palette.bgDeep }, // keeps S++ text crisp over the glow
   tierText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  // minWidth: 0 lets the name column (and the row/text inside it) actually shrink
-  // within the head row. A flex child defaults to min-width: auto, which can keep
-  // the name from laying out and collapse it to zero width: the real cause of the
-  // recurring "blank player name" bug. The name itself is flex: 1 so its width is
-  // driven by the column, not by measuring its own content (which is what broke).
+  // minWidth: 0 lets the name column (and the row/text inside it) shrink within the
+  // head row instead of being held at its content width (web's min-width: auto). The
+  // name is flex: 1 so its width is driven by this column, NOT by measuring its own
+  // content. That means the card must sit in a parent that gives it a real width: a
+  // column container, or a flex: 1 wrapper. Placing the card directly in a row-direction
+  // parent (no width/flex) collapses the name to zero width on native. See LineupBoard.
   nameCol: { flex: 1, minWidth: 0, justifyContent: 'center' },
   nameRow: { flexDirection: 'row', alignItems: 'center', minWidth: 0, gap: space(1) },
   name: {
