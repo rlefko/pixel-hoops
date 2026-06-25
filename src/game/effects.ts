@@ -1,4 +1,4 @@
-import { STAT_HARD_MAX, STAT_MIN, STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
+import { STAT_ELITE_MAX, STAT_HARD_MAX, STAT_MIN, STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
 
 /** A single skill trains up to this; the only path past the normal 20 cap, to the
@@ -94,12 +94,31 @@ export function addStatDelta(a: StatDelta, b: StatDelta): StatDelta {
   return out;
 }
 
-/** Apply a stat delta to a player line, clamped to the normal band (pure copy). */
+/** Above the normal cap each extra point of a flat item/ability reward counts for
+ * this much, so a big bonus still lands on an already-strong stat (sharpening a
+ * specialist) rather than leaking into the clamp. */
+const OVER_CAP_RATE = 0.5;
+
+/**
+ * Soft-cap a raw stat from items/abilities: full value through the normal cap
+ * (STAT_NORMAL_MAX = 20), then diminishing returns up to the elite ceiling
+ * (STAT_ELITE_MAX = 24). A +6 on an 18 shooter now lands ~+4 (to 22) instead of
+ * the old hard-clamp +2, so investment widens a specialist's lead. Training
+ * (applyTrainingDelta) stays the only channel that reaches the 30 hard cap.
+ */
+function softCapStat(raw: number): number {
+  if (raw <= STAT_NORMAL_MAX) return raw;
+  const over = Math.round((raw - STAT_NORMAL_MAX) * OVER_CAP_RATE);
+  return Math.min(STAT_NORMAL_MAX + over, STAT_ELITE_MAX);
+}
+
+/** Apply a stat delta to a player line. Positive deltas soft-cap above the normal
+ * band (up to the elite ceiling); the floor stays STAT_MIN (pure copy). */
 export function applyStatDelta(stats: PlayerStats, delta: StatDelta): PlayerStats {
   const out = { ...stats };
   for (const k in delta) {
     const key = k as keyof PlayerStats;
-    out[key] = Math.max(STAT_MIN, Math.min(STAT_NORMAL_MAX, out[key] + (delta[key] ?? 0)));
+    out[key] = Math.max(STAT_MIN, softCapStat(out[key] + (delta[key] ?? 0)));
   }
   return out;
 }

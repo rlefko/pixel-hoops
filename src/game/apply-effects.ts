@@ -35,8 +35,9 @@ const LEGEND_CHEMISTRY: Partial<TeamModifier> = {
 };
 
 /** Return effective-stat COPIES of a five/bench (item + legend self-aura + equipped
- * gacha ability + run-scoped training baked in). Item/abilities cap at 20; training
- * folds on top, the only path past 20 (up to 30). */
+ * gacha ability + run-scoped training baked in). Item/abilities soft-cap into the
+ * elite band (full value to 20, diminishing to 24); training folds on top, the only
+ * path to the 30 hard cap. */
 export function effectivePlayers(players: RosterPlayer[]): RosterPlayer[] {
   return players.map((rp) => {
     let delta: StatDelta = {};
