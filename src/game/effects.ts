@@ -1,8 +1,9 @@
-import type { PlayerStats } from '@/types/player';
+import { STAT_HARD_MAX, STAT_MIN, STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
 
-/** A single skill trains up to this; the only path past the normal 10 cap. */
-export const MAX_TRAINED_STAT = 15;
+/** A single skill trains up to this; the only path past the normal 20 cap, to the
+ * absolute ceiling of 30. */
+export const MAX_TRAINED_STAT = STAT_HARD_MAX;
 
 /**
  * The effect/modifier spine. One small, declarative, serialization-safe model
@@ -93,27 +94,28 @@ export function addStatDelta(a: StatDelta, b: StatDelta): StatDelta {
   return out;
 }
 
-/** Apply a stat delta to a player line, clamped to the 3-10 scale (pure copy). */
+/** Apply a stat delta to a player line, clamped to the normal band (pure copy). */
 export function applyStatDelta(stats: PlayerStats, delta: StatDelta): PlayerStats {
   const out = { ...stats };
   for (const k in delta) {
     const key = k as keyof PlayerStats;
-    out[key] = Math.max(3, Math.min(10, out[key] + (delta[key] ?? 0)));
+    out[key] = Math.max(STAT_MIN, Math.min(STAT_NORMAL_MAX, out[key] + (delta[key] ?? 0)));
   }
   return out;
 }
 
 /**
- * Apply a run-scoped TRAINING delta, clamped to 3-MAX_TRAINED_STAT (pure copy).
- * Training is the only source that may push a skill above the normal 10 cap (up
- * to 15, the S++ ceiling); items and abilities stay capped at 10 via applyStatDelta.
+ * Apply a run-scoped TRAINING delta, clamped to [STAT_MIN, MAX_TRAINED_STAT] (pure
+ * copy). Training is the only source that may push a skill above the normal 20 cap
+ * (up to 30, the S++ ceiling); items and abilities stay capped at 20 via
+ * applyStatDelta.
  */
 export function applyTrainingDelta(stats: PlayerStats, delta: StatDelta | undefined): PlayerStats {
   if (!delta) return stats;
   const out = { ...stats };
   for (const k in delta) {
     const key = k as keyof PlayerStats;
-    out[key] = Math.max(3, Math.min(MAX_TRAINED_STAT, out[key] + (delta[key] ?? 0)));
+    out[key] = Math.max(STAT_MIN, Math.min(MAX_TRAINED_STAT, out[key] + (delta[key] ?? 0)));
   }
   return out;
 }

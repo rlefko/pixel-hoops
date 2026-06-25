@@ -37,7 +37,6 @@ import type { RosterPlayer } from '@/types/roster';
 import type { BoxLine, SimResult } from '@/types/sim';
 import type { Team } from '@/types/team';
 import type { PlayerStats } from '@/types/player';
-import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
 // Import the palette module directly (not the @/theme barrel, which pulls in
 // font `require`s) so this pure reducer stays Node/Vitest-safe.
 import { palette } from '@/theme/palette';
@@ -120,7 +119,6 @@ export type RunPhase =
 export interface RunModel {
   core: RunState;
   phase: RunPhase;
-  gamePlan: GamePlan;
   wins: number;
   /** The difficulty this run is played at (sets draft points + opponent modifiers). */
   difficulty: Difficulty;
@@ -151,7 +149,6 @@ export type RunAction =
   | { type: 'newRun'; seed: string; homeRoster: HomeRoster }
   | { type: 'confirmDraft'; starters: RosterPlayer[]; bench: RosterPlayer[] }
   | { type: 'chooseNode'; nodeId: string }
-  | { type: 'setGamePlan'; plan: GamePlan }
   | { type: 'openLineupBuilder' }
   | { type: 'setLineup'; starters: RosterPlayer[]; bench: RosterPlayer[] }
   | { type: 'cancelLineup' }
@@ -218,7 +215,6 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
   return {
     core,
     phase: { kind: 'draft', available, defaultStarters, defaultBench },
-    gamePlan: DEFAULT_GAME_PLAN,
     wins: 0,
     difficulty,
     ladderClass,
@@ -363,7 +359,7 @@ export function buildHomeTeam(model: RunModel): Team {
   return buildTeam(
     'Your Squad',
     effectivePlayers(dressed.starters),
-    model.gamePlan,
+    planForRoster(dressed),
     palette.homeTeam,
     palette.homeTeamAccent,
     effectivePlayers(dressed.bench),
@@ -563,9 +559,6 @@ export function runReducer(
       if (!node) return model;
       return enterNode(model, action.nodeId);
     }
-
-    case 'setGamePlan':
-      return { ...model, gamePlan: action.plan };
 
     case 'openLineupBuilder':
       return { ...model, phase: { kind: 'lineup', returnTo: model.phase } };

@@ -29,9 +29,9 @@ describe('items', () => {
 
   it('itemDelta folds a boss relic downside into the net effect', () => {
     const vest = ITEM_BY_ID['heavy-hitter-vest'];
-    expect(itemDelta(vest)).toEqual({ inside: 4, athleticism: -2 });
+    expect(itemDelta(vest)).toEqual({ inside: 8, athleticism: -4 });
     const common = ITEM_BY_ID['grip-tape'];
-    expect(itemDelta(common)).toEqual({ outside: 1 });
+    expect(itemDelta(common)).toEqual({ outside: 2 });
   });
 
   it('every item id is unique and indexed', () => {

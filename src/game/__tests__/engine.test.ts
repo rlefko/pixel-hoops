@@ -25,7 +25,7 @@ function teamFromRoster(name: string, roster: Roster, plan: GamePlan = DEFAULT_G
   return buildTeam(name, roster.starters, plan, '#FFD54F', '#1D428A');
 }
 
-function makeMatchup(seed: number | string, level = 5): { home: Team; away: Team } {
+function makeMatchup(seed: number | string, level = 10): { home: Team; away: Team } {
   const rng = createRNG(seed);
   const home = teamFromRoster('You', buildStartingRoster(rng));
   const opp = generateOpponentTeam(level, rng);
@@ -85,7 +85,7 @@ describe('simulateGame determinism', () => {
 describe('simulateGame integrity', () => {
   it('never ends in a tie and the winner has the higher score', () => {
     for (let s = 0; s < 50; s++) {
-      const { home, away } = makeMatchup(`tie-${s}`, (s % 6) + 5);
+      const { home, away } = makeMatchup(`tie-${s}`, (s % 6) * 2 + 10);
       const r = simulateGame({ home, away, seed: `g-${s}` });
       expect(r.finalHome).not.toBe(r.finalAway);
       const winnerScore = r.winner === 'home' ? r.finalHome : r.finalAway;
@@ -116,7 +116,7 @@ describe('simulateGame integrity', () => {
     let total = 0;
     let count = 0;
     for (let s = 0; s < 40; s++) {
-      const { home, away } = makeMatchup(`score-${s}`, (s % 6) + 5);
+      const { home, away } = makeMatchup(`score-${s}`, (s % 6) * 2 + 10);
       const r = simulateGame({ home, away, seed: `sg-${s}` });
       for (const side of [r.finalHome, r.finalAway]) {
         // Floor allows the occasional cold-shooting blowout: the rookie home five
@@ -139,7 +139,7 @@ describe('simulateGame integrity', () => {
     let homeWins = 0;
     const games = 60;
     for (let s = 0; s < games; s++) {
-      const { home, away } = makeMatchup('strength', 4);
+      const { home, away } = makeMatchup('strength', 8);
       const r = simulateGame({ home, away, seed: `str-${s}` });
       if (r.winner === 'home') homeWins += 1;
     }

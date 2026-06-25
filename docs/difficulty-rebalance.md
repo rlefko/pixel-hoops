@@ -4,23 +4,23 @@ This is the reference for how Pixel Hoops keeps difficulty fair-but-punishing ac
 
 ## The problem it fixes
 
-The game used to be impossibly hard on run 1 and trivially easy after one or two runs. Meta power (permanent +5..+8 stat upgrades, an ever-growing roster) outran a merely linear opponent curve within two runs, and the only difficulty knob was a single hidden ladder.
+The game used to be impossibly hard on run 1 and trivially easy after one or two runs. Meta power (an ever-growing roster plus permanent stat upgrades) outran a merely linear opponent curve within two runs, and the only difficulty knob was a single hidden ladder.
 
 ## The model: a player-class ladder
 
-Every player belongs to a **class** on a single ladder, derived from their in-game OVR on the 3-10 surface scale (`classForOvr` in `src/game/ratings.ts`, scaling math in `src/game/classes.ts`):
+Every player belongs to a **class** on a single ladder, derived from their in-game OVR on the surface scale (`classForOvr` in `src/game/ratings.ts`, scaling math in `src/game/classes.ts`). The scale is the granular band that runs 6-20 for normal players, up to 24 for curated greats, and a hard cap of 30 reachable only through training and upgrades:
 
-| Class | OVR band | Source |
-| ----- | -------- | ------ |
-| D | 3-4 | procedural streetball rookies (the only auto-generated class) |
-| C | 5 | real NBA players (2K overall 67-74) |
-| B | 6-7 | real NBA players (75-81) |
-| A | 8 | real NBA players (82-88) |
-| S | 9-10 | real NBA players (89-99) |
-| S+ | 11+ | hand-curated all-time legends |
-| S++ | 13+ | the emergent apex: reached only by deep run-scoped training or the toughest end-of-run bosses |
+| Class | OVR band | Class level | Source |
+| ----- | -------- | ----------- | ------ |
+| D | below 10 | 8 | procedural streetball rookies (the only auto-generated class) |
+| C | 10-11 | 10 | real NBA players (2K overall 67-74) |
+| B | 12-15 | 13 | real NBA players (75-81) |
+| A | 16-17 | 16 | real NBA players (82-88) |
+| S | 18-21 | 19 | real NBA players (89-99) |
+| S+ | 22-25 | 22 | hand-curated all-time legends |
+| S++ | 26+ | 26 | the emergent apex: reached only by deep run-scoped training or the toughest end-of-run bosses |
 
-Real players are baked offline from the NBA 2K API into `src/data/nba-pool.json`, each carrying an `originalClass` and stats anchored into that class's band (`anchorStatsToClass` preserves a player's shape while setting its magnitude). A player's class for the draft is always their **original** class (before any Locker Room upgrade, ability, or training); the card shows `original -> current` with an arrow.
+The "class level" (`CLASS_LEVEL` in `src/game/classes.ts`) is the representative OVR each class scales opponents and recruits toward. Real players are baked offline from the NBA 2K API into `src/data/nba-pool.json`, each carrying an `originalClass` and stats anchored into that class's band (`anchorStatsToClass` preserves a player's shape while setting its magnitude). A player's class for the draft is always their **original** class (before any Locker Room upgrade, ability, or training); the card shows `original -> current` with an arrow.
 
 ## The run configuration: 4 difficulties x 5 ladders
 
@@ -31,7 +31,7 @@ A run is chosen as a **(difficulty, ladder class)** pair on the home screen (`sr
 
 ## Within-run scaling (ladder-relative)
 
-`src/game/difficulty.ts` computes an opponent **level** relative to the run's ladder: `ladderLevel + ramp + bossBump + difficultyStatShift`, where the ramp runs from **a class below** the ladder on the first map to **two classes above** at the final boss, smoothly and with no reset at map boundaries. On the S / S+ ladders the late ramp pushes opponents past 10 into the **S++ apex** (the difficulty band ceiling in `src/game/stat-scaling.ts` rises to 14 to allow it), so the finale is genuinely brutal. Opponents are staffed from real franchise players scaled to the node level; bosses are headlined by their franchise legend.
+`src/game/difficulty.ts` computes an opponent **level** relative to the run's ladder: `ladderLevel + ramp + bossBump + difficultyStatShift`, where the ramp runs from **a class below** the ladder on the first map to **two classes above** at the final boss, smoothly and with no reset at map boundaries. On the S / S+ ladders the late ramp pushes opponents into the **S++ apex** (the difficulty band ceiling in `src/game/stat-scaling.ts` is 28 to allow it), so the finale is genuinely brutal. Opponents are staffed from real franchise players scaled to the node level; bosses are headlined by their franchise legend.
 
 Recruits are real players at the **ladder class**, with a chance ramping **0 -> 50%** by the last map of offering the **class above** (`generateRecruitOffers`).
 
@@ -46,9 +46,9 @@ So on easy (8 points) you can splurge on a couple of above-class stars; on insan
 
 ## Bounded meta-progression (no snowball)
 
-- **Capped permanent upgrades.** Coins buy a permanent +1 in the Locker Room, but the per-stat cap is a flat **+2** (`src/game/upgrades.ts`). Permanent power can nudge a player, never reclass them.
+- **Capped permanent upgrades.** Coins buy a permanent +1 in the Locker Room. The per-stat cap is a flat **+5** (`src/game/upgrades.ts`), and the absolute rating any stat can reach is the hard cap of **30**. The costs are cheap with a gentle ramp: standard stats cost **200 / 400 / 800 / 1,600 / 3,200** (base 200, x2 per rank), and the premium ratings (`outside`, `playmaking`, `clutch`) cost **300 / 600 / 1,200 / 2,400 / 4,800**. Permanent power can specialize a player, never reclass them outright.
 - **The class ladder is the gate.** Winning unlocks the *next class* on that difficulty, so progress makes the next run harder, not easier (the Slay the Spire "Ascension" / Hades "Heat" pattern, reframed as a class climb).
-- **In-run training** (the Pokelike "EV" analog) still spends banked training points on run-scoped +1s (up to the 15 cap, the only path to S++), resetting every run.
+- **In-run training** (the Pokelike "EV" analog) still spends banked training points on run-scoped +1s (up to the hard cap of **30**, the only path into the S++ apex), resetting every run.
 
 ## The ability gacha (separate, bounded power)
 

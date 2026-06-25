@@ -4,10 +4,10 @@ import type { Position } from '@/types/roster';
 /**
  * Derived ratings: the bridge between the ten raw stats and what the player
  * sees. Cards show one OVR plus three composites (OFF/DEF/ATH); the raw ten are
- * one tap away. All composites are weighted averages on the 3-10 surface scale
+ * one tap away. All composites are weighted averages on the surface scale
  * (BBGM-style Sigma(rating*w)/Sigma(w)). Pure and dependency-free (type-only
- * imports) so tests and tooling can reuse it. Inputs may exceed 10 for team
- * aggregates (synergy bonuses), so we never clamp the inputs, only round.
+ * imports) so tests and tooling can reuse it. Inputs may exceed the normal cap
+ * for team aggregates (synergy bonuses), so we never clamp the inputs, only round.
  */
 
 type Weights = Partial<Record<keyof PlayerStats, number>>;
@@ -91,7 +91,7 @@ export function ovrRaw(s: PlayerStats, position: Position): number {
   return num / den;
 }
 
-/** Position-weighted overall, rounded for display (3-10 surface scale). */
+/** Position-weighted overall, rounded for display (surface scale). */
 export function ovr(s: PlayerStats, position: Position): number {
   return Math.round(ovrRaw(s, position));
 }
@@ -100,7 +100,7 @@ export function ovr(s: PlayerStats, position: Position): number {
  * The player-class ladder, lowest to highest. D is the rookie/streetball floor
  * the player starts with; C-S are the real-NBA class ladder; S+ is the legendary
  * tier; S++ is the emergent APEX, reached only by run-scoped training (skills past
- * 10, up to 15) or by the toughest end-of-run bosses (the "+2 classes" ramp on the
+ * 20, up to 30) or by the toughest end-of-run bosses (the "+2 classes" ramp on the
  * S / S+ ladders). The five SELECTABLE ladders top out at S+ (see LADDER_CLASSES
  * in difficulty-mode.ts); S++ is never drafted, only attained.
  *
@@ -114,19 +114,19 @@ export type PlayerClass = 'D' | 'C' | 'B' | 'A' | 'S' | 'S+' | 'S++';
 export const CLASS_ORDER: readonly PlayerClass[] = ['D', 'C', 'B', 'A', 'S', 'S+', 'S++'];
 
 /**
- * The class an OVR falls into. Most players sit on the 3-10 surface scale; D is
- * the 3-4 floor, C is ~5, up to S at 9-10. Run-scoped training (and the hardest
- * bosses) push OVR past 10: 11-12 reads S+, 13+ reads the S++ apex. The thresholds
- * line up with the class "levels" in src/game/classes.ts so a class badge always
- * matches the scaling band.
+ * The class an OVR falls into. Most players sit in the 6-20 normal band; D is
+ * the floor, C is ~10, up to S at 18-20. Curated greats, run-scoped training, and
+ * the hardest bosses push OVR past 20: 22-24 reads S+, 26+ reads the S++ apex. The
+ * thresholds line up with the class "levels" in src/game/classes.ts so a class
+ * badge always matches the scaling band.
  */
 export function classForOvr(ovrValue: number): PlayerClass {
-  if (ovrValue >= 13) return 'S++';
-  if (ovrValue >= 11) return 'S+';
-  if (ovrValue >= 9) return 'S';
-  if (ovrValue >= 8) return 'A';
-  if (ovrValue >= 6) return 'B';
-  if (ovrValue >= 5) return 'C';
+  if (ovrValue >= 26) return 'S++';
+  if (ovrValue >= 22) return 'S+';
+  if (ovrValue >= 18) return 'S';
+  if (ovrValue >= 16) return 'A';
+  if (ovrValue >= 12) return 'B';
+  if (ovrValue >= 10) return 'C';
   return 'D';
 }
 

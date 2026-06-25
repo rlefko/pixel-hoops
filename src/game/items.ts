@@ -5,10 +5,10 @@ import type { MapNodeType } from '@/types/run-map';
 
 /**
  * Run-scoped equippable items (max 1 per player). Modeled on Slay the Spire
- * relics with rarity bands. Common items are a flat +1; the boss-relic band
- * trades a big upside for a real downside so a strong item is a decision, not a
- * free win. Grabbed free (one) at Boost nodes, and dropped by elites/bosses.
- * Items reset each run (stripped at mergeRunGainsIntoHome).
+ * relics with rarity bands. Common items are a flat +2 (one notch on the 6-20
+ * scale); the boss-relic band trades a big upside for a real downside so a strong
+ * item is a decision, not a free win. Grabbed free (one) at Boost nodes, and
+ * dropped by elites/bosses. Items reset each run (stripped at mergeRunGainsIntoHome).
  */
 export type ItemRarity = 'common' | 'uncommon' | 'rare' | 'boss';
 
@@ -26,29 +26,29 @@ export interface ItemDef {
 }
 
 export const ITEM_DEFS: readonly ItemDef[] = [
-  // --- Common: flat +1 (the floor) ---
-  { id: 'grip-tape', name: 'Grip Tape', rarity: 'common', blurb: '+1 outside', effect: { outside: 1 }, cost: 18 },
-  { id: 'ankle-braces', name: 'Ankle Braces', rarity: 'common', blurb: '+1 perimeter D', effect: { perimeterD: 1 }, cost: 18 },
-  { id: 'headband', name: 'Headband', rarity: 'common', blurb: '+1 IQ', effect: { iq: 1 }, cost: 16 },
-  { id: 'compression-sleeve', name: 'Compression Sleeve', rarity: 'common', blurb: '+1 inside', effect: { inside: 1 }, cost: 18 },
-  { id: 'wristband', name: 'Wristband', rarity: 'common', blurb: '+1 clutch', effect: { clutch: 1 }, cost: 16 },
-  { id: 'track-spikes', name: 'Track Spikes', rarity: 'common', blurb: '+1 athleticism', effect: { athleticism: 1 }, cost: 18 },
+  // --- Common: flat +2 (the floor) ---
+  { id: 'grip-tape', name: 'Grip Tape', rarity: 'common', blurb: '+2 outside', effect: { outside: 2 }, cost: 18 },
+  { id: 'ankle-braces', name: 'Ankle Braces', rarity: 'common', blurb: '+2 perimeter D', effect: { perimeterD: 2 }, cost: 18 },
+  { id: 'headband', name: 'Headband', rarity: 'common', blurb: '+2 IQ', effect: { iq: 2 }, cost: 16 },
+  { id: 'compression-sleeve', name: 'Compression Sleeve', rarity: 'common', blurb: '+2 inside', effect: { inside: 2 }, cost: 18 },
+  { id: 'wristband', name: 'Wristband', rarity: 'common', blurb: '+2 clutch', effect: { clutch: 2 }, cost: 16 },
+  { id: 'track-spikes', name: 'Track Spikes', rarity: 'common', blurb: '+2 athleticism', effect: { athleticism: 2 }, cost: 18 },
 
-  // --- Uncommon: +2 or a two-stat blend ---
-  { id: 'shooting-sleeve', name: 'Shooting Sleeve', rarity: 'uncommon', blurb: '+2 outside', effect: { outside: 2 }, cost: 34 },
-  { id: 'lockdown-gloves', name: 'Lockdown Gloves', rarity: 'uncommon', blurb: '+2 perimeter D', effect: { perimeterD: 2 }, cost: 34 },
-  { id: 'playmaker-gloves', name: 'Playmaker Gloves', rarity: 'uncommon', blurb: '+1 playmaking, +1 IQ', effect: { playmaking: 1, iq: 1 }, cost: 36 },
-  { id: 'bouncy-soles', name: 'Bouncy Soles', rarity: 'uncommon', blurb: '+1 athleticism, +1 inside', effect: { athleticism: 1, inside: 1 }, cost: 36 },
+  // --- Uncommon: +4 or a two-stat blend ---
+  { id: 'shooting-sleeve', name: 'Shooting Sleeve', rarity: 'uncommon', blurb: '+4 outside', effect: { outside: 4 }, cost: 34 },
+  { id: 'lockdown-gloves', name: 'Lockdown Gloves', rarity: 'uncommon', blurb: '+4 perimeter D', effect: { perimeterD: 4 }, cost: 34 },
+  { id: 'playmaker-gloves', name: 'Playmaker Gloves', rarity: 'uncommon', blurb: '+2 playmaking, +2 IQ', effect: { playmaking: 2, iq: 2 }, cost: 36 },
+  { id: 'bouncy-soles', name: 'Bouncy Soles', rarity: 'uncommon', blurb: '+2 athleticism, +2 inside', effect: { athleticism: 2, inside: 2 }, cost: 36 },
 
-  // --- Rare: +3 / build-shaping ---
-  { id: 'sniper-scope', name: 'Sniper Scope', rarity: 'rare', blurb: '+3 outside', effect: { outside: 3 }, cost: 60 },
-  { id: 'rim-protector-pads', name: 'Rim Protector Pads', rarity: 'rare', blurb: '+2 interior D, +1 inside', effect: { interiorD: 2, inside: 1 }, cost: 62 },
-  { id: 'floor-general-headset', name: 'Floor General Headset', rarity: 'rare', blurb: '+2 playmaking, +1 clutch', effect: { playmaking: 2, clutch: 1 }, cost: 62 },
+  // --- Rare: +6 / build-shaping ---
+  { id: 'sniper-scope', name: 'Sniper Scope', rarity: 'rare', blurb: '+6 outside', effect: { outside: 6 }, cost: 60 },
+  { id: 'rim-protector-pads', name: 'Rim Protector Pads', rarity: 'rare', blurb: '+4 interior D, +2 inside', effect: { interiorD: 4, inside: 2 }, cost: 62 },
+  { id: 'floor-general-headset', name: 'Floor General Headset', rarity: 'rare', blurb: '+4 playmaking, +2 clutch', effect: { playmaking: 4, clutch: 2 }, cost: 62 },
 
   // --- Boss relics: big upside WITH a real cost (drop-only) ---
-  { id: 'heavy-hitter-vest', name: 'Heavy Hitter Vest', rarity: 'boss', blurb: '+4 inside, but -2 athleticism', effect: { inside: 4 }, downside: { athleticism: -2 }, cost: 0 },
-  { id: 'glass-cannon-goggles', name: 'Glass Cannon Goggles', rarity: 'boss', blurb: '+4 outside, but -2 perimeter D', effect: { outside: 4 }, downside: { perimeterD: -2 }, cost: 0 },
-  { id: 'iron-man-brace', name: 'Iron Man Brace', rarity: 'boss', blurb: '+3 interior D, +1 inside, but -3 stamina', effect: { interiorD: 3, inside: 1 }, downside: { stamina: -3 }, cost: 0 },
+  { id: 'heavy-hitter-vest', name: 'Heavy Hitter Vest', rarity: 'boss', blurb: '+8 inside, but -4 athleticism', effect: { inside: 8 }, downside: { athleticism: -4 }, cost: 0 },
+  { id: 'glass-cannon-goggles', name: 'Glass Cannon Goggles', rarity: 'boss', blurb: '+8 outside, but -4 perimeter D', effect: { outside: 8 }, downside: { perimeterD: -4 }, cost: 0 },
+  { id: 'iron-man-brace', name: 'Iron Man Brace', rarity: 'boss', blurb: '+6 interior D, +2 inside, but -6 stamina', effect: { interiorD: 6, inside: 2 }, downside: { stamina: -6 }, cost: 0 },
 ];
 
 export const ITEM_BY_ID: Record<string, ItemDef> = Object.fromEntries(

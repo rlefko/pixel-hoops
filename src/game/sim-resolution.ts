@@ -71,9 +71,9 @@ export const ACTION_DEF: Record<OffActionId, (s: PlayerStats) => number> = {
   dunk: (s) => s.interiorD,
 };
 
-/** Normalize a 3-10 rating to ~0..1 (team aggregates may exceed 1). */
+/** Normalize a 6-20 rating to ~0..1 (team aggregates may exceed 1). */
 function q(rating: number): number {
-  return (rating - 3) / 7;
+  return (rating - 6) / 14;
 }
 
 /** Parameter-free one-on-one contest probability. */
@@ -102,7 +102,7 @@ export interface MakeArgs {
  */
 export function makeProbability(args: MakeArgs): number {
   const profile = SHOT_PROFILE[args.action];
-  const iqBonus = clamp((args.iq - 5) * 0.008, 0, IQ_MAKE_BONUS);
+  const iqBonus = clamp((args.iq - 10) * 0.004, 0, IQ_MAKE_BONUS);
   const raw =
     profile.base +
     SLOPE * q(args.offRating) -
@@ -147,7 +147,7 @@ export function missFlavor(
     const pBlock = ratio(defense.interiorD, ACTION_OFF[action](offense)) * BLOCK_BASE;
     if (rng.chance(pBlock)) return 'block';
     let pTurnover = ratio(defense.perimeterD, offense.playmaking) * TURNOVER_BASE;
-    pTurnover *= clamp(1 - (offense.iq - 5) * 0.04, 0.6, 1.2);
+    pTurnover *= clamp(1 - (offense.iq - 10) * 0.02, 0.6, 1.2);
     if (rng.chance(pTurnover)) return rng.chance(0.5) ? 'steal' : 'turnover';
     return 'miss';
   }

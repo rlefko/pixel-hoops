@@ -7,8 +7,10 @@ export type Archetype =
   | 'center';
 
 /**
- * Core ratings, all on the 3 (worst) to 10 (elite) scale, base 5. Ten ratings
- * split offense and defense the way real basketball does and add the intangibles
+ * Core ratings on a granular scale: roughly 6 (worst) to 20 (elite) for normal
+ * players (base 10), with curated greats reaching ~24 and a hard ceiling of 30
+ * via upgrades, run-scoped training, and the toughest bosses. Ten ratings split
+ * offense and defense the way real basketball does and add the intangibles
  * accurate sims model (IQ, stamina, durability). The UI keeps this approachable
  * by showing derived composites (OFF/DEF/ATH) and one OVR on the surface, with
  * the full breakdown one tap away (see src/game/ratings.ts).
@@ -84,78 +86,100 @@ export function randomInt(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-/** Clamp a value to the valid stat range. */
+/**
+ * The single source of truth for the rating scale. Declared here (the pure type
+ * leaf) so every consumer, including src/game/stat-scaling.ts, can share them
+ * without an import cycle. The scale is a deliberate 2x widening of the old 3-10
+ * model, which makes the sim's relative balance identical while giving room for
+ * granular, specialized skillsets:
+ *   - STAT_MIN ..STAT_NORMAL_MAX : the band normal players and procedural
+ *     generation live in (6..20).
+ *   - STAT_ELITE_MAX : the base ceiling for curated real greats (the field caps
+ *     at 20, legends reach ~24 so a star reads like a star).
+ *   - STAT_CEIL : the difficulty-band ceiling, so the top of the S / S+ ladders
+ *     can field apex bosses above the normal cap.
+ *   - STAT_HARD_MAX : the absolute ceiling any rating can reach through upgrades
+ *     and run-scoped training combined.
+ */
+export const STAT_MIN = 6;
+export const STAT_BASE = 10;
+export const STAT_NORMAL_MAX = 20;
+export const STAT_ELITE_MAX = 24;
+export const STAT_CEIL = 28;
+export const STAT_HARD_MAX = 30;
+
+/** Clamp a value to the normal player band [STAT_MIN, STAT_NORMAL_MAX]. */
 function clampStat(value: number): number {
-  return Math.max(3, Math.min(10, value));
+  return Math.max(STAT_MIN, Math.min(STAT_NORMAL_MAX, value));
 }
 
 /**
- * Per-archetype rating biases as [min, max] deltas applied over the base of 5.
+ * Per-archetype rating biases as [min, max] deltas applied over STAT_BASE (10).
  * Guards lean playmaking/perimeter/outside, wings are balanced, bigs lean
  * inside/interior. Bigs carry a slightly lower stamina (heavier minute load).
- * Condition ratings (stamina/durability) stay near 5 so they do not dominate
- * early balance and instead matter through fatigue and injury later.
+ * Condition ratings (stamina/durability) stay near the base so they do not
+ * dominate early balance and instead matter through fatigue and injury later.
  */
 const ARCHETYPE_BIASES: Record<Archetype, Record<keyof PlayerStats, [number, number]>> = {
   'point-guard': {
-    inside: [-1, 0],
-    outside: [0, 1],
-    playmaking: [3, 4],
-    perimeterD: [1, 2],
-    interiorD: [-2, -1],
-    athleticism: [1, 2],
-    iq: [1, 2],
-    clutch: [-1, 1],
-    stamina: [0, 1],
-    durability: [-1, 1],
+    inside: [-2, 0],
+    outside: [0, 2],
+    playmaking: [6, 8],
+    perimeterD: [2, 4],
+    interiorD: [-4, -2],
+    athleticism: [2, 4],
+    iq: [2, 4],
+    clutch: [-2, 2],
+    stamina: [0, 2],
+    durability: [-2, 2],
   },
   'shooting-guard': {
-    inside: [0, 1],
-    outside: [2, 4],
-    playmaking: [0, 1],
-    perimeterD: [1, 2],
-    interiorD: [-1, 0],
-    athleticism: [0, 1],
-    iq: [0, 1],
-    clutch: [1, 3],
-    stamina: [0, 1],
-    durability: [-1, 1],
+    inside: [0, 2],
+    outside: [4, 8],
+    playmaking: [0, 2],
+    perimeterD: [2, 4],
+    interiorD: [-2, 0],
+    athleticism: [0, 2],
+    iq: [0, 2],
+    clutch: [2, 6],
+    stamina: [0, 2],
+    durability: [-2, 2],
   },
   'small-forward': {
-    inside: [0, 1],
-    outside: [1, 2],
-    playmaking: [0, 1],
-    perimeterD: [1, 2],
-    interiorD: [0, 1],
-    athleticism: [1, 2],
-    iq: [0, 1],
-    clutch: [0, 1],
-    stamina: [0, 1],
-    durability: [0, 1],
+    inside: [0, 2],
+    outside: [2, 4],
+    playmaking: [0, 2],
+    perimeterD: [2, 4],
+    interiorD: [0, 2],
+    athleticism: [2, 4],
+    iq: [0, 2],
+    clutch: [0, 2],
+    stamina: [0, 2],
+    durability: [0, 2],
   },
   'power-forward': {
-    inside: [2, 3],
-    outside: [-1, 1],
-    playmaking: [-1, 0],
-    perimeterD: [0, 1],
-    interiorD: [2, 3],
-    athleticism: [1, 2],
-    iq: [0, 1],
-    clutch: [0, 1],
-    stamina: [-1, 0],
-    durability: [0, 2],
+    inside: [4, 6],
+    outside: [-2, 2],
+    playmaking: [-2, 0],
+    perimeterD: [0, 2],
+    interiorD: [4, 6],
+    athleticism: [2, 4],
+    iq: [0, 2],
+    clutch: [0, 2],
+    stamina: [-2, 0],
+    durability: [0, 4],
   },
   center: {
-    inside: [3, 4],
-    outside: [-2, 0],
-    playmaking: [-2, -1],
-    perimeterD: [-1, 0],
-    interiorD: [3, 4],
-    athleticism: [0, 2],
-    iq: [0, 1],
-    clutch: [1, 3],
-    stamina: [-1, 0],
-    durability: [0, 2],
+    inside: [6, 8],
+    outside: [-4, 0],
+    playmaking: [-4, -2],
+    perimeterD: [-2, 0],
+    interiorD: [6, 8],
+    athleticism: [0, 4],
+    iq: [0, 2],
+    clutch: [2, 6],
+    stamina: [-2, 0],
+    durability: [0, 4],
   },
 };
 
@@ -175,7 +199,7 @@ export function createPlayer(
   const stats = {} as PlayerStats;
   for (const key of STAT_KEYS) {
     const [lo, hi] = bias[key];
-    stats[key] = clampStat(5 + int(lo, hi));
+    stats[key] = clampStat(STAT_BASE + int(lo, hi));
   }
   return { name, archetype, stats, level: 1, trainingXP: 0 };
 }

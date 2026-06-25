@@ -18,7 +18,7 @@ const positives = (d?: StatDelta): number =>
   d ? Object.values(d).filter((v) => (v ?? 0) > 0).length : 0;
 
 describe('gacha ability power bands', () => {
-  it('commons are one +1 boost and one -1 drawback', () => {
+  it('commons are one +2 boost and one -2 drawback', () => {
     const commons = GACHA_ABILITIES.filter((a) => a.rarity === 'common');
     expect(commons.length).toBeGreaterThanOrEqual(12);
     for (const a of commons) {
@@ -29,14 +29,14 @@ describe('gacha ability power bands', () => {
     }
   });
 
-  it('rares are a net +2 player boost OR a team boost with a -1 drawback', () => {
+  it('rares are a net +4 player boost OR a team boost with a -2 drawback', () => {
     const rares = GACHA_ABILITIES.filter((a) => a.rarity === 'rare');
     expect(rares.length).toBeGreaterThanOrEqual(8);
     for (const a of rares) {
       if (a.teamAura) {
         expect(negatives(a.selfDelta)).toBe(1); // a team boost pays a personal cost
       } else {
-        expect(sum(a.selfDelta)).toBe(2);
+        expect(sum(a.selfDelta)).toBe(4);
         expect(negatives(a.selfDelta)).toBe(0);
       }
     }
@@ -53,8 +53,8 @@ describe('gacha ability power bands', () => {
           ) || negatives(a.teamAura.extra) > 0
         : false;
       expect(teamNeg).toBe(false);
-      // Either a +2 player boost or a team aura.
-      expect(sum(a.selfDelta) === 2 || !!a.teamAura).toBe(true);
+      // Either a +4 player boost or a team aura.
+      expect(sum(a.selfDelta) === 4 || !!a.teamAura).toBe(true);
     }
   });
 

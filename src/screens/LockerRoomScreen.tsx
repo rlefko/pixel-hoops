@@ -16,7 +16,7 @@ import type { PlayerStats } from '@/types/player';
 
 /**
  * The Locker Room: spend coins between runs on permanent +1 stat upgrades, capped
- * at +2 per stat. Premium stats (outside/playmaking/clutch) cost more. The owned
+ * at +5 per stat. Premium stats (outside/playmaking/clutch) cost more. The owned
  * collection is large, so it is searchable + class-filterable, sorted by most
  * recently used (the home-roster order). Mirrors the in-run TrainingView grid.
  */
@@ -93,7 +93,7 @@ export default function LockerRoomScreen() {
           <Text style={styles.coinText}>{coins}</Text>
         </Pop>
       </View>
-      <Text style={styles.subtitle}>Spend coins on permanent upgrades (+2 cap per stat)</Text>
+      <Text style={styles.subtitle}>Spend coins on permanent upgrades (+5 cap per stat)</Text>
       <RosterFilterBar query={query} onQuery={setQuery} classes={classes} onToggleClass={toggleClass} />
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>

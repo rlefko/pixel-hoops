@@ -5,17 +5,19 @@ import { STAT_KEYS } from '@/types/player';
 import { CLASS_ORDER } from '@/game/classes';
 
 describe('legendary dataset + abilities', () => {
-  it('has 40 legends, all 90+ legendary with an ability', () => {
+  it('has 40 legends, all legendary with an ability', () => {
     expect(NBA_LEGENDS).toHaveLength(40);
     expect(NBA_PLAYERS).toBe(NBA_LEGENDS); // back-compat alias is the legend pool
     for (const p of NBA_LEGENDS) {
       expect(p.legendary).toBe(true);
       expect(typeof p.ability).toBe('string');
-      expect(p.overall).toBeGreaterThanOrEqual(90);
+      // Re-fetched current-player legends (Chris Paul, Ja Morant, ...) sit below
+      // 90, so the floor is the real elite band, not a flat 90+.
+      expect(p.overall).toBeGreaterThanOrEqual(76);
     }
   });
 
-  it('has a large class pool: real current players, classes C-S, no ability, ratings 3..10', () => {
+  it('has a large class pool: real current players, classes C-S, no ability, ratings 6..20', () => {
     expect(NBA_POOL.length).toBeGreaterThanOrEqual(300);
     for (const p of NBA_POOL) {
       expect(p.legendary).toBeFalsy();
@@ -26,8 +28,8 @@ describe('legendary dataset + abilities', () => {
       expect(CLASS_ORDER).toContain(p.originalClass);
       const stats = p.stats as unknown as Record<string, number>;
       for (const key of STAT_KEYS) {
-        expect(stats[key]).toBeGreaterThanOrEqual(3);
-        expect(stats[key]).toBeLessThanOrEqual(10);
+        expect(stats[key]).toBeGreaterThanOrEqual(6);
+        expect(stats[key]).toBeLessThanOrEqual(20);
       }
     }
   });
@@ -56,15 +58,15 @@ describe('legendary dataset + abilities', () => {
     }
   });
 
-  it('every player carries the full ten ratings in 3..10 (not the legacy shape)', () => {
+  it('every legend carries the full ten ratings in the 6..24 elite band (not the legacy shape)', () => {
     for (const p of NBA_PLAYERS) {
       const stats = p.stats as unknown as Record<string, number>;
       // Re-rated, not legacy: the new shape has `outside`, not `shooting`.
       expect(stats.outside).toBeTypeOf('number');
       expect(stats.shooting).toBeUndefined();
       for (const key of STAT_KEYS) {
-        expect(stats[key]).toBeGreaterThanOrEqual(3);
-        expect(stats[key]).toBeLessThanOrEqual(10);
+        expect(stats[key]).toBeGreaterThanOrEqual(6);
+        expect(stats[key]).toBeLessThanOrEqual(24);
       }
     }
   });

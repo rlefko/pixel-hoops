@@ -1,8 +1,9 @@
-import type { PlayerStats } from '@/types/player';
+import { STAT_ELITE_MAX, STAT_MIN, STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
 
 /**
  * Pure mapping from NBA 2K rating space (0-99 attributes) into the game's
- * compact 3-10 stat space. Kept dependency-free (type-only import) so the
+ * granular stat space (6-20 for the normal pool, up to 24 for curated greats).
+ * Kept dependency-light (the scale constants live on the type leaf) so the
  * offline fetch script (scripts/fetch-nba.ts) can reuse it without pulling in
  * any app/runtime modules. The ten game ratings condense many 2K attributes:
  *
@@ -34,15 +35,29 @@ function avg(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-/** Map a 2K rating (~25-99) to the 3-10 game scale, clamped. */
-export function scaleRating(rating: number): number {
+/** Map a 2K rating (~25-99) onto [lo, hi], clamped. The 2K endpoints (25..99)
+ * describe the SOURCE scale and never change; only the target band moves. */
+function scaleTo(rating: number, lo: number, hi: number): number {
   const t = (rating - 25) / (99 - 25);
-  const scaled = Math.round(3 + t * 7);
-  return Math.max(3, Math.min(10, scaled));
+  const scaled = Math.round(lo + t * (hi - lo));
+  return Math.max(lo, Math.min(hi, scaled));
 }
 
-/** Condense a raw 2K attribute bag into the game's ten ratings. */
-export function mapRatingsToStats(raw: RawRatings): PlayerStats {
+/** Map a 2K rating to the normal 6-20 game band (the real-player pool). */
+export function scaleRating(rating: number): number {
+  return scaleTo(rating, STAT_MIN, STAT_NORMAL_MAX);
+}
+
+/** Map a 2K rating to the curated-great band 6-24, so legends gain a granular,
+ * specialized spread above the normal cap. */
+export function scaleRatingElite(rating: number): number {
+  return scaleTo(rating, STAT_MIN, STAT_ELITE_MAX);
+}
+
+/** Condense a raw 2K attribute bag into the game's ten ratings. `elite` widens the
+ * target band to 6-24 for curated legends; the pool uses the normal 6-20 band. */
+export function mapRatingsToStats(raw: RawRatings, opts?: { elite?: boolean }): PlayerStats {
+  const scale = opts?.elite ? scaleRatingElite : scaleRating;
   const overall = pick(raw, ['overall', 'overallAttribute', 'rating'], 75);
 
   const inside = avg([
@@ -88,15 +103,15 @@ export function mapRatingsToStats(raw: RawRatings): PlayerStats {
   const durability = pick(raw, ['durability', 'hustle'], overall);
 
   return {
-    inside: scaleRating(inside),
-    outside: scaleRating(outside),
-    playmaking: scaleRating(playmaking),
-    perimeterD: scaleRating(perimeterD),
-    interiorD: scaleRating(interiorD),
-    athleticism: scaleRating(athleticism),
-    iq: scaleRating(iq),
-    clutch: scaleRating(clutch),
-    stamina: scaleRating(stamina),
-    durability: scaleRating(durability),
+    inside: scale(inside),
+    outside: scale(outside),
+    playmaking: scale(playmaking),
+    perimeterD: scale(perimeterD),
+    interiorD: scale(interiorD),
+    athleticism: scale(athleticism),
+    iq: scale(iq),
+    clutch: scale(clutch),
+    stamina: scale(stamina),
+    durability: scale(durability),
   };
 }

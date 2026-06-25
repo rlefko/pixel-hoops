@@ -216,11 +216,11 @@ describe('home roster persistence', () => {
     const home = { ...rookie('up'), coins: 5000 };
     const before = home.players[0].player.stats.inside;
     const up = applyUpgrade(home, 0, 'inside');
-    expect(up.players[0].player.stats.inside).toBe(Math.min(10, before + 1));
-    expect(up.coins).toBe(4600); // first standard buy costs 400
-    // The 2nd +1 is much steeper (3x the first).
+    expect(up.players[0].player.stats.inside).toBe(Math.min(30, before + 1));
+    expect(up.coins).toBe(4800); // first standard buy costs 200
+    // The 2nd +1 is twice the first.
     const up2 = applyUpgrade(up, 0, 'inside');
-    expect(up.coins - up2.coins).toBe(1200);
+    expect(up.coins - up2.coins).toBe(400);
     // Unaffordable is a no-op (same reference).
     const broke = { ...home, coins: 100 };
     expect(applyUpgrade(broke, 0, 'inside')).toBe(broke);
@@ -679,20 +679,20 @@ describe('training points', () => {
   });
 });
 
-describe('training ratings (S+/S++ tiers and the 15 ceiling)', () => {
-  it('applyTrainingDelta clamps to the 3-15 surface', () => {
-    const base = { inside: 9, outside: 9, playmaking: 5, perimeterD: 5, interiorD: 5, athleticism: 5, iq: 5, clutch: 5, stamina: 5, durability: 5 };
-    const out = applyTrainingDelta(base, { outside: 8, inside: 99 });
-    expect(out.outside).toBe(15); // 9 + 8 -> clamped at 15
-    expect(out.inside).toBe(15); // clamped at 15
+describe('training ratings (S+/S++ tiers and the 30 ceiling)', () => {
+  it('applyTrainingDelta clamps to the 6-30 surface', () => {
+    const base = { inside: 18, outside: 18, playmaking: 10, perimeterD: 10, interiorD: 10, athleticism: 10, iq: 10, clutch: 10, stamina: 10, durability: 10 };
+    const out = applyTrainingDelta(base, { outside: 16, inside: 99 });
+    expect(out.outside).toBe(30); // 18 + 16 -> clamped at 30
+    expect(out.inside).toBe(30); // clamped at 30
   });
 
-  it('tierFor labels trained-past-10 overalls as S+ and the apex as S++', () => {
-    expect(tierFor(13).label).toBe('S++');
-    expect(tierFor(12).label).toBe('S+');
-    expect(tierFor(11).label).toBe('S+');
-    expect(tierFor(10).label).toBe('S');
-    expect(tierFor(9).label).toBe('S');
+  it('tierFor labels trained-past-20 overalls as S+ and the apex as S++', () => {
+    expect(tierFor(26).label).toBe('S++');
+    expect(tierFor(24).label).toBe('S+');
+    expect(tierFor(22).label).toBe('S+');
+    expect(tierFor(20).label).toBe('S');
+    expect(tierFor(18).label).toBe('S');
   });
 });
 

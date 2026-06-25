@@ -14,14 +14,14 @@ import { NBA_PLAYERS, NBA_LEGENDS, NBA_POOL, NBA_TEAMS } from '@/data/nba';
 import { POSITIONS } from '@/types/roster';
 
 describe('nba rating mapping', () => {
-  it('scales 2K ratings into the 3-10 band, clamped', () => {
-    expect(scaleRating(99)).toBe(10);
-    expect(scaleRating(25)).toBe(3);
-    expect(scaleRating(10)).toBe(3); // below floor clamps up
-    expect(scaleRating(150)).toBe(10); // above ceiling clamps down
+  it('scales 2K ratings into the 6-20 band, clamped', () => {
+    expect(scaleRating(99)).toBe(20);
+    expect(scaleRating(25)).toBe(6);
+    expect(scaleRating(10)).toBe(6); // below floor clamps up
+    expect(scaleRating(150)).toBe(20); // above ceiling clamps down
     const mid = scaleRating(62);
-    expect(mid).toBeGreaterThanOrEqual(3);
-    expect(mid).toBeLessThanOrEqual(10);
+    expect(mid).toBeGreaterThanOrEqual(6);
+    expect(mid).toBeLessThanOrEqual(20);
   });
 
   it('condenses many attributes and tolerates missing fields', () => {
@@ -35,8 +35,8 @@ describe('nba rating mapping', () => {
       intangibles: 99,
     });
     for (const v of Object.values(stats)) {
-      expect(v).toBeGreaterThanOrEqual(3);
-      expect(v).toBeLessThanOrEqual(10);
+      expect(v).toBeGreaterThanOrEqual(6);
+      expect(v).toBeLessThanOrEqual(20);
     }
     const fallback = mapRatingsToStats({ overall: 80 });
     expect(Number.isNaN(fallback.outside)).toBe(false);

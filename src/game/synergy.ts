@@ -32,26 +32,26 @@ export function computeSynergy(lineup: RosterPlayer[]): SynergyResult {
 
   // Backcourt Speed: two or more guards push the pace.
   if (guardCount >= 2) {
-    result.paceBonus += 1.5;
+    result.paceBonus += 3;
     result.labels.push('Backcourt Speed');
   }
 
   // Twin Towers: two or more bigs anchor the paint.
   if (bigCount >= 2) {
-    result.defenseBonus += 1.5;
+    result.defenseBonus += 3;
     result.labels.push('Twin Towers');
   }
 
   // Positionless Basketball: a balanced one-of-each five plays clutch.
   if (distinctPositions === 5) {
-    result.clutchBonus += 1;
-    result.offenseBonus += 0.5;
+    result.clutchBonus += 2;
+    result.offenseBonus += 1;
     result.labels.push('Positionless Basketball');
   }
 
   // Specialists: stacking one position concentrates the attack.
   if (maxAtOnePosition >= 3) {
-    result.offenseBonus += 1;
+    result.offenseBonus += 2;
     result.labels.push('Specialists');
   }
 

@@ -8,8 +8,14 @@ single OVR and three composites on the surface.
 
 ## The ten-rating model
 
-Every player has ten ratings on the same 3 (worst) to 10 (elite) scale, base 5.
-They live on `PlayerStats` in `src/types/player.ts`.
+Every player has ten ratings on a granular surface scale. The normal band, where
+procedurally generated and pool players live, runs 6 (worst) to 20 (elite) with a
+generation base of 10. Curated all-time greats (legends) push above the normal cap
+to about 24, and an absolute hard cap of 30 is reachable only through permanent
+upgrades plus run-scoped training and the toughest end-of-run bosses. The wider
+band is a pure 2x of the old 3-10 model, so relative balance is unchanged; it just
+buys more granular, specialized skillsets. They live on `PlayerStats` in
+`src/types/player.ts`.
 
 | Group | Rating | Drives |
 | --- | --- | --- |
@@ -27,7 +33,7 @@ They live on `PlayerStats` in `src/types/player.ts`.
 ### Surface composites
 
 `src/game/ratings.ts` derives the values the UI shows, BBGM-style weighted
-averages on the same 3-10 scale:
+averages on the same surface scale (normal 6-20, elite up to 24, hard cap 30):
 
 - `OFF` = weighted average of `outside`, `inside`, `playmaking`, `iq`, `athleticism`, `clutch`.
 - `DEF` = weighted average of `perimeterD`, `interiorD`, `athleticism`, `iq`.
@@ -43,8 +49,9 @@ The engine (`src/game/simulation.ts`) is pure and seeded: the same seed yields
 the identical timeline, box score, substitutions, and injuries. Each possession:
 
 1. Substitution check (see Fatigue below).
-2. Pick an action, weighted by the game plan and reshaped by team IQ toward the
-   highest expected-value looks (rim and threes), away from contested midrange.
+2. Pick an action, weighted by the team's auto-derived tendency (its pace and
+   focus, read off the roster shape) and reshaped by team IQ toward the highest
+   expected-value looks (rim and threes), away from contested midrange.
 3. Pick the scorer by usage weight.
 4. Resolve the shot with `makeProbability` in `src/game/sim-resolution.ts`:
    an affine function of the matchup, clamped, then scaled by fatigue:
@@ -53,7 +60,7 @@ the identical timeline, box score, substitutions, and injuries. Each possession:
    p = clamp(base + SLOPE * q(offRating) - DEF_WEIGHT * q(defRating) + iqBonus + clutchDelta, 0.03, 0.97) * fatigueMult
    ```
 
-   where `q(r) = (r - 3) / 7` normalizes a rating, `base` is per action
+   where `q(r) = (r - 6) / 14` normalizes a rating across the normal band, `base` is per action
    (`three .32`, `midrange .40`, `drive .47`, `layup .55`, `dunk .62`), and the
    offensive/defensive ratings are chosen per action (three/midrange use
    `outside` vs `perimeterD`; layup/dunk use `inside` vs `interiorD`; etc.).
@@ -64,7 +71,7 @@ the identical timeline, box score, substitutions, and injuries. Each possession:
 ### Per-game form
 
 Each team draws a hot or cold shooting offset once per game
-(`FORM_RANGE = 1.6` rating points). Independent per-shot luck washes out over a
+(`FORM_RANGE = 3.2` rating points on the wider scale). Independent per-shot luck washes out over a
 full game, so this correlated factor is what keeps upsets alive: a cold favorite
 can drop one to a hot underdog.
 

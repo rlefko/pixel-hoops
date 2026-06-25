@@ -10,25 +10,28 @@ The fix comes from the project's north star, **pokelike.xyz**, a Pokemon rogueli
 
 ## The pivot in one line
 
-Stop playing a card every possession. **Build a five, set a game plan, then watch a fast, juicy auto-sim of the game.** Move all agency up to the roster, the game plan, and a branching tournament map.
+Stop playing a card every possession. **Build a five, then watch a fast, juicy auto-sim of the game.** Move all agency up to the roster and a branching tournament map.
 
 ## The new core loop
 
 ```
-Build a Five  ->  Set a Game Plan  ->  Watch the Auto-Sim  ->  Win / Lose
-      ^                                                              |
-      |                                                              v
+Build a Five  ->  Watch the Auto-Sim  ->  Win / Lose
+      ^                                        |
+      |                                        v
    Run Map  <-  Recruit / Train / Boost / Rest  <-  Rewards  <-  Advance
 ```
 
-1. **Build a five.** Choose five players by position (PG, SG, SF, PF, C) from your roster, plus bench depth. This is what finally makes the game a real 5-on-5: five distinct players on the floor, with synergies between them.
-2. **Set a game plan.** Pick pace (slow, balanced, fast) and focus (inside, outside, balanced, lockdown), and later a star to feature. These bias the simulation.
-3. **Watch the auto-sim.** The engine plays the game possession by possession and emits a timeline of events. The UI replays it default-fast with count-up scores, screen shake on big plays, arcade callouts, and haptics. The floor holds a stable formation (the ball and the active player carry the possession, rather than the whole floor sliding each time), routine plays are compressed while the peaks are juiced, and the player controls pacing with an in-replay speed toggle (chill, brisk default, blitz), a condensed highlights mode, and skip. See the "Pacing the watch" principles in [addictive-blueprint.md](addictive-blueprint.md).
-4. **Take the reward, advance the map.** Win to move forward on a branching run map; lose and the run ends, but you keep meta-progression.
+1. **Build a five.** Choose five players by position (PG, SG, SF, PF, C) from your roster, plus bench depth. This is what finally makes the game a real 5-on-5: five distinct players on the floor, with synergies between them. The lineup is the only pre-game decision: there is no manual game plan to set.
+2. **Watch the auto-sim.** The engine plays the game possession by possession and emits a timeline of events. The UI replays it default-fast with count-up scores, screen shake on big plays, arcade callouts, and haptics. The floor holds a stable formation (the ball and the active player carry the possession, rather than the whole floor sliding each time), routine plays are compressed while the peaks are juiced, and the player controls pacing with an in-replay speed toggle (chill, brisk default, blitz), a condensed highlights mode, and skip. See the "Pacing the watch" principles in [addictive-blueprint.md](addictive-blueprint.md).
+3. **Take the reward, advance the map.** Win to move forward on a branching run map; lose and the run ends, but you keep meta-progression.
+
+## How tempo and shot selection are set
+
+The player no longer picks a pace and focus before each game. An explicit "game plan" selection caused inconsistent, hard-to-read results, so it was removed. Instead every team, the player's and each AI opponent's, **derives its tendencies automatically from its roster shape** (`planForRoster`): a guard-heavy five plays a touch faster and leans outside, a big-heavy five plays slower and pounds it inside, and a balanced five stays balanced. Roster composition still shapes tempo and shot selection exactly as before; it just happens automatically rather than through a menu. The pace, focus, and lockdown effects in the sim are unchanged, now driven by this auto-derived tendency.
 
 ## Agency model: pure auto-sim now, crunch moments later
 
-For now the game is a **pure auto-sim**: the player sets the lineup and game plan, then watches. This is the snappiest answer to the "too slow" problem and matches pokelike directly.
+For now the game is a **pure auto-sim**: the player sets the lineup, then watches. This is the snappiest answer to the "too slow" problem and matches pokelike directly.
 
 The engine is deliberately built as **simulate, emit a timeline, then replay**. Because the timeline is data, a future **crunch-time decision** drops in without rework: at a Q4 close-game boundary the replay can pause, surface a single high-leverage choice (pound it inside, chuck threes, full-court press), and resume the simulation with that bias. This is the most dramatic moment basketball can offer, so it is designed-in from the start even though it ships later.
 
@@ -55,7 +58,7 @@ Synergies are computed once at game start and surfaced in the pregame screen so 
 
 The engine uses transparent, deterministic resolution math (detailed in [stat-and-sim-system.md](stat-and-sim-system.md)). For each possession:
 
-1. Choose an action (three, midrange, drive, dunk, layup, or a defensive event), biased by the offense's focus and stats.
+1. Choose an action (three, midrange, drive, dunk, layup, or a defensive event), biased by the offense's auto-derived focus and its stats.
 2. Attribute it to an on-court player by usage weight.
 3. Compute the success rate with the existing formula `yourStat / (yourStat + theirCounterStat) * 100`.
 4. Apply a clutch nudge in a close fourth quarter.
@@ -76,7 +79,7 @@ the run. Node types:
 
 - **Game / Elite / Boss:** opponents of escalating difficulty; wins bank training points (1 / 2 / 4).
 - **Recruit:** add a player to your bench (the "catch" analog).
-- **Training:** spend banked training points on run-scoped skill boosts, the only path past the normal 10 cap (up to 12, the S+ tier).
+- **Training:** spend banked training points on run-scoped skill boosts, the only path past the normal 20 cap (up to the hard cap of 30, the S++ apex).
 - **Boost:** grab one free item and equip it (the renamed, coin-free shop; coins are spent only in the Locker Room).
 - **Rest:** restore or re-seed your lineup.
 
@@ -92,7 +95,7 @@ The first pass achieves the 8-bit feel **programmatically**: a bundled pixel fon
 
 ## How this scores on the blueprint
 
-- **Synergy-first:** lineup and game plan are the game; combat is automatic.
+- **Synergy-first:** the lineup is the game; tempo and focus fall out of roster shape automatically, and combat is automatic.
 - **Escalating stakes and power fantasy:** opponents scale continuously across the run while the roster compounds under a salary cap, so power and difficulty climb together (see [difficulty-rebalance.md](difficulty-rebalance.md)).
 - **Snappy layered juice:** count-up, shake, flash, callout, and haptics on every beat, in well under half a second.
 - **Short, interruptible sessions:** games auto-sim in seconds; runs are short and resume cleanly.

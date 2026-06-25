@@ -12,7 +12,6 @@ import {
 } from '@/game/run-machine';
 import { classAboveLadder } from '@/game/difficulty-mode';
 import { LineupBoard } from '@/components/game/LineupBoard';
-import { GamePlanPicker } from '@/components/game/GamePlanPicker';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
 import { RunMapView } from '@/components/run/RunMapView';
 import { RecruitView } from '@/components/run/RecruitView';
@@ -244,8 +243,6 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
       <Pressable onPress={actions.openLineupBuilder}>
         <Text style={styles.link}>Change Lineup</Text>
       </Pressable>
-      <Text style={styles.section}>GAME PLAN</Text>
-      <GamePlanPicker plan={model.gamePlan} onChange={actions.setGamePlan} />
       <Pressable
         style={[styles.button, styles.primary]}
         onPress={actions.enterGame}

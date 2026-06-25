@@ -4,7 +4,6 @@ import { mergeRunGainsIntoHome } from '@/game/home-roster';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import type { RosterPlayer } from '@/types/roster';
 import type { PlayerStats } from '@/types/player';
-import type { GamePlan } from '@/types/tactics';
 import type { BoostOffer } from '@/game/boosts';
 
 /**
@@ -50,7 +49,6 @@ export function useRun() {
       confirmDraft: (starters: RosterPlayer[], bench: RosterPlayer[]) =>
         dispatch({ type: 'confirmDraft', starters, bench }),
       dropForRecruit: (index: number) => dispatch({ type: 'dropForRecruit', index }),
-      setGamePlan: (plan: GamePlan) => dispatch({ type: 'setGamePlan', plan }),
       openLineupBuilder: () => dispatch({ type: 'openLineupBuilder' }),
       setLineup: (starters: RosterPlayer[], bench: RosterPlayer[]) =>
         dispatch({ type: 'setLineup', starters, bench }),

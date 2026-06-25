@@ -68,7 +68,7 @@ describe('draft costs', () => {
       ...c,
       player: {
         ...c.player,
-        stats: { ...c.player.stats, inside: 10, outside: 10, playmaking: 10, iq: 9 },
+        stats: { ...c.player.stats, inside: 20, outside: 20, playmaking: 20, iq: 18 },
       },
     };
     expect(classForOvr(ovr(upgraded.player.stats, upgraded.position))).not.toBe('C');
