@@ -21,6 +21,7 @@ import {
   SIM_SPEED_ORDER,
 } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, BORDER, RADIUS } from '@/theme';
+import { pickReadable } from '@/theme/color';
 import { isMadeShot, type SimEvent } from '@/types/sim';
 import type { Team } from '@/types/team';
 
@@ -42,6 +43,28 @@ function colorForEvent(e: SimEvent): string {
 }
 
 const isWinner = (e: SimEvent): boolean => e.callout === 'BUZZER BEATER!';
+
+/**
+ * A team's name on a chip filled with its own secondary color. The text color is
+ * auto-picked for a readable contrast (at least 3:1) against that chip: the
+ * team's primary when it clears the bar, else the most legible of warm white /
+ * near-black, so even teams whose primary is dark stay readable on the dark HUD.
+ */
+function TeamChip({ team }: { team: Team }) {
+  const textColor = pickReadable(
+    team.accentHex,
+    [team.colorHex, palette.ink, palette.bgDeep],
+    palette.ink,
+    3
+  );
+  return (
+    <View style={[styles.teamChip, { backgroundColor: team.accentHex }]}>
+      <Text style={[styles.team, { color: textColor }]} numberOfLines={1}>
+        {team.name}
+      </Text>
+    </View>
+  );
+}
 
 interface PlayByPlayFeedProps {
   timeline: SimEvent[];
@@ -216,29 +239,18 @@ export function PlayByPlayFeed({
   return (
     <View style={styles.wrap}>
       <View style={[styles.hud, { paddingTop: insets.top + space(2) }]}>
-        {/* The opponent is the host (home) team, billed first; the player's squad is
-            the visitor, billed second. Each name keeps its own score and color. */}
+        {/* The player's squad is billed first (left) even though they're the
+            visitor; the opponent second. Each name rides a chip in its own
+            secondary color, and each chip stays matched to that team's score. */}
         <View style={styles.scoreRow}>
           <View style={styles.teamCol}>
-            <Text
-              style={[styles.team, { color: awayTeam.colorHex }]}
-              numberOfLines={1}
-            >
-              {awayTeam.name}
-            </Text>
-            <View style={[styles.teamBar, { backgroundColor: awayTeam.accentHex }]} />
+            <TeamChip team={homeTeam} />
           </View>
-          <Counter value={awayScore} style={styles.score} />
-          <Text style={styles.dash}>-</Text>
           <Counter value={homeScore} style={styles.score} />
+          <Text style={styles.dash}>-</Text>
+          <Counter value={awayScore} style={styles.score} />
           <View style={styles.teamCol}>
-            <Text
-              style={[styles.team, { color: homeTeam.colorHex }]}
-              numberOfLines={1}
-            >
-              {homeTeam.name}
-            </Text>
-            <View style={[styles.teamBar, { backgroundColor: homeTeam.accentHex }]} />
+            <TeamChip team={awayTeam} />
           </View>
         </View>
       </View>
@@ -314,10 +326,9 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
   },
-  teamBar: {
-    alignSelf: 'stretch',
-    height: 2,
-    marginTop: space(0.5),
+  teamChip: {
+    paddingHorizontal: space(1),
+    paddingVertical: space(0.5),
     borderRadius: RADIUS.chip,
   },
   score: {
