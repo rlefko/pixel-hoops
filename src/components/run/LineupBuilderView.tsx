@@ -177,6 +177,7 @@ function PlayerRow({
         <PlayerCard
           rp={rp}
           condition
+          showSpecialty
           expanded={expanded}
           onToggleExpand={onToggleExpand}
         />

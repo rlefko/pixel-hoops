@@ -191,7 +191,7 @@ export function DraftView({
               style={[styles.row, barred && styles.rowBarred]}
             >
               <View style={styles.cardWrap}>
-                <PlayerCard rp={rp} compact />
+                <PlayerCard rp={rp} compact showSpecialty />
               </View>
               <CostBadge cost={cost} />
             </Pressable>

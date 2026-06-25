@@ -12,6 +12,7 @@ import { ovr, off, def, ath, tierFor, classForOvr, CLASS_ORDER, type TierKey } f
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
+import { getSpecialty } from '@/game/specialty';
 import { getGachaAbility } from '@/game/abilities-gacha';
 import { ITEM_RARITY_COLOR } from './item-ui';
 import { StatNumber } from './StatNumber';
@@ -43,6 +44,9 @@ interface PlayerCardProps {
    * lists like the pregame scouting report where OVR + tier is the glance read.
    */
   compact?: boolean;
+  /** Show the player's play-style specialty (e.g. "Rim Protector") under the name,
+   * a glance read for the roster, draft, locker, and recruit screens. */
+  showSpecialty?: boolean;
 }
 
 /** Tier key -> palette color for the badge (verified palette keys, no new hex). */
@@ -92,6 +96,7 @@ export function PlayerCard({
   condition = false,
   variant = 'row',
   compact = false,
+  showSpecialty = false,
 }: PlayerCardProps) {
   // Fold run-scoped training into the displayed stats so a trained player reads
   // its true OVR/tier (up to S++) everywhere the card appears.
@@ -180,6 +185,11 @@ export function PlayerCard({
               <InjuryIcon size={10} />
               <Text style={styles.outText}>OUT {rp.gamesOut}</Text>
             </View>
+          ) : null}
+          {showSpecialty ? (
+            <Text style={styles.specialty} numberOfLines={1}>
+              {getSpecialty(rp)}
+            </Text>
           ) : null}
         </View>
         <StatNumber value={overall} style={styles.ovr} animate={false} />
@@ -422,6 +432,12 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
     color: palette.injury,
+  },
+  specialty: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.steelBlue,
+    marginTop: space(0.5),
   },
   ovr: {
     fontFamily: FONT.display,
