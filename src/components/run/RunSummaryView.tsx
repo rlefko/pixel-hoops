@@ -41,7 +41,9 @@ export function RunSummaryView({
       {unlockedClass ? (
         <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
       ) : null}
-      <Text style={styles.note}>Recruits carried home.</Text>
+      <Text style={[styles.note, !champion && styles.noteLost]}>
+        {champion ? 'Recruits carried home.' : 'Run recruits lost. Coins banked.'}
+      </Text>
       <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
         <Text style={styles.buttonText}>NEW RUN</Text>
       </Pressable>
@@ -81,7 +83,9 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.body,
     color: palette.makeGreenLt,
     marginTop: space(2),
+    textAlign: 'center',
   },
+  noteLost: { color: palette.missRedLt },
   button: {
     marginTop: space(7),
     paddingVertical: space(4),

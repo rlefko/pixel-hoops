@@ -16,6 +16,7 @@ import {
   addAbility,
   equipAbility,
   unequipAbility,
+  applyPlayerPull,
 } from '@/game/home-roster';
 import {
   GACHA_MACHINES,
@@ -25,12 +26,22 @@ import {
   type AbilityRarity,
   type MachineId,
 } from '@/game/abilities-gacha';
+import {
+  PLAYER_MACHINES,
+  PLAYER_GACHA_TIERS,
+  tierCounts,
+  type PlayerGachaTier,
+  type PlayerPullResult,
+} from '@/game/player-gacha';
+import { CLASS_COLOR } from '@/components/run/class-ui';
 import { createRNG } from '@/game/rng';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
- * The Arcade: three coin machines that pull passive abilities, plus an equip
- * loadout to assign owned abilities onto owned players (persists between runs).
+ * The Arcade: the coin gacha hub. A SCOUTING section of five machines signs new
+ * players into the collection (see src/game/player-gacha.ts), and an ABILITIES
+ * section of three machines pulls passive abilities plus an equip loadout to
+ * assign owned abilities onto owned players (persists between runs).
  */
 
 const RARITY_COLOR: Record<AbilityRarity, string> = {
@@ -40,12 +51,14 @@ const RARITY_COLOR: Record<AbilityRarity, string> = {
 };
 
 let pullCounter = 0; // varies the pull seed within a session (pulls are not replayed)
+let scoutCounter = 0; // same, for the player scouting machines
 
 export default function ArcadeScreen() {
   const router = useRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const [selected, setSelected] = useState<string | null>(null);
   const [lastPull, setLastPull] = useState<{ id: string; rarity: AbilityRarity } | null>(null);
+  const [lastScout, setLastScout] = useState<PlayerPullResult | null>(null);
   const [query, setQuery] = useState('');
 
   const players = useMemo(() => {
@@ -56,6 +69,10 @@ export default function ArcadeScreen() {
   }, [homeRoster, query]);
   const ownedAbilities = useMemo(
     () => (homeRoster ? GACHA_ABILITIES.filter((a) => abilityOwned(homeRoster, a.id) > 0) : []),
+    [homeRoster]
+  );
+  const ownedKeys = useMemo(
+    () => new Set(homeRoster ? homeRoster.players.map(playerKey) : []),
     [homeRoster]
   );
 
@@ -78,6 +95,16 @@ export default function ArcadeScreen() {
     saveHomeRoster(addAbility({ ...homeRoster, coins: coins - machine.cost }, result.id));
   };
 
+  const scout = (tier: PlayerGachaTier) => {
+    const machine = PLAYER_MACHINES[tier];
+    // Block when unaffordable or the tier is fully collected (a guaranteed repeat).
+    if (coins < machine.cost || tierCounts(tier, ownedKeys).complete) return;
+    scoutCounter += 1;
+    const { home, result } = applyPlayerPull(homeRoster, tier, createRNG(`scout-${tier}-${coins}-${scoutCounter}`));
+    setLastScout(result);
+    saveHomeRoster(home);
+  };
+
   const onPlayer = (rp: (typeof players)[number]) => {
     const key = playerKey(rp);
     if (selected && homeRoster.equippedAbilities[key] !== selected) {
@@ -88,6 +115,10 @@ export default function ArcadeScreen() {
   };
 
   const lastAbility = getGachaAbility(lastPull?.id);
+  const scoutColor =
+    lastScout && !lastScout.player.legendary
+      ? CLASS_COLOR[lastScout.player.originalClass ?? 'C']
+      : palette.gold;
 
   return (
     <Screen style={styles.container} onBack={() => router.back()}>
@@ -100,6 +131,48 @@ export default function ArcadeScreen() {
       </View>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+        <Text style={[styles.section, styles.sectionTop]}>SCOUTING</Text>
+        <View style={styles.machines}>
+          {PLAYER_GACHA_TIERS.map((tier) => {
+            const m = PLAYER_MACHINES[tier];
+            const counts = tierCounts(tier, ownedKeys);
+            const color = m.legendary ? palette.gold : CLASS_COLOR[m.cls];
+            const disabled = coins < m.cost || counts.complete;
+            return (
+              <View key={tier} style={styles.machine}>
+                <View style={styles.machineHead}>
+                  <Text style={[styles.machineName, { color }]}>{m.name}</Text>
+                  <Text style={styles.collected}>
+                    {counts.owned}/{counts.total}
+                  </Text>
+                </View>
+                <Text style={styles.machineBlurb}>{m.blurb}</Text>
+                <Pressable
+                  onPress={() => scout(tier)}
+                  disabled={disabled}
+                  style={[styles.pullBtn, disabled && styles.pullDisabled]}
+                >
+                  <Text style={styles.pullText}>
+                    {counts.complete ? 'COLLECTED' : `SCOUT · ${m.cost}c`}
+                  </Text>
+                </Pressable>
+              </View>
+            );
+          })}
+        </View>
+
+        {lastScout ? (
+          <Pop trigger={lastScout.player.player.name} style={[styles.reveal, { borderColor: scoutColor }]}>
+            <Text style={[styles.revealRarity, { color: scoutColor }]}>
+              {lastScout.isDupe ? `REPEAT · +${lastScout.refund}c REFUNDED` : 'NEW SIGNING'}
+            </Text>
+            <View style={styles.revealCardWrap}>
+              <PlayerCard rp={lastScout.player} />
+            </View>
+          </Pop>
+        ) : null}
+
+        <Text style={styles.section}>ABILITIES</Text>
         <View style={styles.machines}>
           {(Object.keys(GACHA_MACHINES) as MachineId[]).map((id) => {
             const m = GACHA_MACHINES[id];
@@ -222,7 +295,9 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgPanel,
     borderRadius: RADIUS.chip,
   },
+  machineHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   machineName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body },
+  collected: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
   machineBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim, marginTop: space(1) },
   pullBtn: {
     marginTop: space(2),
@@ -246,6 +321,7 @@ const styles = StyleSheet.create({
   revealRarity: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
   revealName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.ink, marginTop: space(1) },
   revealBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim, marginTop: space(1) },
+  revealCardWrap: { alignSelf: 'stretch', marginTop: space(2) },
   section: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
@@ -253,6 +329,7 @@ const styles = StyleSheet.create({
     marginTop: space(4),
     marginBottom: space(1),
   },
+  sectionTop: { marginTop: 0 }, // the first section sits flush under the scroll's top gap
   empty: { fontFamily: FONT.body, fontSize: FONT_SIZE.body, color: palette.inkDim },
   search: {
     height: 38,
