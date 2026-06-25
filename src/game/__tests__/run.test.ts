@@ -565,7 +565,7 @@ describe('run reducer', () => {
     const before = m.core.roster.bench.length;
     const [offer] = generateRecruitOffers('C', 0, 1, createRNG('o'));
     const next = runReducer(
-      { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer] } },
+      { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer], rerolled: [false] } },
       { type: 'recruit', player: offer }
     )!;
     expect(next.core.roster.bench).toHaveLength(before + 1);
@@ -581,7 +581,7 @@ describe('run reducer', () => {
     m = { ...m, core: { ...m.core, roster: { starters: all.slice(0, 5), bench: all.slice(5) } } };
     const [offer] = generateRecruitOffers('B', 0, 1, createRNG('over'));
     const next = runReducer(
-      { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer] } },
+      { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer], rerolled: [false] } },
       { type: 'recruit', player: offer }
     )!;
     expect(next.phase.kind).toBe('dropForRecruit');
@@ -589,6 +589,32 @@ describe('run reducer', () => {
     const dropped = runReducer(next, { type: 'dropForRecruit', index: 0 })!;
     expect(dropped.phase.kind).toBe('map');
     expect(dropped.core.roster.starters.length + dropped.core.roster.bench.length).toBe(MAX_RUN_ROSTER);
+  });
+
+  it('rerolls one recruit option once, deterministically, then refuses a second reroll', () => {
+    const m = start();
+    const offers = generateRecruitOffers('C', 0, 3, createRNG('offers'));
+    const recruitModel: RunModel = {
+      ...m,
+      phase: { kind: 'recruit', nodeId: 'n1', offers, rerolled: [false, false, false] },
+    };
+    const after = runReducer(recruitModel, { type: 'rerollRecruit', index: 1 })!;
+    expect(after.phase.kind).toBe('recruit');
+    if (after.phase.kind !== 'recruit') return;
+    expect(after.phase.rerolled).toEqual([false, true, false]);
+    expect(after.phase.offers[0]).toBe(offers[0]); // other options untouched
+    expect(after.phase.offers[2]).toBe(offers[2]);
+    expect(after.phase.offers[1].player.name).not.toBe(offers[1].player.name); // replaced
+    // A second reroll of the same option is a no-op (one reroll per option per node).
+    const again = runReducer(after, { type: 'rerollRecruit', index: 1 })!;
+    expect(again.phase.kind === 'recruit' && again.phase.offers[1].player.name).toBe(
+      after.phase.offers[1].player.name
+    );
+    // Deterministic: the same model + action yields the same replacement.
+    const repeat = runReducer(recruitModel, { type: 'rerollRecruit', index: 1 })!;
+    expect(repeat.phase.kind === 'recruit' && repeat.phase.offers[1].player.name).toBe(
+      after.phase.offers[1].player.name
+    );
   });
 
   it('grabbing a free boost item equips it without spending coins', () => {
@@ -710,7 +736,7 @@ describe('training points', () => {
 
 describe('training ratings (S+/S++ tiers and the 30 ceiling)', () => {
   it('applyTrainingDelta clamps to the 6-30 surface', () => {
-    const base = { inside: 18, outside: 18, playmaking: 10, perimeterD: 10, interiorD: 10, athleticism: 10, iq: 10, clutch: 10, stamina: 10, durability: 10 };
+    const base = { inside: 18, outside: 18, playmaking: 10, perimeterD: 10, interiorD: 10, athleticism: 10, iq: 10, clutch: 10, stamina: 10, durability: 10, blocking: 10, stealing: 10, strength: 10, rebounding: 10 };
     const out = applyTrainingDelta(base, { outside: 16, inside: 99 });
     expect(out.outside).toBe(30); // 18 + 16 -> clamped at 30
     expect(out.inside).toBe(30); // clamped at 30

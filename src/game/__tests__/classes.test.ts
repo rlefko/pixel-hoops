@@ -58,6 +58,7 @@ describe('class model', () => {
     const shape: PlayerStats = {
       inside: 14, outside: 20, playmaking: 16, perimeterD: 12, interiorD: 10,
       athleticism: 16, iq: 16, clutch: 18, stamina: 14, durability: 14,
+      blocking: 10, stealing: 16, strength: 12, rebounding: 10,
     };
     for (const cls of ['C', 'B', 'A', 'S'] as const) {
       const anchored = anchorStatsToClass(shape, cls, 'SG');
@@ -129,6 +130,10 @@ describe('scaleLegendToLevel', () => {
     clutch: 19,
     stamina: 24,
     durability: 24,
+    blocking: 24,
+    stealing: 10,
+    strength: 24,
+    rebounding: 24,
   };
 
   it('scales a legend down to a low target level, preserving its shape', () => {

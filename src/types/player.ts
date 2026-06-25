@@ -36,6 +36,14 @@ export interface PlayerStats {
   stamina: number;
   /** Durability: resistance to injury from accumulated load. */
   durability: number;
+  /** Shot-blocking instinct and length: drives blocks at the rim (intrinsic, not trained). */
+  blocking: number;
+  /** Steal instinct and quick hands: drives steals and takeaways (intrinsic, not trained). */
+  stealing: number;
+  /** Physical strength: post leverage, finishing through contact, box-outs (intrinsic, not trained). */
+  strength: number;
+  /** Rebounding nose and box-out: drives offensive and defensive boards (intrinsic, not trained). */
+  rebounding: number;
 }
 
 /**
@@ -53,12 +61,21 @@ export const STAT_KEYS: readonly (keyof PlayerStats)[] = [
   'clutch',
   'stamina',
   'durability',
+  // Play-style ratings are APPENDED so the first ten seeded draws in createPlayer
+  // stay byte-identical; reordering or interleaving would shift every generated
+  // player. New non-skill keys must always go at the end.
+  'blocking',
+  'stealing',
+  'strength',
+  'rebounding',
 ];
 
 /**
- * The eight skill ratings (everything except the two condition ratings). Round
- * scaling and training touch these; stamina/durability are game-state, not a
- * difficulty tier, so they are left out of round scaling.
+ * The eight skill ratings (everything except the condition and play-style
+ * ratings). Round scaling and training touch these; the condition stats
+ * (stamina/durability) and play-style stats (blocking/stealing/strength/
+ * rebounding) are intrinsic game-state, not a difficulty tier, so they are left
+ * out of round scaling, class anchoring, upgrades, and training.
  */
 export const SKILL_STAT_KEYS: readonly (keyof PlayerStats)[] = [
   'inside',
@@ -69,6 +86,21 @@ export const SKILL_STAT_KEYS: readonly (keyof PlayerStats)[] = [
   'athleticism',
   'iq',
   'clutch',
+];
+
+/**
+ * The six intrinsic, non-upgradeable ratings: the two condition stats plus the
+ * four play-style stats. They are acquired only by who you recruit (never
+ * trained, upgraded, or round-scaled) and define how a player behaves in the
+ * sim. The UI groups them together and the scout report reads them for identity.
+ */
+export const PLAYSTYLE_STAT_KEYS: readonly (keyof PlayerStats)[] = [
+  'stamina',
+  'durability',
+  'blocking',
+  'stealing',
+  'strength',
+  'rebounding',
 ];
 
 /** A roster player with stats, archetype, and progression data. */
@@ -119,6 +151,9 @@ function clampStat(value: number): number {
  * inside/interior. Bigs carry a slightly lower stamina (heavier minute load).
  * Condition ratings (stamina/durability) stay near the base so they do not
  * dominate early balance and instead matter through fatigue and injury later.
+ * Play-style ratings encode real positional roles: bigs block/rebound and are
+ * strong, guards generate steals; these never feed OVR, only the sim's box
+ * score, so a generated five reads like real basketball.
  */
 const ARCHETYPE_BIASES: Record<Archetype, Record<keyof PlayerStats, [number, number]>> = {
   'point-guard': {
@@ -132,6 +167,10 @@ const ARCHETYPE_BIASES: Record<Archetype, Record<keyof PlayerStats, [number, num
     clutch: [-2, 2],
     stamina: [0, 2],
     durability: [-2, 2],
+    blocking: [-4, -2],
+    stealing: [3, 5],
+    strength: [-4, -2],
+    rebounding: [-4, -2],
   },
   'shooting-guard': {
     inside: [0, 2],
@@ -144,6 +183,10 @@ const ARCHETYPE_BIASES: Record<Archetype, Record<keyof PlayerStats, [number, num
     clutch: [2, 6],
     stamina: [0, 2],
     durability: [-2, 2],
+    blocking: [-3, -1],
+    stealing: [2, 4],
+    strength: [-2, 0],
+    rebounding: [-3, -1],
   },
   'small-forward': {
     inside: [0, 2],
@@ -156,6 +199,10 @@ const ARCHETYPE_BIASES: Record<Archetype, Record<keyof PlayerStats, [number, num
     clutch: [0, 2],
     stamina: [0, 2],
     durability: [0, 2],
+    blocking: [0, 2],
+    stealing: [0, 2],
+    strength: [0, 2],
+    rebounding: [0, 2],
   },
   'power-forward': {
     inside: [4, 6],
@@ -168,6 +215,10 @@ const ARCHETYPE_BIASES: Record<Archetype, Record<keyof PlayerStats, [number, num
     clutch: [0, 2],
     stamina: [-2, 0],
     durability: [0, 4],
+    blocking: [3, 5],
+    stealing: [-2, 0],
+    strength: [4, 6],
+    rebounding: [4, 6],
   },
   center: {
     inside: [6, 8],
@@ -180,6 +231,10 @@ const ARCHETYPE_BIASES: Record<Archetype, Record<keyof PlayerStats, [number, num
     clutch: [2, 6],
     stamina: [-2, 0],
     durability: [0, 4],
+    blocking: [5, 8],
+    stealing: [-4, -2],
+    strength: [5, 8],
+    rebounding: [5, 8],
   },
 };
 

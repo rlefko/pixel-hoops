@@ -71,6 +71,7 @@ export function useRun() {
       finishReplay: () => dispatch({ type: 'finishReplay' }),
       resolveGameResult: () => dispatch({ type: 'resolveGameResult' }),
       recruit: (player: RosterPlayer) => dispatch({ type: 'recruit', player }),
+      rerollRecruit: (index: number) => dispatch({ type: 'rerollRecruit', index }),
       trainPlayer: (index: number, stat: keyof PlayerStats) =>
         dispatch({ type: 'trainPlayer', index, stat }),
       rest: () => dispatch({ type: 'rest' }),

@@ -13,6 +13,7 @@ import type { PlayerStats } from '@/types/player';
 const baseStats: PlayerStats = {
   inside: 10, outside: 10, playmaking: 10, perimeterD: 10, interiorD: 10,
   athleticism: 10, iq: 10, clutch: 10, stamina: 10, durability: 10,
+  blocking: 10, stealing: 10, strength: 10, rebounding: 10,
 };
 
 describe('effects: stat deltas', () => {

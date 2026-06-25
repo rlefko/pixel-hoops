@@ -1,4 +1,4 @@
-import type { PlayerStats } from '@/types/player';
+import { STAT_MIN, STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
 import type { Position } from '@/types/roster';
 
 /**
@@ -47,7 +47,8 @@ export function isLegacyStats(s: unknown): s is LegacyStats {
  * Lossy but sensible: `outside` inherits the old jumper-heavy `shooting`,
  * `inside` blends shooting and athleticism, guards keep `speed` as playmaking,
  * bigs anchor `interiorD` on athleticism, and IQ leans off clutch. Condition
- * ratings default to a neutral 5.
+ * ratings default to a neutral 5; play-style ratings are position-aware so a
+ * migrated big still blocks and rebounds and a migrated guard still steals.
  */
 export function expandStats(old: LegacyStats, position: Position): PlayerStats {
   const isGuard = GUARD_POSITIONS.includes(position);
@@ -63,5 +64,42 @@ export function expandStats(old: LegacyStats, position: Position): PlayerStats {
     clutch: clamp(old.clutch),
     stamina: 5,
     durability: 5,
+    blocking: clamp(isBig ? old.athleticism : isGuard ? 4 : (old.athleticism + 4) / 2),
+    stealing: clamp(isGuard ? old.speed : isBig ? 4 : (old.speed + 4) / 2),
+    strength: clamp(isBig ? old.athleticism : isGuard ? 4 : 5),
+    rebounding: clamp(isBig ? old.athleticism : isGuard ? 4 : (old.athleticism + 4) / 2),
+  };
+}
+
+/** Clamp a backfilled play-style rating into the normal pool band [6, 20]. */
+function clampNormal(value: number): number {
+  return Math.max(STAT_MIN, Math.min(STAT_NORMAL_MAX, Math.round(value)));
+}
+
+/**
+ * Fill any missing play-style ratings (blocking/stealing/strength/rebounding) on
+ * a widened-scale line, position-aware, so data baked before the play-style
+ * expansion (or any partial save) never reads `undefined` -> NaN in the sim. A
+ * full re-bake through nba-map.ts supplies real 2K-derived values; this is the
+ * safety net and a no-op once all four keys are present. Each key is filled
+ * independently so a partially-baked line keeps its real values.
+ */
+export function backfillPlayStyleStats(stats: PlayerStats, position: Position): PlayerStats {
+  const isGuard = GUARD_POSITIONS.includes(position);
+  const isBig = BIG_POSITIONS.includes(position);
+  return {
+    ...stats,
+    blocking:
+      stats.blocking ??
+      clampNormal(isBig ? stats.interiorD : isGuard ? 8 : (stats.interiorD + 8) / 2),
+    stealing:
+      stats.stealing ??
+      clampNormal(isGuard ? stats.perimeterD : isBig ? 8 : (stats.perimeterD + 8) / 2),
+    strength:
+      stats.strength ??
+      clampNormal(isBig ? (stats.inside + stats.interiorD) / 2 : isGuard ? 8 : 10),
+    rebounding:
+      stats.rebounding ??
+      clampNormal(isBig ? stats.interiorD : isGuard ? 8 : (stats.interiorD + 8) / 2),
   };
 }

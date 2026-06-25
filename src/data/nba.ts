@@ -1,6 +1,6 @@
 import type { PlayerStats } from '@/types/player';
 import type { NbaTeam, RealPlayer } from '@/types/nba';
-import { expandStats, isLegacyStats } from '@/game/stat-migration';
+import { backfillPlayStyleStats, expandStats, isLegacyStats } from '@/game/stat-migration';
 import teams from './nba-teams.json';
 import legends from './nba-legends.json';
 import pool from './nba-pool.json';
@@ -24,12 +24,12 @@ import pool from './nba-pool.json';
 type RawPlayer = Omit<RealPlayer, 'stats'> & { stats: unknown };
 
 function normalize(p: RawPlayer): RealPlayer {
-  return {
-    ...p,
-    stats: isLegacyStats(p.stats)
-      ? expandStats(p.stats, p.position)
-      : (p.stats as PlayerStats),
-  };
+  const stats = isLegacyStats(p.stats)
+    ? expandStats(p.stats, p.position)
+    : (p.stats as PlayerStats);
+  // Backfill any play-style ratings missing from a line baked before the
+  // expansion (a no-op once the dataset is re-baked with the four new keys).
+  return { ...p, stats: backfillPlayStyleStats(stats, p.position) };
 }
 
 export const NBA_TEAMS = teams as NbaTeam[];

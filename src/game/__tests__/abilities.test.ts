@@ -5,12 +5,16 @@ import { STAT_KEYS } from '@/types/player';
 import { CLASS_ORDER } from '@/game/classes';
 
 describe('legendary dataset + abilities', () => {
-  it('has 40 legends, all legendary with an ability', () => {
-    expect(NBA_LEGENDS).toHaveLength(40);
+  it('has 124 legends, each legendary with a UNIQUE signature ability', () => {
+    expect(NBA_LEGENDS).toHaveLength(124);
     expect(NBA_PLAYERS).toBe(NBA_LEGENDS); // back-compat alias is the legend pool
+    const abilityIds = new Set<string>();
     for (const p of NBA_LEGENDS) {
       expect(p.legendary).toBe(true);
       expect(typeof p.ability).toBe('string');
+      expect(getAbility(p.ability)).toBeDefined(); // the id resolves to a real ability
+      expect(abilityIds.has(p.ability!)).toBe(false); // signatures are unique per legend
+      abilityIds.add(p.ability!);
       // Re-fetched current-player legends (Chris Paul, Ja Morant, ...) sit below
       // 90, so the floor is the real elite band, not a flat 90+.
       expect(p.overall).toBeGreaterThanOrEqual(76);

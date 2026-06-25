@@ -6,9 +6,10 @@ resolves a game. It supersedes the four-stat description in
 plays like real basketball while staying arcade-simple: deep under the hood, a
 single OVR and three composites on the surface.
 
-## The ten-rating model
+## The rating model
 
-Every player has ten ratings on a granular surface scale. The normal band, where
+Every player has fourteen ratings on a granular surface scale: ten skill and
+condition ratings, plus four intrinsic play-style ratings (see the table below). The normal band, where
 procedurally generated and pool players live, runs 6 (worst) to 20 (elite) with a
 generation base of 10. Curated all-time greats (legends) push above the normal cap
 to about 24, and an absolute hard cap of 30 is reachable only through permanent
@@ -35,13 +36,30 @@ a full, satisfying bar.
 | Offense | `inside` | rim finishing: layups, dunks, post |
 | Offense | `outside` | jump shooting: midrange and three |
 | Offense | `playmaking` | handle and passing: drives, assists, ball security |
-| Defense | `perimeterD` | contest jumpers and drives, steals |
-| Defense | `interiorD` | rim protection, blocks, defensive rebounding |
+| Defense | `perimeterD` | contest jumpers and drives |
+| Defense | `interiorD` | rim protection: contest layups and dunks |
 | Physical | `athleticism` | speed, quickness, vertical: pace, transition, finishing burst |
 | Mental | `iq` | shot selection quality and turnover avoidance |
 | Mental | `clutch` | a small crunch-time nudge |
 | Condition | `stamina` | fatigue pool size and drain rate |
 | Condition | `durability` | resistance to injury from load |
+| Play style | `blocking` | who swats shots (block box-score attribution) |
+| Play style | `stealing` | who jumps passing lanes (steal box-score attribution) |
+| Play style | `strength` | post leverage, finishing through contact, and-one rate |
+| Play style | `rebounding` | offensive/defensive board rate and attribution |
+
+### Play-style ratings (intrinsic, behavioral only)
+
+The four play-style ratings join `stamina` and `durability` as the **non-upgradeable**
+group: they are not trained, upgraded, round-scaled, or anchored to a class. A
+player is born with them (mapped from real 2K data) and you acquire them only by
+**recruiting** the player who has them. They do **not** feed `OFF`/`DEF`/`OVR` or
+the class ladder, so balance and the surface composites are unchanged. Instead
+they define how a player behaves in the box score: `blocking` decides who blocks,
+`stealing` who steals, `rebounding` who cleans the glass (and the offensive vs
+defensive split), and `strength` is a secondary nudge to finishing through contact
+and the and-one rate. This is the "power from who you draft" lever: a rim
+protector changes the sim, not just a rating number.
 
 ### Surface composites
 
@@ -78,8 +96,15 @@ the identical timeline, box score, substitutions, and injuries. Each possession:
    offensive/defensive ratings are chosen per action (three/midrange use
    `outside` vs `perimeterD`; layup/dunk use `inside` vs `interiorD`; etc.).
 5. On a miss, the flavor (block, steal, turnover, plain miss) is a ratio contest
-   `a / (a + b)` of the relevant defensive rating versus the finisher or
-   ball-handler, with IQ reducing turnovers.
+   `a / (a + b)` of the team's `blocking` (vs the finisher, who resists with
+   `strength`) or `stealing` (vs the ball-handler, reduced by IQ). The *rate*
+   uses the team aggregate; the *recipient* of the block/steal/rebound/assist is
+   then chosen by a powered weighted pick `P(player) ~ rating^power` over the five
+   (BBGM/ZenGM model). The power exponent concentrates each event on the
+   specialist: with block power 8 a rim protector hoards the swats and a
+   pass-first guard essentially never blocks, while quick guards lead steals and
+   bigs lead rebounds. Rebounds split offensive vs defensive by team `rebounding`
+   (tuned so ~27% of misses are offensive boards).
 
 ### Per-game form
 
@@ -108,11 +133,25 @@ deterministic edge.
 ### Box score and injuries
 
 The sim accumulates a per-player box line (points, rebounds, assists, steals,
-blocks, minutes, energy, load). Between games, `src/game/run-machine.ts` rolls
+blocks, minutes, energy, load). Each event is credited to the right player by a
+powered weighted pick over the on-court five (`P ~ rating^power`): blocks off
+`blocking`, steals off `stealing`, rebounds off `rebounding` (offensive boards
+more concentrated than defensive), assists off `playmaking`. The high power is
+what makes the box score read true to type, so a center leads blocks/rebounds and
+a pass-first guard does not. Between games, `src/game/run-machine.ts` rolls
 injuries from accumulated load and `durability` (more load and lower durability
 mean more risk). An injured player sits one or two games; rest nodes heal, bench
 depth covers, and the roster always fields a healthy five when it can, so a run
 is never bricked.
+
+### Scouting report
+
+The pregame surfaces each team's identity (`src/game/team-identity.ts`): a few
+character tags read off the five's stats and auto-derived pace/focus, a one-line
+blurb, headline strengths/weaknesses, and concrete numeric tendencies (projected
+steals/blocks/rebounds, three-point lean, top scorer). It is shown for both the
+opponent and the player's own team, so the matchup is a plannable decision (set a
+counter lineup) while the watched sim keeps the outcome live.
 
 ## Tuning
 
@@ -129,7 +168,15 @@ The model draws on how accurate sims and prediction systems work:
 - **Basketball GM** (open source) shows a realistic basketball sim needs only a
   handful of ratings and plain arithmetic (affine make probability, ratio
   contests, a multiplicative fatigue term), no logistic curves or machine
-  learning, with basketball IQ as the central realism lever.
+  learning, with basketball IQ as the central realism lever. Its `pickPlayer`
+  model also informs our box-score attribution: weight each player by
+  `rating^power`, where a high power concentrates an event on the specialist
+  (block ~8, steal ~4, offensive rebound ~5, defensive rebound ~3, assist ~10),
+  so per-position rates fall out without special-casing.
+- **Slay the Spire intent**: a strong scout shows the threat in concrete numbers
+  and a legible identity so a loss reads as a strategy miss, not bad luck, while
+  the resolution stays uncertain. The pregame scouting report follows this:
+  transparent on the opponent's identity, live on the watched sim's outcome.
 - **NBA 2K** separates tendencies (what a player chooses to do) from attributes
   (how well they do it), and splits stamina from fatigue rate. We model IQ-driven
   shot selection distinct from shooting skill, and energy that drains and recovers.

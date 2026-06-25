@@ -15,7 +15,7 @@ import { getAbility } from '@/game/abilities';
 import { getGachaAbility } from '@/game/abilities-gacha';
 import { ITEM_RARITY_COLOR } from './item-ui';
 import { StatNumber } from './StatNumber';
-import { STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
+import { PLAYSTYLE_STAT_KEYS, STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
 
 /**
@@ -68,14 +68,20 @@ const RATING_LABEL: Record<keyof PlayerStats, string> = {
   clutch: 'CLUTCH',
   stamina: 'STAMINA',
   durability: 'DURABLE',
+  blocking: 'BLOCKING',
+  stealing: 'STEALING',
+  strength: 'STRENGTH',
+  rebounding: 'REBOUND',
 };
 
-/** The expanded panel's groups, ordered offense -> defense -> physical -> condition. */
+/** The expanded panel's groups, ordered offense -> defense -> physical -> play style.
+ * Play style (the two condition stats plus the four intrinsic traits) is grouped
+ * last and read-only: these are never trained or upgraded, only recruited. */
 const RATING_GROUPS: { label: string; keys: (keyof PlayerStats)[] }[] = [
   { label: 'OFFENSE', keys: ['inside', 'outside', 'playmaking'] },
   { label: 'DEFENSE', keys: ['perimeterD', 'interiorD'] },
   { label: 'PHYSICAL + MENTAL', keys: ['athleticism', 'iq', 'clutch'] },
-  { label: 'CONDITION', keys: ['stamina', 'durability'] },
+  { label: 'PLAY STYLE', keys: [...PLAYSTYLE_STAT_KEYS] },
 ];
 
 export function PlayerCard({

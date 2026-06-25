@@ -12,6 +12,8 @@ import {
 } from '@/game/run-machine';
 import { classAboveLadder } from '@/game/difficulty-mode';
 import { LineupBoard } from '@/components/game/LineupBoard';
+import { TeamIdentityCard } from '@/components/game/TeamIdentityCard';
+import { deriveTeamIdentity } from '@/game/team-identity';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
 import { RunMapView } from '@/components/run/RunMapView';
 import { RecruitView } from '@/components/run/RecruitView';
@@ -146,8 +148,10 @@ export default function RunScreen() {
       return (
         <RecruitView
           offers={model.phase.offers}
+          rerolled={model.phase.rerolled}
           benchCount={model.core.roster.bench.length}
           onRecruit={actions.recruit}
+          onReroll={actions.rerollRecruit}
           onSkip={actions.skipNode}
         />
       );
@@ -266,8 +270,10 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
           {away.name}
         </Text>
       </View>
+      <TeamIdentityCard identity={deriveTeamIdentity(away)} accentHex={away.colorHex} />
       <LineupBoard team={away} compact />
       <Text style={styles.section}>YOUR FIVE</Text>
+      <TeamIdentityCard identity={deriveTeamIdentity(home)} accentHex={home.colorHex} />
       <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} compact />
       <Pressable onPress={actions.openLineupBuilder}>
         <Text style={styles.link}>Change Lineup</Text>

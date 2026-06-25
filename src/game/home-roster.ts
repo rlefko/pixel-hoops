@@ -3,7 +3,7 @@ import type { RunRewards } from '@/types/run-map';
 import type { PlayerStats } from '@/types/player';
 import type { RNG } from './rng';
 import { buildStartingTwelve } from './tournament';
-import { expandStats, isLegacyStats } from './stat-migration';
+import { backfillPlayStyleStats, expandStats, isLegacyStats } from './stat-migration';
 import { remapElite, remapSystem, STAT_MIN } from './stat-scaling';
 import { RATING_CAP, canUpgrade, perStatMax, upgradeCost } from './upgrades';
 import { classForOvr, ovr, type PlayerClass } from './ratings';
@@ -420,7 +420,16 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     const expanded = isLegacyStats(p.player.stats)
       ? { ...p, player: { ...p.player, stats: expandStats(p.player.stats, p.position) } }
       : { ...p };
-    const migrated = needsScaleBump ? remapPlayerStatsToV7(expanded) : expanded;
+    const scaled = needsScaleBump ? remapPlayerStatsToV7(expanded) : expanded;
+    // Fill any play-style ratings missing from a save written before the
+    // expansion, position-aware (a no-op once every key is present).
+    const migrated: RosterPlayer = {
+      ...scaled,
+      player: {
+        ...scaled.player,
+        stats: backfillPlayStyleStats(scaled.player.stats, scaled.position),
+      },
+    };
     delete migrated.item; // never trust a persisted run-scoped item
     delete migrated.onLoan;
     delete migrated.trainingDelta;

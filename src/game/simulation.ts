@@ -112,6 +112,32 @@ const BLOWOUT_QUARTER = 4;
 /** Share of made field goals that are assisted, scaled by team playmaking. */
 const ASSIST_RATE = 0.9;
 
+// --- Play-style event attribution (BBGM/ZenGM pickPlayer-with-power model) ---
+
+/**
+ * A box-score event (block, steal, rebound, assist) is credited to a player with
+ * probability proportional to (rating ^ POWER) over the on-court five. A higher
+ * power CONCENTRATES the event on the specialist: with BLOCK_POWER 9 a rim
+ * protector at blocking 18 beats a guard at blocking 7 by ~(18/7)^9, so a
+ * pass-first guard essentially never records a block. These are the BBGM/ZenGM
+ * exponents that reproduce realistic per-position distributions (centers lead
+ * blocks/rebounds, quick guards lead steals, the primary creator hoards assists).
+ */
+const BLOCK_POWER = 8;
+const STEAL_POWER = 4;
+const OREB_POWER = 5;
+const DREB_POWER = 3;
+const ASSIST_POWER = 10;
+/**
+ * Boards skew defensive (~73% of misses), so add this to the defense's rebounding
+ * aggregate when splitting offensive vs defensive boards. Tuned (with the team
+ * rebounding aggregate) so ~27% of misses become offensive rebounds, the NBA rate.
+ */
+const DEF_REBOUND_BIAS = 18;
+/** Extra and-one chance per strength point over the base, so strong finishers
+ * convert through contact more often (a small secondary effect of strength). */
+const STRENGTH_AND_ONE_K = 0.004;
+
 // --- Action tables (analogous to card.ts's CARD_STAT_MAP) ---
 
 // Only these five are ever chosen as a possession's action. The matchup ratings
@@ -563,10 +589,20 @@ export function simulateGame(config: SimConfig): SimResult {
   const rng = createRNG(config.seed);
   const events: SimEvent[] = [];
 
-  // Weighted pick over a five by a stat (credits defenders/rebounders/assisters).
-  const pickByStat = (five: PlayerGameState[], stat: keyof PlayerStats): PlayerGameState =>
+  // Weighted pick over a five with P(player) proportional to (stat ^ power),
+  // crediting the right specialist for each box-score event. A higher power
+  // concentrates the event on the best player at that skill (see *_POWER above);
+  // power 1 reproduces a plain linear weighting.
+  const pickByPower = (
+    five: PlayerGameState[],
+    stat: keyof PlayerStats,
+    power: number
+  ): PlayerGameState =>
     rng.weightedPick(
-      five.map((p): [PlayerGameState, number] => [p, Math.max(0.1, p.rp.player.stats[stat])])
+      five.map((p): [PlayerGameState, number] => [
+        p,
+        Math.pow(Math.max(0.1, p.rp.player.stats[stat]), power),
+      ])
     );
 
   let homeScore = 0;
@@ -588,13 +624,15 @@ export function simulateGame(config: SimConfig): SimResult {
     away: fiveOf(awayState),
   });
 
-  /** Decide the rebound and credit it to one side's five (defense favored). */
+  /** Decide the rebound and credit it to one side's five (defense favored). The
+   * split keys on team rebounding; the board itself goes to the best rebounder on
+   * the winning side, with offensive boards more concentrated on the crasher. */
   function creditRebound(offense: SideState, defense: SideState): void {
-    const offReb = offense.aggregate.interiorD;
-    const defReb = defense.aggregate.interiorD + 12; // boards skew defensive
+    const offReb = offense.aggregate.rebounding;
+    const defReb = defense.aggregate.rebounding + DEF_REBOUND_BIAS; // boards skew defensive
     const offensive = rng.chance(offReb / (offReb + defReb));
     const board = offensive ? offense : defense;
-    pickByStat(board.onCourt, 'interiorD').box.reb += 1;
+    pickByPower(board.onCourt, 'rebounding', offensive ? OREB_POWER : DREB_POWER).box.reb += 1;
   }
 
   function runPossession(
@@ -664,7 +702,11 @@ export function simulateGame(config: SimConfig): SimResult {
       result = 'score';
       if (
         SHOT_PROFILE[action].finish &&
-        rng.chance(0.12 + Math.max(0, scorer.rp.player.stats.clutch - 10) * 0.005)
+        rng.chance(
+          0.12 +
+            Math.max(0, scorer.rp.player.stats.clutch - 10) * 0.005 +
+            Math.max(0, scorer.rp.player.stats.strength - 10) * STRENGTH_AND_ONE_K
+        )
       ) {
         result = 'and-one';
         points += 1;
@@ -688,17 +730,19 @@ export function simulateGame(config: SimConfig): SimResult {
       const assistP = ASSIST_RATE * (offense.aggregate.playmaking / 20);
       const others = offense.onCourt.filter((p) => p !== scorer);
       if (others.length > 0 && rng.chance(assistP)) {
-        pickByStat(others, 'playmaking').box.ast += 1;
+        pickByPower(others, 'playmaking', ASSIST_POWER).box.ast += 1;
       }
     } else if (result === 'block') {
       scorer.box.fga += 1;
       if (action === 'three') scorer.box.tpa += 1;
-      const stat = SHOT_PROFILE[action].finish ? 'interiorD' : 'perimeterD';
-      pickByStat(defense.onCourt, stat).box.blk += 1;
+      // Both rim and perimeter swats credit the dedicated blocking trait, so a
+      // long shot-blocker (not a guard who happens to be the nearest defender)
+      // gets the rejection.
+      pickByPower(defense.onCourt, 'blocking', BLOCK_POWER).box.blk += 1;
       creditRebound(offense, defense);
     } else if (result === 'steal') {
       scorer.box.tov += 1;
-      pickByStat(defense.onCourt, 'perimeterD').box.stl += 1;
+      pickByPower(defense.onCourt, 'stealing', STEAL_POWER).box.stl += 1;
     } else if (result === 'turnover') {
       scorer.box.tov += 1;
     } else {

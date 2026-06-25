@@ -14,6 +14,10 @@ const BASE: PlayerStats = {
   clutch: 10,
   stamina: 10,
   durability: 10,
+  blocking: 10,
+  stealing: 10,
+  strength: 10,
+  rebounding: 10,
 };
 
 describe('derived ratings', () => {
