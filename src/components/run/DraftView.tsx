@@ -10,10 +10,11 @@ import {
   draftSpend,
   draftPoints,
   canConfirmLoadout,
+  playerDraftClass,
   MAX_DRAFT_ROTATION,
 } from '@/game/draft';
 import { type Difficulty, type LadderClass, DIFFICULTY_LABELS } from '@/game/difficulty-mode';
-import { ovr, classForOvr, type PlayerClass } from '@/game/ratings';
+import { type PlayerClass } from '@/game/ratings';
 import { POSITIONS } from '@/types/roster';
 import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -182,7 +183,10 @@ function Slot({
   onSelect: () => void;
   onClear: () => void;
 }) {
-  const cls = rp ? classForOvr(ovr(rp.player.stats, rp.position)) : null;
+  // Show the player's intrinsic class (originalClass), matching the draft-cost
+  // badge beside it, so an S+ legend reads S+ instead of being recomputed down to
+  // B from its position-weighted OVR.
+  const cls = rp ? playerDraftClass(rp) : null;
   const cost = rp ? draftCostFor(rp, ladderClass) : null;
   return (
     <Pressable onPress={onSelect} style={[styles.slot, selected && styles.slotSelected]}>
