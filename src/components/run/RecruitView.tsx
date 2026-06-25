@@ -4,7 +4,6 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { getSpecialty } from '@/game/specialty';
 import type { RosterPlayer } from '@/types/roster';
 
 /** Recruit node: pick one of a few depth-scaled candidates for your bench. */
@@ -45,14 +44,12 @@ export function RecruitView({
             <Pressable onPress={() => onRecruit(rp)}>
               <PlayerCard
                 rp={rp}
+                showSpecialty
                 expanded={expanded === i}
                 onToggleExpand={() => setExpanded(expanded === i ? null : i)}
               />
             </Pressable>
             <View style={styles.metaRow}>
-              <Text style={styles.specialty} numberOfLines={1}>
-                {getSpecialty(rp)}
-              </Text>
               {rerolled[i] ? (
                 <Text style={styles.rerollUsed}>REROLLED</Text>
               ) : (
@@ -107,17 +104,11 @@ const styles = StyleSheet.create({
   metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     marginTop: space(1.5),
     paddingTop: space(1),
     borderTopWidth: BORDER.thin,
     borderTopColor: palette.bgDeep,
-  },
-  specialty: {
-    flex: 1,
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    color: palette.steelBlue,
   },
   reroll: {
     fontFamily: FONT.display,

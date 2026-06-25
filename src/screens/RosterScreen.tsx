@@ -120,6 +120,7 @@ export default function RosterScreen() {
           <View key={`${rp.player.name}-${rp.position}-${i}`} style={styles.row}>
             <PlayerCard
               rp={rp}
+              showSpecialty
               expanded={expanded === rp}
               onToggleExpand={() => setExpanded(expanded === rp ? null : rp)}
             />

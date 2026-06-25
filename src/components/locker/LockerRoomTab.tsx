@@ -110,7 +110,7 @@ export function LockerRoomTab() {
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         {shown.map(({ rp, i }) => (
           <View key={`${rp.player.name}-${i}`} style={styles.row}>
-            <PlayerCard rp={rp} />
+            <PlayerCard rp={rp} showSpecialty />
             <View style={styles.groups}>
               {STAT_GROUPS.map((group) => (
                 <View key={group.label} style={styles.group}>
