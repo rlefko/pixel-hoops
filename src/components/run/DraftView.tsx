@@ -14,7 +14,9 @@ import {
   MAX_DRAFT_ROTATION,
 } from '@/game/draft';
 import { type Difficulty, type LadderClass, DIFFICULTY_LABELS } from '@/game/difficulty-mode';
-import { type PlayerClass } from '@/game/ratings';
+import { ovr, type PlayerClass } from '@/game/ratings';
+import { applyTrainingDelta } from '@/game/effects';
+import { POSITION_COLOR } from '@/components/game/positionColor';
 import { POSITIONS } from '@/types/roster';
 import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -188,25 +190,43 @@ function Slot({
   // B from its position-weighted OVR.
   const cls = rp ? playerDraftClass(rp) : null;
   const cost = rp ? draftCostFor(rp, ladderClass) : null;
+  // The selected player's natural position and effective OVR, computed exactly as
+  // PlayerCard does (training folded in) so the slot reads the same strength the
+  // player sees when scouting the card below. Position is the player's intrinsic
+  // floor position, which can differ from this slot's label when slotted out of
+  // spot or onto the bench, so a draftee's fit is legible at a glance.
+  const overall = rp ? ovr(applyTrainingDelta(rp.player.stats, rp.trainingDelta), rp.position) : null;
   return (
     <Pressable onPress={onSelect} style={[styles.slot, selected && styles.slotSelected]}>
-      <Text style={styles.slotLabel}>{label}</Text>
+      <View style={styles.slotMain}>
+        <Text style={styles.slotLabel}>{label}</Text>
+        {rp ? (
+          <>
+            <Text style={styles.slotName} numberOfLines={1}>
+              {rp.player.name}
+            </Text>
+            <Pressable onPress={onClear} hitSlop={space(2)} style={styles.slotClear}>
+              <Text style={styles.slotClearText}>x</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Text style={styles.slotEmpty}>empty</Text>
+        )}
+      </View>
       {rp ? (
-        <>
-          <Text style={styles.slotName} numberOfLines={1}>
-            {rp.player.name}
-          </Text>
+        <View style={styles.slotMeta}>
+          <View style={[styles.slotPos, { borderColor: POSITION_COLOR[rp.position] }]}>
+            <Text style={[styles.slotPosText, { color: POSITION_COLOR[rp.position] }]}>
+              {rp.position}
+            </Text>
+          </View>
+          <Text style={styles.slotOvr}>{overall}</Text>
           {cls ? <Text style={[styles.slotClass, { color: CLASS_COLOR[cls] }]}>{cls}</Text> : null}
           <Text style={[styles.slotCost, { color: cost != null ? DRAFT_COST_COLOR[cost] : palette.inkDim }]}>
             {cost === 0 ? 'FREE' : `${cost}p`}
           </Text>
-          <Pressable onPress={onClear} hitSlop={space(2)} style={styles.slotClear}>
-            <Text style={styles.slotClearText}>x</Text>
-          </Pressable>
-        </>
-      ) : (
-        <Text style={styles.slotEmpty}>empty</Text>
-      )}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -240,9 +260,8 @@ const styles = StyleSheet.create({
   },
   board: { flexDirection: 'row', flexWrap: 'wrap', gap: space(1) },
   slot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space(1),
+    flexDirection: 'column',
+    gap: space(0.5),
     width: '48.5%',
     paddingVertical: space(1),
     paddingHorizontal: space(2),
@@ -252,8 +271,20 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgPanel,
   },
   slotSelected: { borderColor: palette.gold },
+  slotMain: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
+  // The position chip + OVR + class + cost share a meta row, indented under the
+  // name (past the fixed-width slot label) so the strength read lines up cleanly.
+  slotMeta: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), marginLeft: 22 + space(1) },
   slotLabel: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim, width: 22 },
   slotName: { flex: 1, fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
+  slotPos: {
+    paddingHorizontal: space(1),
+    borderWidth: BORDER.thin,
+    borderRadius: RADIUS.chip,
+    alignItems: 'center',
+  },
+  slotPosText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
+  slotOvr: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.ink },
   slotClass: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
   slotCost: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
   slotEmpty: { flex: 1, fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim, fontStyle: 'italic' },
