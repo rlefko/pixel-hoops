@@ -523,13 +523,41 @@ describe('run reducer', () => {
     expect(champ.phase).toEqual({ kind: 'summary', champion: true });
   });
 
-  it('a loss ends the run as a non-champion', () => {
-    const m = withNode(start(), node({ id: 'g1', type: 'game' }));
+  it('a loss ends the run as a non-champion when no timeouts remain', () => {
+    const m = withNode({ ...start(), secondChancesRemaining: 0 }, node({ id: 'g1', type: 'game' }));
     const lost = runReducer(
       { ...m, game: null, phase: { kind: 'postgame', nodeId: 'g1', won: false } },
       { type: 'resolveGameResult' }
     )!;
     expect(lost.phase).toEqual({ kind: 'summary', champion: false });
+  });
+
+  it('a loss spends a timeout and replays the game instead of ending the run', () => {
+    const m = withNode(start(), node({ id: 'g1', type: 'game' }));
+    expect(m.secondChancesRemaining).toBeGreaterThan(0);
+    const forgiven = runReducer(
+      { ...m, game: null, phase: { kind: 'postgame', nodeId: 'g1', won: false } },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(forgiven.phase).toEqual({ kind: 'pregame', nodeId: 'g1', timeoutUsed: true });
+    expect(forgiven.secondChancesRemaining).toBe(m.secondChancesRemaining - 1);
+    expect(forgiven.forgivenLosses).toBe(1);
+  });
+
+  it('replays a forgiven game with a fresh roll (seed varies by timeouts spent)', () => {
+    const base = withNode(start(), node({ id: 'g1', type: 'game' }));
+    const first = runReducer(
+      { ...base, forgivenLosses: 0, phase: { kind: 'pregame', nodeId: 'g1' } },
+      { type: 'enterGame' }
+    )!;
+    const replay = runReducer(
+      { ...base, forgivenLosses: 1, phase: { kind: 'pregame', nodeId: 'g1' } },
+      { type: 'enterGame' }
+    )!;
+    expect(first.game).not.toBeNull();
+    expect(replay.game).not.toBeNull();
+    // A spent timeout salts the seed, so the replay is a new roll, not the same loss.
+    expect(replay.game!.result.events).not.toEqual(first.game!.result.events);
   });
 
   it('recruit appends to the bench and returns to the map', () => {
@@ -814,8 +842,8 @@ describe('boosts, economy, and legends', () => {
     expect(skipped.phase.kind).toBe('map');
   });
 
-  it('a loss still banks coins', () => {
-    const m = start();
+  it('a run-ending loss still banks coins', () => {
+    const m = { ...start(), secondChancesRemaining: 0 };
     const lost = runReducer(
       { ...m, phase: { kind: 'postgame', nodeId: 'n', won: false } },
       { type: 'resolveGameResult' }

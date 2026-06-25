@@ -28,8 +28,24 @@ export const LADDER_CLASSES: readonly LadderClass[] = ['C', 'B', 'A', 'S', 'S+']
 export interface DifficultyMods {
   /** Draft points granted before the run (the class-cost budget). */
   draftPoints: number;
-  /** Added to a combat node's opponent level (a stat-floor shift). */
-  statShift: number;
+  /**
+   * The opponent ramp's offset from the ladder level at the very first combat node
+   * (roughly half a class to a class below). Kept close across difficulties so the
+   * early game stays approachable on every tier.
+   */
+  rampStart: number;
+  /**
+   * The opponent ramp's offset from the ladder level at the final regular peak. This
+   * is the difficulty's MAIN lever: easy ends near the ladder class (base roster
+   * wins), insane ends ~two classes above (needs maxed players + abilities). See
+   * src/game/difficulty.ts.
+   */
+  rampEnd: number;
+  /**
+   * Forgiven losses ("timeouts") for the run: a Death-Defiance pool. While any
+   * remain, a lost game is replayed instead of ending the run. 0 = strict permadeath.
+   */
+  secondChances: number;
   /** Elite teams may appear from the first map (else gated to map 2+). */
   elitesFromMap0: boolean;
   /** How many picks a passive-boost draft offers (normally 3). */
@@ -53,37 +69,41 @@ export function difficultyMods(difficulty: Difficulty): DifficultyMods {
   switch (difficulty) {
     case 'easy':
       return {
-        draftPoints: 8, statShift: -1, elitesFromMap0: false, boostOfferCount: 3,
-        bossExtraLegend: false, injuryMul: 1, maxGamesOut: 2, coinMul: 1,
-        eliteWeightBonus: 0, preBossRest: true,
+        draftPoints: 8, rampStart: -3.0, rampEnd: 0.5, secondChances: 2,
+        elitesFromMap0: false, boostOfferCount: 3, bossExtraLegend: false,
+        injuryMul: 1, maxGamesOut: 2, coinMul: 1.0, eliteWeightBonus: 0,
+        preBossRest: true,
       };
     case 'medium':
       return {
-        draftPoints: 5, statShift: 0.3, elitesFromMap0: true, boostOfferCount: 3,
-        bossExtraLegend: false, injuryMul: 1, maxGamesOut: 2, coinMul: 1,
-        eliteWeightBonus: 0, preBossRest: true,
+        draftPoints: 5, rampStart: -2.5, rampEnd: 1.5, secondChances: 1,
+        elitesFromMap0: true, boostOfferCount: 3, bossExtraLegend: false,
+        injuryMul: 1, maxGamesOut: 2, coinMul: 1.1, eliteWeightBonus: 0,
+        preBossRest: true,
       };
     case 'hard':
       return {
-        draftPoints: 2, statShift: 0.6, elitesFromMap0: true, boostOfferCount: 2,
-        bossExtraLegend: true, injuryMul: 1.5, maxGamesOut: 3, coinMul: 0.9,
-        eliteWeightBonus: 2, preBossRest: true,
+        draftPoints: 2, rampStart: -2.0, rampEnd: 3.0, secondChances: 0,
+        elitesFromMap0: true, boostOfferCount: 2, bossExtraLegend: true,
+        injuryMul: 1.5, maxGamesOut: 3, coinMul: 1.25, eliteWeightBonus: 2,
+        preBossRest: true,
       };
     case 'insane':
       return {
-        draftPoints: 0, statShift: 1.0, elitesFromMap0: true, boostOfferCount: 2,
-        bossExtraLegend: true, injuryMul: 1.75, maxGamesOut: 3, coinMul: 0.8,
-        eliteWeightBonus: 3, preBossRest: false,
+        draftPoints: 0, rampStart: -1.5, rampEnd: 4.5, secondChances: 0,
+        elitesFromMap0: true, boostOfferCount: 2, bossExtraLegend: true,
+        injuryMul: 1.75, maxGamesOut: 3, coinMul: 1.5, eliteWeightBonus: 3,
+        preBossRest: false,
       };
   }
 }
 
 /** Short description per difficulty, for the selector UI. */
 export const DIFFICULTY_LABELS: Record<Difficulty, { name: string; blurb: string }> = {
-  easy: { name: 'EASY', blurb: '8 draft points. The gentle climb.' },
-  medium: { name: 'MEDIUM', blurb: '5 points, elites from map 1.' },
-  hard: { name: 'HARD', blurb: '2 points, leaner drafts, glass bones.' },
-  insane: { name: 'INSANE', blurb: '0 points, no rest, peak opponents.' },
+  easy: { name: 'EASY', blurb: '8 draft points, 2 timeouts. The gentle climb.' },
+  medium: { name: 'MEDIUM', blurb: '5 points, 1 timeout, elites from map 1.' },
+  hard: { name: 'HARD', blurb: '2 points, no timeouts, glass bones.' },
+  insane: { name: 'INSANE', blurb: '0 points, no timeouts, peak opponents.' },
 };
 
 /** Index of a ladder class (C=0 .. S+=4). */

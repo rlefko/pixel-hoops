@@ -90,7 +90,9 @@ export type RunPhase =
       defaultStarters: RosterPlayer[];
       defaultBench: RosterPlayer[];
     }
-  | { kind: 'pregame'; nodeId: string }
+  // `timeoutUsed` is set when this pregame was re-entered after a forgiven loss, so
+  // the pregame scouting screen can flag the spent timeout and that this is a replay.
+  | { kind: 'pregame'; nodeId: string; timeoutUsed?: boolean }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
   | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[] }
@@ -136,6 +138,12 @@ export interface RunModel {
   bag: string[];
   /** Legendary on-loan offer tracking (once per run + soft pity). */
   legend: { dryStreak: number; offeredThisRun: boolean };
+  /** Forgiven losses ("timeouts") left in the run-wide pool. While > 0, a lost game
+   * is replayed instead of ending the run (seeded by difficulty's secondChances). */
+  secondChancesRemaining: number;
+  /** Count of timeouts spent so far, used to vary the replay seed so a retry of the
+   * same node is a fresh roll rather than a deterministic repeat of the loss. */
+  forgivenLosses: number;
   /** Active game context, set on enterGame and read in game/postgame. */
   game: {
     opponentName: string;
@@ -223,6 +231,8 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     boosts: [],
     bag: [],
     legend: { dryStreak: homeRoster.legendDryStreak ?? 0, offeredThisRun: false },
+    secondChancesRemaining: mods.secondChances,
+    forgivenLosses: 0,
     game: null,
   };
 }
@@ -369,13 +379,14 @@ export function buildHomeTeam(model: RunModel): Team {
 
 /**
  * The deterministic opponent Team for a combat node. The node's baked difficulty
- * (already centered on the run's ladder class) plus the difficulty stat-shift gives
- * the opponent level, so the pregame scouting preview and the simulated game always
- * build the identical five from the same seed.
+ * already encodes the run's ladder class AND the difficulty's ramp (see
+ * src/game/difficulty.ts), so it is the opponent level directly and the pregame
+ * scouting preview and the simulated game always build the identical five from the
+ * same seed.
  */
 export function buildOpponentTeam(core: RunState, nodeId: string, mods: DifficultyMods): Team {
   const node = core.map.nodes[nodeId];
-  const level = (node.difficulty ?? node.round ?? node.layer + 1) + mods.statShift;
+  const level = node.difficulty ?? node.round ?? node.layer + 1;
   const isBoss = node.type === 'boss' || nodeId === core.map.bossNodeId;
   const opp = generateOpponentTeam(
     level,
@@ -580,10 +591,13 @@ export function runReducer(
       const nodeId = model.phase.nodeId;
       const home = buildHomeTeam(model);
       const away = buildOpponentTeam(model.core, nodeId, model.mods);
+      // Salt the seed with timeouts spent so a replayed game (after a forgiven loss)
+      // is a fresh roll, not a deterministic repeat. The opponent (opp-${nodeId}) is
+      // unchanged, so it is the same five, re-contested.
       const result = simulateGame({
         home,
         away,
-        seed: deriveSeed(model.core.seed, `game-${nodeId}`),
+        seed: deriveSeed(model.core.seed, `game-${nodeId}-${model.forgivenLosses}`),
       });
       return {
         ...model,
@@ -602,6 +616,18 @@ export function runReducer(
       if (model.phase.kind !== 'postgame') return model;
       const { won, nodeId } = model.phase;
       if (!won) {
+        // Spend a timeout if any remain: the run survives and the player returns to
+        // pregame to replay (a fresh seed via forgivenLosses), instead of ending. No
+        // loss/win rewards bank here; coins only accrue on the eventual win.
+        if (model.secondChancesRemaining > 0) {
+          return {
+            ...model,
+            secondChancesRemaining: model.secondChancesRemaining - 1,
+            forgivenLosses: model.forgivenLosses + 1,
+            game: null,
+            phase: { kind: 'pregame', nodeId, timeoutUsed: true },
+          };
+        }
         const rewards = { ...model.core.rewards, coins: model.core.rewards.coins + LOSS_COINS };
         return { ...model, core: { ...model.core, rewards }, phase: { kind: 'summary', champion: false } };
       }

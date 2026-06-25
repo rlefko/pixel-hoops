@@ -118,7 +118,9 @@ The central tension is the one named in [addictive-blueprint.md](addictive-bluep
 
 ### Within-Run Scaling (The Continuous Curve)
 
-Opponent strength rises **continuously with absolute progress through the run**, not in flat per-map steps. Each combat node is a notch stronger than the last; a boss is its map's local peak; and the first game of a new map continues from the previous map rather than resetting to "weak." The curve opens near a fresh roster's strength and climbs to a championship-caliber final boss (`src/game/difficulty.ts`, `src/game/stat-scaling.ts`).
+Opponent strength rises **continuously with absolute progress through the run**, not in flat per-map steps. Each combat node is a notch stronger than the last; a boss is its map's local peak; and the first game of a new map continues from the previous map rather than resetting to "weak." The curve opens near a fresh roster's strength and climbs toward a peak set by the chosen **difficulty**: every tier opens gently, but the finale diverges, ending near your ladder class on easy (winnable with a base roster and good in-run play) and about two classes above it on insane (which demands maxed players and abilities). See [difficulty-rebalance.md](difficulty-rebalance.md) for the ramp and how it is tuned (`src/game/difficulty.ts`, `src/game/stat-scaling.ts`).
+
+Because a run is a long win streak that a single loss ends, the easier tiers grant a pool of **timeouts** (forgiven losses: easy 2, medium 1, hard and insane none): while any remain, a lost game is replayed instead of ending the run, keeping a first clear achievable without softening the punishing top tiers.
 
 Within a run, the player keeps pace by spending **training points on run-scoped upgrades** (the Pokelike "EV" analog): pick a stat for a specific player and raise it, resetting every run. This is the per-run power climb against the rising curve. Difficulty comes from known mechanics rather than opaque systems, so losses read as calculation errors, not unfair RNG.
 

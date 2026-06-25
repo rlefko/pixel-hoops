@@ -35,6 +35,8 @@ interface RunMapViewProps {
   /** The run's difficulty + ladder class, shown in the HUD badge. */
   difficulty: Difficulty;
   ladderClass: LadderClass;
+  /** Forgiven losses ("timeouts") left in the run, shown in the HUD. */
+  timeouts: number;
   /** Number of items in the run bag, shown on the Bag button. */
   bagCount: number;
   onChoose: (nodeId: string) => void;
@@ -60,6 +62,7 @@ export function RunMapView({
   boosts,
   difficulty,
   ladderClass,
+  timeouts,
   bagCount,
   onChoose,
   onQuit,
@@ -116,6 +119,7 @@ export function RunMapView({
         mapNumber={core.currentMapIndex + 1}
         totalMaps={TOTAL_MAPS}
         boostCount={boosts.length}
+        timeouts={timeouts}
         modeLabel={`${DIFFICULTY_LABELS[difficulty].name} · ${ladderClass}`}
       />
       <BoostRow boosts={boosts} />
