@@ -38,9 +38,9 @@ function topScorerIndex(lines: BoxLine[]): number {
 export function BoxScoreView({ home, away, box }: BoxScoreViewProps) {
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
-      {/* Host (home) team first: the opponent, since the player is the visitor. */}
-      <TeamBox team={away} lines={box.away} />
+      {/* The player's squad first (on top), then the opponent. */}
       <TeamBox team={home} lines={box.home} />
+      <TeamBox team={away} lines={box.away} />
     </ScrollView>
   );
 }
