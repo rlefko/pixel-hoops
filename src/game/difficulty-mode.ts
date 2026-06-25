@@ -53,7 +53,7 @@ export function difficultyMods(difficulty: Difficulty): DifficultyMods {
   switch (difficulty) {
     case 'easy':
       return {
-        draftPoints: 8, statShift: 0, elitesFromMap0: false, boostOfferCount: 3,
+        draftPoints: 8, statShift: -1, elitesFromMap0: false, boostOfferCount: 3,
         bossExtraLegend: false, injuryMul: 1, maxGamesOut: 2, coinMul: 1,
         eliteWeightBonus: 0, preBossRest: true,
       };

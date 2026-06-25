@@ -18,6 +18,14 @@ describe('difficulty modes', () => {
     expect(difficultyMods('insane').draftPoints).toBe(0);
   });
 
+  it('eases the opponent floor on easy and ramps the stat-shift up with difficulty', () => {
+    // Easy is a learning mode: opponents are about half a class weaker.
+    expect(difficultyMods('easy').statShift).toBe(-1);
+    expect(difficultyMods('medium').statShift).toBeGreaterThan(difficultyMods('easy').statShift);
+    expect(difficultyMods('hard').statShift).toBeGreaterThan(difficultyMods('medium').statShift);
+    expect(difficultyMods('insane').statShift).toBeGreaterThanOrEqual(difficultyMods('hard').statShift);
+  });
+
   it('folds the old League-tier modifiers into harder difficulties', () => {
     expect(difficultyMods('easy').elitesFromMap0).toBe(false);
     expect(difficultyMods('medium').elitesFromMap0).toBe(true);
