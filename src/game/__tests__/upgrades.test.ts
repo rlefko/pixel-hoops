@@ -8,16 +8,16 @@ import {
 } from '@/game/upgrades';
 
 describe('upgrade economy', () => {
-  it('standard stats cost 400 then 1,200 (steep, the only two ranks under the +2 cap)', () => {
-    expect(upgradeCost('inside', 0)).toBe(400);
-    expect(upgradeCost('inside', 1)).toBe(1200);
+  it('standard stats cost 200 then 400 (base 200, doubling per rank up to the +5 cap)', () => {
+    expect(upgradeCost('inside', 0)).toBe(200);
+    expect(upgradeCost('inside', 1)).toBe(400);
   });
 
-  it('premium stats cost 600 then 1,800 and cost more than standard', () => {
+  it('premium stats cost 300 then 600 and cost more than standard', () => {
     expect(isPremiumStat('outside')).toBe(true);
     expect(isPremiumStat('inside')).toBe(false);
-    expect(upgradeCost('outside', 0)).toBe(600);
-    expect(upgradeCost('outside', 1)).toBe(1800);
+    expect(upgradeCost('outside', 0)).toBe(300);
+    expect(upgradeCost('outside', 1)).toBe(600);
     expect(upgradeCost('outside', 0)).toBeGreaterThan(upgradeCost('inside', 0));
   });
 

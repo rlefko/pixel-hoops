@@ -263,17 +263,14 @@ function CompositeChip({ label, value }: { label: string; value: number }) {
   );
 }
 
-/** A pixel pip bar for a single rating (trained skills reach up to MAX_TRAINED_STAT). */
+/** A proportional fill bar for a single rating (full at MAX_TRAINED_STAT = 30). A
+ * continuous fill reads cleanly at any cap; the exact value is shown beside it. */
 function PipBar({ value }: { value: number }) {
-  const filled = Math.max(0, Math.min(MAX_TRAINED_STAT, Math.round(value)));
+  const frac = Math.max(0, Math.min(1, value / MAX_TRAINED_STAT));
   return (
     <View style={styles.pipBar}>
-      {Array.from({ length: MAX_TRAINED_STAT }).map((_, i) => (
-        <View
-          key={i}
-          style={[styles.pip, i < filled ? styles.pipOn : styles.pipOff]}
-        />
-      ))}
+      <View style={[styles.pipFill, { flex: frac }]} />
+      <View style={{ flex: 1 - frac }} />
     </View>
   );
 }
@@ -448,13 +445,10 @@ const styles = StyleSheet.create({
   pipBar: {
     flex: 1,
     flexDirection: 'row',
-    gap: 2,
-  },
-  pip: {
-    flex: 1,
     height: 8,
+    backgroundColor: palette.bgPanel,
     borderRadius: RADIUS.none,
+    overflow: 'hidden',
   },
-  pipOn: { backgroundColor: palette.makeGreen },
-  pipOff: { backgroundColor: palette.bgPanel },
+  pipFill: { backgroundColor: palette.makeGreen },
 });
