@@ -66,9 +66,13 @@ const styles = StyleSheet.create({
   wrap: {
     alignSelf: 'stretch',
   },
+  // Must stay a column (no flexDirection: 'row'). The single PlayerCard child fills
+  // width via its own alignSelf: 'stretch', which only stretches the main axis when
+  // this wrapper is a column. A row wrapper stretches the card's height instead, which
+  // collapses the flex: 1 name to zero width on native (invisible names on device,
+  // though fine on web where the browser sizes the card to its content). This was the
+  // real cause of the recurring blank scouting-report names.
   row: {
-    flexDirection: 'row',
-    alignItems: 'center',
     paddingVertical: space(1.5),
     borderBottomWidth: BORDER.thin,
     borderBottomColor: palette.bgPanel,
