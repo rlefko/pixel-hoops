@@ -4,76 +4,62 @@ import {
   GACHA_MACHINES,
   getGachaAbility,
   pullMachine,
-  type AbilityRarity,
 } from '@/game/abilities-gacha';
+import { RARITY_NET, weightedNet, type Rarity } from '@/game/rarity';
 import { createRNG } from '@/game/rng';
-import type { StatDelta } from '@/game/effects';
 import type { PlayerStats } from '@/types/player';
 
-const sum = (d?: StatDelta): number =>
-  d ? Object.values(d).reduce((a, b) => a + (b ?? 0), 0) : 0;
-const negatives = (d?: StatDelta): number =>
-  d ? Object.values(d).filter((v) => (v ?? 0) < 0).length : 0;
-const positives = (d?: StatDelta): number =>
-  d ? Object.values(d).filter((v) => (v ?? 0) > 0).length : 0;
+const STAT_KEYS = new Set<keyof PlayerStats>([
+  'inside', 'outside', 'playmaking', 'perimeterD', 'interiorD',
+  'athleticism', 'iq', 'clutch', 'stamina', 'durability',
+]);
 
-describe('gacha ability power bands', () => {
-  it('commons are one +2 boost and one -2 drawback', () => {
-    const commons = GACHA_ABILITIES.filter((a) => a.rarity === 'common');
-    expect(commons.length).toBeGreaterThanOrEqual(12);
-    for (const a of commons) {
-      expect(a.teamAura).toBeUndefined();
-      expect(positives(a.selfDelta)).toBe(1);
-      expect(negatives(a.selfDelta)).toBe(1);
-      expect(sum(a.selfDelta)).toBe(0); // net-zero: a real trade-off
+describe('gacha ability budget', () => {
+  it('every ability spends exactly its rarity net budget (team deltas count x3)', () => {
+    for (const a of GACHA_ABILITIES) {
+      // Team effects are expressed only via teamAura.extra so the x3 accounting is
+      // exact; the abstract bonuses are reserved for legend signatures.
+      expect(a.teamAura?.offenseBonus ?? 0).toBe(0);
+      expect(a.teamAura?.defenseBonus ?? 0).toBe(0);
+      expect(a.teamAura?.paceBonus ?? 0).toBe(0);
+      expect(a.teamAura?.clutchBonus ?? 0).toBe(0);
+      expect(weightedNet(a.selfDelta, a.teamAura?.extra)).toBe(RARITY_NET[a.rarity]);
     }
   });
 
-  it('rares are a net +4 player boost OR a team boost with a -2 drawback', () => {
-    const rares = GACHA_ABILITIES.filter((a) => a.rarity === 'rare');
-    expect(rares.length).toBeGreaterThanOrEqual(8);
-    for (const a of rares) {
-      if (a.teamAura) {
-        expect(negatives(a.selfDelta)).toBe(1); // a team boost pays a personal cost
-      } else {
-        expect(sum(a.selfDelta)).toBe(4);
-        expect(negatives(a.selfDelta)).toBe(0);
-      }
-    }
-  });
-
-  it('legendaries have no drawback', () => {
-    const legendaries = GACHA_ABILITIES.filter((a) => a.rarity === 'legendary');
-    expect(legendaries.length).toBeGreaterThanOrEqual(5);
-    for (const a of legendaries) {
-      expect(negatives(a.selfDelta)).toBe(0);
-      const teamNeg = a.teamAura
-        ? (['offenseBonus', 'defenseBonus', 'paceBonus', 'clutchBonus'] as const).some(
-            (k) => (a.teamAura?.[k] ?? 0) < 0
-          ) || negatives(a.teamAura.extra) > 0
-        : false;
-      expect(teamNeg).toBe(false);
-      // Either a +4 player boost or a team aura.
-      expect(sum(a.selfDelta) === 4 || !!a.teamAura).toBe(true);
-    }
+  it('has good per-tier variety', () => {
+    const count = (r: Rarity) => GACHA_ABILITIES.filter((a) => a.rarity === r).length;
+    expect(count('common')).toBeGreaterThanOrEqual(12);
+    expect(count('rare')).toBeGreaterThanOrEqual(10);
+    expect(count('epic')).toBeGreaterThanOrEqual(8);
+    expect(count('legendary')).toBeGreaterThanOrEqual(6);
   });
 
   it('only references real stat keys', () => {
-    const keys = new Set<keyof PlayerStats>([
-      'inside', 'outside', 'playmaking', 'perimeterD', 'interiorD',
-      'athleticism', 'iq', 'clutch', 'stamina', 'durability',
-    ]);
     for (const a of GACHA_ABILITIES) {
-      for (const k of Object.keys(a.selfDelta ?? {})) expect(keys.has(k as keyof PlayerStats)).toBe(true);
+      for (const k of Object.keys(a.selfDelta ?? {})) expect(STAT_KEYS.has(k as keyof PlayerStats)).toBe(true);
+      for (const k of Object.keys(a.teamAura?.extra ?? {})) expect(STAT_KEYS.has(k as keyof PlayerStats)).toBe(true);
     }
+  });
+
+  it('has unique ids', () => {
+    const ids = GACHA_ABILITIES.map((a) => a.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
 describe('gacha machines', () => {
-  it('prices match the spec (100 / 1,000 / 10,000)', () => {
-    expect(GACHA_MACHINES.common.cost).toBe(100);
+  it('prices match the spec (500 / 1,000 / 5,000 / 10,000)', () => {
+    expect(GACHA_MACHINES.common.cost).toBe(500);
     expect(GACHA_MACHINES.rare.cost).toBe(1000);
+    expect(GACHA_MACHINES.epic.cost).toBe(5000);
     expect(GACHA_MACHINES.legendary.cost).toBe(10000);
+  });
+
+  it('floors step down the ladder (rare->common, epic->rare, legendary->epic)', () => {
+    expect(GACHA_MACHINES.rare.baseRarity).toBe('common');
+    expect(GACHA_MACHINES.epic.baseRarity).toBe('rare');
+    expect(GACHA_MACHINES.legendary.baseRarity).toBe('epic');
   });
 
   it('pullMachine is deterministic from its seed', () => {
@@ -89,16 +75,29 @@ describe('gacha machines', () => {
     }
   });
 
-  it('the rare/legendary machines hit their headline rarity ~10% of the time', () => {
-    const rate = (machine: 'rare' | 'legendary', top: AbilityRarity): number => {
+  it('each machine dispenses only its headline or floor rarity', () => {
+    const allowed: Record<'rare' | 'epic' | 'legendary', Rarity[]> = {
+      rare: ['rare', 'common'],
+      epic: ['epic', 'rare'],
+      legendary: ['legendary', 'epic'],
+    };
+    for (const machine of ['rare', 'epic', 'legendary'] as const) {
+      for (let s = 0; s < 60; s++) {
+        expect(allowed[machine]).toContain(pullMachine(machine, createRNG(`${machine}-${s}`)).rarity);
+      }
+    }
+  });
+
+  it('the headline rarity hits ~10% of the time', () => {
+    const rate = (machine: 'rare' | 'epic' | 'legendary', top: Rarity): number => {
       const n = 4000;
       let hits = 0;
       for (let s = 0; s < n; s++) if (pullMachine(machine, createRNG(`${machine}-${s}`)).rarity === top) hits += 1;
       return hits / n;
     };
-    expect(rate('rare', 'rare')).toBeGreaterThan(0.06);
-    expect(rate('rare', 'rare')).toBeLessThan(0.15);
-    expect(rate('legendary', 'legendary')).toBeGreaterThan(0.06);
-    expect(rate('legendary', 'legendary')).toBeLessThan(0.15);
+    for (const machine of ['rare', 'epic', 'legendary'] as const) {
+      expect(rate(machine, machine)).toBeGreaterThan(0.06);
+      expect(rate(machine, machine)).toBeLessThan(0.15);
+    }
   });
 });

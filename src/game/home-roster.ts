@@ -16,6 +16,7 @@ import {
   type LadderClass,
 } from './difficulty-mode';
 import { pullPlayer, PLAYER_MACHINES, type PlayerGachaTier, type PlayerPullResult } from './player-gacha';
+import { GACHA_MACHINES, getGachaAbility } from './abilities-gacha';
 import { HALL_OF_FAME_CAP, sanitizeHallOfFame, type HallOfFameEntry } from './hall-of-fame';
 
 /**
@@ -72,7 +73,31 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 9;
+const HOME_ROSTER_VERSION = 10;
+
+/**
+ * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
+ * inventory counts and equips under ability ids that no longer exist. Drop the dead
+ * ids (the runtime already skips unknown ids, but they would linger as phantom
+ * inventory) and refund a flat coin floor per dropped OWNED copy so the player is not
+ * silently robbed. Idempotent: a clean save drops nothing and refunds zero.
+ */
+function sanitizeAbilities(
+  inventory: Record<string, number>,
+  equipped: Record<string, string>
+): { inventory: Record<string, number>; equipped: Record<string, string>; refund: number } {
+  const cleanInv: Record<string, number> = {};
+  let refund = 0;
+  for (const [id, count] of Object.entries(inventory)) {
+    if (getGachaAbility(id) && count > 0) cleanInv[id] = count;
+    else refund += Math.max(0, count) * GACHA_MACHINES.common.cost;
+  }
+  const cleanEq: Record<string, string> = {};
+  for (const [key, id] of Object.entries(equipped)) {
+    if (getGachaAbility(id)) cleanEq[key] = id;
+  }
+  return { inventory: cleanInv, equipped: cleanEq, refund };
+}
 
 export interface SerializedHomeRoster {
   version: number;
@@ -536,15 +561,23 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     rosterMemory[selectedDifficulty][selectedLadderClass] = legacyRotation as string[];
   }
 
+  const rawInventory =
+    data.abilityInventory && typeof data.abilityInventory === 'object'
+      ? (data.abilityInventory as Record<string, number>)
+      : {};
+  const rawEquipped =
+    data.equippedAbilities && typeof data.equippedAbilities === 'object'
+      ? (data.equippedAbilities as Record<string, string>)
+      : {};
+  const abilities = sanitizeAbilities(rawInventory, rawEquipped);
+
   return {
     players,
-    coins: typeof data.coins === 'number' ? data.coins : 0,
+    coins: (typeof data.coins === 'number' ? data.coins : 0) + abilities.refund,
     reputation: typeof data.reputation === 'number' ? data.reputation : 0,
     upgrades: savedUpgrades,
-    abilityInventory:
-      data.abilityInventory && typeof data.abilityInventory === 'object' ? data.abilityInventory : {},
-    equippedAbilities:
-      data.equippedAbilities && typeof data.equippedAbilities === 'object' ? data.equippedAbilities : {},
+    abilityInventory: abilities.inventory,
+    equippedAbilities: abilities.equipped,
     ladderProgress,
     selectedDifficulty,
     selectedLadderClass,

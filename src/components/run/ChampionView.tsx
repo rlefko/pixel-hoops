@@ -60,7 +60,9 @@ export function ChampionView({
   // Mount celebration: the tier-scaled burst now, the score climb after a beat, and
   // a second confetti pop for legends so the rarest win lands twice.
   useEffect(() => {
-    fire(tier.burst);
+    // Map the victory celebration tier onto the shared rarity-scaled burst (a
+    // championship always lands at least rare-level juice).
+    fire(tier.burst === 'big' ? 'legendary' : tier.burst === 'medium' ? 'epic' : 'rare');
     setBurst((n) => n + 1);
     const scoreTimer = setTimeout(() => setScoreShown(game.result.finalHome), SCORE_DELAY_MS);
     const legendTimer = tier.legend

@@ -1,7 +1,7 @@
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { BOOST_BY_ID, type PassiveBoost } from '@/game/boosts';
-import { BOOST_FAMILY_COLOR } from './boost-ui';
+import { RARITY_COLOR } from './rarity-ui';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** A compact strip of the run's equipped passive boosts (shown on the map). */
@@ -12,13 +12,12 @@ export function BoostRow({ boosts }: { boosts: PassiveBoost[] }) {
       {boosts.map((b) => {
         const def = BOOST_BY_ID[b.id];
         if (!def) return null;
-        const color = BOOST_FAMILY_COLOR[def.family];
+        const color = RARITY_COLOR[def.rarity];
         return (
           <View key={b.id} style={[styles.chip, { borderColor: color }]}>
             <Text style={[styles.name, { color }]} numberOfLines={1}>
               {def.name}
             </Text>
-            {def.maxTier > 1 ? <Text style={styles.tier}>{'★'.repeat(b.tier)}</Text> : null}
           </View>
         );
       })}
@@ -46,5 +45,4 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgPanel,
   },
   name: { fontFamily: FONT.body, fontSize: FONT_SIZE.micro },
-  tier: { fontFamily: FONT.body, fontSize: FONT_SIZE.micro, color: palette.gold },
 });

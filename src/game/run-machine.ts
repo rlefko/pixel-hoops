@@ -531,7 +531,7 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
     case 'rest':
       return { ...model, core, phase: { kind: 'rest', nodeId } };
     case 'boost': {
-      const stock = rollBoostStock(round, createRNG(deriveSeed(core.seed, `boost-${nodeId}`)));
+      const stock = rollBoostStock(createRNG(deriveSeed(core.seed, `boost-${nodeId}`)));
       return { ...model, core, phase: { kind: 'boost', nodeId, stock } };
     }
     default:
@@ -556,7 +556,6 @@ function advanceToNextMap(model: RunModel): RunModel {
   const core = { ...model.core, map, currentMapIndex: nextIndex, currentNodeId: null };
   const round = nextIndex + 1;
   const offers = drawBoostOffers(
-    round,
     model.boosts,
     createRNG(deriveSeed(model.core.seed, `boost-m${nextIndex}`)),
     model.mods.boostOfferCount
@@ -597,7 +596,6 @@ export function runReducer(
       // loadout, so the run starts correctly positioned. No OVR re-sort.
       const roster = { starters, bench };
       const offers = drawBoostOffers(
-        1,
         [],
         createRNG(deriveSeed(model.core.seed, 'boost-m0')),
         model.mods.boostOfferCount
@@ -697,31 +695,13 @@ export function runReducer(
           return { ...model, core, wins, phase: { kind: 'summary', champion: true } };
         }
         const advanced = advanceToNextMap({ ...model, core, wins });
-        const drop = rollDrop(
-          'boss',
-          node.round ?? node.layer + 1,
-          createRNG(deriveSeed(model.core.seed, `drop-${nodeId}`))
-        );
+        // A boss always drops gear (rare / epic / legendary, never common).
+        const drop = rollDrop('boss', createRNG(deriveSeed(model.core.seed, `drop-${nodeId}`)));
         return drop
           ? { ...advanced, phase: { kind: 'itemDrop', nodeId, drop, returnTo: advanced.phase } }
           : advanced;
       }
-      if (node.type === 'elite') {
-        const drop = rollDrop(
-          'elite',
-          node.round ?? node.layer + 1,
-          createRNG(deriveSeed(model.core.seed, `drop-${nodeId}`))
-        );
-        if (drop) {
-          return {
-            ...model,
-            core,
-            wins,
-            game: null,
-            phase: { kind: 'itemDrop', nodeId, drop, returnTo: { kind: 'map' } },
-          };
-        }
-      }
+      // Elites no longer drop gear (coins / TP / reputation only).
       return { ...model, core, wins, phase: { kind: 'map' }, game: null };
     }
 
@@ -813,14 +793,8 @@ export function runReducer(
       if (model.phase.kind !== 'boostDraft') return model;
       const phase = model.phase;
       const offer = action.offer;
-      if (offer.kind === 'tierUp') {
-        const boosts = model.boosts.map((b) =>
-          b.id === offer.id ? { ...b, tier: offer.toTier } : b
-        );
-        return afterBoostDraft({ ...model, boosts });
-      }
       if (model.boosts.length < MAX_BOOSTS) {
-        const boosts = [...model.boosts, { id: offer.defId, tier: 1 }];
+        const boosts = [...model.boosts, { id: offer.defId }];
         return afterBoostDraft({ ...model, boosts });
       }
       return { ...model, phase: { ...phase, pendingFull: true, forced: offer } };
@@ -831,7 +805,7 @@ export function runReducer(
       const forced = model.phase.forced;
       if (!forced || forced.kind !== 'new') return model;
       const boosts = model.boosts.filter((_, i) => i !== action.dropIndex);
-      boosts.push({ id: forced.defId, tier: 1 });
+      boosts.push({ id: forced.defId });
       return afterBoostDraft({ ...model, boosts });
     }
 

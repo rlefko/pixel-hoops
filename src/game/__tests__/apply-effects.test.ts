@@ -20,8 +20,8 @@ describe('effectivePlayers', () => {
     const base = rp({ item: { defId: 'sniper-scope' }, ability: 'cold_blooded', legendary: true });
     const beforeOutside = base.player.stats.outside;
     const [eff] = effectivePlayers([base]);
-    // sniper-scope (+6 outside) + cold_blooded (+2 outside, +2 clutch), soft-capped above 20.
-    expect(eff.player.stats.outside).toBe(softCap(beforeOutside + 8));
+    // sniper-scope (+4 outside) + cold_blooded (+2 outside, +2 clutch), soft-capped above 20.
+    expect(eff.player.stats.outside).toBe(softCap(beforeOutside + 6));
     expect(eff.player.stats.clutch).toBe(softCap(base.player.stats.clutch + 2));
     expect(base.player.stats.outside).toBe(beforeOutside); // input untouched
     expect(eff).not.toBe(base);
@@ -38,21 +38,21 @@ describe('effectivePlayers', () => {
     weak.stats.athleticism = 8;
     const r: RosterPlayer = { player: weak, position: 'PG', item: { defId: 'heavy-hitter-vest' } };
     const [eff] = effectivePlayers([r]);
-    expect(eff.player.stats.athleticism).toBe(6); // 8 - 4 = 4, clamped to 6
+    expect(eff.player.stats.athleticism).toBe(6); // 8 - 3 = 5, clamped to the 6 floor
     expect(eff.player.stats.inside).toBe(Math.min(20, weak.stats.inside + 8));
   });
 
   it('stacks an equipped gacha ability with the item channel (no double-count)', () => {
-    // 'deadeye' is a rare +4 outside; 'grip-tape' is +3 outside. They stack once.
+    // 'deadeye' is a rare +4 outside (-2 perimeter D); 'grip-tape' is +1 outside. Outside stacks once.
     const base = rp({ item: { defId: 'grip-tape' }, equippedAbility: { id: 'deadeye' } });
     const beforeOutside = base.player.stats.outside;
     const [eff] = effectivePlayers([base]);
-    expect(eff.player.stats.outside).toBe(softCap(beforeOutside + 7));
+    expect(eff.player.stats.outside).toBe(softCap(beforeOutside + 5));
     // A common ability's drawback also applies on its own channel.
-    const drawback = rp({ equippedAbility: { id: 'gunner' } }); // +2 outside, -2 perimeter D
+    const drawback = rp({ equippedAbility: { id: 'gunner' } }); // +2 outside, -1 perimeter D
     const [eff2] = effectivePlayers([drawback]);
     expect(eff2.player.stats.outside).toBe(softCap(drawback.player.stats.outside + 2));
-    expect(eff2.player.stats.perimeterD).toBe(Math.max(6, drawback.player.stats.perimeterD - 2));
+    expect(eff2.player.stats.perimeterD).toBe(Math.max(6, drawback.player.stats.perimeterD - 1));
   });
 });
 
@@ -75,14 +75,16 @@ describe('teamModifierFor', () => {
   });
 
   it('folds passive boosts into the team modifier', () => {
-    const mod = teamModifierFor([rp()], [{ id: 'lockdown', tier: 2 }]);
-    expect(mod.extra.perimeterD).toBe(4);
-    expect(mod.extra.interiorD).toBe(4);
+    // 'lockdown' is an epic (net +3): +2 perimeter D, +2 interior D, -1 athleticism.
+    const mod = teamModifierFor([rp()], [{ id: 'lockdown' }]);
+    expect(mod.extra.perimeterD).toBe(2);
+    expect(mod.extra.interiorD).toBe(2);
+    expect(mod.extra.athleticism).toBe(-1);
   });
 
   it('folds a gacha ability team aura into the team modifier', () => {
-    // 'gravity' is a legendary +2 team offense.
-    const mod = teamModifierFor([rp({ equippedAbility: { id: 'gravity' } })], []);
-    expect(mod.offenseBonus).toBe(2);
+    // 'floor-raiser' is a legendary +2 team outside (team aura via extra).
+    const mod = teamModifierFor([rp({ equippedAbility: { id: 'floor-raiser' } })], []);
+    expect(mod.extra.outside).toBe(2);
   });
 });
