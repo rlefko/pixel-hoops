@@ -39,7 +39,7 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
  * new players into the collection (see src/game/player-gacha.ts), and an ABILITIES
  * section of three machines pulls passive abilities plus an equip loadout to
  * assign owned abilities onto owned players (persists between runs). The shell
- * (back, title, coin pill) is owned by LockerScreen.
+ * (back, title, coin pill) is owned by ArcadeScreen.
  */
 
 const RARITY_COLOR: Record<AbilityRarity, string> = {
