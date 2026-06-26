@@ -55,3 +55,8 @@ export const NBA_PLAYERS = NBA_LEGENDS;
 export function teamByAbbr(abbr: string): NbaTeam | undefined {
   return NBA_TEAMS.find((t) => t.abbreviation === abbr);
 }
+
+/** Find a team by its full "City Name" display string (e.g. "Los Angeles Lakers"). */
+export function teamByName(fullName: string): NbaTeam | undefined {
+  return NBA_TEAMS.find((t) => `${t.city} ${t.name}` === fullName);
+}
