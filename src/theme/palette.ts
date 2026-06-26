@@ -13,9 +13,11 @@ export const palette = {
   inkDim: '#9A9AB0', // secondary text
 
   // Accents
-  gold: '#FFD54F', // selection, energy, titles
-  orange: '#FF9800', // brand highlight, special
+  gold: '#FFD54F', // selection, energy, titles (also the legendary rarity, pulsing)
+  orange: '#FF9800', // brand highlight, special (also the epic rarity)
   courtLine: '#FF7A1A', // bright orange court accent
+  rareYellow: '#FFE83D', // the rare rarity: a brighter, cooler lemon, distinct from gold
+  purple: '#A974FF', // reward-screen chrome (boost / item nodes), distinct from gold rests
 
   // Outcome semantics
   makeGreen: '#66BB6A',
