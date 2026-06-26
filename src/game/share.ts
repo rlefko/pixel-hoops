@@ -1,30 +1,12 @@
 import { Platform, Share } from 'react-native';
-import { DIFFICULTY_LABELS } from './difficulty-mode';
-import { victoryTier } from './victory-tier';
+import { buildVictoryShareText } from './victory-share-text';
 import type { HallOfFameEntry } from './hall-of-fame';
 
 /**
- * Sharing a championship. The text is the "flex": short, emoji-as-data, and
- * spoiler-free, so it reads well pasted into any chat (the Wordle-grid effect).
- * The tier flourish scales with the win (sparkles are reserved for legends), and
- * the same builder feeds both the victory screen and the Hall of Fame card.
+ * Opening the native share sheet for a championship. The blurb itself is built by
+ * buildVictoryShareText (kept React-Native-free for testing); this module is just
+ * the platform plumbing around it.
  */
-
-/** The shareable victory blurb: a few emoji-rich lines, no link, under a tweet. */
-export function buildVictoryShareText(entry: HallOfFameEntry): string {
-  const tier = victoryTier(entry.difficulty, entry.ladderClass);
-  const five = entry.starters.map((rp) => `${rp.position} ${rp.player.name}`).join(' · ');
-  const flourish = tier.legend
-    ? '✨ legends never lose ✨'
-    : `${tier.emoji} ${tier.label} champions`;
-  return [
-    '🏀🏆 PIXEL HOOPS CHAMPIONS!',
-    `${DIFFICULTY_LABELS[entry.difficulty].name} · ${entry.ladderClass} ladder`,
-    `${entry.homeTeamName} ${entry.finalHome} - ${entry.finalAway} ${entry.opponentName}`,
-    `👑 ${five}`,
-    flourish,
-  ].join('\n');
-}
 
 /**
  * Open the native share sheet with the victory blurb. Best-effort everywhere: a

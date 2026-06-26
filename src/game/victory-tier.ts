@@ -1,4 +1,4 @@
-import { palette } from '@/theme';
+import { palette } from '@/theme/palette';
 import type { Difficulty, LadderClass } from './difficulty-mode';
 
 /**
