@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView, TextInput, Dimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { View, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native';
 import { Text } from '@/components/StyledText';
-import { Pop, ShakeView, FlashOverlay, ParticleBurst } from '@/components/fx';
-import { usePulse } from '@/feel';
+import { Pop, ShakeView, FlashOverlay } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { LegendaryHalo, RewardConfetti } from '@/components/run/reward-fx';
 import { RARITY_COLOR, RARITY_LABEL } from '@/components/run/rarity-ui';
 import { useRewardBurst } from '@/components/run/useRewardBurst';
 import { useHomeRoster } from '@/context/HomeRosterContext';
@@ -47,8 +46,6 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
  * ArcadeScreen.
  */
 
-const CENTER_X = Dimensions.get('window').width / 2;
-
 let pullCounter = 0; // varies the pull seed within a session (pulls are not replayed)
 let scoutCounter = 0; // same, for the player scouting machines
 
@@ -57,7 +54,6 @@ export function ArcadeTab() {
   const [selected, setSelected] = useState<string | null>(null);
   const [lastPull, setLastPull] = useState<{ id: string; rarity: Rarity } | null>(null);
   const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
-  const { glowStyle } = usePulse();
   const [lastScout, setLastScout] = useState<PlayerPullResult | null>(null);
   const [query, setQuery] = useState('');
 
@@ -182,9 +178,7 @@ export function ArcadeTab() {
 
         {lastAbility ? (
           <View style={styles.revealWrap}>
-            {lastAbility.rarity === 'legendary' ? (
-              <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
-            ) : null}
+            <LegendaryHalo visible={lastAbility.rarity === 'legendary'} />
             <Pop trigger={lastPull?.id ?? ''} style={[styles.reveal, { borderColor: RARITY_COLOR[lastAbility.rarity] }]}>
               <Text style={[styles.revealRarity, { color: RARITY_COLOR[lastAbility.rarity] }]}>
                 {RARITY_LABEL[lastAbility.rarity]}
@@ -256,12 +250,7 @@ export function ArcadeTab() {
         })}
       </ScrollView>
       <FlashOverlay ref={flashRef} />
-      <ParticleBurst
-        origin={confettiTrigger > 0 ? { x: CENTER_X, y: 120 } : null}
-        variant="confetti"
-        color={palette.gold}
-        trigger={confettiTrigger}
-      />
+      <RewardConfetti trigger={confettiTrigger} />
     </ShakeView>
   );
 }
@@ -295,15 +284,6 @@ const styles = StyleSheet.create({
   pullDisabled: { opacity: 0.35, borderColor: palette.inkDim },
   pullText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.gold },
   revealWrap: { position: 'relative', marginTop: space(2) },
-  legendGlow: {
-    position: 'absolute',
-    left: -space(1),
-    right: -space(1),
-    top: -space(1),
-    bottom: -space(1),
-    backgroundColor: palette.gold + '22',
-    borderRadius: RADIUS.chip,
-  },
   reveal: {
     alignItems: 'center',
     padding: space(3),

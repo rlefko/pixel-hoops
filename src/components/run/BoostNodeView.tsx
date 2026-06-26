@@ -1,18 +1,15 @@
 import { useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { ShakeView, FlashOverlay, ParticleBurst } from '@/components/fx';
-import { usePulse } from '@/feel';
+import { ShakeView, FlashOverlay } from '@/components/fx';
 import { PlayerCard } from './PlayerCard';
+import { LegendaryHalo, RewardConfetti } from './reward-fx';
 import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME } from './rarity-ui';
 import { useRewardBurst } from './useRewardBurst';
 import type { ItemDef } from '@/game/items';
 import type { Roster } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-
-const CENTER_X = Dimensions.get('window').width / 2;
 
 /**
  * Boost node (the renamed, coin-free shop): grab ONE free item and equip it to a
@@ -31,7 +28,6 @@ export function BoostNodeView({ stock, roster, onTake, onKeepInBag, onLeave }: B
   const players = [...roster.starters, ...roster.bench];
   const [selected, setSelected] = useState<ItemDef | null>(null);
   const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
-  const { glowStyle } = usePulse();
 
   // Grabbing an item is the "receive" beat; fire juice scaled by its rarity.
   const select = (item: ItemDef) => {
@@ -69,9 +65,7 @@ export function BoostNodeView({ stock, roster, onTake, onKeepInBag, onLeave }: B
           const legendary = item.rarity === 'legendary';
           return (
             <Pressable key={i} style={styles.cardWrap} onPress={() => select(item)}>
-              {legendary ? (
-                <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
-              ) : null}
+              <LegendaryHalo visible={legendary} />
               <View style={[styles.card, { borderColor: color }]}>
                 <View style={styles.cardHead}>
                   <Text style={[styles.cardName, { color }]}>{item.name}</Text>
@@ -94,12 +88,7 @@ export function BoostNodeView({ stock, roster, onTake, onKeepInBag, onLeave }: B
     <ShakeView ref={shakeRef} style={styles.flex}>
       {body}
       <FlashOverlay ref={flashRef} />
-      <ParticleBurst
-        origin={confettiTrigger > 0 ? { x: CENTER_X, y: 120 } : null}
-        variant="confetti"
-        color={palette.gold}
-        trigger={confettiTrigger}
-      />
+      <RewardConfetti trigger={confettiTrigger} />
     </ShakeView>
   );
 }
@@ -117,15 +106,6 @@ const styles = StyleSheet.create({
   },
   list: { marginTop: space(5), gap: space(3), paddingBottom: space(4) },
   cardWrap: { position: 'relative' },
-  legendGlow: {
-    position: 'absolute',
-    left: -space(1),
-    right: -space(1),
-    top: -space(1),
-    bottom: -space(1),
-    backgroundColor: palette.gold + '22',
-    borderRadius: RADIUS.chip,
-  },
   card: {
     padding: space(3),
     borderWidth: BORDER.chunk,

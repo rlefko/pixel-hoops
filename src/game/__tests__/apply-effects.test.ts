@@ -38,7 +38,7 @@ describe('effectivePlayers', () => {
     weak.stats.athleticism = 8;
     const r: RosterPlayer = { player: weak, position: 'PG', item: { defId: 'heavy-hitter-vest' } };
     const [eff] = effectivePlayers([r]);
-    expect(eff.player.stats.athleticism).toBe(6); // 8 - 4 = 4, clamped to 6
+    expect(eff.player.stats.athleticism).toBe(6); // 8 - 3 = 5, clamped to the 6 floor
     expect(eff.player.stats.inside).toBe(Math.min(20, weak.stats.inside + 8));
   });
 

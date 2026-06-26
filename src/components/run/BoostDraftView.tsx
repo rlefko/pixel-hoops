@@ -1,17 +1,14 @@
-import { View, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { ShakeView, FlashOverlay, ParticleBurst } from '@/components/fx';
-import { usePulse } from '@/feel';
+import { ShakeView, FlashOverlay } from '@/components/fx';
 import { BOOST_BY_ID, type BoostOffer, type PassiveBoost } from '@/game/boosts';
 import type { Rarity } from '@/game/rarity';
 import { offerDef } from './boost-ui';
+import { LegendaryHalo, RewardConfetti } from './reward-fx';
 import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME } from './rarity-ui';
 import { useRewardBurst } from './useRewardBurst';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-
-const CENTER_X = Dimensions.get('window').width / 2;
 
 /** The rarity of the boost an offer refers to (drives color and reveal juice). */
 function offerRarity(offer: BoostOffer | undefined): Rarity {
@@ -56,7 +53,6 @@ export function BoostDraftView({
   onSkip,
 }: BoostDraftViewProps) {
   const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
-  const { glowStyle } = usePulse();
   const draft = (offer: BoostOffer) => {
     fire(offerRarity(offer));
     onDraft(offer);
@@ -120,9 +116,7 @@ export function BoostDraftView({
             const legendary = def.rarity === 'legendary';
             return (
               <Pressable key={i} style={styles.cardWrap} onPress={() => draft(offer)}>
-                {legendary ? (
-                  <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
-                ) : null}
+                <LegendaryHalo visible={legendary} />
                 <View style={[styles.card, { borderColor: color }]}>
                   <View style={styles.cardHead}>
                     <Text style={[styles.cardName, { color }]}>{def.name}</Text>
@@ -146,12 +140,7 @@ export function BoostDraftView({
     <ShakeView ref={shakeRef} style={styles.flex}>
       {content}
       <FlashOverlay ref={flashRef} />
-      <ParticleBurst
-        origin={confettiTrigger > 0 ? { x: CENTER_X, y: 120 } : null}
-        variant="confetti"
-        color={palette.gold}
-        trigger={confettiTrigger}
-      />
+      <RewardConfetti trigger={confettiTrigger} />
     </ShakeView>
   );
 }
@@ -177,15 +166,6 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, alignSelf: 'stretch' },
   offers: { marginTop: space(4), gap: space(3), paddingBottom: space(4) },
   cardWrap: { position: 'relative' },
-  legendGlow: {
-    position: 'absolute',
-    left: -space(1),
-    right: -space(1),
-    top: -space(1),
-    bottom: -space(1),
-    backgroundColor: palette.gold + '22',
-    borderRadius: RADIUS.chip,
-  },
   card: {
     padding: space(3),
     borderWidth: BORDER.chunk,

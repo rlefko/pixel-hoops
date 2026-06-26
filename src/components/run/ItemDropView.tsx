@@ -1,18 +1,16 @@
 import { useEffect } from 'react';
-import { View, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
-import Animated from 'react-native-reanimated';
+import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { ShakeView, FlashOverlay, ParticleBurst } from '@/components/fx';
-import { haptics, usePulse } from '@/feel';
+import { ShakeView, FlashOverlay } from '@/components/fx';
+import { haptics } from '@/feel';
 import { PlayerCard } from './PlayerCard';
+import { LegendaryHalo, RewardConfetti } from './reward-fx';
 import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME } from './rarity-ui';
 import { useRewardBurst } from './useRewardBurst';
 import type { ItemDef } from '@/game/items';
 import type { Roster } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-
-const CENTER_X = Dimensions.get('window').width / 2;
 
 /** Post-combat gear drop (boss only): equip it to a player, or leave it. */
 interface ItemDropViewProps {
@@ -28,7 +26,6 @@ export function ItemDropView({ drop, roster, onTake, onAddToBag, onSkip }: ItemD
   const color = RARITY_COLOR[drop.rarity];
   const legendary = drop.rarity === 'legendary';
   const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
-  const { glowStyle } = usePulse();
   // Celebrate the drop the moment it reveals; juice scales with rarity.
   useEffect(() => {
     fire(drop.rarity);
@@ -39,9 +36,7 @@ export function ItemDropView({ drop, roster, onTake, onAddToBag, onSkip }: ItemD
       <Screen style={styles.container}>
         <Text style={styles.title}>GEAR DROP!</Text>
         <View>
-          {legendary ? (
-            <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
-          ) : null}
+          <LegendaryHalo visible={legendary} style={styles.legendGlow} />
           <View style={[styles.dropCard, { borderColor: color }]}>
             <Text style={[styles.dropName, { color }]}>{drop.name}</Text>
             <Text style={styles.dropBlurb}>{drop.blurb}</Text>
@@ -71,12 +66,7 @@ export function ItemDropView({ drop, roster, onTake, onAddToBag, onSkip }: ItemD
         </Pressable>
       </Screen>
       <FlashOverlay ref={flashRef} />
-      <ParticleBurst
-        origin={confettiTrigger > 0 ? { x: CENTER_X, y: 120 } : null}
-        variant="confetti"
-        color={palette.gold}
-        trigger={confettiTrigger}
-      />
+      <RewardConfetti trigger={confettiTrigger} />
     </ShakeView>
   );
 }
@@ -99,15 +89,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space(1),
   },
-  legendGlow: {
-    position: 'absolute',
-    left: -space(2),
-    right: -space(2),
-    top: space(3),
-    bottom: -space(1),
-    backgroundColor: palette.gold + '22',
-    borderRadius: RADIUS.chip,
-  },
+  // Override the default halo insets to hug this screen's centered drop card.
+  legendGlow: { left: -space(2), right: -space(2), top: space(3), bottom: -space(1) },
   dropName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body },
   dropBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink, textAlign: 'center' },
   rarity: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
