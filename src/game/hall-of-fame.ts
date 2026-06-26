@@ -2,6 +2,7 @@ import type { RosterPlayer } from '@/types/roster';
 import type { Team } from '@/types/team';
 import type { SimResult } from '@/types/sim';
 import type { PlayerClass } from './ratings';
+import { mvpIndex } from './box-score';
 import { DIFFICULTIES, isLadderClass, type Difficulty, type LadderClass } from './difficulty-mode';
 
 /**
@@ -14,6 +15,14 @@ import { DIFFICULTIES, isLadderClass, type Difficulty, type LadderClass } from '
 
 /** Newest entries are kept up to this cap; older banners fall off the bottom. */
 export const HALL_OF_FAME_CAP = 50;
+
+/** The standout player of the final game (highest game score), for the share blurb. */
+export interface HallOfFameMvp {
+  name: string;
+  pts: number;
+  reb: number;
+  ast: number;
+}
 
 export interface HallOfFameEntry {
   /** Stable unique id for list keys (timestamp + score). */
@@ -33,6 +42,8 @@ export interface HallOfFameEntry {
   wins: number;
   /** The starting five of the final game, cleaned for storage/display. */
   starters: RosterPlayer[];
+  /** Final-game MVP (highest game score). Absent on pre-MVP saves. */
+  mvp?: HallOfFameMvp;
 }
 
 /** The slice of the final game an entry is built from (a subset of RunModel.game). */
@@ -80,7 +91,16 @@ export function buildHallOfFameEntry(
     homeTeamName: game.home.name,
     wins,
     starters: game.home.lineup.players.map(cleanStarter),
+    mvp: pickMvp(game.result.box.home),
   };
+}
+
+/** The home squad's standout (highest game score), or undefined if nobody played. */
+function pickMvp(home: SimResult['box']['home']): HallOfFameMvp | undefined {
+  const i = mvpIndex(home);
+  if (i < 0) return undefined;
+  const { name, pts, reb, ast } = home[i];
+  return { name, pts, reb, ast };
 }
 
 /** Minimal shape check for a stored starter (mirrors the player guard in deserialize). */
