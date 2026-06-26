@@ -15,6 +15,8 @@ interface PulseOptions {
   delayMs?: number;
   /** Bob travel in px (the breathe rise). Defaults to 2. */
   bobAmplitude?: number;
+  /** Skip the loop and hold a steady lit state (e.g. an idle button that isn't pulsing). */
+  paused?: boolean;
 }
 
 /**
@@ -26,13 +28,13 @@ interface PulseOptions {
  * `bobAmplitude` to soften the bob (e.g. a barely-there idle on the floor).
  */
 export function usePulse(durationMs = 900, options: PulseOptions = {}) {
-  const { delayMs = 0, bobAmplitude = 2 } = options;
+  const { delayMs = 0, bobAmplitude = 2, paused = false } = options;
   const v = useSharedValue(0); // 0..1
   const { reducedMotion } = useFeelSettings();
 
   useEffect(() => {
-    if (reducedMotion) {
-      v.value = 1; // steady lit
+    if (reducedMotion || paused) {
+      v.value = 1; // steady lit, no loop
       return;
     }
     const loop = withRepeat(
@@ -42,7 +44,7 @@ export function usePulse(durationMs = 900, options: PulseOptions = {}) {
     );
     v.value = delayMs > 0 ? withDelay(delayMs, loop) : loop;
     return () => cancelAnimation(v);
-  }, [reducedMotion, durationMs, delayMs, v]);
+  }, [reducedMotion, paused, durationMs, delayMs, v]);
 
   const glowStyle = useAnimatedStyle(() => ({ opacity: 0.45 + 0.55 * v.value }));
   const scaleStyle = useAnimatedStyle(() => ({

@@ -256,6 +256,113 @@ export function InjuryIcon({ size = 12 }: { size?: number }) {
   );
 }
 
+/** locker room: a locker door with two vent slats and a handle. */
+export function LockerIcon({ size, color }: IconProps) {
+  const w = size * 0.66;
+  const slat = Math.max(1, Math.round(size * 0.08));
+  return (
+    <View style={box(size)}>
+      <View
+        style={{
+          width: w,
+          height: size,
+          borderRadius: Math.max(1, Math.round(size * 0.08)),
+          backgroundColor: color,
+          alignItems: 'center',
+          paddingTop: size * 0.16,
+          gap: slat,
+        }}
+      >
+        <View style={{ width: w * 0.5, height: slat, backgroundColor: palette.bgPanel }} />
+        <View style={{ width: w * 0.5, height: slat, backgroundColor: palette.bgPanel }} />
+        <View
+          style={{
+            position: 'absolute',
+            right: size * 0.08,
+            top: size * 0.46,
+            width: Math.max(2, Math.round(size * 0.1)),
+            height: Math.max(2, Math.round(size * 0.2)),
+            backgroundColor: palette.bgPanel,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
+/** arcade: a joystick (ball top, stem, base). */
+export function JoystickIcon({ size, color }: IconProps) {
+  const ball = size * 0.36;
+  const stem = Math.max(2, Math.round(size * 0.12));
+  return (
+    <View style={box(size)}>
+      <View style={{ width: ball, height: ball, borderRadius: ball / 2, backgroundColor: color }} />
+      <View style={{ width: stem, height: size * 0.28, backgroundColor: color }} />
+      <View
+        style={{
+          width: size * 0.7,
+          height: size * 0.16,
+          borderTopLeftRadius: size * 0.08,
+          borderTopRightRadius: size * 0.08,
+          backgroundColor: color,
+        }}
+      />
+    </View>
+  );
+}
+
+/** settings: a gear (cog body, four teeth, hub hole). */
+export function GearIcon({ size, color }: IconProps) {
+  const body = size * 0.6;
+  const tooth = Math.max(2, Math.round(size * 0.16));
+  const hole = body * 0.4;
+  const mid = (size - tooth) / 2;
+  return (
+    <View style={box(size)}>
+      <View style={{ position: 'absolute', top: 0, left: mid, width: tooth, height: tooth, backgroundColor: color }} />
+      <View style={{ position: 'absolute', bottom: 0, left: mid, width: tooth, height: tooth, backgroundColor: color }} />
+      <View style={{ position: 'absolute', left: 0, top: mid, width: tooth, height: tooth, backgroundColor: color }} />
+      <View style={{ position: 'absolute', right: 0, top: mid, width: tooth, height: tooth, backgroundColor: color }} />
+      <View
+        style={{
+          width: body,
+          height: body,
+          borderRadius: body / 2,
+          backgroundColor: color,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <View style={{ width: hole, height: hole, borderRadius: hole / 2, backgroundColor: palette.bgPanel }} />
+      </View>
+    </View>
+  );
+}
+
+/** how to play: a question mark (top hook, stem, dot). */
+export function HelpIcon({ size, color }: IconProps) {
+  const bar = Math.max(2, Math.round(size * 0.16));
+  const dot = Math.max(2, Math.round(size * 0.18));
+  return (
+    <View style={box(size)}>
+      <View
+        style={{
+          width: size * 0.5,
+          height: size * 0.4,
+          borderTopLeftRadius: size * 0.25,
+          borderTopRightRadius: size * 0.25,
+          borderColor: color,
+          borderTopWidth: bar,
+          borderRightWidth: bar,
+          borderLeftWidth: bar,
+        }}
+      />
+      <View style={{ width: bar, height: size * 0.16, backgroundColor: color }} />
+      <View style={{ width: dot, height: dot, marginTop: size * 0.08, backgroundColor: color }} />
+    </View>
+  );
+}
+
 const ICONS: Record<MapNodeType, (p: IconProps) => React.ReactElement> = {
   game: BasketballIcon,
   elite: FlameIcon,
