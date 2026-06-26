@@ -24,6 +24,22 @@ describe('re-baked data on the widened scale', () => {
     }
   });
 
+  it('spreads OVR within a class by quality instead of flattening to one value', () => {
+    // Regression guard for the flat-OVR bug: every C used to read 10, every B 13,
+    // etc. Real quality (2K overall) must now spread same-class players across the
+    // class window. B/C/A have large populations spanning their 2K buckets.
+    const distinct: Record<string, Set<number>> = {};
+    for (const p of NBA_POOL) {
+      const cls = p.originalClass ?? classForOvr(ovr(p.stats, p.position));
+      (distinct[cls] ??= new Set()).add(ovr(p.stats, p.position));
+    }
+    // B's window is 12-15 (four OVRs): a healthy pool uses most of it.
+    expect(distinct['B'].size).toBeGreaterThanOrEqual(3);
+    // C (10-11) and A (16-17) are two wide; both must show variance, not a flat value.
+    expect(distinct['C'].size).toBeGreaterThan(1);
+    expect(distinct['A'].size).toBeGreaterThan(1);
+  });
+
   it('legends sit in the 6-24 elite band, all legendary with an ability and reading S+', () => {
     expect(NBA_LEGENDS).toHaveLength(124);
     let topTier = 0;

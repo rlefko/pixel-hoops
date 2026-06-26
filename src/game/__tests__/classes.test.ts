@@ -5,6 +5,8 @@ import {
   classLevel,
   levelToClass,
   classToBand,
+  classOvrWindow,
+  classTargetOvr,
   anchorStatsToClass,
   scaleLegendToLevel,
   compareClass,
@@ -98,6 +100,56 @@ describe('class model', () => {
           expect(classForOvr(ovr(anchored, position)), `${position} ${cls} seed ${s}`).toBe(cls);
         }
       }
+    }
+  });
+
+  it('classOvrWindow spans the integer OVRs each class occupies in the normal band', () => {
+    expect(classOvrWindow('C')).toEqual({ lo: 10, hi: 11 });
+    expect(classOvrWindow('B')).toEqual({ lo: 12, hi: 15 });
+    expect(classOvrWindow('A')).toEqual({ lo: 16, hi: 17 });
+    expect(classOvrWindow('S')).toEqual({ lo: 18, hi: 20 });
+    // Both ends of every window read back as that class.
+    for (const cls of ['C', 'B', 'A', 'S'] as const) {
+      const { lo, hi } = classOvrWindow(cls);
+      expect(classForOvr(lo)).toBe(cls);
+      expect(classForOvr(hi)).toBe(cls);
+    }
+  });
+
+  it('classTargetOvr maps quality 0..1 across the class window, clamped', () => {
+    for (const cls of ['C', 'B', 'A', 'S'] as const) {
+      const { lo, hi } = classOvrWindow(cls);
+      expect(classTargetOvr(cls, 0)).toBe(lo);
+      expect(classTargetOvr(cls, 1)).toBe(hi);
+      expect(classTargetOvr(cls, -5)).toBe(lo); // clamped below
+      expect(classTargetOvr(cls, 5)).toBe(hi); // clamped above
+    }
+  });
+
+  it('spreads quality across the class window (variance), staying in class, monotonic', () => {
+    // The fix: anchoring one shape at rising quality climbs the OVR across the band
+    // instead of collapsing onto the class center, yet classForOvr(ovr) stays the
+    // class (so the badge never flips and a fresh player shows no upgrade arrow).
+    const shape: PlayerStats = {
+      inside: 12, outside: 14, playmaking: 12, perimeterD: 11, interiorD: 9,
+      athleticism: 12, iq: 12, clutch: 12, stamina: 12, durability: 12,
+      blocking: 9, stealing: 12, strength: 10, rebounding: 9,
+    };
+    for (const cls of ['C', 'B', 'A', 'S'] as const) {
+      const seen = new Set<number>();
+      let prev = -Infinity;
+      for (let q = 0; q <= 1.0001; q += 0.1) {
+        const anchored = anchorStatsToClass(shape, cls, 'SG', classTargetOvr(cls, q));
+        const o = ovr(anchored, 'SG');
+        expect(classForOvr(o), `${cls} q=${q.toFixed(1)}`).toBe(cls);
+        expect(o, `${cls} monotonic at q=${q.toFixed(1)}`).toBeGreaterThanOrEqual(prev);
+        prev = o;
+        seen.add(o);
+      }
+      // Genuine within-class variance (the bug was a single flat value per class),
+      // and the weakest quality reaches the window floor.
+      expect(seen.size, `${cls} distinct OVRs`).toBeGreaterThan(1);
+      expect(Math.min(...seen), `${cls} floor`).toBe(classOvrWindow(cls).lo);
     }
   });
 
