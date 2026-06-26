@@ -1,17 +1,20 @@
 import { useEffect } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { ShakeView, FlashOverlay } from '@/components/fx';
-import { haptics } from '@/feel';
+import { ShakeView, FlashOverlay, ParticleBurst } from '@/components/fx';
+import { haptics, usePulse } from '@/feel';
 import { PlayerCard } from './PlayerCard';
-import { ITEM_RARITY_COLOR } from './item-ui';
-import { useRewardBurst, type RewardTier } from './useRewardBurst';
-import type { ItemDef, ItemRarity } from '@/game/items';
+import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME } from './rarity-ui';
+import { useRewardBurst } from './useRewardBurst';
+import type { ItemDef } from '@/game/items';
 import type { Roster } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
-/** Post-combat gear drop (elite/boss): equip it to a player, or leave it. */
+const CENTER_X = Dimensions.get('window').width / 2;
+
+/** Post-combat gear drop (boss only): equip it to a player, or leave it. */
 interface ItemDropViewProps {
   drop: ItemDef;
   roster: Roster;
@@ -20,31 +23,30 @@ interface ItemDropViewProps {
   onSkip: () => void;
 }
 
-/** A drop's reveal juice scales with rarity, so a hot boss-relic jackpot lands loud. */
-function dropTier(rarity: ItemRarity): RewardTier {
-  if (rarity === 'boss' || rarity === 'rare') return 'big';
-  if (rarity === 'uncommon') return 'medium';
-  return 'small';
-}
-
 export function ItemDropView({ drop, roster, onTake, onAddToBag, onSkip }: ItemDropViewProps) {
   const players = [...roster.starters, ...roster.bench];
-  const color = ITEM_RARITY_COLOR[drop.rarity];
-  const { shakeRef, flashRef, fire } = useRewardBurst();
-  const tier = dropTier(drop.rarity);
-  // Celebrate the drop the moment it reveals; a hot (bumped-rarity) relic lands big.
+  const color = RARITY_COLOR[drop.rarity];
+  const legendary = drop.rarity === 'legendary';
+  const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
+  const { glowStyle } = usePulse();
+  // Celebrate the drop the moment it reveals; juice scales with rarity.
   useEffect(() => {
-    fire(tier);
-  }, [fire, tier]);
+    fire(drop.rarity);
+  }, [fire, drop.rarity]);
 
   return (
     <ShakeView ref={shakeRef} style={styles.flex}>
       <Screen style={styles.container}>
         <Text style={styles.title}>GEAR DROP!</Text>
-        <View style={[styles.dropCard, { borderColor: color }]}>
-          <Text style={[styles.dropName, { color }]}>{drop.name}</Text>
-          <Text style={styles.dropBlurb}>{drop.blurb}</Text>
-          <Text style={styles.rarity}>{drop.rarity.toUpperCase()}</Text>
+        <View>
+          {legendary ? (
+            <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
+          ) : null}
+          <View style={[styles.dropCard, { borderColor: color }]}>
+            <Text style={[styles.dropName, { color }]}>{drop.name}</Text>
+            <Text style={styles.dropBlurb}>{drop.blurb}</Text>
+            <Text style={[styles.rarity, { color }]}>{RARITY_LABEL[drop.rarity]}</Text>
+          </View>
         </View>
         <Text style={styles.subtitle}>Equip it to a player, or keep it in your bag</Text>
         <ScrollView contentContainerStyle={styles.list}>
@@ -69,6 +71,12 @@ export function ItemDropView({ drop, roster, onTake, onAddToBag, onSkip }: ItemD
         </Pressable>
       </Screen>
       <FlashOverlay ref={flashRef} />
+      <ParticleBurst
+        origin={confettiTrigger > 0 ? { x: CENTER_X, y: 120 } : null}
+        variant="confetti"
+        color={palette.gold}
+        trigger={confettiTrigger}
+      />
     </ShakeView>
   );
 }
@@ -79,7 +87,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.h3,
-    color: palette.gold,
+    color: REWARD_CHROME,
     textAlign: 'center',
   },
   dropCard: {
@@ -90,6 +98,15 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgPanel,
     alignItems: 'center',
     gap: space(1),
+  },
+  legendGlow: {
+    position: 'absolute',
+    left: -space(2),
+    right: -space(2),
+    top: space(3),
+    bottom: -space(1),
+    backgroundColor: palette.gold + '22',
+    borderRadius: RADIUS.chip,
   },
   dropName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body },
   dropBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink, textAlign: 'center' },
@@ -115,14 +132,14 @@ const styles = StyleSheet.create({
     paddingVertical: space(2.5),
     paddingHorizontal: space(6),
     borderWidth: BORDER.chunk,
-    borderColor: palette.gold,
+    borderColor: REWARD_CHROME,
     borderRadius: RADIUS.chip,
-    backgroundColor: palette.gold + '1A',
+    backgroundColor: REWARD_CHROME + '1A',
   },
   bagBtnText: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.label,
-    color: palette.gold,
+    color: REWARD_CHROME,
     textAlign: 'center',
   },
   skip: {

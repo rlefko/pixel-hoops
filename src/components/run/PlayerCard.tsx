@@ -14,7 +14,7 @@ import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
 import { getSpecialty } from '@/game/specialty';
 import { getGachaAbility } from '@/game/abilities-gacha';
-import { ITEM_RARITY_COLOR } from './item-ui';
+import { RARITY_COLOR } from './rarity-ui';
 import { StatNumber } from './StatNumber';
 import { PLAYSTYLE_STAT_KEYS, STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
@@ -175,7 +175,7 @@ export function PlayerCard({
             </Text>
             {isLegendary ? <Text style={styles.legendStar}>★</Text> : null}
             {itemDef ? (
-              <Text style={[styles.itemMark, { color: ITEM_RARITY_COLOR[itemDef.rarity] }]}>
+              <Text style={[styles.itemMark, { color: RARITY_COLOR[itemDef.rarity] }]}>
                 ◆
               </Text>
             ) : null}
@@ -235,7 +235,7 @@ export function PlayerCard({
           ) : null}
           {itemDef ? (
             <View style={styles.metaRow}>
-              <Text style={[styles.metaLabel, { color: ITEM_RARITY_COLOR[itemDef.rarity] }]}>
+              <Text style={[styles.metaLabel, { color: RARITY_COLOR[itemDef.rarity] }]}>
                 ITEM
               </Text>
               <Text style={styles.metaText}>

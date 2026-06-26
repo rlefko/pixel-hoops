@@ -4,7 +4,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from './PlayerCard';
 import { ITEM_BY_ID } from '@/game/items';
-import { ITEM_RARITY_COLOR } from './item-ui';
+import { RARITY_COLOR, REWARD_CHROME } from './rarity-ui';
 import type { Roster } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -71,7 +71,7 @@ export function BagView({ bag, roster, onEquip, onUnequip, onDone }: BagViewProp
           bag.map((defId, i) => {
             const def = ITEM_BY_ID[defId];
             if (!def) return null;
-            const color = ITEM_RARITY_COLOR[def.rarity];
+            const color = RARITY_COLOR[def.rarity];
             return (
               <Pressable
                 key={i}
@@ -113,7 +113,7 @@ export function BagView({ bag, roster, onEquip, onUnequip, onDone }: BagViewProp
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: space(5) },
-  title: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: palette.gold, textAlign: 'center' },
+  title: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: REWARD_CHROME, textAlign: 'center' },
   subtitle: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,
@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   sectionLabel: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
-    color: palette.gold,
+    color: REWARD_CHROME,
     marginTop: space(3),
   },
   hint: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim },
@@ -178,9 +178,9 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     paddingHorizontal: space(6),
     borderWidth: BORDER.chunk,
-    borderColor: palette.gold,
+    borderColor: REWARD_CHROME,
     borderRadius: RADIUS.chip,
-    backgroundColor: palette.gold + '1A',
+    backgroundColor: REWARD_CHROME + '1A',
   },
-  doneText: { fontFamily: FONT.display, fontSize: FONT_SIZE.label, color: palette.gold, textAlign: 'center' },
+  doneText: { fontFamily: FONT.display, fontSize: FONT_SIZE.label, color: REWARD_CHROME, textAlign: 'center' },
 });

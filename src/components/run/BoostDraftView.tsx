@@ -1,18 +1,21 @@
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { ShakeView, FlashOverlay } from '@/components/fx';
+import { ShakeView, FlashOverlay, ParticleBurst } from '@/components/fx';
+import { usePulse } from '@/feel';
 import { BOOST_BY_ID, type BoostOffer, type PassiveBoost } from '@/game/boosts';
-import { BOOST_FAMILY_COLOR, offerDef } from './boost-ui';
-import { useRewardBurst, type RewardTier } from './useRewardBurst';
+import type { Rarity } from '@/game/rarity';
+import { offerDef } from './boost-ui';
+import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME } from './rarity-ui';
+import { useRewardBurst } from './useRewardBurst';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
-/** Map a drafted boost's rarity to a juice tier so a capstone lands louder than a common. */
-function offerTier(offer: BoostOffer | undefined): RewardTier {
-  const def = offer ? offerDef(offer) : undefined;
-  if (def?.rarity === 'capstone') return 'big';
-  if (def?.rarity === 'rare') return 'medium';
-  return 'small';
+const CENTER_X = Dimensions.get('window').width / 2;
+
+/** The rarity of the boost an offer refers to (drives color and reveal juice). */
+function offerRarity(offer: BoostOffer | undefined): Rarity {
+  return (offer ? offerDef(offer)?.rarity : undefined) ?? 'common';
 }
 
 /**
@@ -52,16 +55,17 @@ export function BoostDraftView({
   onDrop,
   onSkip,
 }: BoostDraftViewProps) {
-  const { shakeRef, flashRef, fire } = useRewardBurst();
+  const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
+  const { glowStyle } = usePulse();
   const draft = (offer: BoostOffer) => {
-    fire(offerTier(offer));
+    fire(offerRarity(offer));
     onDraft(offer);
   };
 
   let content;
   if (pendingFull) {
     const incoming = forced ? offerDef(forced) : undefined;
-    const incomingColor = incoming ? BOOST_FAMILY_COLOR[incoming.family] : palette.gold;
+    const incomingColor = incoming ? RARITY_COLOR[incoming.rarity] : REWARD_CHROME;
     content = (
       <Screen style={styles.container} bottomGap={space(5)}>
         <Text style={styles.title}>BOOSTS FULL</Text>
@@ -73,7 +77,7 @@ export function BoostDraftView({
               <Text style={styles.adding}>ADDING</Text>
             </View>
             <Text style={styles.cardBlurb}>{incoming.blurb}</Text>
-            <Text style={styles.family}>{incoming.family.toUpperCase()}</Text>
+            <Text style={[styles.tag, { color: incomingColor }]}>{RARITY_LABEL[incoming.rarity]}</Text>
           </View>
         ) : null}
         <Text style={styles.dropLabel}>DROP ONE</Text>
@@ -81,13 +85,13 @@ export function BoostDraftView({
           {owned.map((b, i) => {
             const def = BOOST_BY_ID[b.id];
             if (!def) return null;
-            const color = BOOST_FAMILY_COLOR[def.family];
+            const color = RARITY_COLOR[def.rarity];
             return (
               <Pressable
                 key={b.id}
                 style={[styles.card, { borderColor: color }]}
                 onPress={() => {
-                  fire(offerTier(forced));
+                  fire(offerRarity(forced));
                   onDrop(i);
                 }}
               >
@@ -112,18 +116,20 @@ export function BoostDraftView({
           {offers.map((offer, i) => {
             const def = offerDef(offer);
             if (!def) return null;
-            const color = BOOST_FAMILY_COLOR[def.family];
-            const isUpgrade = offer.kind === 'tierUp';
+            const color = RARITY_COLOR[def.rarity];
+            const legendary = def.rarity === 'legendary';
             return (
-              <Pressable key={i} style={[styles.card, { borderColor: color }]} onPress={() => draft(offer)}>
-                <View style={styles.cardHead}>
-                  <Text style={[styles.cardName, { color }]}>{def.name}</Text>
-                  <Text style={[styles.tag, { color }]}>
-                    {isUpgrade ? `UPGRADE → T${offer.toTier}` : def.rarity.toUpperCase()}
-                  </Text>
+              <Pressable key={i} style={styles.cardWrap} onPress={() => draft(offer)}>
+                {legendary ? (
+                  <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
+                ) : null}
+                <View style={[styles.card, { borderColor: color }]}>
+                  <View style={styles.cardHead}>
+                    <Text style={[styles.cardName, { color }]}>{def.name}</Text>
+                    <Text style={[styles.tag, { color }]}>{RARITY_LABEL[def.rarity]}</Text>
+                  </View>
+                  <Text style={styles.cardBlurb}>{def.blurb}</Text>
                 </View>
-                <Text style={styles.cardBlurb}>{def.blurb}</Text>
-                <Text style={styles.family}>{def.family.toUpperCase()}</Text>
               </Pressable>
             );
           })}
@@ -140,6 +146,12 @@ export function BoostDraftView({
     <ShakeView ref={shakeRef} style={styles.flex}>
       {content}
       <FlashOverlay ref={flashRef} />
+      <ParticleBurst
+        origin={confettiTrigger > 0 ? { x: CENTER_X, y: 120 } : null}
+        variant="confetti"
+        color={palette.gold}
+        trigger={confettiTrigger}
+      />
     </ShakeView>
   );
 }
@@ -152,7 +164,7 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.h3,
-    color: palette.gold,
+    color: REWARD_CHROME,
     textAlign: 'center',
   },
   subtitle: {
@@ -164,6 +176,16 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1, alignSelf: 'stretch' },
   offers: { marginTop: space(4), gap: space(3), paddingBottom: space(4) },
+  cardWrap: { position: 'relative' },
+  legendGlow: {
+    position: 'absolute',
+    left: -space(1),
+    right: -space(1),
+    top: -space(1),
+    bottom: -space(1),
+    backgroundColor: palette.gold + '22',
+    borderRadius: RADIUS.chip,
+  },
   card: {
     padding: space(3),
     borderWidth: BORDER.chunk,
@@ -173,7 +195,7 @@ const styles = StyleSheet.create({
   },
   incoming: {
     marginTop: space(4),
-    backgroundColor: palette.gold + '14', // a faint highlight for the incoming boost
+    backgroundColor: REWARD_CHROME + '14', // a faint highlight for the incoming boost
   },
   cardHead: {
     flexDirection: 'row',
@@ -193,7 +215,6 @@ const styles = StyleSheet.create({
     marginTop: space(4),
   },
   cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
-  family: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
   skipButton: {
     alignSelf: 'center',
     marginTop: space(4),

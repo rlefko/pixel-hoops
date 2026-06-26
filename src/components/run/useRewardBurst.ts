@@ -1,40 +1,50 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { haptics } from '@/feel';
 import { palette } from '@/theme';
 import type { ShakeViewHandle, FlashOverlayHandle } from '@/components/fx';
+import type { Rarity } from '@/game/rarity';
+import { RARITY_COLOR } from './rarity-ui';
 
 /**
- * Reusable, rarity-gated reward "pop": one call fires a screen shake, a color
- * flash, and a haptic, all scaled by how big the reward is. Every channel no-ops
+ * Reusable, rarity-scaled reward "pop": one call fires a color flash, a haptic, and
+ * (above common) a screen shake, all scaled by rarity. A common reward does NOT
+ * shake (just a faint flash + selection tick); rare/epic shake harder; legendary
+ * adds the heaviest shake, a bigPlay haptic, and a confetti burst (the caller reads
+ * `confettiTrigger` to fire it and pairs it with a gold pulse). Every channel no-ops
  * under FeelSettings (reduced motion / shake off / haptics off), so it is
- * accessibility- and CI-safe. The juice MUST scale with rarity, never be uniform
- * (a flat reward beat is the presentation-layer version of the "+2 everywhere"
- * problem this whole change fixes).
+ * accessibility- and CI-safe. Juice MUST scale with rarity, never be uniform.
  *
- * Usage: hold the returned refs on a <ShakeView> wrapper and a <FlashOverlay>,
- * and call fire(tier) on a reward pick.
+ * Usage: hold the returned refs on a <ShakeView> wrapper and a <FlashOverlay>, call
+ * fire(rarity) on a reward reveal, and (for legendary) render a <ParticleBurst
+ * variant="confetti"> keyed on `confettiTrigger`.
  */
-export type RewardTier = 'small' | 'medium' | 'big';
+interface BurstSpec {
+  shake: 'none' | 'light' | 'medium' | 'heavy';
+  color: string;
+  peak: number;
+  haptic: () => void;
+  confetti?: boolean;
+}
 
-const TIER: Record<
-  RewardTier,
-  { shake: 'light' | 'medium' | 'heavy'; color: string; peak: number; haptic: () => void }
-> = {
-  small: { shake: 'light', color: palette.makeGreen, peak: 0.12, haptic: haptics.selection },
-  medium: { shake: 'medium', color: palette.gold, peak: 0.22, haptic: haptics.success },
-  big: { shake: 'heavy', color: palette.flame, peak: 0.34, haptic: haptics.bigPlay },
+const RARITY_BURST: Record<Rarity, BurstSpec> = {
+  common: { shake: 'none', color: RARITY_COLOR.common, peak: 0.1, haptic: haptics.selection },
+  rare: { shake: 'light', color: RARITY_COLOR.rare, peak: 0.16, haptic: haptics.success },
+  epic: { shake: 'medium', color: RARITY_COLOR.epic, peak: 0.24, haptic: haptics.success },
+  legendary: { shake: 'heavy', color: palette.gold, peak: 0.36, haptic: haptics.bigPlay, confetti: true },
 };
 
 export function useRewardBurst() {
   const shakeRef = useRef<ShakeViewHandle>(null);
   const flashRef = useRef<FlashOverlayHandle>(null);
+  const [confettiTrigger, setConfettiTrigger] = useState(0);
 
-  const fire = useCallback((tier: RewardTier) => {
-    const t = TIER[tier];
-    shakeRef.current?.shake(t.shake);
+  const fire = useCallback((rarity: Rarity) => {
+    const t = RARITY_BURST[rarity];
+    if (t.shake !== 'none') shakeRef.current?.shake(t.shake);
     flashRef.current?.flash(t.color, { peak: t.peak });
     t.haptic();
+    if (t.confetti) setConfettiTrigger((n) => n + 1);
   }, []);
 
-  return { shakeRef, flashRef, fire };
+  return { shakeRef, flashRef, fire, confettiTrigger };
 }
