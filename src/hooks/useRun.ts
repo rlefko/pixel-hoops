@@ -1,6 +1,6 @@
 import { useReducer, useEffect, useMemo, useRef } from 'react';
 import { runReducer } from '@/game/run-machine';
-import { mergeRunGainsIntoHome } from '@/game/home-roster';
+import { mergeRunGainsIntoHome, playerKey, rememberDraftRotation } from '@/game/home-roster';
 import { buildHallOfFameEntry } from '@/game/hall-of-fame';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import type { RosterPlayer } from '@/types/roster';
@@ -16,6 +16,7 @@ export function useRun() {
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const [model, dispatch] = useReducer(runReducer, null);
   const savedRef = useRef(false);
+  const draftRememberedRef = useRef(false);
 
   // Start a run once the home roster has loaded from storage.
   useEffect(() => {
@@ -23,6 +24,27 @@ export function useRun() {
       dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster });
     }
   }, [loaded, homeRoster, model]);
+
+  // When the run leaves the draft (the player confirmed a five), remember that exact
+  // drafted rotation for this run's (difficulty, ladder class), so re-entering the same
+  // ladder pre-fills it. Captured here rather than at run end so it survives quitting
+  // mid-run, and reflects what was drafted (mid-run recruits stay in the collection but
+  // are not auto-slotted). The ref makes it a single write per run and prevents a loop.
+  useEffect(() => {
+    if (!model || !homeRoster) return;
+    if (model.phase.kind === 'draft') {
+      draftRememberedRef.current = false;
+      return;
+    }
+    if (draftRememberedRef.current) return;
+    const { starters, bench } = model.core.roster;
+    if (starters.length < 5) return;
+    draftRememberedRef.current = true;
+    const rotation = [...starters.map(playerKey), ...bench.slice(0, 3).map(playerKey)];
+    saveHomeRoster(
+      rememberDraftRotation(homeRoster, model.difficulty, model.ladderClass, rotation)
+    );
+  }, [model, homeRoster, saveHomeRoster]);
 
   // When the run ends (win or loss), fold its gains back into the home roster.
   useEffect(() => {

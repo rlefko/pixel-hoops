@@ -6,6 +6,7 @@ import {
   createRookieRoster,
   homeToRunRoster,
   mergeRunGainsIntoHome,
+  rememberDraftRotation,
   serializeHomeRoster,
   deserializeHomeRoster,
   type HomeRoster,
@@ -303,15 +304,38 @@ describe('home roster persistence', () => {
     expect(merged.players.every((p) => !p.gamesOut)).toBe(true);
   });
 
-  it('records the fielded rotation as lastRotation (5 starters + up to 3 bench)', () => {
-    const home = rookie('rot');
-    const run = homeToRunRoster(home); // 5 starters, 7 bench
-    const merged = mergeRunGainsIntoHome(home, run);
-    expect(merged.lastRotation).toBeDefined();
-    expect(merged.lastRotation).toHaveLength(8); // 5 + min(3, bench)
-    const key = (p: RosterPlayer) => `${p.player.name}|${p.position}`;
-    expect(merged.lastRotation!.slice(0, 5)).toEqual(run.starters.map(key));
-    expect(merged.lastRotation!.slice(5)).toEqual(run.bench.slice(0, 3).map(key));
+  it('preserves rosterMemory across a merge (the rotation is captured at draft confirm)', () => {
+    const rotation = ['a|PG', 'b|SG', 'c|SF', 'd|PF', 'e|C'];
+    const home = rememberDraftRotation(rookie('rot'), 'easy', 'C', rotation);
+    const merged = mergeRunGainsIntoHome(home, homeToRunRoster(home));
+    // The merge no longer writes a global rotation; the per-cell memory survives intact.
+    expect('lastRotation' in merged).toBe(false);
+    expect(merged.rosterMemory.easy.C).toEqual(rotation);
+  });
+
+  it('migrates a pre-v9 save: a single lastRotation seeds the selected rosterMemory cell', () => {
+    const base = rookie('v9mig');
+    const five = base.players.slice(0, 5).map((p) => `${p.player.name}|${p.position}`);
+    const legacy = {
+      version: 8,
+      data: {
+        players: base.players,
+        coins: 11,
+        upgrades: {},
+        ladderProgress: base.ladderProgress,
+        selectedDifficulty: 'hard',
+        selectedLadderClass: 'B',
+        lastRotation: five,
+      },
+    };
+    const restored = deserializeHomeRoster(legacy);
+    expect(restored).not.toBeNull();
+    // The legacy rotation lands in the selected (difficulty, ladder) cell.
+    expect(restored!.rosterMemory.hard.B).toEqual(five);
+    // Other cells stay empty, and the old flat field is gone.
+    expect(restored!.rosterMemory.easy).toEqual({});
+    expect(restored!.rosterMemory.hard.C).toBeUndefined();
+    expect('lastRotation' in restored!).toBe(false);
   });
 
   it('advances the ladder on the difficulty actually played, not the selection', () => {
@@ -355,6 +379,31 @@ describe('home roster persistence', () => {
     expect(restored!.players.every((p) => !!p.originalClass)).toBe(true);
     // The dropped League-tier fields are gone.
     expect('leagueTier' in restored!).toBe(false);
+  });
+});
+
+describe('initRun draft pre-fill (roster memory)', () => {
+  const key = (p: RosterPlayer) => `${p.player.name}|${p.position}`;
+  const starterKeys = (m: RunModel): string[] =>
+    m.phase.kind === 'draft' ? m.phase.defaultStarters.map(key) : [];
+
+  it('pre-fills the draft from the saved rotation for the exact (difficulty, ladder)', () => {
+    const base = rookie('prefill'); // easy / C, empty memory
+    const fresh = starterKeys(initRun('s0', base)); // freshly built, PG..C ordered
+    const saved = [...fresh].reverse(); // a distinct yet legal order proves a restore
+    const home = rememberDraftRotation(base, 'easy', 'C', saved);
+    expect(starterKeys(initRun('s1', home))).toEqual(saved);
+  });
+
+  it('falls back to the nearest lower ladder at the same difficulty', () => {
+    const base = rookie('inherit');
+    const cFive = [...starterKeys(initRun('s0', base))].reverse(); // saved on easy / C
+    const home = {
+      ...rememberDraftRotation(base, 'easy', 'C', cFive),
+      selectedLadderClass: 'B' as const,
+    };
+    // B / easy has no memory of its own, so the draft inherits the C / easy team.
+    expect(starterKeys(initRun('s1', home))).toEqual(cFive);
   });
 });
 

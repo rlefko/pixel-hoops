@@ -4,6 +4,8 @@ import {
   mergeRunGainsIntoHome,
   applyPlayerPull,
   playerKey,
+  rememberDraftRotation,
+  resolveDraftRotation,
   type HomeRoster,
 } from '@/game/home-roster';
 import { poolByClass, realPlayerToRosterPlayer } from '@/game/player-pool';
@@ -63,6 +65,48 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     const lost = mergeRunGainsIntoHome(home, runRoster, rewards, false, false, 'C', 'easy');
     expect(won.ladderProgress.easy).toBe('C');
     expect(lost.ladderProgress.easy).toBeNull();
+  });
+});
+
+describe('draft roster memory', () => {
+  const five = (tag: string): string[] =>
+    [`${tag}1|PG`, `${tag}2|SG`, `${tag}3|SF`, `${tag}4|PF`, `${tag}5|C`];
+
+  it('rememberDraftRotation writes one cell, leaves siblings, and does not mutate', () => {
+    const home = createRookieRoster(createRNG('mem'));
+    const next = rememberDraftRotation(home, 'hard', 'B', five('b'));
+    expect(next).not.toBe(home);
+    expect(next.rosterMemory.hard.B).toEqual(five('b'));
+    expect(next.rosterMemory.hard.C).toBeUndefined();
+    expect(next.rosterMemory.easy).toEqual({});
+    expect(home.rosterMemory.hard.B).toBeUndefined(); // original untouched
+  });
+
+  it('rememberDraftRotation is a no-op for an unfieldable (<5) rotation', () => {
+    const home = createRookieRoster(createRNG('mem2'));
+    expect(rememberDraftRotation(home, 'easy', 'C', ['a|PG'])).toBe(home);
+  });
+
+  it('resolveDraftRotation returns the exact cell when present', () => {
+    const home = rememberDraftRotation(createRookieRoster(createRNG('m')), 'medium', 'A', five('a'));
+    expect(resolveDraftRotation(home, 'medium', 'A')).toEqual(five('a'));
+  });
+
+  it('resolveDraftRotation walks down to the nearest lower ladder at the same difficulty', () => {
+    let home = rememberDraftRotation(createRookieRoster(createRNG('m')), 'medium', 'C', five('c'));
+    // Asking for S falls through B and A to the C rotation.
+    expect(resolveDraftRotation(home, 'medium', 'S')).toEqual(five('c'));
+    // A nearer lower cell wins over a farther one.
+    home = rememberDraftRotation(home, 'medium', 'A', five('a'));
+    expect(resolveDraftRotation(home, 'medium', 'S')).toEqual(five('a'));
+  });
+
+  it('resolveDraftRotation never crosses difficulties and is undefined with nothing lower', () => {
+    const home = rememberDraftRotation(createRookieRoster(createRNG('m')), 'easy', 'S', five('s'));
+    // hard has no memory; it must not borrow easy's rotation.
+    expect(resolveDraftRotation(home, 'hard', 'S')).toBeUndefined();
+    // On easy, asking for C (below the only saved cell, S) finds nothing lower.
+    expect(resolveDraftRotation(home, 'easy', 'C')).toBeUndefined();
   });
 });
 
