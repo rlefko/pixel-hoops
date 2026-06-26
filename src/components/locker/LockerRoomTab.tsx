@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { haptics } from '@/feel';
@@ -6,7 +6,7 @@ import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { applyUpgrade, totalUpgrades, upgradeCount } from '@/game/home-roster';
+import { applyUpgrade, playerKey, totalUpgrades, upgradeCount } from '@/game/home-roster';
 import { canUpgrade, isPremiumStat, perStatMax, upgradeCost } from '@/game/upgrades';
 import { availableClasses, availablePositions, compareByRatingDesc } from '@/game/roster-filter';
 import type { PlayerClass } from '@/game/ratings';
@@ -59,25 +59,42 @@ export function LockerRoomTab() {
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
   const [positions, setPositions] = useState<Set<Position>>(new Set());
 
+  const q = query.trim().toLowerCase();
+  // Freeze the row order for this Locker visit. The order is memoized on the FILTER
+  // inputs and an order-sensitive roster signature, NOT the live stats, so a +1
+  // upgrade (which only raises an overall, never reorders the players array) does not
+  // re-sort the list and the card you are tapping stays put across consecutive
+  // upgrades. Changing a filter re-orders (expected); leaving and re-entering remounts
+  // the tab and re-sorts to current overalls; a new signing changes the signature and
+  // re-derives the indices so they never go stale. The captured roster only produces an
+  // index ordering; the rows below read the live roster, so the stat numbers stay fresh.
+  const rosterSignature = homeRoster?.players.map(playerKey).join('\n') ?? '';
+  const orderedIndices = useMemo(() => {
+    if (!homeRoster) return [];
+    const byRating = compareByRatingDesc((rp: RosterPlayer) => totalUpgrades(homeRoster, rp));
+    return homeRoster.players
+      .map((rp, i) => ({ rp, i }))
+      .filter(({ rp }) => {
+        if (q && !rp.player.name.toLowerCase().includes(q)) return false;
+        if (classes.size > 0 && (!rp.originalClass || !classes.has(rp.originalClass))) return false;
+        if (positions.size > 0 && !positions.has(rp.position)) return false;
+        return true;
+      })
+      .sort((a, b) => byRating(a.rp, b.rp))
+      .map(({ i }) => i);
+  }, [rosterSignature, q, classes, positions]);
+
   if (!homeRoster) return null;
 
   const coins = homeRoster.coins;
-  const q = query.trim().toLowerCase();
   const enabledClasses = availableClasses(homeRoster.players);
   const enabledPositions = availablePositions(homeRoster.players);
-  // Filter, then surface the highest-rated players first (ties broken by upgrades).
-  // The original index is carried through so each upgrade still targets the right
-  // player in the home roster.
-  const byRating = compareByRatingDesc((rp: RosterPlayer) => totalUpgrades(homeRoster, rp));
-  const shown = homeRoster.players
-    .map((rp, i) => ({ rp, i }))
-    .filter(({ rp }) => {
-      if (q && !rp.player.name.toLowerCase().includes(q)) return false;
-      if (classes.size > 0 && (!rp.originalClass || !classes.has(rp.originalClass))) return false;
-      if (positions.size > 0 && !positions.has(rp.position)) return false;
-      return true;
-    })
-    .sort((a, b) => byRating(a.rp, b.rp));
+  // Resolve the frozen order back onto the live roster. Indices stay valid because a
+  // membership change bumps rosterSignature and re-derives orderedIndices; the guard
+  // covers any momentary mismatch.
+  const shown = orderedIndices
+    .map((i) => ({ rp: homeRoster.players[i], i }))
+    .filter((row): row is { rp: RosterPlayer; i: number } => Boolean(row.rp));
   const toggleClass = (cls: PlayerClass) =>
     setClasses((prev) => {
       const next = new Set(prev);
