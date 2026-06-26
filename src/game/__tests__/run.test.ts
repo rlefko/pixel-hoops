@@ -532,13 +532,14 @@ describe('run reducer', () => {
     expect(won.core.rewards.trainingPoints).toBe(1);
   });
 
-  it('an elite win drops gear and banks 2 training points', () => {
+  it('an elite win drops no gear but banks 2 training points', () => {
     const m = withNode(start(), node({ id: 'e1', type: 'elite', round: 2 }));
     const won = runReducer(
       { ...m, game: null, phase: { kind: 'postgame', nodeId: 'e1', won: true } },
       { type: 'resolveGameResult' }
     )!;
-    expect(won.phase.kind).toBe('itemDrop');
+    // Elites no longer drop items (only bosses do); the win returns to the map.
+    expect(won.phase.kind).toBe('map');
     expect(won.core.rewards.trainingPoints).toBe(2);
   });
 
@@ -674,7 +675,7 @@ describe('run reducer', () => {
         kind: 'boost',
         nodeId: 'n',
         stock: [
-          { id: 'grip-tape', name: 'Grip Tape', rarity: 'common', blurb: '', effect: { outside: 1 }, cost: 18 },
+          { id: 'grip-tape', name: 'Grip Tape', rarity: 'common', blurb: '', effect: { outside: 1 } },
         ],
       },
     };
@@ -877,11 +878,11 @@ describe('boosts, economy, and legends', () => {
     m = {
       ...m,
       boosts: [
-        { id: 'lockdown', tier: 1 },
-        { id: 'closer', tier: 1 },
-        { id: 'deep-rotation', tier: 1 },
-        { id: 'iron-legs', tier: 1 },
-        { id: 'no-easy-buckets', tier: 1 },
+        { id: 'lockdown' },
+        { id: 'closer' },
+        { id: 'deep-rotation' },
+        { id: 'iron-legs' },
+        { id: 'no-easy-buckets' },
       ],
       phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false },
     };
@@ -900,11 +901,11 @@ describe('boosts, economy, and legends', () => {
     m = {
       ...m,
       boosts: [
-        { id: 'lockdown', tier: 1 },
-        { id: 'closer', tier: 1 },
-        { id: 'deep-rotation', tier: 1 },
-        { id: 'iron-legs', tier: 1 },
-        { id: 'no-easy-buckets', tier: 1 },
+        { id: 'lockdown' },
+        { id: 'closer' },
+        { id: 'deep-rotation' },
+        { id: 'iron-legs' },
+        { id: 'no-easy-buckets' },
       ],
       phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false },
     };

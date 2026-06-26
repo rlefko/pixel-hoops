@@ -1,78 +1,104 @@
 import { describe, it, expect } from 'vitest';
 import { createRNG } from '@/game/rng';
 import {
+  BOOST_DEFS,
   BOOST_BY_ID,
   boostsToModifier,
   drawBoostOffers,
   type PassiveBoost,
 } from '@/game/boosts';
+import type { TeamModifier } from '@/game/effects';
+import { RARITY_NET, teamNet, type Rarity } from '@/game/rarity';
+
+/** A boost's static net on the team line. Abstract bonuses fan out: offense/defense
+ * hit two stats each, pace/clutch one. Hook-only boosts net 0 (budget-exempt). */
+const boostNet = (e: Partial<TeamModifier>): number =>
+  teamNet(e.extra) +
+  2 * (e.offenseBonus ?? 0) +
+  2 * (e.defenseBonus ?? 0) +
+  (e.paceBonus ?? 0) +
+  (e.clutchBonus ?? 0);
+
+const isHookOnly = (e: Partial<TeamModifier>): boolean =>
+  (e.hooks?.length ?? 0) > 0 && boostNet(e) === 0;
+
+describe('boost budget', () => {
+  it('every static boost nets exactly its rarity budget (hook-only boosts exempt)', () => {
+    for (const d of BOOST_DEFS) {
+      if (isHookOnly(d.effect)) continue;
+      expect(boostNet(d.effect)).toBe(RARITY_NET[d.rarity]);
+    }
+  });
+
+  it('has good per-tier variety', () => {
+    const count = (r: Rarity) => BOOST_DEFS.filter((d) => d.rarity === r).length;
+    expect(count('common')).toBeGreaterThanOrEqual(8);
+    expect(count('rare')).toBeGreaterThanOrEqual(6);
+    expect(count('epic')).toBeGreaterThanOrEqual(5);
+    expect(count('legendary')).toBeGreaterThanOrEqual(4);
+  });
+
+  it('has unique ids', () => {
+    const ids = BOOST_DEFS.map((d) => d.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});
 
 describe('boost drafting', () => {
-  it('is deterministic and offers up to three distinct choices', () => {
-    const a = drawBoostOffers(3, [], createRNG('b1'));
-    const b = drawBoostOffers(3, [], createRNG('b1'));
+  it('is deterministic and offers three distinct choices', () => {
+    const a = drawBoostOffers([], createRNG('b1'));
+    const b = drawBoostOffers([], createRNG('b1'));
     expect(a).toEqual(b);
-    expect(a.length).toBeLessThanOrEqual(3);
-    const ids = a.map((o) => (o.kind === 'new' ? o.defId : o.id));
-    expect(new Set(ids).size).toBe(ids.length); // distinct
+    expect(a).toHaveLength(3);
+    const ids = a.map((o) => o.defId);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it('round-gates offers (capstones never appear early)', () => {
-    const r1 = drawBoostOffers(1, [], createRNG('r1'));
-    for (const o of r1) {
-      const id = o.kind === 'new' ? o.defId : o.id;
-      expect(BOOST_BY_ID[id].minRound).toBeLessThanOrEqual(1);
-      expect(BOOST_BY_ID[id].rarity).not.toBe('capstone');
-    }
-  });
-
-  it('offers an owned boost as a one-tier upgrade, never a duplicate "new"', () => {
-    const owned: PassiveBoost[] = [{ id: 'splash-brothers', tier: 1 }];
-    // Sweep seeds: any time splash-brothers surfaces, it must be a tierUp.
-    for (let s = 0; s < 50; s++) {
-      const offers = drawBoostOffers(3, owned, createRNG(`tu-${s}`));
+  it('never offers a boost the player already owns', () => {
+    const owned: PassiveBoost[] = [{ id: 'splash-brothers' }, { id: 'lockdown' }];
+    for (let s = 0; s < 80; s++) {
+      const offers = drawBoostOffers(owned, createRNG(`o-${s}`));
       for (const o of offers) {
-        if (o.kind === 'new') expect(o.defId).not.toBe('splash-brothers');
-        if (o.kind === 'tierUp' && o.id === 'splash-brothers') expect(o.toTier).toBe(2);
+        expect(o.defId).not.toBe('splash-brothers');
+        expect(o.defId).not.toBe('lockdown');
       }
     }
   });
 
-  it('never offers an owned boost that is already at max tier', () => {
-    const owned: PassiveBoost[] = [{ id: 'heat-check', tier: 1 }]; // maxTier 1
-    for (let s = 0; s < 50; s++) {
-      const offers = drawBoostOffers(5, owned, createRNG(`mx-${s}`));
-      for (const o of offers) {
-        const id = o.kind === 'new' ? o.defId : o.id;
-        expect(id).not.toBe('heat-check');
+  it('every offered id resolves to a real boost def', () => {
+    for (let s = 0; s < 40; s++) {
+      for (const o of drawBoostOffers([], createRNG(`r-${s}`))) {
+        expect(BOOST_BY_ID[o.defId]).toBeDefined();
       }
     }
   });
 
-  it('boostsToModifier scales magnitudes by tier', () => {
-    const t1 = boostsToModifier([{ id: 'splash-brothers', tier: 1 }]);
-    const t3 = boostsToModifier([{ id: 'splash-brothers', tier: 3 }]);
-    expect(t1.extra.outside).toBe(2);
-    expect(t3.extra.outside).toBe(6);
+  it('skews common: legendary boosts are rare across many draws', () => {
+    let common = 0;
+    let legendary = 0;
+    for (let s = 0; s < 600; s++) {
+      for (const o of drawBoostOffers([], createRNG(`dist-${s}`))) {
+        const r = BOOST_BY_ID[o.defId].rarity;
+        if (r === 'common') common += 1;
+        if (r === 'legendary') legendary += 1;
+      }
+    }
+    expect(common).toBeGreaterThan(legendary * 5);
+  });
+});
+
+describe('boostsToModifier', () => {
+  it('folds a boost effect into the team modifier', () => {
+    const mod = boostsToModifier([{ id: 'splash-brothers' }]);
+    expect(mod.extra.outside).toBe(1);
   });
 
-  it('capstones only appear once their requirement is met', () => {
-    // Pace-and-Space needs one Outside + one Transition boost owned.
-    const without = Array.from({ length: 30 }, (_, s) =>
-      drawBoostOffers(5, [{ id: 'splash-brothers', tier: 1 }], createRNG(`c-${s}`))
-    ).flat();
-    expect(without.some((o) => (o.kind === 'new' ? o.defId : o.id) === 'pace-and-space')).toBe(false);
+  it('sums multiple boosts', () => {
+    const mod = boostsToModifier([{ id: 'splash-brothers' }, { id: 'sharpshooting' }]);
+    expect(mod.extra.outside).toBe(3); // 1 + 2
+  });
 
-    const withDuo = Array.from({ length: 60 }, (_, s) =>
-      drawBoostOffers(
-        5,
-        [
-          { id: 'splash-brothers', tier: 1 },
-          { id: 'seven-seconds', tier: 1 },
-        ],
-        createRNG(`d-${s}`)
-      )
-    ).flat();
-    expect(withDuo.some((o) => (o.kind === 'new' ? o.defId : o.id) === 'pace-and-space')).toBe(true);
+  it('skips unknown ids', () => {
+    expect(boostsToModifier([{ id: 'does-not-exist' }]).extra).toEqual({});
   });
 });
