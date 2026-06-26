@@ -15,8 +15,17 @@
  *     src/data/nba-pool.json. Uses the PAGINATED list endpoint (limit=100), so the
  *     whole pool is only ~7 requests: it never fans out per-slug. Each player is
  *     bucketed into a class (C/B/A/S) by 2K overall, and its in-game stats are
- *     anchored into that class's band (src/game/classes.ts) so a class badge always
- *     matches the scaling band. Pool players have no `ability` and are not legends.
+ *     anchored to a quality-varied point INSIDE that class's band (by where its 2K
+ *     overall sits in the bucket), so same-class reals spread across the window
+ *     instead of all sharing one OVR while the badge still matches the band. Pool
+ *     players have no `ability` and are not legends.
+ *
+ *   npx tsx scripts/fetch-nba.ts --mode=reanchor   (OFFLINE, no API key)
+ *     Re-spreads the already-committed src/data/nba-pool.json using each player's
+ *     stored 2K `overall`. Anchoring only shifts a line as a whole, so the baked
+ *     stats still carry each player's shape; this re-anchors them to the same
+ *     quality-varied targets as --mode=pool, with no network call. Use it to apply
+ *     the within-class-variance fix without a full re-bake.
  *
  * Rate limit: the 2K API allows 500 requests/day. A full re-bake of BOTH modes is
  * ~45 requests, far under the cap. A short delay is inserted between list pages.
@@ -28,13 +37,13 @@
  * Team colors live in src/data/nba-teams.json and are maintained by hand.
  */
 
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { mapRatingsToStats, type RawRatings } from '../src/game/nba-map';
 import { backfillPlayStyleStats } from '../src/game/stat-migration';
 import type { PlayerStats } from '../src/types/player';
-import { anchorStatsToClass } from '../src/game/classes';
+import { anchorStatsToClass, classTargetOvr } from '../src/game/classes';
 import { ovr, classForOvr, type PlayerClass } from '../src/game/ratings';
 import teams from '../src/data/nba-teams.json';
 import legendsData from '../src/data/nba-legends.json';
@@ -233,6 +242,37 @@ function classFor2KOverall(overall: number): PlayerClass {
   return 'C';
 }
 
+type RealClass = 'C' | 'B' | 'A' | 'S';
+type ClassRange = Record<RealClass, [number, number]>;
+
+/**
+ * The 2K-overall bucket [lo, hi) each real class spans, aligned with the
+ * classFor2KOverall thresholds (B 75-81, A 82-88, S 89+). The OPEN ends, C's floor
+ * and S's ceiling, are filled from the dataset's own min/max so the weakest and
+ * strongest reals land at the bottom and top of their class window no matter who is
+ * in the pool. This is what spreads same-class overalls instead of flattening them.
+ */
+function classRangesFor(overalls: readonly number[]): ClassRange {
+  const min = overalls.length ? Math.min(...overalls) : 67;
+  const max = overalls.length ? Math.max(...overalls) : 95;
+  return {
+    C: [Math.min(min, 74), 75],
+    B: [75, 82],
+    A: [82, 89],
+    S: [89, Math.max(max, 90) + 1],
+  };
+}
+
+/** Where a 2K overall sits within its class bucket, as 0..1 (weakest..strongest in
+ * class). Feeds classTargetOvr so true quality drives within-class OVR variance. */
+function qualityWithinClass(overall: number, cls: PlayerClass, ranges: ClassRange): number {
+  const range = ranges[cls as RealClass];
+  if (!range) return 0.5;
+  const [lo, hi] = range;
+  if (hi <= lo) return 0.5;
+  return Math.max(0, Math.min(1, (overall - lo) / (hi - lo)));
+}
+
 function firstKnownPosition(positions: unknown): Position | null {
   if (!Array.isArray(positions)) return null;
   for (const p of positions) {
@@ -415,7 +455,17 @@ async function bakePool(): Promise<void> {
     if (!prev || Number(p.overall ?? 0) > Number(prev.overall ?? 0)) bySlug.set(p.slug, p);
   }
 
-  const baked = [];
+  // First pass: keep the valid players, so the class ranges below reflect exactly
+  // who gets baked (the open-ended C floor / S ceiling self-calibrate to the pool).
+  type Valid = {
+    name: string;
+    slug: string;
+    attributes: RawRatings;
+    position: Position;
+    teamAbbr: string;
+    overall: number;
+  };
+  const valid: Valid[] = [];
   let skipped = 0;
   for (const p of bySlug.values()) {
     const position = firstKnownPosition(p.positions);
@@ -425,21 +475,28 @@ async function bakePool(): Promise<void> {
       skipped += 1;
       continue;
     }
-    const originalClass = classFor2KOverall(overall);
-    const shape = mapRatingsToStats({ ...p.attributes, overall });
-    const stats = anchorStatsToClass(shape, originalClass, position);
-    baked.push({
-      name: String(p.name ?? p.slug),
-      slug: p.slug,
-      teamAbbr,
-      era: 'modern' as const,
-      position,
-      jerseyNumber: jerseyFromSlug(p.slug),
-      overall,
-      originalClass,
-      stats,
-    });
+    valid.push({ name: String(p.name ?? p.slug), slug: p.slug, attributes: p.attributes, position, teamAbbr, overall });
   }
+
+  // Second pass: anchor each line to a quality-varied point in its class band, so
+  // same-class reals spread across the window (a 2K-89 S reads lower than a 2K-95 S).
+  const ranges = classRangesFor(valid.map((v) => v.overall));
+  const baked = valid.map((v) => {
+    const originalClass = classFor2KOverall(v.overall);
+    const shape = mapRatingsToStats({ ...v.attributes, overall: v.overall });
+    const target = classTargetOvr(originalClass, qualityWithinClass(v.overall, originalClass, ranges));
+    return {
+      name: v.name,
+      slug: v.slug,
+      teamAbbr: v.teamAbbr,
+      era: 'modern' as const,
+      position: v.position,
+      jerseyNumber: jerseyFromSlug(v.slug),
+      overall: v.overall,
+      originalClass,
+      stats: anchorStatsToClass(shape, originalClass, v.position, target),
+    };
+  });
 
   // Stable sort: team, then class (strong first), then name, so the file diffs cleanly.
   const classRank: Record<string, number> = { S: 0, A: 1, B: 2, C: 3 };
@@ -463,14 +520,70 @@ async function bakePool(): Promise<void> {
   console.log(`class/OVR mismatches: ${mismatch}`);
 }
 
+// ---------------------------------------------------------------------------
+// Reanchor mode (offline re-spread of the committed pool)
+// ---------------------------------------------------------------------------
+
+/** A baked pool entry as it lives in src/data/nba-pool.json. */
+interface BakedPoolPlayer {
+  name: string;
+  slug: string;
+  teamAbbr: string;
+  era: 'modern';
+  position: Position;
+  jerseyNumber: number;
+  overall: number;
+  originalClass: PlayerClass;
+  stats: PlayerStats;
+}
+
+/**
+ * Re-spread the ALREADY-baked pool offline (no API call). Anchoring only shifts a
+ * line as a whole, so the committed stats still carry each player's shape; this
+ * re-anchors that shape to a quality-varied point in its class band using the stored
+ * 2K `overall`. Same class/team/identity, only the eight skill stats move, so the
+ * fix lands without a network re-bake. Deterministic and idempotent.
+ */
+function bakeReanchor(): void {
+  const file = join(outDir, 'nba-pool.json');
+  const pool = JSON.parse(readFileSync(file, 'utf8')) as BakedPoolPlayer[];
+  const ranges = classRangesFor(pool.map((p) => p.overall));
+  const reanchored = pool.map((p) => {
+    const target = classTargetOvr(p.originalClass, qualityWithinClass(p.overall, p.originalClass, ranges));
+    return { ...p, stats: anchorStatsToClass(p.stats, p.originalClass, p.position, target) };
+  });
+  writeFileSync(file, JSON.stringify(reanchored, null, 2) + '\n');
+
+  const byClass: Record<string, number> = {};
+  const distinct: Record<string, Set<number>> = {};
+  let mismatch = 0;
+  for (const p of reanchored) {
+    byClass[p.originalClass] = (byClass[p.originalClass] ?? 0) + 1;
+    (distinct[p.originalClass] ??= new Set()).add(ovr(p.stats, p.position));
+    if (classForOvr(ovr(p.stats, p.position)) !== p.originalClass) mismatch += 1;
+  }
+  const spread = Object.fromEntries(
+    Object.entries(distinct).map(([k, v]) => [k, [...v].sort((a, b) => a - b)])
+  );
+  console.log(`\nRe-anchored ${reanchored.length} pool players in ${file}`);
+  console.log('class distribution:', JSON.stringify(byClass));
+  console.log('distinct OVRs per class:', JSON.stringify(spread));
+  console.log(`class/OVR mismatches: ${mismatch}`);
+}
+
 async function main(): Promise<void> {
+  const mode = (process.argv.find((a) => a.startsWith('--mode='))?.split('=')[1] ?? 'legends') as
+    | 'legends'
+    | 'pool'
+    | 'reanchor';
+  if (mode === 'reanchor') {
+    bakeReanchor(); // offline: re-spreads the committed pool, no API key needed
+    return;
+  }
   if (!API_KEY) {
     console.error('NBA2K_API_KEY is not set. Run:\n  NBA2K_API_KEY=your_key npx tsx scripts/fetch-nba.ts --mode=pool');
     process.exit(1);
   }
-  const mode = (process.argv.find((a) => a.startsWith('--mode='))?.split('=')[1] ?? 'legends') as
-    | 'legends'
-    | 'pool';
   if (mode === 'pool') await bakePool();
   else await bakeLegends();
 }
