@@ -12,6 +12,7 @@ import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 
 import { FeelSettingsProvider } from '@/feel';
 import { HomeRosterProvider } from '@/context/HomeRosterContext';
+import { TransitionProvider } from '@/navigation';
 import { FONT_ASSETS, palette } from '@/theme';
 
 /**
@@ -75,19 +76,31 @@ function RootLayoutNav() {
             shake) always plays. The in-app Reduce Motion setting is the control. */}
         <ReducedMotionConfig mode={ReduceMotion.Never} />
         <StatusBar style="light" />
-        <Stack
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: palette.bgDeep },
-          }}
-        >
-          <Stack.Screen name="(home)" />
-          <Stack.Screen name="run" />
-          <Stack.Screen
-            name="modal"
-            options={{ presentation: 'modal', title: 'How to Play' }}
-          />
-        </Stack>
+        <TransitionProvider>
+          <Stack
+            screenOptions={{
+              headerShown: false,
+              contentStyle: { backgroundColor: palette.bgDeep },
+              // The arcade pixel-wipe owns all route motion, so the native stack
+              // cuts instantly and the swipe-back gesture is off.
+              animation: 'none',
+              gestureEnabled: false,
+            }}
+          >
+            <Stack.Screen name="(home)" />
+            <Stack.Screen name="run" />
+            <Stack.Screen
+              name="modal"
+              options={{
+                presentation: 'modal',
+                title: 'How to Play',
+                // The modal keeps its native slide-up; it is not wiped.
+                animation: 'default',
+                gestureEnabled: true,
+              }}
+            />
+          </Stack>
+        </TransitionProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

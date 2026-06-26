@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { useRun } from '@/hooks/useRun';
@@ -41,9 +41,9 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 type RunActions = ReturnType<typeof useRun>['actions'];
 
 export default function RunScreen() {
-  const router = useRouter();
+  const nav = useArcadeRouter();
   const { model, loaded, actions } = useRun();
-  const goMenu = () => router.replace('/');
+  const goMenu = () => nav.replace('/', 'menu');
 
   if (!loaded || !model) {
     return (

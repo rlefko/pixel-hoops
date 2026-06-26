@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { HallOfFameCard } from '@/components/locker/HallOfFameCard';
@@ -12,7 +12,7 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
  * standalone screen reached from the home menu (not a Locker Room tab).
  */
 export default function HallOfFameScreen() {
-  const router = useRouter();
+  const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
 
   if (!loaded || !homeRoster) {
@@ -26,7 +26,7 @@ export default function HallOfFameScreen() {
   const entries = homeRoster.hallOfFame;
 
   return (
-    <Screen scroll onBack={() => router.back()} contentContainerStyle={styles.content}>
+    <Screen scroll onBack={() => nav.back()} contentContainerStyle={styles.content}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>HALL OF FAME</Text>
         <Text style={styles.count}>

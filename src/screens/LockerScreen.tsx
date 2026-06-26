@@ -1,5 +1,5 @@
 import { View, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { HubHeader } from '@/components/locker/HubHeader';
@@ -14,7 +14,7 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
  * the upgrade grid, search, and filters live in LockerRoomTab.
  */
 export default function LockerScreen() {
-  const router = useRouter();
+  const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
 
   if (!loaded || !homeRoster) {
@@ -26,7 +26,7 @@ export default function LockerScreen() {
   }
 
   return (
-    <Screen style={styles.container} onBack={() => router.back()}>
+    <Screen style={styles.container} onBack={() => nav.back()}>
       <HubHeader title="LOCKER ROOM" />
       <View style={styles.body}>
         <LockerRoomTab />
