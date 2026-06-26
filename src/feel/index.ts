@@ -14,3 +14,4 @@ export { usePulse } from './usePulse';
 export { useFlash } from './useFlash';
 export { useCountUp } from './useCountUp';
 export { useBallFlight } from './useBallFlight';
+export { usePixelWipe, type WipeVariant } from './usePixelWipe';
