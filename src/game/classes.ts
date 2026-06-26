@@ -47,6 +47,43 @@ export function classToBand(cls: PlayerClass): { min: number; max: number } {
   return getStatRangeForLevel(classLevel(cls));
 }
 
+/**
+ * The inclusive integer OVR window [lo, hi] a class occupies within the normal
+ * (non-upgraded) band [STAT_MIN, STAT_NORMAL_MAX]. Derived by scanning classForOvr,
+ * so it shares ONE source of truth with the class badge thresholds and stays in
+ * sync automatically (C=10-11, B=12-15, A=16-17, S=18-20). The high end is capped
+ * at STAT_NORMAL_MAX because a non-upgraded line (every skill <= 20) cannot average
+ * above 20, so the very top of the S window (21) is unreachable until upgrades or
+ * training lift a skill past the cap. Tiers that live past the normal cap (S+/S++)
+ * have no window here and fall back to their single class level.
+ */
+export function classOvrWindow(cls: PlayerClass): { lo: number; hi: number } {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let o = STAT_MIN; o <= STAT_NORMAL_MAX; o++) {
+    if (classForOvr(o) !== cls) continue;
+    if (o < lo) lo = o;
+    if (o > hi) hi = o;
+  }
+  if (hi < lo) {
+    const level = classLevel(cls);
+    return { lo: level, hi: level };
+  }
+  return { lo, hi };
+}
+
+/**
+ * A target OVR inside a class's window for a 0..1 quality fraction: 0 anchors the
+ * weakest in-class line, 1 the strongest. This is the basis for within-class OVR
+ * variance, so two players of the same class but different quality land on
+ * different points in the band instead of collapsing onto the class center (a weak
+ * C reads 10, a strong C reads 11). Pass the result as anchorStatsToClass's target.
+ */
+export function classTargetOvr(cls: PlayerClass, quality: number): number {
+  const { lo, hi } = classOvrWindow(cls);
+  return lo + clamp(quality, 0, 1) * (hi - lo);
+}
+
 /** Index of a class in the ladder (D=0 .. S+=5); -1 if unknown. */
 function classIndex(cls: PlayerClass): number {
   return CLASS_ORDER.indexOf(cls);
@@ -65,10 +102,16 @@ export function classShift(cls: PlayerClass, steps: number): PlayerClass {
 
 /**
  * Place a stat line into a class's band while preserving its shape. The line is
- * shifted as a whole so its position-weighted OVR lands on the class level, then
- * each skill is clamped to the normal band; the player's relative strengths (a
+ * shifted as a whole so its position-weighted OVR lands on `targetOvr` (a point
+ * inside the class's OVR window, defaulting to the class center for back-compat),
+ * then each skill is clamped to the normal band; the player's relative strengths (a
  * shooter's outside lead, a big's interior lead) are kept. Condition ratings
  * (stamina/durability) pass through: they are not part of OVR and not a class.
+ *
+ * Pass a quality-varied `targetOvr` (see classTargetOvr) to spread players across
+ * the band instead of collapsing every one onto the center: a strong C reads 11, a
+ * weak C reads 10. The convergence loop still guarantees the rounded OVR reads as
+ * `cls`, so a freshly anchored player never shows a spurious upgrade arrow.
  *
  * Used by BOTH the real-player bake (scripts/fetch-nba.ts) and procedural
  * generation (tournament.generatePlayerOfClass), so real and fake players of the
@@ -77,9 +120,10 @@ export function classShift(cls: PlayerClass, steps: number): PlayerClass {
 export function anchorStatsToClass(
   shape: PlayerStats,
   cls: PlayerClass,
-  position: Position
+  position: Position,
+  targetOvr: number = classLevel(cls)
 ): PlayerStats {
-  const delta = classLevel(cls) - ovrRaw(shape, position);
+  const delta = targetOvr - ovrRaw(shape, position);
   let out: PlayerStats = { ...shape };
   for (const key of SKILL_STAT_KEYS) {
     out[key] = clamp(Math.round(shape[key] + delta), STAT_MIN, STAT_NORMAL_MAX);

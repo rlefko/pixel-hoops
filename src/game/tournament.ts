@@ -13,7 +13,7 @@ import {
   poolByClass,
   freeAgentPool,
 } from './player-pool';
-import { anchorStatsToClass, scaleLegendToLevel } from './classes';
+import { anchorStatsToClass, classTargetOvr, scaleLegendToLevel } from './classes';
 import { classAboveLadder, type LadderClass } from './difficulty-mode';
 import type { PlayerClass } from './ratings';
 import { isSpecialistStats } from './specialty';
@@ -187,8 +187,11 @@ export function generatePlayerOfClass(
 ): RosterPlayer {
   const archetype = POSITION_ARCHETYPE[position];
   const base = createPlayer(generateNameSeeded(rng), archetype, rng.int);
+  // Spread the line across the class's OVR window by a random quality, so a fresh
+  // class is not a row of identical overalls (a strong D vs a weak D).
+  const targetOvr = classTargetOvr(cls, rng.next());
   return {
-    player: { ...base, stats: anchorStatsToClass(base.stats, cls, position) },
+    player: { ...base, stats: anchorStatsToClass(base.stats, cls, position, targetOvr) },
     position,
     originalClass: cls,
   };
