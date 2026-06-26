@@ -1,8 +1,12 @@
 import { useMemo, useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native';
+import { View, StyleSheet, Pressable, ScrollView, TextInput, Dimensions } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
-import { Pop } from '@/components/fx';
+import { Pop, ShakeView, FlashOverlay, ParticleBurst } from '@/components/fx';
+import { usePulse } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { RARITY_COLOR, RARITY_LABEL } from '@/components/run/rarity-ui';
+import { useRewardBurst } from '@/components/run/useRewardBurst';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import {
   playerKey,
@@ -20,7 +24,6 @@ import {
   pullMachine,
   getGachaAbility,
   GACHA_ABILITIES,
-  type AbilityRarity,
   type MachineId,
 } from '@/game/abilities-gacha';
 import {
@@ -32,21 +35,19 @@ import {
 } from '@/game/player-gacha';
 import { CLASS_COLOR } from '@/components/run/class-ui';
 import { createRNG } from '@/game/rng';
+import type { Rarity } from '@/game/rarity';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
  * The Arcade tab: the coin gacha hub. A SCOUTING section of five machines signs
  * new players into the collection (see src/game/player-gacha.ts), and an ABILITIES
- * section of three machines pulls passive abilities plus an equip loadout to
- * assign owned abilities onto owned players (persists between runs). The shell
- * (back, title, coin pill) is owned by ArcadeScreen.
+ * section of four machines (common / rare / epic / legendary) pulls passive
+ * abilities plus an equip loadout to assign owned abilities onto owned players
+ * (persists between runs). The shell (back, title, coin pill) is owned by
+ * ArcadeScreen.
  */
 
-const RARITY_COLOR: Record<AbilityRarity, string> = {
-  common: palette.inkDim,
-  rare: palette.steelBlue,
-  legendary: palette.gold,
-};
+const CENTER_X = Dimensions.get('window').width / 2;
 
 let pullCounter = 0; // varies the pull seed within a session (pulls are not replayed)
 let scoutCounter = 0; // same, for the player scouting machines
@@ -54,7 +55,9 @@ let scoutCounter = 0; // same, for the player scouting machines
 export function ArcadeTab() {
   const { homeRoster, saveHomeRoster } = useHomeRoster();
   const [selected, setSelected] = useState<string | null>(null);
-  const [lastPull, setLastPull] = useState<{ id: string; rarity: AbilityRarity } | null>(null);
+  const [lastPull, setLastPull] = useState<{ id: string; rarity: Rarity } | null>(null);
+  const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
+  const { glowStyle } = usePulse();
   const [lastScout, setLastScout] = useState<PlayerPullResult | null>(null);
   const [query, setQuery] = useState('');
 
@@ -83,6 +86,7 @@ export function ArcadeTab() {
     pullCounter += 1;
     const result = pullMachine(machineId, createRNG(`pull-${machineId}-${coins}-${pullCounter}`));
     setLastPull(result);
+    fire(result.rarity); // reveal juice scales with the pulled rarity
     saveHomeRoster(addAbility({ ...homeRoster, coins: coins - machine.cost }, result.id));
   };
 
@@ -112,7 +116,7 @@ export function ArcadeTab() {
       : palette.gold;
 
   return (
-    <View style={styles.tab}>
+    <ShakeView ref={shakeRef} style={styles.tab}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <Text style={[styles.section, styles.sectionTop]}>SCOUTING</Text>
         <View style={styles.machines}>
@@ -177,13 +181,18 @@ export function ArcadeTab() {
         </View>
 
         {lastAbility ? (
-          <Pop trigger={lastPull?.id ?? ''} style={[styles.reveal, { borderColor: RARITY_COLOR[lastAbility.rarity] }]}>
-            <Text style={[styles.revealRarity, { color: RARITY_COLOR[lastAbility.rarity] }]}>
-              {lastAbility.rarity.toUpperCase()}
-            </Text>
-            <Text style={styles.revealName}>{lastAbility.name}</Text>
-            <Text style={styles.revealBlurb}>{lastAbility.blurb}</Text>
-          </Pop>
+          <View style={styles.revealWrap}>
+            {lastAbility.rarity === 'legendary' ? (
+              <Animated.View pointerEvents="none" style={[styles.legendGlow, glowStyle]} />
+            ) : null}
+            <Pop trigger={lastPull?.id ?? ''} style={[styles.reveal, { borderColor: RARITY_COLOR[lastAbility.rarity] }]}>
+              <Text style={[styles.revealRarity, { color: RARITY_COLOR[lastAbility.rarity] }]}>
+                {RARITY_LABEL[lastAbility.rarity]}
+              </Text>
+              <Text style={styles.revealName}>{lastAbility.name}</Text>
+              <Text style={styles.revealBlurb}>{lastAbility.blurb}</Text>
+            </Pop>
+          </View>
         ) : null}
 
         <Text style={styles.section}>YOUR ABILITIES</Text>
@@ -246,7 +255,14 @@ export function ArcadeTab() {
           );
         })}
       </ScrollView>
-    </View>
+      <FlashOverlay ref={flashRef} />
+      <ParticleBurst
+        origin={confettiTrigger > 0 ? { x: CENTER_X, y: 120 } : null}
+        variant="confetti"
+        color={palette.gold}
+        trigger={confettiTrigger}
+      />
+    </ShakeView>
   );
 }
 
@@ -278,12 +294,21 @@ const styles = StyleSheet.create({
   },
   pullDisabled: { opacity: 0.35, borderColor: palette.inkDim },
   pullText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.gold },
+  revealWrap: { position: 'relative', marginTop: space(2) },
+  legendGlow: {
+    position: 'absolute',
+    left: -space(1),
+    right: -space(1),
+    top: -space(1),
+    bottom: -space(1),
+    backgroundColor: palette.gold + '22',
+    borderRadius: RADIUS.chip,
+  },
   reveal: {
     alignItems: 'center',
     padding: space(3),
     borderWidth: BORDER.chunk,
     borderRadius: RADIUS.chip,
-    marginTop: space(2),
   },
   revealRarity: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
   revealName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.ink, marginTop: space(1) },
