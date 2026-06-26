@@ -1,10 +1,23 @@
 import { StyleSheet, View, Pressable } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { CoinIcon } from '@/components/run/PixelIcons';
+import { Pop, Scanlines } from '@/components/fx';
+import { MenuButton } from '@/components/MenuButton';
+import {
+  BasketballIcon,
+  CoinIcon,
+  CrownIcon,
+  GearIcon,
+  HelpIcon,
+  JoystickIcon,
+  LockerIcon,
+  RecruitIcon,
+} from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { CLASS_COLOR } from '@/components/run/class-ui';
+import { usePulse } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import {
   DIFFICULTIES,
@@ -16,10 +29,14 @@ import {
 } from '@/game/difficulty-mode';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
-/** Main menu screen — entry point for the game. */
+/** Main menu screen: the arcade lobby and entry point for the game. */
 export default function HomeScreen() {
   const router = useRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
+  // One idle "breathe" loop drives the title: a glow behind the gold word and a
+  // gentle bob on the pixel basketball. Slower than the default so it reads as a
+  // title, not a flicker. Held steady under reduced motion (handled by usePulse).
+  const { glowStyle, bobStyle } = usePulse(1300, { bobAmplitude: 4 });
 
   // First launch: welcome the player with their starting free agents, once.
   if (loaded && homeRoster && !homeRoster.seenWelcome) {
@@ -50,17 +67,25 @@ export default function HomeScreen() {
 
   return (
     <Screen scroll contentContainerStyle={styles.container}>
+      <Scanlines />
+
       <View style={styles.titleBlock}>
+        <Animated.View style={bobStyle}>
+          <BasketballIcon size={22} color={palette.courtLine} />
+        </Animated.View>
         <Text style={styles.title}>PIXEL</Text>
-        <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
+        <View style={styles.hoopsWrap}>
+          <Animated.View pointerEvents="none" style={[styles.hoopsGlow, glowStyle]} />
+          <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
+        </View>
         <Text style={styles.subtitle}>8-Bit Basketball Roguelike</Text>
       </View>
 
       {loaded && homeRoster ? (
-        <View style={styles.coinRow}>
+        <Pop trigger={homeRoster.coins} style={styles.coinRow}>
           <CoinIcon size={14} color={palette.gold} />
           <Text style={styles.coinText}>{homeRoster.coins}</Text>
-        </View>
+        </Pop>
       ) : null}
 
       {loaded && homeRoster ? (
@@ -114,28 +139,70 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      <View style={styles.buttonContainer}>
-        <Pressable
-          style={[styles.button, styles.primaryButton]}
+      <View style={styles.menu}>
+        <MenuButton
+          variant="hero"
+          label="NEW RUN"
+          color={palette.gold}
+          icon={<BasketballIcon size={28} color={palette.gold} />}
+          attract
           onPress={() => router.push('/run')}
-        >
-          <Text style={styles.primaryText}>NEW RUN</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={() => router.push('/roster')}>
-          <Text style={styles.secondaryText}>Roster</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={() => router.push('/locker')}>
-          <Text style={styles.secondaryText}>Locker Room</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={() => router.push('/hall-of-fame')}>
-          <Text style={styles.secondaryText}>Hall of Fame</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={() => router.push('/settings')}>
-          <Text style={styles.secondaryText}>Settings</Text>
-        </Pressable>
-        <Pressable style={styles.button} onPress={() => router.push('/modal')}>
-          <Text style={styles.secondaryText}>How to Play</Text>
-        </Pressable>
+        />
+        <View style={styles.tileRow}>
+          <MenuButton
+            variant="tile"
+            style={styles.tile}
+            label="LOCKER ROOM"
+            color={palette.makeGreen}
+            icon={<LockerIcon size={32} color={palette.makeGreen} />}
+            attract
+            attractDelayMs={150}
+            onPress={() => router.push('/locker')}
+          />
+          <MenuButton
+            variant="tile"
+            style={styles.tile}
+            label="ARCADE"
+            color={palette.flame}
+            icon={<JoystickIcon size={32} color={palette.flame} />}
+            attract
+            attractDelayMs={300}
+            onPress={() => router.push('/arcade')}
+          />
+        </View>
+        <MenuButton
+          variant="wide"
+          label="ROSTER"
+          color={palette.steelBlue}
+          icon={<RecruitIcon size={22} color={palette.steelBlue} />}
+          onPress={() => router.push('/roster')}
+        />
+        <View style={styles.smallRow}>
+          <MenuButton
+            variant="small"
+            style={styles.smallBtn}
+            label="HALL OF FAME"
+            color={palette.gold}
+            icon={<CrownIcon size={16} color={palette.gold} />}
+            onPress={() => router.push('/hall-of-fame')}
+          />
+          <MenuButton
+            variant="small"
+            style={styles.smallBtn}
+            label="SETTINGS"
+            color={palette.inkDim}
+            icon={<GearIcon size={16} color={palette.inkDim} />}
+            onPress={() => router.push('/settings')}
+          />
+          <MenuButton
+            variant="small"
+            style={styles.smallBtn}
+            label="HOW TO PLAY"
+            color={palette.inkDim}
+            icon={<HelpIcon size={16} color={palette.inkDim} />}
+            onPress={() => router.push('/modal')}
+          />
+        </View>
       </View>
 
       <Text style={styles.tagline}>Auto-sim 5-on-5. Your team compounds.</Text>
@@ -144,9 +211,8 @@ export default function HomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  // Scroll content: top-aligned and centered horizontally so nothing overflows off
-  // a short phone viewport (the old justifyContent:'center' pushed the title and
-  // buttons off both ends). Grows downward and scrolls when it does not all fit.
+  // Top-aligned and centered so nothing overflows a short phone viewport; grows
+  // downward and scrolls when it does not all fit.
   container: {
     alignItems: 'center',
     paddingTop: space(4),
@@ -165,6 +231,19 @@ const styles = StyleSheet.create({
   },
   highlight: {
     color: palette.orange,
+  },
+  hoopsWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hoopsGlow: {
+    position: 'absolute',
+    top: -4,
+    left: -10,
+    right: -10,
+    bottom: -2,
+    backgroundColor: palette.gold + '26',
+    borderRadius: RADIUS.chip,
   },
   subtitle: {
     fontFamily: FONT.body,
@@ -230,38 +309,30 @@ const styles = StyleSheet.create({
   },
   classChipText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small },
   chipLocked: { opacity: 0.4, borderColor: palette.inkDim },
-  buttonContainer: {
+  menu: {
+    width: '100%',
+    maxWidth: 360,
     marginTop: space(4),
-    alignItems: 'center',
+    gap: space(3),
   },
-  button: {
-    paddingVertical: space(2),
-    paddingHorizontal: space(8),
-    marginTop: space(2),
-    alignItems: 'center',
+  tileRow: {
+    flexDirection: 'row',
+    gap: space(3),
   },
-  primaryButton: {
-    borderRadius: RADIUS.chip,
-    borderWidth: BORDER.chunk,
-    borderColor: palette.gold,
-    backgroundColor: palette.gold + '1A',
+  tile: { flex: 1 },
+  smallRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space(2),
   },
-  primaryText: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.body,
-    color: palette.gold,
-  },
-  secondaryText: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.label,
-    color: palette.inkDim,
-    letterSpacing: 1,
-  },
+  smallBtn: { flex: 1, minWidth: 90 },
   tagline: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
     color: palette.inkDim,
     marginTop: space(5),
+    marginBottom: space(4),
     letterSpacing: 1,
   },
 });

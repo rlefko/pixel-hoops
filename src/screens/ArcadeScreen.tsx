@@ -4,16 +4,16 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { HubHeader } from '@/components/locker/HubHeader';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { LockerRoomTab } from '@/components/locker/LockerRoomTab';
+import { ArcadeTab } from '@/components/locker/ArcadeTab';
 import { palette, FONT, FONT_SIZE, space } from '@/theme';
 
 /**
- * The Locker Room: the between-runs hub for permanent stat upgrades. It pairs
- * with the Arcade (the coin gacha), which is now its own screen reached from the
- * home menu. This shell owns the back control and the shared title + coin header;
- * the upgrade grid, search, and filters live in LockerRoomTab.
+ * The Arcade: the coin gacha hub (player scouting, ability pulls, and the equip
+ * loadout). Split out of the Locker Room into its own screen so it reads as its
+ * own destination from the home menu. This shell owns the back control and the
+ * shared title + coin header; the machines and loadout live in ArcadeTab.
  */
-export default function LockerScreen() {
+export default function ArcadeScreen() {
   const router = useRouter();
   const { homeRoster, loaded } = useHomeRoster();
 
@@ -27,9 +27,9 @@ export default function LockerScreen() {
 
   return (
     <Screen style={styles.container} onBack={() => router.back()}>
-      <HubHeader title="LOCKER ROOM" />
+      <HubHeader title="ARCADE" />
       <View style={styles.body}>
-        <LockerRoomTab />
+        <ArcadeTab />
       </View>
     </Screen>
   );
