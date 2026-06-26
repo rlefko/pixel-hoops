@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { PixelButton } from '@/components/PixelButton';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { RosterPlayer } from '@/types/roster';
@@ -31,14 +32,14 @@ export function RecruitView({
   const [expanded, setExpanded] = useState<number | null>(null);
 
   return (
-    <Screen style={styles.container}>
+    <Screen style={styles.container} bottomGap={space(5)}>
       <Text style={styles.title}>RECRUIT</Text>
       <Text style={styles.subtitle}>
         Add one to your bench ({benchCount} benched)
       </Text>
       <Text style={styles.provisional}>Signed for this run. Clear the run to keep them.</Text>
 
-      <View style={styles.offers}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
         {offers.map((rp, i) => (
           <View key={i} style={styles.card}>
             <Pressable onPress={() => onRecruit(rp)}>
@@ -51,20 +52,16 @@ export function RecruitView({
             </Pressable>
             <View style={styles.metaRow}>
               {rerolled[i] ? (
-                <Text style={styles.rerollUsed}>REROLLED</Text>
+                <PixelButton label="REROLLED" onPress={() => {}} size="small" disabled accessibilityLabel="Reroll used" />
               ) : (
-                <Pressable hitSlop={8} onPress={() => onReroll(i)}>
-                  <Text style={styles.reroll}>{'↻'} REROLL</Text>
-                </Pressable>
+                <PixelButton label="↻ REROLL" onPress={() => onReroll(i)} size="small" accessibilityLabel="Reroll" />
               )}
             </View>
           </View>
         ))}
-      </View>
+      </ScrollView>
 
-      <Pressable onPress={onSkip}>
-        <Text style={styles.skip}>Skip</Text>
-      </Pressable>
+      <PixelButton label="Decline" onPress={onSkip} style={styles.decline} />
     </Screen>
   );
 }
@@ -93,7 +90,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: space(1),
   },
-  offers: { marginTop: space(6), gap: space(3) },
+  scroll: { flex: 1, alignSelf: 'stretch' },
+  offers: { marginTop: space(6), gap: space(3), paddingBottom: space(4) },
   card: {
     padding: space(2),
     borderWidth: BORDER.chunk,
@@ -110,21 +108,5 @@ const styles = StyleSheet.create({
     borderTopWidth: BORDER.thin,
     borderTopColor: palette.bgDeep,
   },
-  reroll: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    color: palette.gold,
-  },
-  rerollUsed: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    color: palette.inkDim,
-  },
-  skip: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.body,
-    color: palette.inkDim,
-    textAlign: 'center',
-    marginTop: space(6),
-  },
+  decline: { marginTop: space(4) },
 });
