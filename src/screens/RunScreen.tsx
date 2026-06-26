@@ -86,6 +86,7 @@ export default function RunScreen() {
           incoming={model.phase.incoming}
           roster={model.core.roster}
           onDrop={actions.dropForRecruit}
+          onSkip={actions.backToMap}
         />
       );
     case 'boostDraft':

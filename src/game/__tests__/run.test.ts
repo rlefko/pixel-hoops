@@ -641,6 +641,26 @@ describe('run reducer', () => {
     expect(dropped.core.roster.starters.length + dropped.core.roster.bench.length).toBe(MAX_RUN_ROSTER);
   });
 
+  it('keeping the squad from dropForRecruit discards the incoming and leaves the roster unchanged', () => {
+    let m = start();
+    // Pad the roster to the 12-man cap so recruiting forces the drop screen.
+    const fillers = generateRecruitOffers('C', 0, 12, createRNG('fill'));
+    const all = [...m.core.roster.starters, ...m.core.roster.bench, ...fillers].slice(0, MAX_RUN_ROSTER);
+    m = { ...m, core: { ...m.core, roster: { starters: all.slice(0, 5), bench: all.slice(5) } } };
+    const [offer] = generateRecruitOffers('B', 0, 1, createRNG('over'));
+    const next = runReducer(
+      { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer], rerolled: [false] } },
+      { type: 'recruit', player: offer }
+    )!;
+    expect(next.phase.kind).toBe('dropForRecruit');
+    // Keeping the squad backs out: roster untouched, bag untouched, recruit dropped.
+    const kept = runReducer(next, { type: 'backToMap' })!;
+    expect(kept.phase.kind).toBe('map');
+    expect(kept.core.roster).toEqual(m.core.roster);
+    expect([...kept.core.roster.starters, ...kept.core.roster.bench]).not.toContainEqual(offer);
+    expect(kept.bag).toEqual(next.bag);
+  });
+
   it('rerolls one recruit option once, deterministically, then refuses a second reroll', () => {
     const m = start();
     const offers = generateRecruitOffers('C', 0, 3, createRNG('offers'));

@@ -1,6 +1,7 @@
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { CrownIcon, EnergyPips } from '@/components/run/PixelIcons';
+import { mvpIndex } from '@/game/box-score';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { BoxLine } from '@/types/sim';
 import type { Team } from '@/types/team';
@@ -8,8 +9,8 @@ import type { Team } from '@/types/team';
 /**
  * The post-game box score: a compact, tabular read of who did what. Grouped by
  * team under a team-colored header, monospace body for column alignment, each
- * team's top scorer crowned. Shown by default in the postgame, with a toggle to
- * collapse it and put the retry one tap away (see RunScreen Postgame).
+ * team's MVP (highest game score) crowned. Shown by default in the postgame, with
+ * a toggle to collapse it and put the retry one tap away (see RunScreen Postgame).
  */
 
 interface BoxScoreViewProps {
@@ -22,19 +23,6 @@ const COLUMNS = ['MIN', 'PTS', 'REB', 'AST', 'STL', 'BLK'] as const;
 /** Trailing energy glyph header (kept narrow; pips are the at-a-glance read). */
 const ENERGY_HEADER = 'NRG';
 
-/** Index of the highest scorer (ties: first), or -1 if no one scored. */
-function topScorerIndex(lines: BoxLine[]): number {
-  let best = -1;
-  let bestPts = 0;
-  lines.forEach((l, i) => {
-    if (l.pts > bestPts) {
-      bestPts = l.pts;
-      best = i;
-    }
-  });
-  return best;
-}
-
 export function BoxScoreView({ home, away, box }: BoxScoreViewProps) {
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
@@ -46,7 +34,7 @@ export function BoxScoreView({ home, away, box }: BoxScoreViewProps) {
 }
 
 function TeamBox({ team, lines }: { team: Team; lines: BoxLine[] }) {
-  const top = topScorerIndex(lines);
+  const mvp = mvpIndex(lines);
   return (
     <View style={styles.teamBlock}>
       <View style={[styles.teamHeader, { backgroundColor: team.colorHex }]}>
@@ -66,7 +54,7 @@ function TeamBox({ team, lines }: { team: Team; lines: BoxLine[] }) {
       </View>
 
       {lines.map((line, i) => (
-        <StatRow key={`${line.name}-${i}`} line={line} top={i === top} />
+        <StatRow key={`${line.name}-${i}`} line={line} top={i === mvp} />
       ))}
     </View>
   );

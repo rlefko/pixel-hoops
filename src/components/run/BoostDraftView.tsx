@@ -1,6 +1,7 @@
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { PixelButton } from '@/components/PixelButton';
 import { ShakeView, FlashOverlay } from '@/components/fx';
 import { BOOST_BY_ID, type BoostOffer, type PassiveBoost } from '@/game/boosts';
 import type { Rarity } from '@/game/rarity';
@@ -31,15 +32,6 @@ interface BoostDraftViewProps {
   onDraft: (offer: BoostOffer) => void;
   onDrop: (index: number) => void;
   onSkip: () => void;
-}
-
-/** A muted secondary button, kept clear of the bottom home indicator (no thin link). */
-function SkipButton({ label, onPress }: { label: string; onPress: () => void }) {
-  return (
-    <Pressable style={styles.skipButton} onPress={onPress} accessibilityRole="button">
-      <Text style={styles.skipButtonText}>{label}</Text>
-    </Pressable>
-  );
 }
 
 export function BoostDraftView({
@@ -100,7 +92,7 @@ export function BoostDraftView({
             );
           })}
         </ScrollView>
-        <SkipButton label="Skip (keep my five)" onPress={onSkip} />
+        <PixelButton label="Skip (keep my five)" onPress={onSkip} style={styles.bottomButton} />
       </Screen>
     );
   } else {
@@ -131,7 +123,7 @@ export function BoostDraftView({
             <Text style={styles.subtitle}>No new boosts available.</Text>
           ) : null}
         </ScrollView>
-        <SkipButton label="Skip" onPress={onSkip} />
+        <PixelButton label="Skip" onPress={onSkip} style={styles.bottomButton} />
       </Screen>
     );
   }
@@ -195,19 +187,5 @@ const styles = StyleSheet.create({
     marginTop: space(4),
   },
   cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
-  skipButton: {
-    alignSelf: 'center',
-    marginTop: space(4),
-    paddingVertical: space(3),
-    paddingHorizontal: space(6),
-    borderWidth: BORDER.chunk,
-    borderColor: palette.inkDim,
-    borderRadius: RADIUS.chip,
-  },
-  skipButtonText: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.label,
-    color: palette.inkDim,
-    textAlign: 'center',
-  },
+  bottomButton: { marginTop: space(4) },
 });

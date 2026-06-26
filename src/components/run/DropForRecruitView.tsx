@@ -1,6 +1,7 @@
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { PixelButton } from '@/components/PixelButton';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { MAX_RUN_ROSTER } from '@/game/draft';
 import type { Roster, RosterPlayer } from '@/types/roster';
@@ -9,21 +10,23 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 /**
  * The 12-man cap drop: recruiting past {@link MAX_RUN_ROSTER} forces a choice of
  * who to drop for the incoming player. Dropping returns any held item to the bag
- * (handled by the reducer). Tap a current player to drop them and take the recruit.
+ * (handled by the reducer). Tap a current player to drop them and take the recruit,
+ * or keep your squad as-is and pass on the recruit.
  */
 interface DropForRecruitViewProps {
   incoming: RosterPlayer;
   roster: Roster;
   onDrop: (index: number) => void;
+  onSkip: () => void;
 }
 
-export function DropForRecruitView({ incoming, roster, onDrop }: DropForRecruitViewProps) {
+export function DropForRecruitView({ incoming, roster, onDrop, onSkip }: DropForRecruitViewProps) {
   const all = [...roster.starters, ...roster.bench];
   return (
-    <Screen style={styles.container}>
+    <Screen style={styles.container} bottomGap={space(5)}>
       <Text style={styles.title}>SQUAD FULL</Text>
       <Text style={styles.subtitle}>
-        Your rotation is at {MAX_RUN_ROSTER}. Drop a player to sign:
+        Your rotation is at {MAX_RUN_ROSTER}. Drop a player to sign, or keep your squad:
       </Text>
       <View style={styles.incoming}>
         <PlayerCard rp={incoming} />
@@ -36,6 +39,7 @@ export function DropForRecruitView({ incoming, roster, onDrop }: DropForRecruitV
           </Pressable>
         ))}
       </ScrollView>
+      <PixelButton label="Keep my squad" onPress={onSkip} style={styles.keep} />
     </Screen>
   );
 }
@@ -64,7 +68,7 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     marginTop: space(3),
   },
-  list: { marginTop: space(1), alignSelf: 'stretch' },
+  list: { flex: 1, marginTop: space(1), alignSelf: 'stretch' },
   listContent: { gap: space(1), paddingBottom: space(4) },
   row: {
     padding: space(2),
@@ -72,4 +76,5 @@ const styles = StyleSheet.create({
     borderColor: palette.bgPanel,
     borderRadius: RADIUS.chip,
   },
+  keep: { marginTop: space(4) },
 });
