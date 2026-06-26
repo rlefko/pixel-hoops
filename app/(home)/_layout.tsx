@@ -7,6 +7,9 @@ export default function HomeLayout() {
       screenOptions={{
         headerShown: false,
         contentStyle: { backgroundColor: palette.bgDeep },
+        // Menu hops cut instantly under the arcade pixel-wipe; no native swipe.
+        animation: 'none',
+        gestureEnabled: false,
       }}
     >
       <Stack.Screen name="index" />

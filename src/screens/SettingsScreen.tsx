@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { CheckboxRow } from '@/components/CheckboxRow';
@@ -16,13 +16,13 @@ import { BORDER, FONT, FONT_SIZE, palette, RADIUS, space } from '@/theme';
  * juice plays by default. Changes persist via FeelSettings.
  */
 export default function SettingsScreen() {
-  const router = useRouter();
+  const nav = useArcadeRouter();
   const { shakeEnabled, hapticsEnabled, reducedMotion, update } = useFeelSettings();
   const { resetHomeRoster } = useHomeRoster();
   const [confirmingReset, setConfirmingReset] = useState(false);
 
   return (
-    <Screen style={styles.container} onBack={() => router.back()}>
+    <Screen style={styles.container} onBack={() => nav.back()}>
       <Text style={styles.title}>SETTINGS</Text>
       <Text style={styles.section}>FEEDBACK</Text>
 
@@ -69,7 +69,7 @@ export default function SettingsScreen() {
         onConfirm={() => {
           setConfirmingReset(false);
           resetHomeRoster();
-          router.replace('/');
+          nav.replace('/', 'menu');
         }}
         onCancel={() => setConfirmingReset(false)}
       />

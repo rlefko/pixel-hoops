@@ -1,6 +1,7 @@
 import { StyleSheet, View, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
+import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop, Scanlines } from '@/components/fx';
@@ -31,7 +32,10 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** Main menu screen: the arcade lobby and entry point for the game. */
 export default function HomeScreen() {
+  // Plain router for the How to Play modal so it keeps its native slide-up; the
+  // arcade pixel-wipe (`nav`) drives every other route.
   const router = useRouter();
+  const nav = useArcadeRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   // One idle "breathe" loop drives the title: a glow behind the gold word and a
   // gentle bob on the pixel basketball. Slower than the default so it reads as a
@@ -146,7 +150,7 @@ export default function HomeScreen() {
           color={palette.gold}
           icon={<BasketballIcon size={28} color={palette.gold} />}
           attract
-          onPress={() => router.push('/run')}
+          onPress={() => nav.push('/run', 'run')}
         />
         <View style={styles.tileRow}>
           <MenuButton
@@ -157,7 +161,7 @@ export default function HomeScreen() {
             icon={<LockerIcon size={32} color={palette.makeGreen} />}
             attract
             attractDelayMs={150}
-            onPress={() => router.push('/locker')}
+            onPress={() => nav.push('/locker')}
           />
           <MenuButton
             variant="tile"
@@ -167,7 +171,7 @@ export default function HomeScreen() {
             icon={<JoystickIcon size={32} color={palette.flame} />}
             attract
             attractDelayMs={300}
-            onPress={() => router.push('/arcade')}
+            onPress={() => nav.push('/arcade')}
           />
         </View>
         <MenuButton
@@ -175,7 +179,7 @@ export default function HomeScreen() {
           label="ROSTER"
           color={palette.steelBlue}
           icon={<RecruitIcon size={22} color={palette.steelBlue} />}
-          onPress={() => router.push('/roster')}
+          onPress={() => nav.push('/roster')}
         />
         <View style={styles.smallRow}>
           <MenuButton
@@ -184,7 +188,7 @@ export default function HomeScreen() {
             label="HALL OF FAME"
             color={palette.gold}
             icon={<CrownIcon size={16} color={palette.gold} />}
-            onPress={() => router.push('/hall-of-fame')}
+            onPress={() => nav.push('/hall-of-fame')}
           />
           <MenuButton
             variant="small"
@@ -192,7 +196,7 @@ export default function HomeScreen() {
             label="SETTINGS"
             color={palette.inkDim}
             icon={<GearIcon size={16} color={palette.inkDim} />}
-            onPress={() => router.push('/settings')}
+            onPress={() => nav.push('/settings')}
           />
           <MenuButton
             variant="small"

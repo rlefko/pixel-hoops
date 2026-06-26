@@ -9,3 +9,4 @@ export { PixelPlayer } from './PixelPlayer';
 export { ParticleBurst, type BurstVariant } from './ParticleBurst';
 export { BallFlight } from './BallFlight';
 export { RimRipple } from './RimRipple';
+export { PixelWipeOverlay, type PixelWipeHandle, type WipeVariant } from './PixelWipeOverlay';

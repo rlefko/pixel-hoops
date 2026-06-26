@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
@@ -27,7 +27,7 @@ const SORTS: { id: Sort; label: string }[] = [
 ];
 
 export default function RosterScreen() {
-  const router = useRouter();
+  const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
   const [query, setQuery] = useState('');
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
@@ -92,7 +92,7 @@ export default function RosterScreen() {
     });
 
   return (
-    <Screen style={styles.container} onBack={() => router.back()}>
+    <Screen style={styles.container} onBack={() => nav.back()}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>ROSTER</Text>
         <Text style={styles.count}>{players.length} OWNED</Text>
