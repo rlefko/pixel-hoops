@@ -9,7 +9,7 @@ import {
 import { isSpecialist } from './specialty';
 import { buildTeam, validateLineup } from './lineup';
 import { simulateGame } from './simulation';
-import { ownedRosterPlayers, type HomeRoster } from './home-roster';
+import { ownedRosterPlayers, resolveDraftRotation, type HomeRoster } from './home-roster';
 import {
   difficultyMods,
   LADDER_CLASSES,
@@ -218,7 +218,7 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     available,
     ladderClass,
     difficulty,
-    homeRoster.lastRotation
+    resolveDraftRotation(homeRoster, difficulty, ladderClass)
   );
   const core: RunState = {
     map,

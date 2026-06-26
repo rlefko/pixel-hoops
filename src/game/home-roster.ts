@@ -9,6 +9,7 @@ import { RATING_CAP, canUpgrade, perStatMax, upgradeCost } from './upgrades';
 import { classForOvr, ovr, type PlayerClass } from './ratings';
 import {
   DIFFICULTIES,
+  LADDER_CLASSES,
   advanceLadder,
   isLadderClass,
   type Difficulty,
@@ -46,10 +47,12 @@ export interface HomeRoster {
   selectedDifficulty: Difficulty;
   /** The ladder class selected for the next run (must be unlocked on the difficulty). */
   selectedLadderClass: LadderClass;
-  /** The previous run's fielded rotation as playerKeys, slot-ordered (0-4 = PG..C
-   * starters, 5-7 = bench). The pre-run draft pre-populates from this. Optional;
-   * undefined before the first run. */
-  lastRotation?: string[];
+  /** Remembered draft rotations keyed by difficulty then ladder class. Each value is a
+   * slot-ordered playerKey list (0-4 = PG..C starters, then up to 3 bench), captured the
+   * instant a run's draft is confirmed. The pre-run draft pre-populates from the matching
+   * cell, falling back to the nearest LOWER ladder class at the SAME difficulty (so
+   * climbing a rung inherits the team built on the rung below). */
+  rosterMemory: Record<Difficulty, Partial<Record<LadderClass, string[]>>>;
   /** Completed runs since a legendary was last offered (soft pity). */
   legendDryStreak: number;
   /** Whether the one-time, first-run welcome reveal has been shown. */
@@ -58,6 +61,9 @@ export interface HomeRoster {
   hallOfFame: HallOfFameEntry[];
 }
 
+// v9 replaces the single `lastRotation` with `rosterMemory`, a per-(difficulty x class)
+// map of remembered draft rotations; on load an older save's `lastRotation` seeds the
+// currently selected cell (best-effort, since the cell it was drafted on was not stored).
 // v8 adds the Hall of Fame (championship snapshots); the field defaults to [] on
 // older saves (no migration needed). v7 widens the rating scale (the old 3-10 model
 // doubles to a 6-20 normal band with curated greats to ~24 and a hard cap of 30):
@@ -66,7 +72,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 8;
+const HOME_ROSTER_VERSION = 9;
 
 export interface SerializedHomeRoster {
   version: number;
@@ -84,6 +90,60 @@ function emptyLadderProgress(): Record<Difficulty, LadderClass | null> {
   );
 }
 
+/** An empty per-difficulty roster-memory map (each difficulty starts with no remembered
+ * ladder rotations). */
+function emptyRosterMemory(): Record<Difficulty, Partial<Record<LadderClass, string[]>>> {
+  return DIFFICULTIES.reduce(
+    (acc, d) => {
+      acc[d] = {};
+      return acc;
+    },
+    {} as Record<Difficulty, Partial<Record<LadderClass, string[]>>>
+  );
+}
+
+/**
+ * Remember the rotation a run's draft committed, so the next draft of this exact
+ * (difficulty, ladder class) pre-populates with it. Returns a NEW home roster, or the
+ * same reference for a rotation that could not field a five (fewer than five keys).
+ */
+export function rememberDraftRotation(
+  home: HomeRoster,
+  difficulty: Difficulty,
+  ladderClass: LadderClass,
+  rotation: string[]
+): HomeRoster {
+  if (rotation.length < 5) return home;
+  return {
+    ...home,
+    rosterMemory: {
+      ...home.rosterMemory,
+      [difficulty]: { ...home.rosterMemory[difficulty], [ladderClass]: rotation },
+    },
+  };
+}
+
+/**
+ * The rotation the pre-run draft should pre-fill for a (difficulty, ladder class): the
+ * exact remembered cell when present, else the nearest LOWER ladder class with a
+ * remembered rotation at the SAME difficulty (transitive walk-down, so a new rung
+ * inherits the team built on the rung below), else undefined (a fresh loadout is built).
+ * Never crosses difficulties, since each difficulty has its own draft point budget.
+ */
+export function resolveDraftRotation(
+  home: HomeRoster,
+  difficulty: Difficulty,
+  ladderClass: LadderClass
+): string[] | undefined {
+  const memory = home.rosterMemory?.[difficulty];
+  if (!memory) return undefined;
+  for (let i = LADDER_CLASSES.indexOf(ladderClass); i >= 0; i--) {
+    const rotation = memory[LADDER_CLASSES[i]];
+    if (rotation && rotation.length >= 5) return rotation;
+  }
+  return undefined;
+}
+
 /** A fresh home roster: the starting twelve (5 D + 5 C + 2 B), nothing unlocked. */
 export function createRookieRoster(rng: RNG): HomeRoster {
   return {
@@ -96,6 +156,7 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     ladderProgress: emptyLadderProgress(),
     selectedDifficulty: 'easy',
     selectedLadderClass: 'C',
+    rosterMemory: emptyRosterMemory(),
     legendDryStreak: 0,
     seenWelcome: false,
     hallOfFame: [],
@@ -309,14 +370,8 @@ export function mergeRunGainsIntoHome(
   const restOwned = home.players.filter((p) => !seenF.has(playerKey(p)));
   const players = [...fieldedOwned, ...deduped, ...restOwned];
 
-  // The lineup to restore next run: the five starters (slot order) plus up to three
-  // bench, but only keys that actually came home (a lost run's recruits are gone, so
-  // they are filtered out rather than left dangling for next run's draft to restore).
-  const finalKeys = new Set(players.map(playerKey));
-  const lastRotation = [
-    ...runRoster.starters.map(playerKey),
-    ...runRoster.bench.filter((p) => !p.onLoan).slice(0, 3).map(playerKey),
-  ].filter((k) => finalKeys.has(k));
+  // The draft rotation to restore next run is captured at draft-confirm time into
+  // `rosterMemory` (per difficulty x ladder class); `...home` below preserves it.
 
   const ladderProgress = { ...home.ladderProgress };
   let selectedLadderClass = home.selectedLadderClass;
@@ -336,7 +391,6 @@ export function mergeRunGainsIntoHome(
     reputation: home.reputation + (rewards?.reputation ?? 0),
     ladderProgress,
     selectedLadderClass,
-    lastRotation: lastRotation.length >= 5 ? lastRotation : home.lastRotation,
     legendDryStreak: legendOffered ? 0 : home.legendDryStreak + 1,
     seenWelcome: home.seenWelcome ?? true,
     hallOfFame:
@@ -456,6 +510,32 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
       ? (data.selectedLadderClass as LadderClass)
       : 'C';
 
+  // Per-(difficulty x class) remembered draft rotations. Copy any well-formed cells,
+  // then migrate a pre-v9 save's single `lastRotation` into the currently selected cell
+  // (best-effort: the cell it was drafted on was not stored; the lower-ladder fallback
+  // covers any gaps).
+  const rosterMemory = emptyRosterMemory();
+  const savedMemory = (data.rosterMemory ?? {}) as Record<string, unknown>;
+  for (const d of DIFFICULTIES) {
+    const cells = savedMemory[d];
+    if (!cells || typeof cells !== 'object') continue;
+    for (const cls of LADDER_CLASSES) {
+      const rotation = (cells as Record<string, unknown>)[cls];
+      if (Array.isArray(rotation) && rotation.every((k) => typeof k === 'string')) {
+        rosterMemory[d][cls] = rotation as string[];
+      }
+    }
+  }
+  const legacyRotation = (data as { lastRotation?: unknown }).lastRotation;
+  if (
+    Array.isArray(legacyRotation) &&
+    legacyRotation.length >= 5 &&
+    legacyRotation.every((k) => typeof k === 'string') &&
+    !rosterMemory[selectedDifficulty][selectedLadderClass]
+  ) {
+    rosterMemory[selectedDifficulty][selectedLadderClass] = legacyRotation as string[];
+  }
+
   return {
     players,
     coins: typeof data.coins === 'number' ? data.coins : 0,
@@ -468,10 +548,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     ladderProgress,
     selectedDifficulty,
     selectedLadderClass,
-    lastRotation:
-      Array.isArray(data.lastRotation) && data.lastRotation.every((k) => typeof k === 'string')
-        ? (data.lastRotation as string[])
-        : undefined,
+    rosterMemory,
     legendDryStreak: typeof data.legendDryStreak === 'number' ? data.legendDryStreak : 0,
     seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
     hallOfFame: sanitizeHallOfFame(data.hallOfFame),
