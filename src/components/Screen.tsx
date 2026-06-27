@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/StyledText';
+import { Scanlines } from '@/components/fx';
 import { palette, FONT, FONT_SIZE, space } from '@/theme';
 
 /**
@@ -35,6 +36,8 @@ interface BaseScreenProps {
   onBack?: () => void;
   /** Label for the back control. Default 'BACK'. */
   backLabel?: string;
+  /** Render a full-bleed CRT scanline overlay across the whole screen. */
+  scanlines?: boolean;
 }
 
 interface ViewScreenProps extends BaseScreenProps {
@@ -57,6 +60,7 @@ export function Screen(props: ScreenProps) {
     style,
     onBack,
     backLabel = 'BACK',
+    scanlines,
   } = props;
 
   const bottom = insets.bottom + bottomGap;
@@ -67,9 +71,13 @@ export function Screen(props: ScreenProps) {
     <ScrollView
       style={[styles.fill, style]}
       contentContainerStyle={[
-        { paddingTop: bodyTop, paddingBottom: bottom },
+        // flexGrow lets short content fill the viewport; with bounce off, a page
+        // that fits no longer scrolls or rubber-bands, only an overflowing one does.
+        { paddingTop: bodyTop, paddingBottom: bottom, flexGrow: 1 },
         props.contentContainerStyle,
       ]}
+      alwaysBounceVertical={false}
+      showsVerticalScrollIndicator={false}
     >
       {children}
     </ScrollView>
@@ -79,16 +87,21 @@ export function Screen(props: ScreenProps) {
     </View>
   );
 
+  // The outer view is full-bleed (no inset padding) so the optional scanline
+  // overlay covers the entire screen, including the status-bar area and back bar.
   return (
-    <View style={[styles.fill, { paddingTop: insets.top }]}>
-      {onBack ? (
-        <View style={styles.topBar}>
-          <Pressable onPress={onBack} hitSlop={space(3)}>
-            <Text style={styles.backText}>{`‹ ${backLabel}`}</Text>
-          </Pressable>
-        </View>
-      ) : null}
-      {body}
+    <View style={styles.fill}>
+      <View style={[styles.fill, { paddingTop: insets.top }]}>
+        {onBack ? (
+          <View style={styles.topBar}>
+            <Pressable onPress={onBack} hitSlop={space(3)}>
+              <Text style={styles.backText}>{`‹ ${backLabel}`}</Text>
+            </Pressable>
+          </View>
+        ) : null}
+        {body}
+      </View>
+      {scanlines ? <Scanlines /> : null}
     </View>
   );
 }

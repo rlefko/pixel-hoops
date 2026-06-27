@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { Pop, Scanlines } from '@/components/fx';
+import { Pop } from '@/components/fx';
 import { MenuButton } from '@/components/MenuButton';
 import {
   BasketballIcon,
@@ -70,9 +70,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen scroll contentContainerStyle={styles.container}>
-      <Scanlines />
-
+    <Screen scroll scanlines contentContainerStyle={styles.container}>
       <View style={styles.titleBlock}>
         <Animated.View style={bobStyle}>
           <BasketballIcon size={22} color={palette.courtLine} />
