@@ -27,6 +27,17 @@
  *     quality-varied targets as --mode=pool, with no network call. Use it to apply
  *     the within-class-variance fix without a full re-bake.
  *
+ *   npx tsx scripts/fetch-nba.ts --mode=demote   (OFFLINE, no API key)
+ *     Relocates the DEMOTE_TO_S legends into the keepable S "Superstar" tier:
+ *     removes them from nba-legends.json and folds them into nba-pool.json
+ *     (re-sorted), re-anchored to the S band (signature ability kept, `legendary`
+ *     dropped). Also stamps the three homegrown S players with their S_SIGNATURES.
+ *     This populates the formerly near-empty S tier so superstars are attainable.
+ *     Offline and idempotent. (A later --mode=pool re-bake reproduces the same
+ *     membership and abilities from the API, since both honor DEMOTE_TO_S /
+ *     S_SIGNATURES; the re-baked stat lines come from live attributes, so they
+ *     need not be byte-identical to the offline re-anchor.)
+ *
  * Rate limit: the 2K API allows 500 requests/day. A full re-bake of BOTH modes is
  * ~45 requests, far under the cap. A short delay is inserted between list pages.
  *
@@ -45,6 +56,7 @@ import { backfillPlayStyleStats } from '../src/game/stat-migration';
 import type { PlayerStats } from '../src/types/player';
 import { anchorStatsToClass, classTargetOvr } from '../src/game/classes';
 import { ovr, classForOvr, type PlayerClass } from '../src/game/ratings';
+import { STAT_MIN, STAT_NORMAL_MAX, clamp } from '../src/game/stat-scaling';
 import teams from '../src/data/nba-teams.json';
 import legendsData from '../src/data/nba-legends.json';
 
@@ -192,6 +204,61 @@ const ROSTER: RosterEntry[] = [
   { slug: 'deaaron-fox', teamAbbr: 'SAS', era: 'modern', position: 'PG', jerseyNumber: 4, ability: 'swipa' },
 ];
 
+/**
+ * The legend<->superstar split. ROSTER stays the single curated source of each
+ * real player's identity + signature ability; the slugs below are RELOCATED out
+ * of the S+ legend tier into the keepable S "Superstar" tier. They keep their
+ * authored ability but are re-anchored to the S band (so an S superstar is a
+ * notch below an on-loan legend), are not `legendary`, and are kept on a clear
+ * like any pool player. Edit this one set to move a name either way.
+ *
+ * Applied by every mode: --mode=legends skips these (they never re-enter S+),
+ * --mode=pool re-bakes them as S superstars from the API, and --mode=demote
+ * relocates them offline from the already-committed JSON (no API). Constraint:
+ * never demote a team's last legend (bosses field a franchise legend); the
+ * demote mode asserts this.
+ */
+const DEMOTE_TO_S: ReadonlySet<string> = new Set([
+  'russell-westbrook', 'kyrie-irving', 'paul-george', 'klay-thompson', 'draymond-green',
+  'devin-booker', 'damian-lillard', 'jimmy-butler', 'anthony-edwards', 'victor-wembanyama',
+  'donovan-mitchell', 'jaylen-brown', 'trae-young', 'tyrese-haliburton', 'domantas-sabonis',
+  'bam-adebayo', 'jrue-holiday', 'rudy-gobert', 'demar-derozan', 'pascal-siakam',
+  'brandon-ingram', 'karl-anthony-towns', 'jamal-murray', 'kristaps-porzingis', 'zach-lavine',
+  'evan-mobley', 'paolo-banchero', 'tyrese-maxey', 'jalen-brunson', 'mikal-bridges',
+  'chet-holmgren', 'deaaron-fox',
+]);
+
+/**
+ * Signature abilities for the three homegrown S players already in the pool (not
+ * curated legends, so not in ROSTER). The demoted stars bring their own ability;
+ * these give the originals one too, so the whole S tier reads as "a star with a
+ * signature." Ids are defined in src/game/abilities.ts. Stamped by both
+ * --mode=pool and --mode=demote.
+ */
+const S_SIGNATURES: Record<string, string> = {
+  'cade-cunningham': 'smooth_operator',
+  'jalen-johnson': 'transition_hammer',
+  'scottie-barnes': 'swiss_army',
+};
+
+/**
+ * Re-anchor a stat line into the S "Superstar" band, preserving its shape, then
+ * clamp every rating to the normal cap. The anchor lifts the eight skills to the
+ * S window; the clamp brings a demoted legend's elite condition ratings (e.g. 24
+ * stamina) down to the pool's normal ceiling, so an S superstar reads like a
+ * clean pool player rather than a half-legend. Marquee names sit high in the
+ * band (quality 0.5..1.0 by their 2K overall).
+ */
+function toSuperstarStats(stats: PlayerStats, position: Position, overall: number): PlayerStats {
+  const quality = 0.5 + 0.5 * clamp((overall - 80) / 19, 0, 1);
+  const anchored = anchorStatsToClass(stats, 'S', position, classTargetOvr('S', quality));
+  const out = {} as PlayerStats;
+  for (const key of Object.keys(anchored) as (keyof PlayerStats)[]) {
+    out[key] = clamp(anchored[key], STAT_MIN, STAT_NORMAL_MAX);
+  }
+  return out;
+}
+
 const API_BASE = process.env.NBA2K_API_BASE ?? 'https://api.nba2kapi.com';
 const API_KEY = process.env.NBA2K_API_KEY;
 const POSITIONS: readonly Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
@@ -273,6 +340,22 @@ function qualityWithinClass(overall: number, cls: PlayerClass, ranges: ClassRang
   return Math.max(0, Math.min(1, (overall - lo) / (hi - lo)));
 }
 
+const POOL_CLASS_RANK: Record<string, number> = { S: 0, A: 1, B: 2, C: 3 };
+
+/** Stable in-place order for nba-pool.json: team, then class (strong first), then
+ * name, so the file diffs cleanly across bakes. Shared by --mode=pool and
+ * --mode=demote (both rewrite the pool file). */
+function sortPoolPlayers<T extends { teamAbbr: string; originalClass: string; name: string }>(
+  players: T[]
+): T[] {
+  return players.sort(
+    (a, b) =>
+      a.teamAbbr.localeCompare(b.teamAbbr) ||
+      (POOL_CLASS_RANK[a.originalClass] ?? 9) - (POOL_CLASS_RANK[b.originalClass] ?? 9) ||
+      a.name.localeCompare(b.name)
+  );
+}
+
 function firstKnownPosition(positions: unknown): Position | null {
   if (!Array.isArray(positions)) return null;
   for (const p of positions) {
@@ -333,6 +416,7 @@ async function bakeLegends(): Promise<void> {
 
   const players = [];
   for (const entry of ROSTER) {
+    if (DEMOTE_TO_S.has(entry.slug)) continue; // relocated to the S pool, not a legend
     const m = meta.get(entry.slug);
     const card = matchCard(entry, bySlug, allt);
     let stats;
@@ -450,10 +534,18 @@ async function bakePool(): Promise<void> {
   const bySlug = new Map<string, ApiListPlayer>();
   for (const p of raw) {
     if (p.teamType && p.teamType !== 'curr') continue; // current rosters only
-    if (!p.slug || legendSlugs.has(p.slug)) continue; // skip legends (S+ tier)
+    // Skip legends (S+ tier), but NOT the superstars relocated out of it: those
+    // re-bake here as keepable S players.
+    if (!p.slug || (legendSlugs.has(p.slug) && !DEMOTE_TO_S.has(p.slug))) continue;
     const prev = bySlug.get(p.slug);
     if (!prev || Number(p.overall ?? 0) > Number(prev.overall ?? 0)) bySlug.set(p.slug, p);
   }
+
+  // The relocated S superstars, keyed for the bake below: they carry their curated
+  // ROSTER identity (position/jersey/era/ability) but bake from live API stats.
+  const superstarMeta = new Map(
+    ROSTER.filter((e) => DEMOTE_TO_S.has(e.slug)).map((e) => [e.slug, e] as const)
+  );
 
   // First pass: keep the valid players, so the class ranges below reflect exactly
   // who gets baked (the open-ended C floor / S ceiling self-calibrate to the pool).
@@ -482,30 +574,36 @@ async function bakePool(): Promise<void> {
   // same-class reals spread across the window (a 2K-89 S reads lower than a 2K-95 S).
   const ranges = classRangesFor(valid.map((v) => v.overall));
   const baked = valid.map((v) => {
-    const originalClass = classFor2KOverall(v.overall);
+    const sup = superstarMeta.get(v.slug);
+    const position = sup ? sup.position : v.position;
+    const originalClass: PlayerClass = sup ? 'S' : classFor2KOverall(v.overall);
     const shape = mapRatingsToStats({ ...v.attributes, overall: v.overall });
-    const target = classTargetOvr(originalClass, qualityWithinClass(v.overall, originalClass, ranges));
+    const stats = sup
+      ? toSuperstarStats(shape, position, v.overall)
+      : anchorStatsToClass(
+          shape,
+          originalClass,
+          position,
+          classTargetOvr(originalClass, qualityWithinClass(v.overall, originalClass, ranges))
+        );
     return {
       name: v.name,
       slug: v.slug,
       teamAbbr: v.teamAbbr,
-      era: 'modern' as const,
-      position: v.position,
-      jerseyNumber: jerseyFromSlug(v.slug),
+      era: (sup ? sup.era : 'modern') as Era,
+      position,
+      jerseyNumber: sup ? sup.jerseyNumber : jerseyFromSlug(v.slug),
       overall: v.overall,
       originalClass,
-      stats: anchorStatsToClass(shape, originalClass, v.position, target),
+      // The relocated superstars carry their curated signature; the three homegrown
+      // S players get one from S_SIGNATURES; everyone else has none (undefined keys
+      // are dropped on write).
+      ability: sup?.ability ?? S_SIGNATURES[v.slug],
+      stats,
     };
   });
 
-  // Stable sort: team, then class (strong first), then name, so the file diffs cleanly.
-  const classRank: Record<string, number> = { S: 0, A: 1, B: 2, C: 3 };
-  baked.sort(
-    (a, b) =>
-      a.teamAbbr.localeCompare(b.teamAbbr) ||
-      (classRank[a.originalClass] ?? 9) - (classRank[b.originalClass] ?? 9) ||
-      a.name.localeCompare(b.name)
-  );
+  sortPoolPlayers(baked);
 
   const out = join(outDir, 'nba-pool.json');
   writeFileSync(out, JSON.stringify(baked, null, 2) + '\n');
@@ -529,11 +627,13 @@ interface BakedPoolPlayer {
   name: string;
   slug: string;
   teamAbbr: string;
-  era: 'modern';
+  era: Era;
   position: Position;
   jerseyNumber: number;
   overall: number;
   originalClass: PlayerClass;
+  /** Signature ability id, present only on S "Superstar" players. */
+  ability?: string;
   stats: PlayerStats;
 }
 
@@ -571,13 +671,113 @@ function bakeReanchor(): void {
   console.log(`class/OVR mismatches: ${mismatch}`);
 }
 
+// ---------------------------------------------------------------------------
+// Demote mode (offline relocation of borderline legends into the S pool)
+// ---------------------------------------------------------------------------
+
+/** A baked legend entry as it lives in src/data/nba-legends.json. */
+interface BakedLegend {
+  name: string;
+  slug: string;
+  teamAbbr: string;
+  era: Era;
+  position: Position;
+  jerseyNumber: number;
+  overall: number;
+  legendary?: boolean;
+  ability?: string;
+  stats: PlayerStats;
+}
+
+/**
+ * Relocate the DEMOTE_TO_S legends into the keepable S "Superstar" tier, OFFLINE
+ * (no API key). Reads the committed nba-legends.json / nba-pool.json, re-anchors
+ * each demoted legend's line to the S band (keeping its signature ability, dropping
+ * `legendary`), stamps the three homegrown S players with their S_SIGNATURES, and
+ * rewrites both files. The legend file shrinks by deletions only; the pool file
+ * re-sorts with the new S entries folded in. Deterministic and idempotent (running
+ * it twice is a no-op: the demoted slugs are already gone from the legend file).
+ */
+function bakeDemote(): void {
+  const legendsFile = join(outDir, 'nba-legends.json');
+  const poolFile = join(outDir, 'nba-pool.json');
+  const legends = JSON.parse(readFileSync(legendsFile, 'utf8')) as BakedLegend[];
+  const pool = JSON.parse(readFileSync(poolFile, 'utf8')) as BakedPoolPlayer[];
+
+  const kept = legends.filter((l) => !DEMOTE_TO_S.has(l.slug));
+  const demoted = legends.filter((l) => DEMOTE_TO_S.has(l.slug));
+
+  // Every flagged slug must exist somewhere: still a legend (to relocate now) or
+  // already in the pool (a prior run). A slug in neither is a typo. This keeps the
+  // mode idempotent: a second run finds the demoted players already in the pool,
+  // relocates nothing, and rewrites the same files.
+  const demotedSlugs = new Set(demoted.map((l) => l.slug));
+  const poolSlugs = new Set(pool.map((p) => p.slug));
+  const missing = [...DEMOTE_TO_S].filter((s) => !demotedSlugs.has(s) && !poolSlugs.has(s));
+  if (missing.length) {
+    throw new Error(`demote: not found in nba-legends.json or nba-pool.json: ${missing.join(', ')}`);
+  }
+  // Bosses field a franchise legend, so no team may lose its last one.
+  const teamsAfter = new Set(kept.map((l) => l.teamAbbr));
+  const uncovered = [...new Set(legends.map((l) => l.teamAbbr))].filter((t) => !teamsAfter.has(t));
+  if (uncovered.length) {
+    throw new Error(`demote: these teams would have zero legends: ${uncovered.join(', ')}`);
+  }
+
+  // Demoted legends -> keepable S pool players (re-anchored, ability preserved).
+  const newS: BakedPoolPlayer[] = demoted.map((l) => ({
+    name: l.name,
+    slug: l.slug,
+    teamAbbr: l.teamAbbr,
+    era: l.era,
+    position: l.position,
+    jerseyNumber: l.jerseyNumber,
+    overall: l.overall,
+    originalClass: 'S',
+    ability: l.ability,
+    stats: toSuperstarStats(l.stats, l.position, l.overall),
+  }));
+
+  // Stamp signatures onto the three homegrown S players already in the pool,
+  // keeping `ability` before `stats` in the key order for a clean file.
+  const updatedPool: BakedPoolPlayer[] = pool.map((p) => {
+    const ability = S_SIGNATURES[p.slug];
+    if (!ability) return p;
+    const { stats, ...rest } = p;
+    return { ...rest, ability, stats };
+  });
+
+  const mergedPool = sortPoolPlayers([...updatedPool, ...newS]);
+
+  writeFileSync(legendsFile, JSON.stringify(kept, null, 2) + '\n');
+  writeFileSync(poolFile, JSON.stringify(mergedPool, null, 2) + '\n');
+
+  // Sanity: every pool OVR reproduces its class; every demoted star kept its ability.
+  const byClass: Record<string, number> = {};
+  let mismatch = 0;
+  for (const p of mergedPool) {
+    byClass[p.originalClass] = (byClass[p.originalClass] ?? 0) + 1;
+    if (classForOvr(ovr(p.stats, p.position)) !== p.originalClass) mismatch += 1;
+  }
+  const missingAbility = newS.filter((p) => !p.ability).map((p) => p.slug);
+  console.log(`\nDemoted ${demoted.length} legends to S. Legends: ${legends.length} -> ${kept.length}.`);
+  console.log('pool class distribution:', JSON.stringify(byClass));
+  console.log(`class/OVR mismatches: ${mismatch}`);
+  if (missingAbility.length) console.warn(`demoted players missing an ability: ${missingAbility.join(', ')}`);
+}
+
 async function main(): Promise<void> {
   const mode = (process.argv.find((a) => a.startsWith('--mode='))?.split('=')[1] ?? 'legends') as
     | 'legends'
     | 'pool'
-    | 'reanchor';
+    | 'reanchor'
+    | 'demote';
   if (mode === 'reanchor') {
     bakeReanchor(); // offline: re-spreads the committed pool, no API key needed
+    return;
+  }
+  if (mode === 'demote') {
+    bakeDemote(); // offline: relocates borderline legends into the S pool, no API key
     return;
   }
   if (!API_KEY) {

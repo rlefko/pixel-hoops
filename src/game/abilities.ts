@@ -1,17 +1,20 @@
 import type { StatDelta, SimHook, TeamModifier } from './effects';
 
 /**
- * Signature abilities for the Legendary (real NBA) players. Each bends one rule
- * the way the real player did. Three contribution channels, all optional:
+ * Signature abilities for the Legendary (S+) and Superstar (S) real NBA players.
+ * Each bends one rule the way the real player did. Three contribution channels,
+ * all optional:
  *  - selfDelta: a flat self-buff, baked into the player's own stats by
  *    effectivePlayers (apply-effects.ts).
  *  - teamAura: a flat TeamModifier fragment contributed to the player's team.
  *  - hooks: conditional sim-time rule-benders contributed to the team modifier.
  *
- * Most legends are felt through their re-rated 10-stat line; the ability is the
- * extra "that's why he's a legend" spike. Magnitudes sit at the top of the
+ * Most stars are felt through their re-rated 10-stat line; the ability is the
+ * extra "that's why he's a star" spike. Magnitudes sit at the top of the
  * synergy band (2-3 rating points) per the balance anchor (+1 ~ +3.2% make on
- * the 6-20 scale).
+ * the 6-20 scale). S-tier superstars carry one too, kept in check by their
+ * lower, normal-capped stat band (a legend's line is elite-capped and higher)
+ * and by the fact that legends are on-loan only.
  */
 export interface Ability {
   id: string;
@@ -802,6 +805,27 @@ export const ABILITIES: Record<string, Ability> = {
     name: 'Two-Way Terror',
     blurb: 'Elite two-way wing: +2 perimeter D, +2 stealing, +1 athleticism.',
     selfDelta: { perimeterD: 2, stealing: 2, athleticism: 1 },
+  },
+  // --- Homegrown Superstar (S) signatures: the three S-tier players already in
+  // the pool. The demoted stars bring their own ability; these give the originals
+  // one too, so the whole S tier reads as "a star with a signature." ---
+  smooth_operator: {
+    id: 'smooth_operator',
+    name: 'Smooth Operator',
+    blurb: 'A big lead guard who controls the game: +2 playmaking, +2 IQ.',
+    selfDelta: { playmaking: 2, iq: 2 },
+  },
+  transition_hammer: {
+    id: 'transition_hammer',
+    name: 'Transition Hammer',
+    blurb: 'Runs the floor and finishes above the rim: +2 athleticism, +2 rebounding.',
+    selfDelta: { athleticism: 2, rebounding: 2 },
+  },
+  swiss_army: {
+    id: 'swiss_army',
+    name: 'Swiss Army',
+    blurb: 'Guards and creates all over the floor: +2 perimeter D, +2 playmaking.',
+    selfDelta: { perimeterD: 2, playmaking: 2 },
   },
 };
 
