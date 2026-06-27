@@ -30,6 +30,15 @@ const EDGE = 0.08;
 // Width of the traveling accent glow band on menu wipes (in progress units).
 const BAND = 0.2;
 
+/**
+ * Cover opacity for the scanlines, label, and reduced-motion fade: peaks at full
+ * cover (progress 1) and is zero at both ends of the 0 -> 2 sweep.
+ */
+function coverFraction(progress: number) {
+  'worklet';
+  return Math.max(0, 1 - Math.abs(progress - 1));
+}
+
 function fitGrid(width: number, height: number) {
   let cell = TARGET_CELL;
   if (Math.ceil(width / cell) * Math.ceil(height / cell) > MAX_CELLS) {
@@ -41,10 +50,11 @@ function fitGrid(width: number, height: number) {
 
 /**
  * One mosaic block, mounted once and driven entirely by shared values so a
- * transition never re-renders it. The worklet derives this cell's threshold from
- * `dir`/`runFlag`, steps opacity as `progress` passes it, and (on menu wipes)
- * lights the cell in the accent as the wavefront passes, then settles to the base
- * color. The `glow <= 0` early-out keeps the color cost to the thin moving band.
+ * transition never re-renders it. One continuous sweep covers then uncovers in a
+ * single direction: the leading edge covers this cell as `progress` passes its
+ * sweep coordinate (0 -> 1), the trailing edge uncovers it a full sweep later
+ * (1 -> 2). On menu wipes the cell lights up in the accent as either edge passes;
+ * the `glow <= 0` early-out keeps the color cost to the thin moving band.
  */
 function Cell({
   progress,
@@ -73,15 +83,21 @@ function Cell({
 }) {
   const style = useAnimatedStyle(() => {
     const isRun = runFlag.value === 1;
-    // Run is a seeded "static" fill; menu is a directional column sweep that
-    // mirrors on backward navigation. Clamp inline (worklet-safe) so every cell
-    // still reaches full opacity by progress === 1.
-    let t = isRun ? randThresh : (dir.value === 1 ? colNorm : 1 - colNorm) + jitter;
-    t = Math.max(0, Math.min(1 - EDGE, t));
+    // Sweep coordinate x in [0, 1-EDGE]: run is a seeded "static" position, menu
+    // is the column position (mirrored on backward navigation). Clamp inline
+    // (worklet-safe) so the trailing edge still clears every cell by progress 2.
+    let x = isRun ? randThresh : (dir.value === 1 ? colNorm : 1 - colNorm) + jitter;
+    x = Math.max(0, Math.min(1 - EDGE, x));
     const p = progress.value;
-    const opacity = interpolate(p, [t, t + EDGE], [0, 1], Extrapolation.CLAMP);
+    const coverIn = interpolate(p, [x, x + EDGE], [0, 1], Extrapolation.CLAMP);
+    const coverOut = interpolate(p, [x + 1, x + 1 + EDGE], [1, 0], Extrapolation.CLAMP);
+    const opacity = coverIn * coverOut;
     if (isRun) return { opacity, backgroundColor: base.value };
-    const glow = Math.max(0, 1 - Math.abs(p - t) / BAND);
+    // Accent glow on whichever edge (covering or uncovering) is passing this cell.
+    const glow = Math.max(
+      Math.max(0, 1 - Math.abs(p - x) / BAND),
+      Math.max(0, 1 - Math.abs(p - (x + 1)) / BAND)
+    );
     return {
       opacity,
       backgroundColor:
@@ -101,7 +117,7 @@ const WipeScanlines = memo(function WipeScanlines({
 }: {
   progress: SharedValue<number>;
 }) {
-  const opacity = useAnimatedStyle(() => ({ opacity: progress.value }));
+  const opacity = useAnimatedStyle(() => ({ opacity: coverFraction(progress.value) }));
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, opacity]}>
       <Scanlines enabled spacing={3} />
@@ -168,8 +184,8 @@ export const PixelWipeOverlay = forwardRef<PixelWipeHandle>((_props, ref) => {
     });
   }, [grid, progress, accent, base, runFlag, dir]);
 
-  // The reduced-motion fade and the label both ride `progress`.
-  const progressStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
+  // Cover opacity for the label and the reduced-motion fade.
+  const coverStyle = useAnimatedStyle(() => ({ opacity: coverFraction(progress.value) }));
 
   if (reducedMotion) {
     // Flat fade, lightly tinted toward the accent so identity survives; no grid.
@@ -180,7 +196,7 @@ export const PixelWipeOverlay = forwardRef<PixelWipeHandle>((_props, ref) => {
             style={[
               StyleSheet.absoluteFill,
               { backgroundColor: mix(palette.bgDeep, meta.color, 0.15) },
-              progressStyle,
+              coverStyle,
             ]}
           />
         ) : null}
@@ -194,7 +210,7 @@ export const PixelWipeOverlay = forwardRef<PixelWipeHandle>((_props, ref) => {
       <WipeScanlines progress={progress} />
       <FlashOverlay ref={flashRef} />
       {meta.label ? (
-        <Animated.View pointerEvents="none" style={[styles.center, progressStyle]}>
+        <Animated.View pointerEvents="none" style={[styles.center, coverStyle]}>
           <Callout
             text={meta.label}
             color={meta.color}
