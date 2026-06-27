@@ -11,36 +11,52 @@ import {
 import { DUR } from './timings';
 import { useFeelSettings } from './FeelSettingsContext';
 import { haptics } from './haptics';
+import { palette } from '@/theme';
 
 /** Which flavor of the pixel wipe to play. `run` is the bigger power-up boot. */
 export type WipeVariant = 'menu' | 'run';
 
 /**
- * Cover/reveal durations per variant. The run variant runs longer for a bigger
- * "boot up" read; reduced motion overrides both with a single quick fade.
+ * Everything the overlay needs to paint one transition. The provider builds it
+ * per navigation, so each destination gets its own accent color, label, and
+ * sweep direction (forward navigations and returns home mirror each other).
  */
-const TIMING: Record<WipeVariant, { cover: number; reveal: number }> = {
-  menu: { cover: DUR.snap, reveal: DUR.snap }, // 180 / 180
-  run: { cover: DUR.count, reveal: DUR.count }, // 260 / 260
-};
+export interface WipeConfig {
+  variant: WipeVariant;
+  /** Accent color: the traveling cell band, the cover flash, and the label. */
+  color: string;
+  /** Destination label punch-in; forward navigation only. */
+  label?: string;
+  direction: 'forward' | 'backward';
+}
 
 /**
- * A one-frame settle so the freshly navigated screen commits behind the cover
- * before the reveal starts, which avoids a flash of the old screen.
+ * Cover/reveal durations and the full-cover hold per variant. The menu cover runs
+ * a touch longer than its reveal so the destination label is readable; the run
+ * variant keeps its punchy boot. Reduced motion overrides both with a quick fade.
  */
-const HOLD_MS = DUR.instant / 2; // ~40
+const TIMING: Record<WipeVariant, { cover: number; reveal: number; hold: number }> = {
+  menu: { cover: DUR.count, reveal: DUR.snap, hold: 120 }, // 260 / 180, 120ms dwell to read the label
+  run: { cover: DUR.count, reveal: DUR.count, hold: DUR.instant / 2 }, // 260 / 260, ~40ms settle
+};
+
+const DEFAULT_CONFIG: WipeConfig = {
+  variant: 'menu',
+  color: palette.gold,
+  direction: 'backward',
+};
 
 export interface PixelWipe {
   /** 0 = fully clear, 1 = fully covered. Drives the cell grid opacity. */
   progress: SharedValue<number>;
   /** True while a wipe is mounted and blocking input. */
   active: boolean;
-  /** The variant of the in-flight (or most recent) wipe. */
-  variant: WipeVariant;
+  /** The in-flight (or most recent) wipe config. */
+  config: WipeConfig;
   /** Fill the screen with the mosaic. Resolves once fully covered. */
-  cover: (variant?: WipeVariant) => Promise<void>;
+  cover: (config?: WipeConfig) => Promise<void>;
   /** Clear the mosaic to reveal the new screen. Resolves once done. */
-  reveal: (variant?: WipeVariant) => Promise<void>;
+  reveal: (config?: WipeConfig) => Promise<void>;
 }
 
 /**
@@ -52,7 +68,7 @@ export interface PixelWipe {
 export function usePixelWipe(): PixelWipe {
   const progress = useSharedValue(0);
   const [active, setActive] = useState(false);
-  const [variant, setVariant] = useState<WipeVariant>('menu');
+  const [config, setConfig] = useState<WipeConfig>(DEFAULT_CONFIG);
   const { reducedMotion } = useFeelSettings();
 
   // Tween `progress` to a target and resolve on the JS thread once it lands, the
@@ -72,24 +88,30 @@ export function usePixelWipe(): PixelWipe {
   );
 
   const cover = useCallback(
-    (v: WipeVariant = 'menu'): Promise<void> => {
+    (next: WipeConfig = DEFAULT_CONFIG): Promise<void> => {
       cancelAnimation(progress);
-      setVariant(v);
+      // Commit config + active before the tween so any one-frame stale paint
+      // happens while the cells are still at opacity 0 (invisible).
+      setConfig(next);
       setActive(true);
-      if (v === 'run' && !reducedMotion) haptics.bigPlay();
-      const duration = reducedMotion ? DUR.fast : TIMING[v].cover;
+      // Haptics are not visual motion, so they fire regardless of reducedMotion;
+      // the haptics wrapper already no-ops when haptics are off or on web.
+      if (next.variant === 'run') haptics.bigPlay();
+      else haptics.selection();
+      const duration = reducedMotion ? DUR.fast : TIMING[next.variant].cover;
       return animate(1, duration);
     },
     [animate, progress, reducedMotion]
   );
 
   const reveal = useCallback(
-    (v: WipeVariant = 'menu'): Promise<void> => {
-      const duration = reducedMotion ? DUR.fast : TIMING[v].reveal;
-      return animate(0, duration, HOLD_MS).then(() => setActive(false));
+    (next: WipeConfig = DEFAULT_CONFIG): Promise<void> => {
+      const duration = reducedMotion ? DUR.fast : TIMING[next.variant].reveal;
+      const hold = reducedMotion ? DUR.instant / 2 : TIMING[next.variant].hold;
+      return animate(0, duration, hold).then(() => setActive(false));
     },
     [animate, reducedMotion]
   );
 
-  return { progress, active, variant, cover, reveal };
+  return { progress, active, config, cover, reveal };
 }
