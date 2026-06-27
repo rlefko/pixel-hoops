@@ -31,6 +31,17 @@ export interface WipeConfig {
 }
 
 /**
+ * The slice of config the overlay reads from React (label text, accent color,
+ * and whether this is the run boot). The persistent cell grid reads the rest from
+ * shared values, so starting a transition never re-renders or remounts the grid.
+ */
+export interface WipeMeta {
+  color: string;
+  label?: string;
+  isRun: boolean;
+}
+
+/**
  * Cover/reveal durations and the full-cover hold per variant. The menu cover runs
  * a touch longer than its reveal so the destination label is readable; the run
  * variant keeps its punchy boot. Reduced motion overrides both with a quick fade.
@@ -49,10 +60,18 @@ const DEFAULT_CONFIG: WipeConfig = {
 export interface PixelWipe {
   /** 0 = fully clear, 1 = fully covered. Drives the cell grid opacity. */
   progress: SharedValue<number>;
-  /** True while a wipe is mounted and blocking input. */
+  /** Accent color for the traveling band (hex string). */
+  accent: SharedValue<string>;
+  /** Base block color: bgDeep for menu, bgPanel for run. */
+  base: SharedValue<string>;
+  /** 1 = run (flat fill), 0 = menu (directional color band). */
+  runFlag: SharedValue<number>;
+  /** 1 = forward sweep, 0 = backward (mirrored). */
+  dir: SharedValue<number>;
+  /** True while a wipe is in flight; gates pointer events only. */
   active: boolean;
-  /** The in-flight (or most recent) wipe config. */
-  config: WipeConfig;
+  /** The React-visible slice of the current config (label, flash, fade tint). */
+  meta: WipeMeta;
   /** Fill the screen with the mosaic. Resolves once fully covered. */
   cover: (config?: WipeConfig) => Promise<void>;
   /** Clear the mosaic to reveal the new screen. Resolves once done. */
@@ -60,15 +79,21 @@ export interface PixelWipe {
 }
 
 /**
- * Drives the pixel-dissolve transition: a single `progress` shared value that the
- * overlay's cell grid reads, plus awaitable `cover`/`reveal` steps so a navigator
- * can flip the route while the screen is fully obscured. Mirrors useFlash: the
- * hook owns the motion, the component (PixelWipeOverlay) owns the pixels.
+ * Drives the pixel-dissolve transition. The grid's whole appearance lives in
+ * shared values (`progress`, `accent`, `base`, `runFlag`, `dir`) so the overlay
+ * can keep its cells mounted permanently and a transition is just a few shared
+ * value writes plus a tween: no per-transition mount, so the wipe starts on the
+ * next frame. Mirrors useBallFlight, which animates a fixed set of views the same
+ * way. `cover`/`reveal` resolve from the worklet completion via runOnJS.
  */
 export function usePixelWipe(): PixelWipe {
   const progress = useSharedValue(0);
+  const accent = useSharedValue<string>(palette.gold);
+  const base = useSharedValue<string>(palette.bgDeep);
+  const runFlag = useSharedValue(0);
+  const dir = useSharedValue(0);
   const [active, setActive] = useState(false);
-  const [config, setConfig] = useState<WipeConfig>(DEFAULT_CONFIG);
+  const [meta, setMeta] = useState<WipeMeta>({ color: palette.gold, isRun: false });
   const { reducedMotion } = useFeelSettings();
 
   // Tween `progress` to a target and resolve on the JS thread once it lands, the
@@ -90,18 +115,25 @@ export function usePixelWipe(): PixelWipe {
   const cover = useCallback(
     (next: WipeConfig = DEFAULT_CONFIG): Promise<void> => {
       cancelAnimation(progress);
-      // Commit config + active before the tween so any one-frame stale paint
-      // happens while the cells are still at opacity 0 (invisible).
-      setConfig(next);
+      const isRun = next.variant === 'run';
+      // Drive the persistent grid's look through shared values: these writes, not
+      // a React mount, change the appearance, so there is nothing to commit and
+      // the cover animates from the next frame.
+      accent.value = next.color;
+      base.value = isRun ? palette.bgPanel : palette.bgDeep;
+      runFlag.value = isRun ? 1 : 0;
+      dir.value = next.direction === 'forward' ? 1 : 0;
+      // React-visible bits for the label, flash, and reduced-motion fade.
+      setMeta({ color: next.color, label: next.label, isRun });
       setActive(true);
       // Haptics are not visual motion, so they fire regardless of reducedMotion;
       // the haptics wrapper already no-ops when haptics are off or on web.
-      if (next.variant === 'run') haptics.bigPlay();
+      if (isRun) haptics.bigPlay();
       else haptics.selection();
       const duration = reducedMotion ? DUR.fast : TIMING[next.variant].cover;
       return animate(1, duration);
     },
-    [animate, progress, reducedMotion]
+    [accent, animate, base, dir, progress, reducedMotion, runFlag]
   );
 
   const reveal = useCallback(
@@ -113,5 +145,5 @@ export function usePixelWipe(): PixelWipe {
     [animate, reducedMotion]
   );
 
-  return { progress, active, config, cover, reveal };
+  return { progress, accent, base, runFlag, dir, active, meta, cover, reveal };
 }

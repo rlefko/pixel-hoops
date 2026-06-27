@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
+import { forwardRef, memo, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { StyleSheet, useWindowDimensions } from 'react-native';
 import Animated, {
   useAnimatedStyle,
@@ -39,91 +39,136 @@ function fitGrid(width: number, height: number) {
   return { cell, cols: Math.ceil(width / cell), rows: Math.ceil(height / cell) };
 }
 
-function clamp(value: number, lo: number, hi: number) {
-  return Math.max(lo, Math.min(hi, value));
-}
-
 /**
- * One mosaic block. Opacity steps from clear to covered as `progress` passes this
- * cell's threshold. On menu wipes (`band`) the cell also lights up in the accent
- * as the wavefront passes, then settles dark, so the destination color sweeps
- * across; the `glow <= 0` early-out keeps the color cost to the thin moving band.
+ * One mosaic block, mounted once and driven entirely by shared values so a
+ * transition never re-renders it. The worklet derives this cell's threshold from
+ * `dir`/`runFlag`, steps opacity as `progress` passes it, and (on menu wipes)
+ * lights the cell in the accent as the wavefront passes, then settles to the base
+ * color. The `glow <= 0` early-out keeps the color cost to the thin moving band.
  */
 function Cell({
   progress,
-  threshold,
+  accent,
+  base,
+  runFlag,
+  dir,
+  colNorm,
+  jitter,
+  randThresh,
   left,
   top,
   size,
-  baseColor,
-  accent,
-  band,
 }: {
   progress: SharedValue<number>;
-  threshold: number;
+  accent: SharedValue<string>;
+  base: SharedValue<string>;
+  runFlag: SharedValue<number>;
+  dir: SharedValue<number>;
+  colNorm: number;
+  jitter: number;
+  randThresh: number;
   left: number;
   top: number;
   size: number;
-  baseColor: string;
-  accent: string;
-  band: boolean;
 }) {
   const style = useAnimatedStyle(() => {
+    const isRun = runFlag.value === 1;
+    // Run is a seeded "static" fill; menu is a directional column sweep that
+    // mirrors on backward navigation. Clamp inline (worklet-safe) so every cell
+    // still reaches full opacity by progress === 1.
+    let t = isRun ? randThresh : (dir.value === 1 ? colNorm : 1 - colNorm) + jitter;
+    t = Math.max(0, Math.min(1 - EDGE, t));
     const p = progress.value;
-    const opacity = interpolate(p, [threshold, threshold + EDGE], [0, 1], Extrapolation.CLAMP);
-    if (!band) return { opacity, backgroundColor: baseColor };
-    const glow = Math.max(0, 1 - Math.abs(p - threshold) / BAND);
+    const opacity = interpolate(p, [t, t + EDGE], [0, 1], Extrapolation.CLAMP);
+    if (isRun) return { opacity, backgroundColor: base.value };
+    const glow = Math.max(0, 1 - Math.abs(p - t) / BAND);
     return {
       opacity,
-      backgroundColor: glow <= 0 ? baseColor : interpolateColor(glow, [0, 1], [baseColor, accent]),
+      backgroundColor:
+        glow <= 0 ? base.value : interpolateColor(glow, [0, 1], [base.value, accent.value]),
     };
   });
   return <Animated.View style={[styles.cell, { left, top, width: size, height: size }, style]} />;
 }
 
 /**
+ * Persistent CRT scanlines for the cover, faded in with `progress` so they cost
+ * nothing at rest. Memoized on the stable `progress` ref so the overlay's
+ * per-transition re-renders never reconcile the line views underneath.
+ */
+const WipeScanlines = memo(function WipeScanlines({
+  progress,
+}: {
+  progress: SharedValue<number>;
+}) {
+  const opacity = useAnimatedStyle(() => ({ opacity: progress.value }));
+  return (
+    <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, opacity]}>
+      <Scanlines enabled spacing={3} />
+    </Animated.View>
+  );
+});
+
+/**
  * The arcade pixel-dissolve overlay. A full-bleed grid of chunky blocks covers
  * the screen then clears block-by-block, hiding the instant native route cut
- * underneath. Menu wipes carry per-destination identity (a directional sweep of
- * the destination's accent color, an accent flash, and a label punch-in); the
- * `run` variant is the bigger power-up boot. Under reduced motion it collapses to
- * a single flat fade. Driven through its ref handle by the TransitionProvider.
+ * underneath. The grid stays mounted permanently and is driven by shared values,
+ * so a transition mounts nothing and the wipe starts immediately. Menu wipes
+ * carry per-destination identity (a directional accent sweep, a flash, a label);
+ * the `run` variant is the bigger power-up boot. Under reduced motion it collapses
+ * to a single flat fade. Driven through its ref handle by the TransitionProvider.
  */
 export const PixelWipeOverlay = forwardRef<PixelWipeHandle>((_props, ref) => {
-  const { progress, active, config, cover, reveal } = usePixelWipe();
+  const { progress, accent, base, runFlag, dir, active, meta, cover, reveal } = usePixelWipe();
   const { reducedMotion } = useFeelSettings();
   const flashRef = useRef<FlashOverlayHandle>(null);
   const { width, height } = useWindowDimensions();
 
-  const { variant, color, label, direction } = config;
-
   useImperativeHandle(ref, () => ({ cover, reveal }), [cover, reveal]);
 
   // Accent flash as the cover comes in, for both variants (FlashOverlay self-skips
-  // reduced motion).
+  // reduced motion). `meta` is a fresh object each cover, so this fires once per
+  // wipe when `active` flips true.
   useEffect(() => {
-    if (active) flashRef.current?.flash(color, { peak: variant === 'run' ? 0.4 : 0.3 });
-  }, [active, variant, color]);
+    if (active) flashRef.current?.flash(meta.color, { peak: meta.isRun ? 0.4 : 0.3 });
+  }, [active, meta]);
 
   const grid = useMemo(() => fitGrid(width, height), [width, height]);
-  const thresholds = useMemo(() => {
-    const { cols, rows } = grid;
-    // Seeded so the pattern is deterministic and tunable: menu is a directional
-    // horizontal column sweep (forward and backward mirror each other), run is a
-    // seeded "static" fill. The ceiling is clamped to 1 - EDGE so every cell
-    // reaches full opacity by progress === 1, leaving no block partly clear.
-    const rng = createRNG(`wipe:${variant}:${direction}:${cols}x${rows}`);
-    return Array.from({ length: cols * rows }, (_, i) => {
-      if (variant === 'menu') {
-        const col = i % cols;
-        const sweep = direction === 'forward' ? col / cols : 1 - col / cols;
-        return clamp(sweep + (rng.next() - 0.5) * 0.06, 0, 1 - EDGE);
-      }
-      return clamp(rng.next(), 0, 1 - EDGE);
-    });
-  }, [grid, variant, direction]);
 
-  // The reduced-motion fade and the label punch-in both ride `progress` directly.
+  // Persistent, memoized cell grid: mounted once per screen size and never
+  // reconciled on a transition (the parent's active/meta re-renders reuse this
+  // same element array). Per-cell randomness is seeded by size alone so it is
+  // stable across transitions; direction and variant are applied at runtime in
+  // the worklet from shared values.
+  const cellEls = useMemo(() => {
+    const { cols, rows, cell } = grid;
+    const rng = createRNG(`wipe:${cols}x${rows}`);
+    const size = snapPx(cell) + 1; // +1 overlap kills sub-pixel seams between blocks
+    return Array.from({ length: cols * rows }, (_, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const jitter = (rng.next() - 0.5) * 0.06;
+      const randThresh = rng.next();
+      return (
+        <Cell
+          key={i}
+          progress={progress}
+          accent={accent}
+          base={base}
+          runFlag={runFlag}
+          dir={dir}
+          colNorm={col / cols}
+          jitter={jitter}
+          randThresh={randThresh}
+          left={snapPx(col * cell)}
+          top={snapPx(row * cell)}
+          size={size}
+        />
+      );
+    });
+  }, [grid, progress, accent, base, runFlag, dir]);
+
+  // The reduced-motion fade and the label both ride `progress`.
   const progressStyle = useAnimatedStyle(() => ({ opacity: progress.value }));
 
   if (reducedMotion) {
@@ -134,7 +179,7 @@ export const PixelWipeOverlay = forwardRef<PixelWipeHandle>((_props, ref) => {
           <Animated.View
             style={[
               StyleSheet.absoluteFill,
-              { backgroundColor: mix(palette.bgDeep, color, 0.15) },
+              { backgroundColor: mix(palette.bgDeep, meta.color, 0.15) },
               progressStyle,
             ]}
           />
@@ -143,36 +188,19 @@ export const PixelWipeOverlay = forwardRef<PixelWipeHandle>((_props, ref) => {
     );
   }
 
-  const { cols, cell } = grid;
-  const size = snapPx(cell) + 1; // +1 overlap kills sub-pixel seams between blocks
-  const isRun = variant === 'run';
-  const baseColor = isRun ? palette.bgPanel : palette.bgDeep;
-
   return (
     <Animated.View pointerEvents={active ? 'auto' : 'none'} style={StyleSheet.absoluteFill}>
-      {active ? (
-        <>
-          {thresholds.map((t, i) => (
-            <Cell
-              key={i}
-              progress={progress}
-              threshold={t}
-              left={snapPx((i % cols) * cell)}
-              top={snapPx(Math.floor(i / cols) * cell)}
-              size={size}
-              baseColor={baseColor}
-              accent={color}
-              band={!isRun}
-            />
-          ))}
-          <Scanlines enabled spacing={3} />
-          <FlashOverlay ref={flashRef} />
-          {label ? (
-            <Animated.View pointerEvents="none" style={[styles.center, progressStyle]}>
-              <Callout text={label} color={color} textStyle={isRun ? undefined : styles.menuLabel} />
-            </Animated.View>
-          ) : null}
-        </>
+      {cellEls}
+      <WipeScanlines progress={progress} />
+      <FlashOverlay ref={flashRef} />
+      {meta.label ? (
+        <Animated.View pointerEvents="none" style={[styles.center, progressStyle]}>
+          <Callout
+            text={meta.label}
+            color={meta.color}
+            textStyle={meta.isRun ? undefined : styles.menuLabel}
+          />
+        </Animated.View>
       ) : null}
     </Animated.View>
   );
