@@ -5,8 +5,8 @@ import { STAT_KEYS } from '@/types/player';
 import { CLASS_ORDER } from '@/game/classes';
 
 describe('legendary dataset + abilities', () => {
-  it('has 124 legends, each legendary with a UNIQUE signature ability', () => {
-    expect(NBA_LEGENDS).toHaveLength(124);
+  it('has 92 legends, each legendary with a UNIQUE signature ability', () => {
+    expect(NBA_LEGENDS).toHaveLength(92);
     expect(NBA_PLAYERS).toBe(NBA_LEGENDS); // back-compat alias is the legend pool
     const abilityIds = new Set<string>();
     for (const p of NBA_LEGENDS) {
@@ -21,15 +21,24 @@ describe('legendary dataset + abilities', () => {
     }
   });
 
-  it('has a large class pool: real current players, classes C-S, no ability, ratings 6..20', () => {
+  it('has a large class pool: C/A role players with no ability, plus S superstars that carry a signature, ratings 6..20', () => {
     expect(NBA_POOL.length).toBeGreaterThanOrEqual(300);
+    // The S "Superstar" tier is populated (no longer just 3), the keepable chase
+    // counterpart to the on-loan legends.
+    const superstars = NBA_POOL.filter((p) => p.originalClass === 'S');
+    expect(superstars.length).toBeGreaterThanOrEqual(30);
     for (const p of NBA_POOL) {
       expect(p.legendary).toBeFalsy();
-      expect(p.ability).toBeUndefined();
       expect(p.era).toBe('modern');
       // Reals are C/B/A/S (D is procedural, S+ is the legend tier).
       expect(['C', 'B', 'A', 'S']).toContain(p.originalClass);
       expect(CLASS_ORDER).toContain(p.originalClass);
+      if (p.originalClass === 'S') {
+        // S superstars carry a signature ability, balanced by their lower S band.
+        expect(getAbility(p.ability)).toBeDefined();
+      } else {
+        expect(p.ability).toBeUndefined(); // C/B/A role players have none
+      }
       const stats = p.stats as unknown as Record<string, number>;
       for (const key of STAT_KEYS) {
         expect(stats[key]).toBeGreaterThanOrEqual(6);
