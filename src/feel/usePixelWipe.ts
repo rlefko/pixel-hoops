@@ -42,12 +42,13 @@ export interface WipeMeta {
 }
 
 /**
- * Cover/reveal durations and the full-cover hold per variant. The menu cover runs
- * a touch longer than its reveal so the destination label is readable; the run
- * variant keeps its punchy boot. Reduced motion overrides both with a quick fade.
+ * Per-variant timing. `progress` runs 0 -> 1 (cover) -> 2 (reveal) as one
+ * continuous sweep, so cover and reveal share a speed for a single clean pass;
+ * `hold` is the brief full-cover dwell that lets the label read. Reduced motion
+ * overrides both with a quick fade.
  */
 const TIMING: Record<WipeVariant, { cover: number; reveal: number; hold: number }> = {
-  menu: { cover: DUR.count, reveal: DUR.snap, hold: 120 }, // 260 / 180, 120ms dwell to read the label
+  menu: { cover: DUR.snap, reveal: DUR.snap, hold: DUR.instant }, // 180 / 180, 80ms dwell
   run: { cover: DUR.count, reveal: DUR.count, hold: DUR.instant / 2 }, // 260 / 260, ~40ms settle
 };
 
@@ -58,7 +59,7 @@ const DEFAULT_CONFIG: WipeConfig = {
 };
 
 export interface PixelWipe {
-  /** 0 = fully clear, 1 = fully covered. Drives the cell grid opacity. */
+  /** Sweep position: 0 = clear, 1 = fully covered, 2 = cleared again. */
   progress: SharedValue<number>;
   /** Accent color for the traveling band (hex string). */
   accent: SharedValue<string>;
@@ -115,6 +116,7 @@ export function usePixelWipe(): PixelWipe {
   const cover = useCallback(
     (next: WipeConfig = DEFAULT_CONFIG): Promise<void> => {
       cancelAnimation(progress);
+      progress.value = 0; // restart the single sweep from the leading edge
       const isRun = next.variant === 'run';
       // Drive the persistent grid's look through shared values: these writes, not
       // a React mount, change the appearance, so there is nothing to commit and
@@ -140,7 +142,9 @@ export function usePixelWipe(): PixelWipe {
     (next: WipeConfig = DEFAULT_CONFIG): Promise<void> => {
       const duration = reducedMotion ? DUR.fast : TIMING[next.variant].reveal;
       const hold = reducedMotion ? DUR.instant / 2 : TIMING[next.variant].hold;
-      return animate(0, duration, hold).then(() => setActive(false));
+      // Continue the sweep off-screen (1 -> 2) instead of reversing, so the wipe
+      // reads as one pass, not a back-and-forth.
+      return animate(2, duration, hold).then(() => setActive(false));
     },
     [animate, reducedMotion]
   );
