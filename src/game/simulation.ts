@@ -27,6 +27,7 @@ import {
 import { computeUsageWeights, computeTeamStats } from './lineup';
 import { computeSynergy } from './synergy';
 import type { StatDelta } from './effects';
+import { deriveArchetype, counterDelta } from './team-archetype';
 import { ovrRaw } from './ratings';
 import { pickRiskPosture, type RiskPosture } from './ai';
 import { createRNG, type RNG } from './rng';
@@ -329,6 +330,13 @@ interface SideState {
   aggregate: TeamStats;
   /** This team's hot/cold shooting night (rating-point offset to offense). */
   form: number;
+  /**
+   * Frozen team-archetype counter edge as a flat offensive {@link StatDelta},
+   * computed once at tip-off from this team's archetype vs the opponent's and
+   * re-applied to the aggregate after every substitution. {} when the matchup is
+   * even (a mirror, or either side `balanced`), so it is a true no-op then.
+   */
+  counterDelta: StatDelta;
 }
 
 function newBoxLine(rp: RosterPlayer, slot: Position, starter: boolean): BoxLine {
@@ -374,12 +382,16 @@ function initSide(team: Team, form: number): SideState {
     all: [...starters, ...bench],
     onCourt: starters.slice(),
     weights: team.lineup.usageWeights.slice(),
-    aggregate: team.teamStats,
+    // Copy so applying the counter edge never mutates the shared Team.teamStats
+    // (Teams are reused across games, e.g. determinism replays).
+    aggregate: { ...team.teamStats },
     form,
+    counterDelta: {},
   };
 }
 
-/** Recompute usage + aggregate (and synergy) for the current five. */
+/** Recompute usage + aggregate (and synergy) for the current five, then re-apply
+ * the frozen archetype counter edge so it survives substitutions. */
 function recomputeAggregate(side: SideState): void {
   const players = side.onCourt.map((p) => p.rp);
   const synergy = computeSynergy(players);
@@ -391,6 +403,7 @@ function recomputeAggregate(side: SideState): void {
     side.team.tactic,
     side.team.modifier
   );
+  addDeltaToStats(side.aggregate, side.counterDelta);
 }
 
 /** Interior-D aggregate at which a post threat is considered "doubled". */
@@ -618,6 +631,15 @@ export function simulateGame(config: SimConfig): SimResult {
   const awayState = initSide(config.away, awayForm);
   const stateFor = (side: SimTeamSide): SideState =>
     side === 'home' ? homeState : awayState;
+
+  // Team-archetype matchup: a bounded rock-paper-scissors edge, frozen at tip-off
+  // (so it never flickers on garbage-time subs) and telegraphed by the scout
+  // report. Folded into each side's effective line as a flat offensive delta; an
+  // even matchup (a mirror, or either side `balanced`) yields {} and is a no-op.
+  homeState.counterDelta = counterDelta(deriveArchetype(config.home), deriveArchetype(config.away));
+  awayState.counterDelta = counterDelta(deriveArchetype(config.away), deriveArchetype(config.home));
+  addDeltaToStats(homeState.aggregate, homeState.counterDelta);
+  addDeltaToStats(awayState.aggregate, awayState.counterDelta);
 
   const snapshot = (): OnCourtSnapshot => ({
     home: fiveOf(homeState),
