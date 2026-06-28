@@ -1,4 +1,6 @@
 import { STAT_ELITE_MAX, STAT_MIN, STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
+import type { Position } from '@/types/roster';
+import { derivePlaystyle, type BakedTendency } from './playstyle';
 
 /**
  * Pure mapping from NBA 2K rating space (0-99 attributes) into the game's
@@ -148,5 +150,80 @@ export function mapRatingsToStats(raw: RawRatings, opts?: { elite?: boolean }): 
     stealing: scale(stealing),
     strength: scale(strength),
     rebounding: scale(rebounding),
+  };
+}
+
+/** Attribute contribution only above a relevance floor, so a guard's middling
+ * post rating contributes ~nothing to the post lane (and a big's middling three
+ * to the three lane). This is what makes the baked diet read by SPECIALIZATION. */
+function rel(value: number, floor: number): number {
+  return Math.max(0, value - floor);
+}
+
+/** Map a raw 2K attribute (~25-99) to a 0..100 lean over a sensible window. */
+function lean(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(((value - 40) / 55) * 100)));
+}
+
+/**
+ * Derive a compact {@link BakedTendency} from the rich 2K attribute bag + badge
+ * names that the condensed fourteen ratings discard (on-ball vs off-ball, post
+ * game, slasher vs lob, foul-drawing). Shot lanes read by specialization above a
+ * floor, lightly boosted by matching badges, then normalized to integer percents
+ * so the JSON stays float-free. `stats` (the already-mapped line) decides the
+ * playstyle label. Pure; reused by the offline bake script (no app/runtime deps).
+ */
+export function deriveTendency(
+  raw: RawRatings,
+  badges: readonly string[],
+  stats: PlayerStats,
+  position: Position
+): BakedTendency {
+  const a = (keys: string[], fb = 25): number => pick(raw, keys, fb);
+  const lower = badges.map((b) => b.toLowerCase());
+  const has = (...names: string[]): boolean =>
+    names.some((nm) => lower.some((b) => b.includes(nm.toLowerCase())));
+  const boost = (base: number, ...names: string[]): number => base * (has(...names) ? 1.25 : 1);
+
+  const threePt = a(['threePointShot', 'three_point_shot']);
+  const midR = a(['midRangeShot', 'mid_range_shot']);
+  const postFade = a(['postFade'], 25);
+  const postControl = a(['postControl', 'post_control'], 25);
+  const postHook = a(['postHook'], 25);
+  const closeShot = a(['closeShot', 'close_shot']);
+  const dLayup = a(['drivingLayup', 'driving_layup', 'layup']);
+  const dDunk = a(['drivingDunk', 'driving_dunk'], 25);
+  const sDunk = a(['standingDunk', 'standing_dunk'], 25);
+  const swb = a(['speedWithBall', 'speed_with_ball']);
+
+  const lanes = {
+    post: boost(rel(postControl, 45) + rel(postHook, 45) + rel(postFade, 45) * 0.6, 'Post', 'Hook', 'Backdown', 'Drop Step'),
+    drive: boost(rel(dLayup, 30) * 0.5 + rel(swb, 40) * 0.5, 'Physical Finisher', 'Slithery', 'Handles'),
+    layup: boost(rel(dLayup, 25) * 0.6 + rel(closeShot, 25) * 0.4, 'Layup', 'Float', 'Acrobat'),
+    dunk: boost(rel(dDunk, 45) + rel(sDunk, 45), 'Posterizer', 'Aerial', 'Rise Up', 'Pogo', 'Dunk'),
+    mid: rel(midR, 30) + rel(postFade, 40) * 0.4,
+    three: boost(rel(threePt, 30), 'Deadeye', 'Limitless', 'Set Shot', 'Marksman', 'Shifty', 'Sniper'),
+  };
+  // A small floor on every lane so the diet is never degenerate (everyone takes a
+  // few of each), then normalize to integer percents.
+  const BASE = 4;
+  const total =
+    lanes.post + lanes.drive + lanes.layup + lanes.dunk + lanes.mid + lanes.three + BASE * 6 || 1;
+  const pct = (x: number): number => Math.round(((x + BASE) / total) * 100);
+
+  const handle = (a(['ballHandle', 'ball_handle']) + swb + a(['passVision', 'pass_vision', 'passIQ'])) / 3;
+
+  return {
+    shot: {
+      post: pct(lanes.post),
+      drive: pct(lanes.drive),
+      layup: pct(lanes.layup),
+      dunk: pct(lanes.dunk),
+      mid: pct(lanes.mid),
+      three: pct(lanes.three),
+    },
+    onBall: lean(handle),
+    drawFoul: lean(a(['drawFoul', 'draw_foul'])),
+    playstyle: derivePlaystyle(stats, position).id,
   };
 }
