@@ -88,7 +88,7 @@ export function MatchupVerdict({ home, away }: { home: Team; away: Team }) {
   if (verdict.tier === 'even') {
     return (
       <Text style={[styles.matchup, { color: palette.inkDim }]} numberOfLines={1}>
-        MATCHUP: EVEN — {archetypeLabel(mine).toUpperCase()} vs {archetypeLabel(theirs).toUpperCase()}
+        EVEN MATCHUP: {archetypeLabel(mine).toUpperCase()} VS {archetypeLabel(theirs).toUpperCase()}
       </Text>
     );
   }

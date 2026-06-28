@@ -80,10 +80,14 @@ The engine (`src/game/simulation.ts`) is pure and seeded: the same seed yields
 the identical timeline, box score, substitutions, and injuries. Each possession:
 
 1. Substitution check (see Fatigue below).
-2. Pick an action, weighted by the team's auto-derived tendency (its pace and
-   focus, read off the roster shape) and reshaped by team IQ toward the highest
-   expected-value looks (rim and threes), away from contested midrange.
-3. Pick the scorer by usage weight.
+2. Pick the scorer by usage weight, then pick an action weighted by the team's
+   auto-derived tendency (pace and focus, read off the roster shape), reshaped by
+   team IQ toward the highest expected-value looks (rim and threes), and finally
+   biased by THAT scorer's own shot diet (a sharpshooter shoots threes, a post
+   scorer backs you down). See "Personality and strategic matchups" below.
+3. The shot is resolved against the MATCHED defender (the player at the scorer's
+   court slot) blended with the team defensive aggregate, plus a bounded physical
+   mismatch and the lineup's spacing.
 4. Resolve the shot with `makeProbability` in `src/game/sim-resolution.ts`:
    an affine function of the matchup, clamped, then scaled by fatigue:
 
@@ -153,13 +157,60 @@ steals/blocks/rebounds, three-point lean, top scorer). It is shown for both the
 opponent and the player's own team, so the matchup is a plannable decision (set a
 counter lineup) while the watched sim keeps the outcome live.
 
+## Personality and strategic matchups
+
+On top of the rating model, four layers make player personality and roster
+strategy decide close games rather than raw OVR alone. Each is a behavioral or
+matchup modifier (it never feeds OVR, so the draft economy and class ladder are
+unchanged), and each is bounded so a real OVR gap still usually wins while the
+per-game form (the ±3.2 offset) stays the largest single-game swing.
+
+- **Playstyles and tendencies** (`src/game/playstyle.ts`). Every player has a
+  playstyle (Floor General, Sharpshooter, Slasher, Stretch Big, Rim Protector, and
+  so on), an axis kept separate from position and OVR. It carries a `TendencyProfile`
+  (a shot diet plus on-ball and foul-draw leanings) that biases which action the
+  player takes when they are the scorer, and the scorer's own rating, blended with
+  the team aggregate, resolves the shot. This is the NBA-2K tendency-versus-ability
+  split: two same-OVR fives play differently by who actually shoots. Real players
+  carry a richer tendency baked from their 2K attributes and badges (the signal the
+  fourteen condensed ratings discard, like on-ball versus off-ball and slasher
+  versus lob); everyone else derives one from their ratings.
+
+- **One-on-one matchups** (`mismatchDelta` in `src/game/sim-resolution.ts`). A shot
+  is contested by the matched defender at the scorer's slot, blended with the team
+  aggregate, plus a small bounded mismatch (a quick attacker blows by a slow
+  defender, a strong post player seals a weaker one). A lockdown stopper, or an
+  exploited weak link, now swings the possession.
+
+- **Spacing and fit** (`spacing` and `creation` on `TeamStats`). Floor spacing (how
+  many credible shooters dress) frees up looks when high and lets defenders sag when
+  low, hitting rim attacks hardest; playmaking depth gates lob and cut finishing. A
+  rim runner needs a creator, and two non-shooters clog each other.
+
+- **Shared tempo** (`src/game/simulation.ts`). Both teams play the same possession
+  count, set by their averaged pace, so a slow defensive five drags a fast one down
+  and pace is a strategic tug-of-war rather than free volume for whoever wants to run.
+
+- **Team archetypes and counters** (`src/game/team-archetype.ts`). Each five
+  classifies into one canonical archetype (Pace and Space, Twin Towers, Grit and
+  Grind, Run and Gun, Bully Ball, Three-Point Barrage, Iso Heavy, or Balanced), and a
+  bounded rock-paper-scissors matrix grants the favored team a small effective-rating
+  edge (sized for a roughly 10 to 20 percent win-probability swing). The pregame
+  scout reads the matchup off the same derivation the sim uses, so a counter loss is
+  legible before tip-off, a strategy miss rather than bad luck.
+
 ## Tuning
 
 All knobs live in clearly labeled tunable blocks at the top of
-`src/game/simulation.ts` (pacing, form, IQ pull, fatigue, rotation, clutch) and
-`src/game/sim-resolution.ts` (make-probability slope, defense weight, shot
-profiles, contest rates), plus injury constants in `run-machine.ts`. Score
-realism is validated by the engine tests in `src/game/__tests__/engine.test.ts`.
+`src/game/simulation.ts` (pacing, form, IQ pull, fatigue, rotation, clutch, plus
+the matchup weight, spacing, and individual-rating weights for the personality
+layers) and `src/game/sim-resolution.ts` (make-probability slope, defense weight,
+shot profiles, contest rates, mismatch cap), the counter matrix and its strength
+in `src/game/team-archetype.ts`, and injury constants in `run-machine.ts`. Score
+realism is validated by the engine tests in `src/game/__tests__/engine.test.ts`,
+the personality and matchup behavior by `playstyle.test.ts` and
+`team-archetype.test.ts`, and the difficulty bands by the Monte-Carlo harness in
+`balance-sim.test.ts`.
 
 ## Research basis
 

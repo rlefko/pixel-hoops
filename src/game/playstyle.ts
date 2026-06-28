@@ -91,7 +91,7 @@ function clampMult(value: number): number {
   return Math.max(SHOT_MULT_MIN, Math.min(SHOT_MULT_MAX, value));
 }
 
-/** Normalize a 6-20 rating to ~0..1 for scoring (same q() the sim uses). */
+/** Normalize a 6-20 rating to 0..1 for scoring (the sim's q(), clamped). */
 function n(rating: number): number {
   return Math.max(0, Math.min(1, (rating - 6) / 14));
 }
@@ -215,11 +215,6 @@ export function derivePlaystyle(stats: PlayerStats, position: Position): Playsty
   return { id: bestId, label: def.label, tendency: def.tendency };
 }
 
-/** The display label for a playstyle id. */
-export function playstyleLabel(id: PlaystyleId): string {
-  return PLAYSTYLE_TABLE[id].label;
-}
-
 /**
  * The runtime shot diet a player actually plays with: their baked/runtime profile
  * if one is attached (real players, mapped from 2K data), else the profile derived
@@ -260,12 +255,4 @@ export function blendTendency(
     const mult = action === 'midrange' ? t.midrange : (t[action] as number | undefined);
     return [action, weight * clampMult(mult ?? 1)] as [OffActionId, number];
   });
-}
-
-/** Whether a profile leaves the action weights untouched (the byte-identical fast
- * path: an all-neutral offense resolves exactly like the legacy sim). */
-export function isNeutralShotDiet(t: TendencyProfile): boolean {
-  return (
-    t.post === 1 && t.drive === 1 && t.layup === 1 && t.dunk === 1 && t.midrange === 1 && t.three === 1
-  );
 }
