@@ -28,12 +28,15 @@ export type SimActionId =
   | 'drive'
   | 'dunk'
   | 'layup'
+  | 'post'
   | 'steal'
   | 'block'
   | 'rebound';
 
-/** The five offensive actions a possession can choose (a shot is always taken). */
-export type OffActionId = 'three' | 'midrange' | 'drive' | 'layup' | 'dunk';
+/** The six offensive actions a possession can choose (a shot is always taken).
+ * `post` is the back-to-the-basket interior attempt that lets post scorers and
+ * bully-ball read as a distinct identity from rim-running and jump shooting. */
+export type OffActionId = 'three' | 'midrange' | 'drive' | 'layup' | 'dunk' | 'post';
 
 /** home = the player's team, away = the opponent. */
 export type SimTeamSide = 'home' | 'away';

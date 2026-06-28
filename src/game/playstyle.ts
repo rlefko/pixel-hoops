@@ -1,5 +1,5 @@
 import type { PlayerStats } from '@/types/player';
-import type { Position } from '@/types/roster';
+import type { Position, RosterPlayer } from '@/types/roster';
 import type { OffActionId } from '@/types/sim';
 
 /**
@@ -218,6 +218,16 @@ export function derivePlaystyle(stats: PlayerStats, position: Position): Playsty
 /** The display label for a playstyle id. */
 export function playstyleLabel(id: PlaystyleId): string {
   return PLAYSTYLE_TABLE[id].label;
+}
+
+/**
+ * The runtime shot diet a player actually plays with: their baked/runtime profile
+ * if one is attached (real players, mapped from 2K data), else the profile derived
+ * from their ratings. The one call site the sim and scout share, so they never
+ * diverge. Pure.
+ */
+export function tendencyFor(rp: RosterPlayer): TendencyProfile {
+  return rp.tendency ?? derivePlaystyle(rp.player.stats, rp.position).tendency;
 }
 
 /** Convert a baked (integer-percent) tendency into a runtime profile: shot lanes

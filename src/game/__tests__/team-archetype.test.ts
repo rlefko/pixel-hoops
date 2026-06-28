@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { createRNG } from '@/game/rng';
 import { buildTeam } from '@/game/lineup';
 import { simulateGame } from '@/game/simulation';
-import { ovr } from '@/game/ratings';
 import {
   counterEdge,
   deriveArchetype,
@@ -94,11 +93,6 @@ function winRate(a: Team, b: Team, games = 150): number {
   return aWins / (games * 2);
 }
 
-function teamOvr(t: Team): number {
-  const five = t.lineup.players;
-  return Math.round(five.reduce((s, rp) => s + ovr(rp.player.stats, rp.position), 0) / five.length);
-}
-
 describe('team archetype counter matrix', () => {
   it('keeps every edge bounded to +/- 0.06', () => {
     for (const a of ALL) for (const b of ALL) {
@@ -162,18 +156,23 @@ describe('team archetype counter efficacy (sim)', () => {
     expect(rate).toBeLessThan(0.72); // not a hard counter
   });
 
-  it('DIAG prints style matchup and talent win rates', () => {
-    const ps = paceSpace();
-    const tt = twinTowers();
-    console.log(
-      [
-        `OVR  PS=${teamOvr(ps)}  TT=${teamOvr(tt)}  BAL=${teamOvr(balanced('a'))}`,
-        `PS vs TT (PS counters TT): ${(winRate(ps, tt) * 100).toFixed(1)}%`,
-        `BAL vs BAL mirror:         ${(winRate(balanced('a'), balanced('b')) * 100).toFixed(1)}%`,
-        `talent: TT(+4) vs PS:      ${(winRate(twinTowers(4), ps) * 100).toFixed(1)}%`,
-        `talent: PS(+4) vs TT:      ${(winRate(paceSpace(4), tt) * 100).toFixed(1)}%`,
-      ].join('\n')
-    );
-    expect(true).toBe(true);
+  it('keeps styles competitive (no single dominant build)', () => {
+    // Pace-and-space vs twin-towers is a real matchup, not a blowout either way:
+    // neither style is an auto-win, so build variety holds.
+    const rate = winRate(paceSpace(), twinTowers());
+    expect(rate).toBeGreaterThan(0.2);
+    expect(rate).toBeLessThan(0.8);
+  });
+
+  it('mirror matchups stay a coin flip (no archetype self-edge)', () => {
+    const rate = winRate(balanced('a'), balanced('b'));
+    expect(rate).toBeGreaterThan(0.42);
+    expect(rate).toBeLessThan(0.58);
+  });
+
+  it('lets raw talent win through an unfavorable style matchup', () => {
+    // A +4 OVR twin-towers five beats a pace-and-space five clearly, even though
+    // pace-and-space is the style that counters it: OVR still decides a real gap.
+    expect(winRate(twinTowers(4), paceSpace())).toBeGreaterThan(0.75);
   });
 });

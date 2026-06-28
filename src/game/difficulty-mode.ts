@@ -69,28 +69,28 @@ export function difficultyMods(difficulty: Difficulty): DifficultyMods {
   switch (difficulty) {
     case 'easy':
       return {
-        draftPoints: 8, rampStart: -3.0, rampEnd: 0.5, secondChances: 2,
+        draftPoints: 8, rampStart: -4.0, rampEnd: -0.4, secondChances: 2,
         elitesFromMap0: false, boostOfferCount: 3, bossExtraLegend: false,
         injuryMul: 1, maxGamesOut: 2, coinMul: 1.0, eliteWeightBonus: 0,
         preBossRest: true,
       };
     case 'medium':
       return {
-        draftPoints: 5, rampStart: -2.5, rampEnd: 1.5, secondChances: 1,
+        draftPoints: 5, rampStart: -4.0, rampEnd: 0.0, secondChances: 1,
         elitesFromMap0: true, boostOfferCount: 3, bossExtraLegend: false,
         injuryMul: 1, maxGamesOut: 2, coinMul: 1.1, eliteWeightBonus: 0,
         preBossRest: true,
       };
     case 'hard':
       return {
-        draftPoints: 2, rampStart: -2.0, rampEnd: 3.0, secondChances: 0,
+        draftPoints: 2, rampStart: -3.5, rampEnd: 1.5, secondChances: 0,
         elitesFromMap0: true, boostOfferCount: 2, bossExtraLegend: true,
         injuryMul: 1.5, maxGamesOut: 3, coinMul: 1.25, eliteWeightBonus: 2,
         preBossRest: true,
       };
     case 'insane':
       return {
-        draftPoints: 0, rampStart: -1.5, rampEnd: 4.5, secondChances: 0,
+        draftPoints: 0, rampStart: -3.0, rampEnd: 4.0, secondChances: 0,
         elitesFromMap0: true, boostOfferCount: 2, bossExtraLegend: true,
         injuryMul: 1.75, maxGamesOut: 3, coinMul: 1.5, eliteWeightBonus: 3,
         preBossRest: false,
