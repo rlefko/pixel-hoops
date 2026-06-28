@@ -1,5 +1,6 @@
 import type { Archetype, Player, PlayerStats } from './player';
 import type { PlayerClass } from '@/game/ratings';
+import type { TendencyProfile } from '@/game/playstyle';
 
 /**
  * Floor positions for the 5-on-5 model. PG/SG are guards, SF is the wing,
@@ -87,6 +88,15 @@ export interface RosterPlayer {
    * merge, like {@link item}).
    */
   trainingDelta?: Partial<PlayerStats>;
+  /**
+   * The player's runtime shot diet / role profile (the L1 "tendency vs ability"
+   * lever): biases which action they take when they are the scorer. Real players
+   * carry one mapped from baked 2K data; everyone else falls back to a profile
+   * derived from their ratings. Absent = derive on demand (see
+   * src/game/playstyle.ts `tendencyFor`). Intrinsic and behavioral: it never
+   * feeds OVR, the draft economy, or the class ladder.
+   */
+  tendency?: TendencyProfile;
 }
 
 /** The full owned squad: five starters plus bench depth. */
