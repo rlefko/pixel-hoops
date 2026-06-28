@@ -13,6 +13,7 @@ import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
 import { getSpecialty } from '@/game/specialty';
+import { derivePlaystyle, tendencyFor } from '@/game/playstyle';
 import { getGachaAbility } from '@/game/abilities-gacha';
 import { RARITY_COLOR } from './rarity-ui';
 import { StatNumber } from './StatNumber';
@@ -124,6 +125,14 @@ export function PlayerCard({
   const itemDef = rp.item ? ITEM_BY_ID[rp.item.defId] : undefined;
   const abilityDef = getAbility(rp.ability);
   const gachaDef = getGachaAbility(rp.equippedAbility?.id);
+  // The player's scoring identity for the expanded breakdown: a position-aware
+  // playstyle label plus a paint/mid/three shot-diet read (the L1 personality).
+  const playstyle = derivePlaystyle(stats, rp.position);
+  const tend = tendencyFor(rp);
+  const dietPaint = tend.post + tend.drive + tend.layup + tend.dunk;
+  const dietSum = dietPaint + tend.midrange + tend.three || 1;
+  const dietPct = (x: number): number => Math.round((x / dietSum) * 100);
+  const onBallTag = tend.onBall >= 0.6 ? ' · on-ball' : tend.onBall <= 0.35 ? ' · off-ball' : '';
   // A slow gold breathe behind a legendary's name, so a real great reads as a
   // jackpot wherever the card appears (recruit, lineup, pregame).
   const { glowStyle } = usePulse();
@@ -217,6 +226,13 @@ export function PlayerCard({
 
       {expanded ? (
         <View style={styles.panel}>
+          <View style={styles.metaRow}>
+            <Text style={[styles.metaLabel, { color: palette.steelBlue }]}>STYLE</Text>
+            <Text style={styles.metaText}>
+              {playstyle.label} · {dietPct(dietPaint)}% paint / {dietPct(tend.midrange)}% mid /{' '}
+              {dietPct(tend.three)}% three{onBallTag}
+            </Text>
+          </View>
           {abilityDef ? (
             <View style={styles.metaRow}>
               <Text style={[styles.metaLabel, { color: palette.gold }]}>SIGNATURE</Text>

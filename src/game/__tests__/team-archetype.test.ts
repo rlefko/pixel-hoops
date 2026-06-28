@@ -4,6 +4,7 @@ import { buildTeam } from '@/game/lineup';
 import { simulateGame } from '@/game/simulation';
 import {
   counterEdge,
+  counterVerdict,
   deriveArchetype,
   type TeamArchetype,
 } from '@/game/team-archetype';
@@ -122,6 +123,19 @@ describe('team archetype counter matrix', () => {
     expect(deriveArchetype(paceSpace())).toBe('pace-and-space');
     expect(deriveArchetype(twinTowers())).toBe('twin-towers');
     expect(deriveArchetype(balanced('x'))).toBe('balanced');
+  });
+
+  it('telegraphs the matchup verdict (even / slight / strong, signed)', () => {
+    // Even vs balanced or a mirror; a real counter reads strong and favorable;
+    // the reverse reads as an unfavorable mismatch.
+    expect(counterVerdict('pace-and-space', 'balanced').tier).toBe('even');
+    expect(counterVerdict('pace-and-space', 'pace-and-space').tier).toBe('even');
+    const good = counterVerdict('pace-and-space', 'twin-towers');
+    expect(good.favorable).toBe(true);
+    expect(good.tier).toBe('strong');
+    const bad = counterVerdict('twin-towers', 'pace-and-space');
+    expect(bad.favorable).toBe(false);
+    expect(bad.tier).toBe('strong');
   });
 });
 

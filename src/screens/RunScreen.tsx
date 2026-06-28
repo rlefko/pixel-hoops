@@ -12,7 +12,7 @@ import {
 } from '@/game/run-machine';
 import { classAboveLadder } from '@/game/difficulty-mode';
 import { LineupBoard } from '@/components/game/LineupBoard';
-import { TeamIdentityCard } from '@/components/game/TeamIdentityCard';
+import { TeamIdentityCard, MatchupVerdict } from '@/components/game/TeamIdentityCard';
 import { deriveTeamIdentity } from '@/game/team-identity';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
 import { RunMapView } from '@/components/run/RunMapView';
@@ -273,6 +273,7 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
       </View>
       <TeamIdentityCard identity={deriveTeamIdentity(away)} accentHex={away.colorHex} />
       <LineupBoard team={away} compact />
+      <MatchupVerdict home={home} away={away} />
       <Text style={styles.section}>YOUR FIVE</Text>
       <TeamIdentityCard identity={deriveTeamIdentity(home)} accentHex={home.colorHex} />
       <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} compact />

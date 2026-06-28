@@ -2,6 +2,8 @@ import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { TeamIdentity } from '@/game/team-identity';
+import { archetypeLabel, counterVerdict, deriveArchetype } from '@/game/team-archetype';
+import type { Team } from '@/types/team';
 
 /**
  * The scouting "intent" card: a team's stylistic identity at a glance. Character
@@ -36,6 +38,9 @@ export function TeamIdentityCard({ identity, accentHex }: TeamIdentityCardProps)
   const { tags, blurb, strengths, weaknesses, tendencies } = identity;
   return (
     <View style={[styles.card, { borderLeftColor: accentHex }]}>
+      <Text style={styles.archetype} numberOfLines={1}>
+        {archetypeLabel(tendencies.archetype).toUpperCase()}
+      </Text>
       <View style={styles.tagRow}>
         {tags.map((tag) => (
           <Text key={tag} style={styles.tag}>
@@ -71,7 +76,44 @@ export function TeamIdentityCard({ identity, accentHex }: TeamIdentityCardProps)
   );
 }
 
+/**
+ * The telegraphed matchup verdict between your five and the opponent's, read off
+ * the two team archetypes. Surfaces a counter as a STRONG/SLIGHT edge or mismatch
+ * before tip-off (or EVEN), so a counter loss reads as a strategy miss, not RNG.
+ */
+export function MatchupVerdict({ home, away }: { home: Team; away: Team }) {
+  const mine = deriveArchetype(home);
+  const theirs = deriveArchetype(away);
+  const verdict = counterVerdict(mine, theirs);
+  if (verdict.tier === 'even') {
+    return (
+      <Text style={[styles.matchup, { color: palette.inkDim }]} numberOfLines={1}>
+        MATCHUP: EVEN — {archetypeLabel(mine).toUpperCase()} vs {archetypeLabel(theirs).toUpperCase()}
+      </Text>
+    );
+  }
+  const word = verdict.tier === 'strong' ? 'STRONG' : 'SLIGHT';
+  const text = verdict.favorable
+    ? `▲ ${word} EDGE: your ${archetypeLabel(mine)} counters their ${archetypeLabel(theirs)}`
+    : `▼ ${word} MISMATCH: their ${archetypeLabel(theirs)} counters your ${archetypeLabel(mine)}`;
+  return (
+    <Text
+      style={[styles.matchup, { color: verdict.favorable ? palette.makeGreen : palette.missRed }]}
+      numberOfLines={2}
+    >
+      {text}
+    </Text>
+  );
+}
+
 const styles = StyleSheet.create({
+  matchup: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    alignSelf: 'stretch',
+    textAlign: 'center',
+    marginBottom: space(1),
+  },
   card: {
     alignSelf: 'stretch',
     paddingVertical: space(1.5),
@@ -79,6 +121,12 @@ const styles = StyleSheet.create({
     paddingRight: space(1),
     marginBottom: space(1),
     borderLeftWidth: BORDER.chunkier,
+  },
+  archetype: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.ink,
+    marginBottom: space(0.5),
   },
   tagRow: {
     flexDirection: 'row',

@@ -130,6 +130,24 @@ export function counterEdge(attacker: TeamArchetype, defender: TeamArchetype): n
   return COUNTER_EDGE[attacker]?.[defender] ?? 0;
 }
 
+export type CounterTier = 'even' | 'slight' | 'strong';
+
+/**
+ * The telegraphed scouting read of a matchup from `self`'s point of view: the
+ * edge, a three-bucket strength, and whether it favors you. Surfaced pre-game so a
+ * counter loss is legible as a strategy miss before tip-off (the Slay-the-Spire
+ * "intent"), never a surprise.
+ */
+export function counterVerdict(
+  self: TeamArchetype,
+  opp: TeamArchetype
+): { edge: number; tier: CounterTier; favorable: boolean } {
+  const edge = counterEdge(self, opp);
+  const mag = Math.abs(edge);
+  const tier: CounterTier = mag < 0.02 ? 'even' : mag < 0.045 ? 'slight' : 'strong';
+  return { edge, tier, favorable: edge > 0 };
+}
+
 /** Rating points one q-unit of edge is worth (the 6-20 band width). */
 const Q_TO_RATING = 14;
 /** How strongly the counter edge expresses: a knob tuned against the balance
