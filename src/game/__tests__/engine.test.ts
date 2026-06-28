@@ -205,6 +205,8 @@ describe('simulateGame integrity', () => {
       off: 6,
       def: 6,
       ovr: 6,
+      spacing: 0,
+      creation: 0.3,
     });
     const share = (iq: number) => {
       const w = actionWeights(stats(iq), 'balanced', 'mixed');

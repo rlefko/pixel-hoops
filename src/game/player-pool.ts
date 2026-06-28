@@ -3,6 +3,7 @@ import type { NbaTeam, RealPlayer } from '@/types/nba';
 import type { Player } from '@/types/player';
 import { POSITION_ARCHETYPE, type RosterPlayer } from '@/types/roster';
 import { classForOvr, ovr, type PlayerClass } from './ratings';
+import { tendencyFromBaked } from './playstyle';
 import type { RNG } from './rng';
 
 /**
@@ -36,6 +37,9 @@ export function realPlayerToRosterPlayer(rp: RealPlayer): RosterPlayer {
     // Legends are S+; pool players carry a baked class; fall back to deriving it.
     originalClass:
       rp.originalClass ?? (rp.legendary ? 'S+' : classForOvr(ovr(rp.stats, rp.position))),
+    // Convert the baked shot diet to a runtime profile; absent for older bakes,
+    // in which case the sim derives one from the stats (see playstyle.tendencyFor).
+    tendency: rp.tendency ? tendencyFromBaked(rp.tendency) : undefined,
   };
 }
 

@@ -20,6 +20,7 @@ import {
   missFlavor,
   expectedValue,
   fatigueMultiplier,
+  mismatchDelta,
   ACTION_OFF,
   ACTION_DEF,
   SHOT_PROFILE,
@@ -27,6 +28,8 @@ import {
 import { computeUsageWeights, computeTeamStats } from './lineup';
 import { computeSynergy } from './synergy';
 import type { StatDelta } from './effects';
+import { deriveArchetype, counterDelta } from './team-archetype';
+import { tendencyFor, blendTendency, type TendencyProfile } from './playstyle';
 import { ovrRaw } from './ratings';
 import { pickRiskPosture, type RiskPosture } from './ai';
 import { createRNG, type RNG } from './rng';
@@ -49,6 +52,32 @@ const MIN_POSSESSIONS = 8;
 const MAX_POSSESSIONS = 18;
 /** A lockdown game plan adds this to the opponent's defensive counter stat. */
 const LOCKDOWN_BONUS = 3;
+/**
+ * How much the MATCHED defender (the player at the scorer's court slot) decides
+ * the contest vs the team defensive aggregate. 0 = pure team aggregate (legacy),
+ * 1 = pure one-on-one. A blend keeps team help in the picture while letting a
+ * lockdown stopper or an exploited weak link actually matter (the L2 lever).
+ */
+const MATCHUP_WEIGHT = 0.5;
+/**
+ * Lineup spacing/fit (the L3 lever). `spacingTax` lifts (or taxes) the offense by
+ * how far the five's shooter share sits from average (0.5): a spaced floor frees
+ * up looks, a clogged paint lets defenders sag. Rim attacks feel it most.
+ */
+const SPACING_K = 4;
+const RIM_SPACING_W = 1.0;
+const THREE_SPACING_W = 0.4;
+/** Lob/cut finishing lift per unit of playmaking depth above average: a rim
+ * runner needs a creator to set him up. */
+const LOB_CREATION_K = 2;
+/**
+ * How much the SCORER'S OWN offensive rating decides the shot vs the team
+ * aggregate (the "ability" half of the L1 tendency-vs-ability split). 0 = team
+ * aggregate only (legacy), 1 = pure individual. A blend keeps teammates'
+ * spacing/help in the picture while making a great (or poor) individual scorer
+ * read true, so two same-OVR fives play differently by who actually shoots.
+ */
+const INDIVIDUAL_WEIGHT = 0.4;
 /**
  * Per-game shooting "form": each team draws a hot/cold offset (in rating points)
  * once per game that lifts or drops their offense all night. Independent
@@ -149,6 +178,7 @@ const OFFENSIVE_ACTIONS: readonly OffActionId[] = [
   'drive',
   'layup',
   'dunk',
+  'post',
 ];
 
 // --- Future crunch-time decision hook (designed-in, dormant for now) ---
@@ -194,6 +224,7 @@ export function actionWeights(
     drive: 3,
     layup: 2,
     dunk: 2,
+    post: 2,
   };
 
   // IQ reshape: pull toward high-EV looks. Midrange takes an EV haircut so a
@@ -220,11 +251,13 @@ export function actionWeights(
       w.midrange += 2;
       w.dunk -= 1;
       w.layup -= 1;
+      w.post -= 2;
       break;
     case 'inside':
       w.dunk += 3;
       w.layup += 3;
       w.drive += 2;
+      w.post += 3;
       w.three -= 2;
       break;
     case 'lockdown':
@@ -284,6 +317,8 @@ function textFor(scorer: string, action: SimActionId, result: QuarterResult): st
       return `${scorer} lays it in`;
     case 'dunk':
       return `${scorer} throws it down`;
+    case 'post':
+      return `${scorer} backs it down and scores`;
     default:
       return `${scorer} scores`;
   }
@@ -299,11 +334,22 @@ function clockLabel(quarter: number, possIndex: number, possInQuarter: number): 
   return `Q${quarter} ${mm}:${ss.toString().padStart(2, '0')}`;
 }
 
-function possessionsFor(team: Team): number {
-  const scaled = Math.round(
-    BASE_POSSESSIONS_PER_QUARTER * (team.teamStats.pace / PACE_BASELINE)
-  );
+/** Possessions per quarter for a given pace value. */
+function possessionsForPace(pace: number): number {
+  const scaled = Math.round(BASE_POSSESSIONS_PER_QUARTER * (pace / PACE_BASELINE));
   return Math.max(MIN_POSSESSIONS, Math.min(MAX_POSSESSIONS, scaled));
+}
+
+/**
+ * The shared game tempo: both teams play the SAME number of possessions per
+ * quarter, set by the average of the two teams' wanted paces. Real basketball is
+ * one tempo for both sides, so a slow, defensive team drags a fast team down (and
+ * a fast team speeds a slow one up): pace becomes a strategic tug-of-war, not a
+ * free volume bonus for whoever wants to run. This is what lets a grind-it-out
+ * five neutralize a track-meet five instead of simply getting out-shot.
+ */
+function gameTempo(home: Team, away: Team): number {
+  return possessionsForPace((home.teamStats.pace + away.teamStats.pace) / 2);
 }
 
 // --- Per-player game state (energy, rotation, box) ---
@@ -329,6 +375,16 @@ interface SideState {
   aggregate: TeamStats;
   /** This team's hot/cold shooting night (rating-point offset to offense). */
   form: number;
+  /**
+   * Frozen team-archetype counter edge as a flat offensive {@link StatDelta},
+   * computed once at tip-off from this team's archetype vs the opponent's and
+   * re-applied to the aggregate after every substitution. {} when the matchup is
+   * even (a mirror, or either side `balanced`), so it is a true no-op then.
+   */
+  counterDelta: StatDelta;
+  /** The current five's shot-diet profiles, parallel to {@link onCourt} by slot
+   * index (so the scorer's tendency biases their action). Recomputed on each sub. */
+  tendencies: TendencyProfile[];
 }
 
 function newBoxLine(rp: RosterPlayer, slot: Position, starter: boolean): BoxLine {
@@ -374,12 +430,17 @@ function initSide(team: Team, form: number): SideState {
     all: [...starters, ...bench],
     onCourt: starters.slice(),
     weights: team.lineup.usageWeights.slice(),
-    aggregate: team.teamStats,
+    // Copy so applying the counter edge never mutates the shared Team.teamStats
+    // (Teams are reused across games, e.g. determinism replays).
+    aggregate: { ...team.teamStats },
     form,
+    counterDelta: {},
+    tendencies: starters.map((s) => tendencyFor(s.rp)),
   };
 }
 
-/** Recompute usage + aggregate (and synergy) for the current five. */
+/** Recompute usage + aggregate (and synergy) for the current five, then re-apply
+ * the frozen archetype counter edge so it survives substitutions. */
 function recomputeAggregate(side: SideState): void {
   const players = side.onCourt.map((p) => p.rp);
   const synergy = computeSynergy(players);
@@ -391,6 +452,8 @@ function recomputeAggregate(side: SideState): void {
     side.team.tactic,
     side.team.modifier
   );
+  addDeltaToStats(side.aggregate, side.counterDelta);
+  side.tendencies = side.onCourt.map((p) => tendencyFor(p.rp));
 }
 
 /** Interior-D aggregate at which a post threat is considered "doubled". */
@@ -575,12 +638,16 @@ function fiveOf(side: SideState): OnCourtFive {
   return five;
 }
 
-/** Weighted pick over the current five, returning the player and their slot. */
-function pickScorer(side: SideState, rng: RNG): { pgs: PlayerGameState; slot: Position } {
+/** Weighted pick over the current five, returning the player, their slot label,
+ * and the numeric court-slot index (used to find the matched defender). */
+function pickScorer(
+  side: SideState,
+  rng: RNG
+): { pgs: PlayerGameState; slot: Position; slotIndex: number } {
   const index = rng.weightedPick(
     side.onCourt.map((_, i): [number, number] => [i, side.weights[i]])
   );
-  return { pgs: side.onCourt[index], slot: POSITIONS[index] };
+  return { pgs: side.onCourt[index], slot: POSITIONS[index], slotIndex: index };
 }
 
 // --- The engine ---
@@ -618,6 +685,15 @@ export function simulateGame(config: SimConfig): SimResult {
   const awayState = initSide(config.away, awayForm);
   const stateFor = (side: SimTeamSide): SideState =>
     side === 'home' ? homeState : awayState;
+
+  // Team-archetype matchup: a bounded rock-paper-scissors edge, frozen at tip-off
+  // (so it never flickers on garbage-time subs) and telegraphed by the scout
+  // report. Folded into each side's effective line as a flat offensive delta; an
+  // even matchup (a mirror, or either side `balanced`) yields {} and is a no-op.
+  homeState.counterDelta = counterDelta(deriveArchetype(config.home), deriveArchetype(config.away));
+  awayState.counterDelta = counterDelta(deriveArchetype(config.away), deriveArchetype(config.home));
+  addDeltaToStats(homeState.aggregate, homeState.counterDelta);
+  addDeltaToStats(awayState.aggregate, awayState.counterDelta);
 
   const snapshot = (): OnCourtSnapshot => ({
     home: fiveOf(homeState),
@@ -659,18 +735,39 @@ export function simulateGame(config: SimConfig): SimResult {
         ? homeFocusOverride
         : offense.team.tactic.focus;
 
-    const action = rng.weightedPick(actionWeights(offense.aggregate, focus, posture));
-
-    // Scorer by court slot (index), chosen before the make roll so their own
-    // fatigue (and clutch, later) feed the probability.
-    const { pgs: scorer, slot } = pickScorer(offense, rng);
+    // L1 tendency-vs-ability: pick the SCORER first, then bias the action by THAT
+    // player's shot diet, so a sharpshooter actually shoots threes and a post
+    // scorer backs you down. Two same-OVR fives now play differently by who shoots.
+    const { pgs: scorer, slot, slotIndex } = pickScorer(offense, rng);
+    const baseWeights = actionWeights(offense.aggregate, focus, posture);
+    const action = rng.weightedPick(blendTendency(baseWeights, offense.tendencies[slotIndex]));
 
     // Conditional ability/boost hooks (Q4 surges, post rule-benders, depth) bend
     // the effective lines for this possession only. A no-hook game is unchanged.
     const { off: offStats, def: defStats } = applyHooks(offense, defense, quarter);
 
-    const offRating = ACTION_OFF[action](offStats) + offense.form;
-    let defRating = ACTION_DEF[action](defStats);
+    // L1 ability half: blend the scorer's OWN offensive rating with the team
+    // aggregate, so a great shooter taking the shot reads better than the unit and
+    // a poor one reads worse (the aggregate still carries teammate spacing/help).
+    const aggOff = ACTION_OFF[action](offStats);
+    const indOff = ACTION_OFF[action](scorer.rp.player.stats);
+    let offRating = aggOff * (1 - INDIVIDUAL_WEIGHT) + indOff * INDIVIDUAL_WEIGHT + offense.form;
+    // L3 fit/spacing: a spaced floor frees up looks, a clogged one lets defenders
+    // sag; rim attacks feel it most. Lobs/cuts need a creator to spring them.
+    const spacingTax = SPACING_K * (offStats.spacing - 0.5);
+    offRating += spacingTax * (action === 'three' || action === 'midrange' ? THREE_SPACING_W : RIM_SPACING_W);
+    if (action === 'layup' || action === 'dunk') {
+      offRating += LOB_CREATION_K * (offStats.creation - 0.5);
+    }
+
+    // L2 one-on-one matchup: blend the MATCHED defender (the player at the
+    // scorer's court slot) with the team aggregate, plus a bounded physical
+    // mismatch (a quick attacker blowing by a slow defender). A great individual
+    // stopper, or an exploited weak link, now actually swings the possession.
+    const defender = defense.onCourt[slotIndex].rp.player.stats;
+    let defRating =
+      ACTION_DEF[action](defStats) * (1 - MATCHUP_WEIGHT) + ACTION_DEF[action](defender) * MATCHUP_WEIGHT;
+    defRating += mismatchDelta(action, scorer.rp.player.stats, defender);
     if (defense.team.tactic.focus === 'lockdown') defRating += LOCKDOWN_BONUS;
 
     // Crunch: the scorer's own clutch gives a small nudge, plus symmetric noise
@@ -780,6 +877,10 @@ export function simulateGame(config: SimConfig): SimResult {
     });
   }
 
+  // One shared tempo for the whole game (both sides play this many possessions
+  // per quarter), set once at tip-off from the two teams' averaged pace.
+  const gamePoss = gameTempo(config.home, config.away);
+
   for (let quarter = 1; quarter <= TOTAL_QUARTERS; quarter++) {
     // Dormant crunch-time hook: only fires if a caller supplies one.
     if (quarter === TOTAL_QUARTERS && config.decisionHook) {
@@ -791,22 +892,22 @@ export function simulateGame(config: SimConfig): SimResult {
       if (decision?.focusOverride) homeFocusOverride = decision.focusOverride;
     }
 
-    const homePoss = possessionsFor(config.home);
-    const awayPoss = possessionsFor(config.away);
-    const maxPoss = Math.max(homePoss, awayPoss);
+    // Shared tempo: both teams play the same possession count (the averaged
+    // pace), so controlling the pace is a real strategic lever, not free volume.
+    const poss = gamePoss;
 
     // Alternate which side leads each quarter. If one side always shot first it would
     // always get the last possession of the quarter (a real ~7% edge); since the player
     // is always the sim's "home", that quietly handicapped every game. Splitting the
     // lead by quarter makes two evenly matched teams a true coin flip.
     const homeLeads = quarter % 2 === 1;
-    for (let i = 0; i < maxPoss; i++) {
+    for (let i = 0; i < poss; i++) {
       if (homeLeads) {
-        if (i < homePoss) runPossession('home', quarter, i, homePoss);
-        if (i < awayPoss) runPossession('away', quarter, i, awayPoss);
+        runPossession('home', quarter, i, poss);
+        runPossession('away', quarter, i, poss);
       } else {
-        if (i < awayPoss) runPossession('away', quarter, i, awayPoss);
-        if (i < homePoss) runPossession('home', quarter, i, homePoss);
+        runPossession('away', quarter, i, poss);
+        runPossession('home', quarter, i, poss);
       }
     }
   }

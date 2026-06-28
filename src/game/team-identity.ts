@@ -3,6 +3,7 @@ import type { Position } from '@/types/roster';
 import type { Pace, Focus } from '@/types/tactics';
 import type { Team } from '@/types/team';
 import { ovr } from './ratings';
+import { deriveArchetype, type TeamArchetype } from './team-archetype';
 
 /**
  * Team identity: the scouting read. Turns a dressed five plus its auto-derived
@@ -32,6 +33,10 @@ export type ThreeLean = 'heavy' | 'balanced' | 'inside';
 export interface TeamTendencies {
   pace: Pace;
   focus: Focus;
+  /** The team's canonical strategic identity, the single node that drives the
+   * matchup counter (see src/game/team-archetype.ts). The sim and this scout read
+   * share one derivation, so what the player is shown is what the sim fields. */
+  archetype: TeamArchetype;
   /** Whether the offense leans on threes, the paint, or splits it. */
   threeLean: ThreeLean;
   /** Projected per-game steals/blocks/rebounds (heuristic, for the scout glance). */
@@ -177,6 +182,7 @@ export function deriveTeamIdentity(team: Team): TeamIdentity {
     tendencies: {
       pace,
       focus,
+      archetype: deriveArchetype(team),
       threeLean,
       projSteals: project(m.stealing, 5, 2, 2, 9),
       projBlocks: project(m.blocking, 5, 1, 1, 7),

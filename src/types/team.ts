@@ -44,6 +44,18 @@ export interface TeamStats extends PlayerStats {
   def: number;
   /** Overall composite of the on-court five. */
   ovr: number;
+  /**
+   * Floor spacing, 0 (paint clogged, no shooters) to 1 (five-out). The share of
+   * the five who are credible outside threats. Drives the fit/spacing layer:
+   * poor spacing taxes rim attacks (defenders sag), good spacing frees up
+   * everything (see src/game/simulation.ts).
+   */
+  spacing: number;
+  /**
+   * Playmaking depth, 0..1 (average playmaking normalized to the cap). Gates
+   * assist rate and lob/cut finishing: a rim runner needs a creator to feed him.
+   */
+  creation: number;
 }
 
 /** Everything the sim needs to play one side of a game. */

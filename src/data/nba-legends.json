@@ -24,6 +24,19 @@
       "stealing": 22,
       "strength": 17,
       "rebounding": 17
+    },
+    "tendency": {
+      "shot": {
+        "post": 20,
+        "drive": 14,
+        "layup": 17,
+        "dunk": 18,
+        "mid": 18,
+        "three": 13
+      },
+      "onBall": 75,
+      "drawFoul": 80,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -51,6 +64,19 @@
       "stealing": 19,
       "strength": 19,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 30,
+        "drive": 14,
+        "layup": 17,
+        "dunk": 12,
+        "mid": 16,
+        "three": 11
+      },
+      "onBall": 100,
+      "drawFoul": 100,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -78,6 +104,19 @@
       "stealing": 20,
       "strength": 16,
       "rebounding": 16
+    },
+    "tendency": {
+      "shot": {
+        "post": 32,
+        "drive": 10,
+        "layup": 14,
+        "dunk": 1,
+        "mid": 22,
+        "three": 21
+      },
+      "onBall": 65,
+      "drawFoul": 65,
+      "playstyle": "point-forward"
     }
   },
   {
@@ -105,6 +144,19 @@
       "stealing": 14,
       "strength": 20,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 35,
+        "drive": 8,
+        "layup": 17,
+        "dunk": 23,
+        "mid": 16,
+        "three": 1
+      },
+      "onBall": 7,
+      "drawFoul": 80,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -132,6 +184,19 @@
       "stealing": 17,
       "strength": 22,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 33,
+        "drive": 7,
+        "layup": 15,
+        "dunk": 19,
+        "mid": 16,
+        "three": 10
+      },
+      "onBall": 18,
+      "drawFoul": 100,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -159,6 +224,19 @@
       "stealing": 18,
       "strength": 23,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 33,
+        "drive": 9,
+        "layup": 15,
+        "dunk": 14,
+        "mid": 17,
+        "three": 12
+      },
+      "onBall": 30,
+      "drawFoul": 89,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -186,6 +264,19 @@
       "stealing": 19,
       "strength": 24,
       "rebounding": 24
+    },
+    "tendency": {
+      "shot": {
+        "post": 33,
+        "drive": 11,
+        "layup": 18,
+        "dunk": 33,
+        "mid": 4,
+        "three": 1
+      },
+      "onBall": 24,
+      "drawFoul": 100,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -213,6 +304,19 @@
       "stealing": 20,
       "strength": 17,
       "rebounding": 16
+    },
+    "tendency": {
+      "shot": {
+        "post": 18,
+        "drive": 16,
+        "layup": 19,
+        "dunk": 14,
+        "mid": 19,
+        "three": 15
+      },
+      "onBall": 80,
+      "drawFoul": 95,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -240,6 +344,19 @@
       "stealing": 23,
       "strength": 16,
       "rebounding": 15
+    },
+    "tendency": {
+      "shot": {
+        "post": 4,
+        "drive": 23,
+        "layup": 25,
+        "dunk": 7,
+        "mid": 21,
+        "three": 20
+      },
+      "onBall": 92,
+      "drawFoul": 100,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -267,6 +384,19 @@
       "stealing": 23,
       "strength": 17,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 16,
+        "drive": 14,
+        "layup": 18,
+        "dunk": 21,
+        "mid": 17,
+        "three": 14
+      },
+      "onBall": 79,
+      "drawFoul": 80,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -294,6 +424,19 @@
       "stealing": 14,
       "strength": 22,
       "rebounding": 17
+    },
+    "tendency": {
+      "shot": {
+        "post": 25,
+        "drive": 14,
+        "layup": 18,
+        "dunk": 19,
+        "mid": 13,
+        "three": 12
+      },
+      "onBall": 79,
+      "drawFoul": 73,
+      "playstyle": "point-forward"
     }
   },
   {
@@ -321,6 +464,19 @@
       "stealing": 14,
       "strength": 12,
       "rebounding": 12
+    },
+    "tendency": {
+      "shot": {
+        "post": 2,
+        "drive": 21,
+        "layup": 27,
+        "dunk": 1,
+        "mid": 21,
+        "three": 27
+      },
+      "onBall": 82,
+      "drawFoul": 69,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -348,6 +504,19 @@
       "stealing": 14,
       "strength": 15,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 23,
+        "drive": 13,
+        "layup": 18,
+        "dunk": 14,
+        "mid": 17,
+        "three": 15
+      },
+      "onBall": 74,
+      "drawFoul": 82,
+      "playstyle": "shot-creator"
     }
   },
   {
@@ -375,6 +544,19 @@
       "stealing": 19,
       "strength": 23,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 25,
+        "drive": 14,
+        "layup": 19,
+        "dunk": 22,
+        "mid": 9,
+        "three": 10
+      },
+      "onBall": 80,
+      "drawFoul": 100,
+      "playstyle": "point-forward"
     }
   },
   {
@@ -402,6 +584,19 @@
       "stealing": 15,
       "strength": 23,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 30,
+        "drive": 10,
+        "layup": 16,
+        "dunk": 14,
+        "mid": 17,
+        "three": 13
+      },
+      "onBall": 70,
+      "drawFoul": 100,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -429,6 +624,19 @@
       "stealing": 12,
       "strength": 23,
       "rebounding": 19
+    },
+    "tendency": {
+      "shot": {
+        "post": 31,
+        "drive": 9,
+        "layup": 15,
+        "dunk": 18,
+        "mid": 16,
+        "three": 12
+      },
+      "onBall": 39,
+      "drawFoul": 100,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -456,6 +664,19 @@
       "stealing": 15,
       "strength": 17,
       "rebounding": 16
+    },
+    "tendency": {
+      "shot": {
+        "post": 26,
+        "drive": 14,
+        "layup": 18,
+        "dunk": 10,
+        "mid": 17,
+        "three": 15
+      },
+      "onBall": 93,
+      "drawFoul": 100,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -483,6 +704,19 @@
       "stealing": 18,
       "strength": 17,
       "rebounding": 17
+    },
+    "tendency": {
+      "shot": {
+        "post": 26,
+        "drive": 14,
+        "layup": 18,
+        "dunk": 13,
+        "mid": 15,
+        "three": 14
+      },
+      "onBall": 71,
+      "drawFoul": 87,
+      "playstyle": "point-forward"
     }
   },
   {
@@ -510,6 +744,19 @@
       "stealing": 17,
       "strength": 22,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 27,
+        "drive": 11,
+        "layup": 16,
+        "dunk": 22,
+        "mid": 13,
+        "three": 11
+      },
+      "onBall": 50,
+      "drawFoul": 85,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -537,6 +784,19 @@
       "stealing": 15,
       "strength": 13,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 9,
+        "drive": 21,
+        "layup": 22,
+        "dunk": 19,
+        "mid": 14,
+        "three": 15
+      },
+      "onBall": 95,
+      "drawFoul": 91,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -564,6 +824,19 @@
       "stealing": 19,
       "strength": 15,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 16,
+        "drive": 17,
+        "layup": 22,
+        "dunk": 10,
+        "mid": 20,
+        "three": 16
+      },
+      "onBall": 88,
+      "drawFoul": 100,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -591,6 +864,19 @@
       "stealing": 18,
       "strength": 19,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 20,
+        "drive": 13,
+        "layup": 17,
+        "dunk": 24,
+        "mid": 16,
+        "three": 9
+      },
+      "onBall": 66,
+      "drawFoul": 98,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -618,6 +904,19 @@
       "stealing": 23,
       "strength": 17,
       "rebounding": 16
+    },
+    "tendency": {
+      "shot": {
+        "post": 16,
+        "drive": 22,
+        "layup": 24,
+        "dunk": 1,
+        "mid": 21,
+        "three": 15
+      },
+      "onBall": 100,
+      "drawFoul": 98,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -645,6 +944,19 @@
       "stealing": 15,
       "strength": 21,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 27,
+        "drive": 10,
+        "layup": 12,
+        "dunk": 20,
+        "mid": 16,
+        "three": 15
+      },
+      "onBall": 53,
+      "drawFoul": 73,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -672,6 +984,19 @@
       "stealing": 18,
       "strength": 10,
       "rebounding": 11
+    },
+    "tendency": {
+      "shot": {
+        "post": 1,
+        "drive": 18,
+        "layup": 28,
+        "dunk": 1,
+        "mid": 23,
+        "three": 29
+      },
+      "onBall": 85,
+      "drawFoul": 80,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -699,6 +1024,19 @@
       "stealing": 20,
       "strength": 16,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 1,
+        "drive": 25,
+        "layup": 29,
+        "dunk": 8,
+        "mid": 21,
+        "three": 16
+      },
+      "onBall": 100,
+      "drawFoul": 98,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -753,6 +1091,19 @@
       "stealing": 17,
       "strength": 15,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 12,
+        "drive": 16,
+        "layup": 25,
+        "dunk": 1,
+        "mid": 23,
+        "three": 23
+      },
+      "onBall": 75,
+      "drawFoul": 0,
+      "playstyle": "combo-guard"
     }
   },
   {
@@ -780,6 +1131,19 @@
       "stealing": 17,
       "strength": 22,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 29,
+        "drive": 10,
+        "layup": 14,
+        "dunk": 22,
+        "mid": 15,
+        "three": 9
+      },
+      "onBall": 60,
+      "drawFoul": 87,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -807,6 +1171,19 @@
       "stealing": 13,
       "strength": 22,
       "rebounding": 19
+    },
+    "tendency": {
+      "shot": {
+        "post": 28,
+        "drive": 12,
+        "layup": 16,
+        "dunk": 23,
+        "mid": 14,
+        "three": 8
+      },
+      "onBall": 59,
+      "drawFoul": 82,
+      "playstyle": "point-forward"
     }
   },
   {
@@ -834,6 +1211,19 @@
       "stealing": 15,
       "strength": 24,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 33,
+        "drive": 6,
+        "layup": 12,
+        "dunk": 21,
+        "mid": 18,
+        "three": 9
+      },
+      "onBall": 1,
+      "drawFoul": 95,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -861,6 +1251,19 @@
       "stealing": 18,
       "strength": 16,
       "rebounding": 16
+    },
+    "tendency": {
+      "shot": {
+        "post": 17,
+        "drive": 14,
+        "layup": 17,
+        "dunk": 20,
+        "mid": 17,
+        "three": 15
+      },
+      "onBall": 91,
+      "drawFoul": 62,
+      "playstyle": "point-forward"
     }
   },
   {
@@ -888,6 +1291,19 @@
       "stealing": 20,
       "strength": 18,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 18,
+        "drive": 14,
+        "layup": 19,
+        "dunk": 22,
+        "mid": 17,
+        "three": 11
+      },
+      "onBall": 70,
+      "drawFoul": 96,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -915,6 +1331,19 @@
       "stealing": 17,
       "strength": 21,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 29,
+        "drive": 11,
+        "layup": 13,
+        "dunk": 22,
+        "mid": 16,
+        "three": 9
+      },
+      "onBall": 58,
+      "drawFoul": 89,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -942,6 +1371,19 @@
       "stealing": 18,
       "strength": 16,
       "rebounding": 17
+    },
+    "tendency": {
+      "shot": {
+        "post": 12,
+        "drive": 15,
+        "layup": 18,
+        "dunk": 23,
+        "mid": 16,
+        "three": 16
+      },
+      "onBall": 73,
+      "drawFoul": 87,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -969,6 +1411,19 @@
       "stealing": 17,
       "strength": 24,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 29,
+        "drive": 10,
+        "layup": 15,
+        "dunk": 15,
+        "mid": 18,
+        "three": 13
+      },
+      "onBall": 59,
+      "drawFoul": 100,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -996,6 +1451,19 @@
       "stealing": 19,
       "strength": 19,
       "rebounding": 17
+    },
+    "tendency": {
+      "shot": {
+        "post": 17,
+        "drive": 18,
+        "layup": 20,
+        "dunk": 8,
+        "mid": 19,
+        "three": 18
+      },
+      "onBall": 85,
+      "drawFoul": 100,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1023,6 +1491,19 @@
       "stealing": 20,
       "strength": 15,
       "rebounding": 16
+    },
+    "tendency": {
+      "shot": {
+        "post": 9,
+        "drive": 15,
+        "layup": 23,
+        "dunk": 11,
+        "mid": 20,
+        "three": 23
+      },
+      "onBall": 73,
+      "drawFoul": 96,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1050,6 +1531,19 @@
       "stealing": 18,
       "strength": 21,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 27,
+        "drive": 12,
+        "layup": 15,
+        "dunk": 13,
+        "mid": 18,
+        "three": 15
+      },
+      "onBall": 85,
+      "drawFoul": 91,
+      "playstyle": "shot-creator"
     }
   },
   {
@@ -1077,6 +1571,19 @@
       "stealing": 19,
       "strength": 12,
       "rebounding": 13
+    },
+    "tendency": {
+      "shot": {
+        "post": 9,
+        "drive": 24,
+        "layup": 26,
+        "dunk": 1,
+        "mid": 23,
+        "three": 17
+      },
+      "onBall": 100,
+      "drawFoul": 100,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1104,6 +1611,19 @@
       "stealing": 22,
       "strength": 16,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 23,
+        "drive": 17,
+        "layup": 21,
+        "dunk": 1,
+        "mid": 20,
+        "three": 19
+      },
+      "onBall": 57,
+      "drawFoul": 100,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -1131,6 +1651,19 @@
       "stealing": 20,
       "strength": 19,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 26,
+        "drive": 14,
+        "layup": 18,
+        "dunk": 12,
+        "mid": 17,
+        "three": 13
+      },
+      "onBall": 75,
+      "drawFoul": 100,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -1158,6 +1691,19 @@
       "stealing": 20,
       "strength": 19,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 20,
+        "drive": 14,
+        "layup": 18,
+        "dunk": 16,
+        "mid": 17,
+        "three": 15
+      },
+      "onBall": 75,
+      "drawFoul": 100,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -1185,6 +1731,19 @@
       "stealing": 20,
       "strength": 14,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 4,
+        "drive": 23,
+        "layup": 26,
+        "dunk": 6,
+        "mid": 21,
+        "three": 21
+      },
+      "onBall": 88,
+      "drawFoul": 87,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1212,6 +1771,19 @@
       "stealing": 16,
       "strength": 23,
       "rebounding": 24
+    },
+    "tendency": {
+      "shot": {
+        "post": 36,
+        "drive": 8,
+        "layup": 14,
+        "dunk": 24,
+        "mid": 14,
+        "three": 4
+      },
+      "onBall": 14,
+      "drawFoul": 100,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -1239,6 +1811,19 @@
       "stealing": 22,
       "strength": 14,
       "rebounding": 17
+    },
+    "tendency": {
+      "shot": {
+        "post": 7,
+        "drive": 22,
+        "layup": 25,
+        "dunk": 1,
+        "mid": 22,
+        "three": 24
+      },
+      "onBall": 99,
+      "drawFoul": 87,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1266,6 +1851,19 @@
       "stealing": 17,
       "strength": 23,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 32,
+        "drive": 7,
+        "layup": 13,
+        "dunk": 19,
+        "mid": 17,
+        "three": 12
+      },
+      "onBall": 4,
+      "drawFoul": 100,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -1293,6 +1891,19 @@
       "stealing": 19,
       "strength": 21,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 29,
+        "drive": 10,
+        "layup": 13,
+        "dunk": 22,
+        "mid": 15,
+        "three": 11
+      },
+      "onBall": 56,
+      "drawFoul": 95,
+      "playstyle": "shot-creator"
     }
   },
   {
@@ -1320,6 +1931,19 @@
       "stealing": 21,
       "strength": 22,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 27,
+        "drive": 8,
+        "layup": 16,
+        "dunk": 20,
+        "mid": 15,
+        "three": 14
+      },
+      "onBall": 38,
+      "drawFoul": 87,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -1347,6 +1971,19 @@
       "stealing": 20,
       "strength": 21,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 22,
+        "drive": 13,
+        "layup": 17,
+        "dunk": 20,
+        "mid": 15,
+        "three": 12
+      },
+      "onBall": 78,
+      "drawFoul": 96,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -1374,6 +2011,19 @@
       "stealing": 23,
       "strength": 17,
       "rebounding": 16
+    },
+    "tendency": {
+      "shot": {
+        "post": 4,
+        "drive": 23,
+        "layup": 27,
+        "dunk": 6,
+        "mid": 21,
+        "three": 18
+      },
+      "onBall": 94,
+      "drawFoul": 89,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1401,6 +2051,19 @@
       "stealing": 20,
       "strength": 17,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 23,
+        "drive": 14,
+        "layup": 19,
+        "dunk": 17,
+        "mid": 16,
+        "three": 10
+      },
+      "onBall": 65,
+      "drawFoul": 100,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -1428,6 +2091,19 @@
       "stealing": 20,
       "strength": 10,
       "rebounding": 10
+    },
+    "tendency": {
+      "shot": {
+        "post": 4,
+        "drive": 19,
+        "layup": 28,
+        "dunk": 1,
+        "mid": 23,
+        "three": 26
+      },
+      "onBall": 84,
+      "drawFoul": 82,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1455,6 +2131,19 @@
       "stealing": 17,
       "strength": 17,
       "rebounding": 16
+    },
+    "tendency": {
+      "shot": {
+        "post": 15,
+        "drive": 18,
+        "layup": 22,
+        "dunk": 9,
+        "mid": 18,
+        "three": 18
+      },
+      "onBall": 86,
+      "drawFoul": 98,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1482,6 +2171,19 @@
       "stealing": 23,
       "strength": 19,
       "rebounding": 18
+    },
+    "tendency": {
+      "shot": {
+        "post": 19,
+        "drive": 15,
+        "layup": 20,
+        "dunk": 9,
+        "mid": 19,
+        "three": 18
+      },
+      "onBall": 76,
+      "drawFoul": 82,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -1509,6 +2211,19 @@
       "stealing": 18,
       "strength": 23,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 34,
+        "drive": 7,
+        "layup": 12,
+        "dunk": 23,
+        "mid": 14,
+        "three": 9
+      },
+      "onBall": 31,
+      "drawFoul": 100,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -1536,6 +2251,19 @@
       "stealing": 22,
       "strength": 19,
       "rebounding": 17
+    },
+    "tendency": {
+      "shot": {
+        "post": 23,
+        "drive": 14,
+        "layup": 19,
+        "dunk": 13,
+        "mid": 17,
+        "three": 15
+      },
+      "onBall": 72,
+      "drawFoul": 80,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -1563,6 +2291,19 @@
       "stealing": 13,
       "strength": 22,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 31,
+        "drive": 7,
+        "layup": 15,
+        "dunk": 16,
+        "mid": 17,
+        "three": 15
+      },
+      "onBall": 29,
+      "drawFoul": 100,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -1590,6 +2331,19 @@
       "stealing": 18,
       "strength": 24,
       "rebounding": 23
+    },
+    "tendency": {
+      "shot": {
+        "post": 33,
+        "drive": 8,
+        "layup": 17,
+        "dunk": 23,
+        "mid": 14,
+        "three": 4
+      },
+      "onBall": 0,
+      "drawFoul": 100,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -1617,6 +2371,19 @@
       "stealing": 18,
       "strength": 12,
       "rebounding": 15
+    },
+    "tendency": {
+      "shot": {
+        "post": 12,
+        "drive": 19,
+        "layup": 23,
+        "dunk": 2,
+        "mid": 22,
+        "three": 22
+      },
+      "onBall": 93,
+      "drawFoul": 91,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1644,6 +2411,19 @@
       "stealing": 17,
       "strength": 21,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 32,
+        "drive": 8,
+        "layup": 18,
+        "dunk": 25,
+        "mid": 16,
+        "three": 1
+      },
+      "onBall": 36,
+      "drawFoul": 91,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -1671,6 +2451,19 @@
       "stealing": 17,
       "strength": 21,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 35,
+        "drive": 7,
+        "layup": 13,
+        "dunk": 15,
+        "mid": 16,
+        "three": 13
+      },
+      "onBall": 3,
+      "drawFoul": 87,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -1698,6 +2491,19 @@
       "stealing": 15,
       "strength": 23,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 31,
+        "drive": 7,
+        "layup": 15,
+        "dunk": 19,
+        "mid": 16,
+        "three": 12
+      },
+      "onBall": 13,
+      "drawFoul": 89,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -1725,6 +2531,19 @@
       "stealing": 20,
       "strength": 16,
       "rebounding": 13
+    },
+    "tendency": {
+      "shot": {
+        "post": 1,
+        "drive": 24,
+        "layup": 29,
+        "dunk": 2,
+        "mid": 20,
+        "three": 23
+      },
+      "onBall": 81,
+      "drawFoul": 91,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1752,6 +2571,19 @@
       "stealing": 21,
       "strength": 12,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 1,
+        "drive": 24,
+        "layup": 28,
+        "dunk": 1,
+        "mid": 20,
+        "three": 25
+      },
+      "onBall": 100,
+      "drawFoul": 87,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1779,6 +2611,19 @@
       "stealing": 15,
       "strength": 22,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 35,
+        "drive": 7,
+        "layup": 13,
+        "dunk": 8,
+        "mid": 19,
+        "three": 18
+      },
+      "onBall": 21,
+      "drawFoul": 100,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -1806,6 +2651,19 @@
       "stealing": 17,
       "strength": 23,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 39,
+        "drive": 8,
+        "layup": 15,
+        "dunk": 22,
+        "mid": 16,
+        "three": 1
+      },
+      "onBall": 0,
+      "drawFoul": 82,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -1833,6 +2691,19 @@
       "stealing": 24,
       "strength": 16,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 18,
+        "drive": 22,
+        "layup": 24,
+        "dunk": 1,
+        "mid": 20,
+        "three": 15
+      },
+      "onBall": 85,
+      "drawFoul": 49,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1860,6 +2731,19 @@
       "stealing": 17,
       "strength": 21,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 30,
+        "drive": 8,
+        "layup": 12,
+        "dunk": 18,
+        "mid": 17,
+        "three": 16
+      },
+      "onBall": 43,
+      "drawFoul": 100,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -1887,6 +2771,19 @@
       "stealing": 20,
       "strength": 21,
       "rebounding": 18
+    },
+    "tendency": {
+      "shot": {
+        "post": 17,
+        "drive": 15,
+        "layup": 20,
+        "dunk": 8,
+        "mid": 20,
+        "three": 19
+      },
+      "onBall": 65,
+      "drawFoul": 67,
+      "playstyle": "three-and-d"
     }
   },
   {
@@ -1914,6 +2811,19 @@
       "stealing": 18,
       "strength": 22,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 30,
+        "drive": 10,
+        "layup": 17,
+        "dunk": 22,
+        "mid": 15,
+        "three": 6
+      },
+      "onBall": 23,
+      "drawFoul": 76,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -1941,6 +2851,19 @@
       "stealing": 20,
       "strength": 18,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 18,
+        "drive": 19,
+        "layup": 22,
+        "dunk": 2,
+        "mid": 20,
+        "three": 19
+      },
+      "onBall": 95,
+      "drawFoul": 100,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -1968,6 +2891,19 @@
       "stealing": 16,
       "strength": 23,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 34,
+        "drive": 7,
+        "layup": 13,
+        "dunk": 16,
+        "mid": 18,
+        "three": 11
+      },
+      "onBall": 16,
+      "drawFoul": 96,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -1995,6 +2931,19 @@
       "stealing": 17,
       "strength": 21,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 26,
+        "drive": 7,
+        "layup": 14,
+        "dunk": 30,
+        "mid": 13,
+        "three": 11
+      },
+      "onBall": 21,
+      "drawFoul": 71,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -2022,6 +2971,19 @@
       "stealing": 19,
       "strength": 22,
       "rebounding": 23
+    },
+    "tendency": {
+      "shot": {
+        "post": 32,
+        "drive": 9,
+        "layup": 19,
+        "dunk": 29,
+        "mid": 10,
+        "three": 1
+      },
+      "onBall": 22,
+      "drawFoul": 82,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -2049,6 +3011,19 @@
       "stealing": 18,
       "strength": 21,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 30,
+        "drive": 11,
+        "layup": 13,
+        "dunk": 16,
+        "mid": 16,
+        "three": 15
+      },
+      "onBall": 44,
+      "drawFoul": 58,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -2076,6 +3051,19 @@
       "stealing": 21,
       "strength": 13,
       "rebounding": 18
+    },
+    "tendency": {
+      "shot": {
+        "post": 17,
+        "drive": 17,
+        "layup": 21,
+        "dunk": 7,
+        "mid": 19,
+        "three": 20
+      },
+      "onBall": 78,
+      "drawFoul": 89,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -2103,6 +3091,19 @@
       "stealing": 24,
       "strength": 17,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 1,
+        "drive": 24,
+        "layup": 28,
+        "dunk": 1,
+        "mid": 20,
+        "three": 25
+      },
+      "onBall": 100,
+      "drawFoul": 56,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -2130,6 +3131,19 @@
       "stealing": 17,
       "strength": 23,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 28,
+        "drive": 9,
+        "layup": 17,
+        "dunk": 31,
+        "mid": 13,
+        "three": 2
+      },
+      "onBall": 0,
+      "drawFoul": 80,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -2157,6 +3171,19 @@
       "stealing": 20,
       "strength": 24,
       "rebounding": 24
+    },
+    "tendency": {
+      "shot": {
+        "post": 30,
+        "drive": 10,
+        "layup": 13,
+        "dunk": 22,
+        "mid": 14,
+        "three": 11
+      },
+      "onBall": 58,
+      "drawFoul": 100,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -2184,6 +3211,19 @@
       "stealing": 21,
       "strength": 17,
       "rebounding": 17
+    },
+    "tendency": {
+      "shot": {
+        "post": 18,
+        "drive": 17,
+        "layup": 20,
+        "dunk": 12,
+        "mid": 18,
+        "three": 14
+      },
+      "onBall": 95,
+      "drawFoul": 100,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -2211,6 +3251,19 @@
       "stealing": 17,
       "strength": 23,
       "rebounding": 22
+    },
+    "tendency": {
+      "shot": {
+        "post": 37,
+        "drive": 8,
+        "layup": 14,
+        "dunk": 22,
+        "mid": 18,
+        "three": 1
+      },
+      "onBall": 37,
+      "drawFoul": 69,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -2238,6 +3291,19 @@
       "stealing": 23,
       "strength": 17,
       "rebounding": 13
+    },
+    "tendency": {
+      "shot": {
+        "post": 12,
+        "drive": 20,
+        "layup": 24,
+        "dunk": 1,
+        "mid": 20,
+        "three": 22
+      },
+      "onBall": 93,
+      "drawFoul": 82,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -2265,6 +3331,19 @@
       "stealing": 18,
       "strength": 19,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 26,
+        "drive": 11,
+        "layup": 16,
+        "dunk": 21,
+        "mid": 15,
+        "three": 12
+      },
+      "onBall": 62,
+      "drawFoul": 69,
+      "playstyle": "two-way-wing"
     }
   },
   {
@@ -2292,6 +3371,19 @@
       "stealing": 19,
       "strength": 10,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 7,
+        "drive": 20,
+        "layup": 26,
+        "dunk": 3,
+        "mid": 22,
+        "three": 22
+      },
+      "onBall": 85,
+      "drawFoul": 89,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -2319,6 +3411,19 @@
       "stealing": 21,
       "strength": 12,
       "rebounding": 13
+    },
+    "tendency": {
+      "shot": {
+        "post": 7,
+        "drive": 23,
+        "layup": 26,
+        "dunk": 1,
+        "mid": 21,
+        "three": 22
+      },
+      "onBall": 93,
+      "drawFoul": 76,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -2346,6 +3451,19 @@
       "stealing": 14,
       "strength": 22,
       "rebounding": 20
+    },
+    "tendency": {
+      "shot": {
+        "post": 33,
+        "drive": 7,
+        "layup": 13,
+        "dunk": 16,
+        "mid": 18,
+        "three": 12
+      },
+      "onBall": 18,
+      "drawFoul": 91,
+      "playstyle": "stretch-big"
     }
   },
   {
@@ -2373,6 +3491,19 @@
       "stealing": 19,
       "strength": 24,
       "rebounding": 23
+    },
+    "tendency": {
+      "shot": {
+        "post": 35,
+        "drive": 10,
+        "layup": 18,
+        "dunk": 34,
+        "mid": 2,
+        "three": 1
+      },
+      "onBall": 0,
+      "drawFoul": 100,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -2400,6 +3531,19 @@
       "stealing": 13,
       "strength": 22,
       "rebounding": 19
+    },
+    "tendency": {
+      "shot": {
+        "post": 41,
+        "drive": 5,
+        "layup": 13,
+        "dunk": 15,
+        "mid": 20,
+        "three": 6
+      },
+      "onBall": 0,
+      "drawFoul": 82,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -2427,6 +3571,19 @@
       "stealing": 19,
       "strength": 22,
       "rebounding": 21
+    },
+    "tendency": {
+      "shot": {
+        "post": 21,
+        "drive": 10,
+        "layup": 20,
+        "dunk": 36,
+        "mid": 11,
+        "three": 2
+      },
+      "onBall": 0,
+      "drawFoul": 62,
+      "playstyle": "rim-protector"
     }
   },
   {
@@ -2454,6 +3611,19 @@
       "stealing": 19,
       "strength": 19,
       "rebounding": 14
+    },
+    "tendency": {
+      "shot": {
+        "post": 1,
+        "drive": 24,
+        "layup": 28,
+        "dunk": 1,
+        "mid": 21,
+        "three": 25
+      },
+      "onBall": 90,
+      "drawFoul": 67,
+      "playstyle": "floor-general"
     }
   },
   {
@@ -2481,6 +3651,19 @@
       "stealing": 18,
       "strength": 15,
       "rebounding": 16
+    },
+    "tendency": {
+      "shot": {
+        "post": 22,
+        "drive": 16,
+        "layup": 21,
+        "dunk": 13,
+        "mid": 18,
+        "three": 9
+      },
+      "onBall": 71,
+      "drawFoul": 100,
+      "playstyle": "point-forward"
     }
   }
 ]

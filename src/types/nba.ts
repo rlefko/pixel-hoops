@@ -1,6 +1,7 @@
 import type { Position } from './roster';
 import type { PlayerStats } from './player';
 import type { PlayerClass } from '@/game/ratings';
+import type { BakedTendency } from '@/game/playstyle';
 
 /**
  * Real-player and real-team data, sourced (offline) from the NBA 2K API
@@ -46,4 +47,12 @@ export interface RealPlayer {
   /** Signature ability id (legends only; see src/game/abilities.ts). */
   ability?: string;
   stats: PlayerStats;
+  /**
+   * Compact shot diet / role profile derived offline from the rich 2K attributes
+   * and badges the condensed stats cannot recover (on-ball vs off-ball, post
+   * game, slasher vs lob, foul-drawing). Optional: absent for older bakes, in
+   * which case the runtime derives a profile from the stats. See
+   * src/game/nba-map.ts `deriveTendency`.
+   */
+  tendency?: BakedTendency;
 }

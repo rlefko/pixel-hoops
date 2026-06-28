@@ -17,6 +17,7 @@ const SHOT_BASE: Record<OffActionId, number> = {
   drive: 0.47,
   layup: 0.55,
   dunk: 0.62,
+  post: 0.46,
 };
 
 /** The pre-widening make probability on the old 3-10 scale (reference). */

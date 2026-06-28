@@ -4,7 +4,7 @@ import type { Lineup, Team, TeamStats, SynergyResult } from '@/types/team';
 import type { GamePlan } from '@/types/tactics';
 import { computeSynergy } from './synergy';
 import { off, def } from './ratings';
-import { STAT_CEIL } from './stat-scaling';
+import { STAT_CEIL, STAT_NORMAL_MAX, clamp } from './stat-scaling';
 import { EMPTY_TEAM_MODIFIER, type StatDelta, type TeamModifier } from './effects';
 
 /**
@@ -75,6 +75,15 @@ function anchoredStat(players: RosterPlayer[], key: keyof PlayerStats): number {
   return avg * 0.6 + best * 0.4;
 }
 
+/** Outside rating at or above which a player credibly stretches the defense. */
+const SHOOTER_THRESHOLD = 13;
+
+/** Share of the five who are credible floor-spacers, 0 (clogged) to 1 (five-out). */
+function shooterShare(players: RosterPlayer[]): number {
+  const shooters = players.filter((rp) => rp.player.stats.outside >= SHOOTER_THRESHOLD).length;
+  return players.length ? shooters / players.length : 0;
+}
+
 /**
  * The lineup's effective stat line. Not a flat average: scorers (high usage)
  * weight the offensive ratings, defense is anchored by the best stopper, pace
@@ -123,6 +132,10 @@ export function computeTeamStats(
     off: 0,
     def: 0,
     ovr: 0,
+    // Fit scalars (see src/game/simulation.ts): credible-shooter share and
+    // playmaking depth. Computed once per five (and on each sub), pure.
+    spacing: shooterShare(players),
+    creation: clamp(averageStat(players, 'playmaking') / STAT_NORMAL_MAX, 0, 1),
   };
   stats.off = off(stats);
   stats.def = def(stats);

@@ -56,6 +56,9 @@ export const SHOT_PROFILE: Record<OffActionId, ShotProfile> = {
   drive: { base: 0.47, points: 2, finish: true, resilient: false },
   layup: { base: 0.55, points: 2, finish: true, resilient: false },
   dunk: { base: 0.62, points: 2, finish: true, resilient: false },
+  // Back-to-the-basket: a contact interior shot a touch below a layup, contested
+  // by interior defense and strength, can draw an and-one (a foul magnet).
+  post: { base: 0.46, points: 2, finish: true, resilient: false },
 };
 
 /** Which offensive rating drives each action (some blend two). */
@@ -65,6 +68,7 @@ export const ACTION_OFF: Record<OffActionId, (s: PlayerStats) => number> = {
   drive: (s) => s.playmaking * 0.6 + s.athleticism * 0.4,
   layup: (s) => s.inside,
   dunk: (s) => s.inside * 0.5 + s.athleticism * 0.5,
+  post: (s) => s.inside * 0.7 + s.strength * 0.3,
 };
 
 /** Which defensive rating contests each action (perimeter vs interior). */
@@ -74,6 +78,7 @@ export const ACTION_DEF: Record<OffActionId, (s: PlayerStats) => number> = {
   drive: (s) => s.perimeterD,
   layup: (s) => s.interiorD,
   dunk: (s) => s.interiorD,
+  post: (s) => s.interiorD * 0.7 + s.strength * 0.3,
 };
 
 /** Normalize a 6-20 rating to ~0..1 (team aggregates may exceed 1). */
@@ -120,6 +125,31 @@ export function makeProbability(args: MakeArgs): number {
 /** Expected points of an action's make probability (for IQ shot selection). */
 export function expectedValue(action: OffActionId, makeP: number): number {
   return makeP * SHOT_PROFILE[action].points;
+}
+
+/** Largest rating-point swing a physical mismatch can produce (kept small so it
+ * textures the matchup without overriding skill). */
+export const MISMATCH_CAP = 3;
+/** Blow-by per athleticism point of edge on a rim attack. */
+const ATH_BLOWBY_K = 0.35;
+/** Seal per strength point of edge on a post-up. */
+const POST_SEAL_K = 0.35;
+
+/**
+ * The bounded one-on-one mismatch edge (rating points) the matched defender
+ * concedes, ADDED to their effective rating (so negative = the offense exploits
+ * it). A quick attacker blows by a slow defender to the rim; a strong post player
+ * seals a weaker one. Clamped to +/-{@link MISMATCH_CAP} so a mismatch is a real
+ * but bounded read, never a guaranteed bucket. Pure.
+ */
+export function mismatchDelta(action: OffActionId, off: PlayerStats, def: PlayerStats): number {
+  let d = 0;
+  if (action === 'drive' || action === 'layup') {
+    d -= (off.athleticism - def.athleticism) * ATH_BLOWBY_K;
+  } else if (action === 'post') {
+    d -= (off.strength - def.strength) * POST_SEAL_K;
+  }
+  return clamp(d, -MISMATCH_CAP, MISMATCH_CAP);
 }
 
 /**

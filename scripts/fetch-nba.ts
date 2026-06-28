@@ -51,7 +51,8 @@
 import { writeFileSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mapRatingsToStats, type RawRatings } from '../src/game/nba-map';
+import { mapRatingsToStats, deriveTendency, type RawRatings } from '../src/game/nba-map';
+import type { BakedTendency } from '../src/game/playstyle';
 import { backfillPlayStyleStats } from '../src/game/stat-migration';
 import type { PlayerStats } from '../src/types/player';
 import { anchorStatsToClass, classTargetOvr } from '../src/game/classes';
@@ -440,6 +441,7 @@ async function bakeLegends(): Promise<void> {
       console.warn(`skip ${entry.slug}: no API card and no curated fallback`);
       continue;
     }
+    const finalStats = backfillPlayStyleStats(stats as PlayerStats, entry.position);
     players.push({
       name: card?.name ?? entry.slug,
       slug: entry.slug,
@@ -452,7 +454,12 @@ async function bakeLegends(): Promise<void> {
       ability: entry.ability,
       // Guarantee the four play-style keys even for a curated-fallback legend not
       // in the API (e.g. Reggie Miller): backfill fills only missing keys.
-      stats: backfillPlayStyleStats(stats as PlayerStats, entry.position),
+      stats: finalStats,
+      // Tendency from the rich API data; a curated-fallback legend (no API card)
+      // has none and the runtime derives one from the stats instead.
+      tendency: card?.attributes
+        ? deriveTendency(card.attributes, badgeNames(card), finalStats, entry.position)
+        : undefined,
     });
   }
   const out = join(outDir, 'nba-legends.json');
@@ -472,6 +479,13 @@ interface ApiListPlayer {
   positions?: unknown;
   overall?: number;
   attributes?: RawRatings;
+  badges?: { list?: { name?: string }[] };
+}
+
+/** Badge display names for a card (the tendency deriver reads these for the shot
+ * diet, e.g. a Deadeye boosts the three lane). */
+function badgeNames(card: { badges?: { list?: { name?: string }[] } } | undefined): string[] {
+  return (card?.badges?.list ?? []).map((b) => b.name).filter((n): n is string => typeof n === 'string');
 }
 
 async function fetchPage(
@@ -553,6 +567,7 @@ async function bakePool(): Promise<void> {
     name: string;
     slug: string;
     attributes: RawRatings;
+    badges: string[];
     position: Position;
     teamAbbr: string;
     overall: number;
@@ -567,7 +582,7 @@ async function bakePool(): Promise<void> {
       skipped += 1;
       continue;
     }
-    valid.push({ name: String(p.name ?? p.slug), slug: p.slug, attributes: p.attributes, position, teamAbbr, overall });
+    valid.push({ name: String(p.name ?? p.slug), slug: p.slug, attributes: p.attributes, badges: badgeNames(p), position, teamAbbr, overall });
   }
 
   // Second pass: anchor each line to a quality-varied point in its class band, so
@@ -600,6 +615,8 @@ async function bakePool(): Promise<void> {
       // are dropped on write).
       ability: sup?.ability ?? S_SIGNATURES[v.slug],
       stats,
+      // Compact shot diet / role profile from the rich 2K attributes + badges.
+      tendency: deriveTendency(v.attributes, v.badges, stats, position),
     };
   });
 
@@ -635,6 +652,8 @@ interface BakedPoolPlayer {
   /** Signature ability id, present only on S "Superstar" players. */
   ability?: string;
   stats: PlayerStats;
+  /** Shot diet / role profile (preserved untouched by re-anchor/demote). */
+  tendency?: BakedTendency;
 }
 
 /**
@@ -687,6 +706,8 @@ interface BakedLegend {
   legendary?: boolean;
   ability?: string;
   stats: PlayerStats;
+  /** Shot diet / role profile (preserved untouched by re-anchor/demote). */
+  tendency?: BakedTendency;
 }
 
 /**
@@ -766,12 +787,63 @@ function bakeDemote(): void {
   if (missingAbility.length) console.warn(`demoted players missing an ability: ${missingAbility.join(', ')}`);
 }
 
+/**
+ * Enrich the ALREADY-baked pool and legends with a shot diet / role `tendency`
+ * derived from the rich 2K attributes + badges, WITHOUT touching their stats. The
+ * full --mode=pool / --mode=legends re-bakes would also re-derive every stat line
+ * from live data (drift); this mode only ADDS the tendency block, keyed by slug,
+ * so the diff is purely additive and the carefully-tuned ratings/classes are kept.
+ * ~10-14 requests (curr + allt pages).
+ */
+async function bakeTendency(): Promise<void> {
+  const [curr, allt] = [await fetchAll('curr'), await fetchAll('allt')];
+  const bySlug = new Map<string, ApiListPlayer>();
+  for (const p of curr) if (p.slug) bySlug.set(p.slug, p);
+
+  const poolFile = join(outDir, 'nba-pool.json');
+  const pool = JSON.parse(readFileSync(poolFile, 'utf8')) as BakedPoolPlayer[];
+  let poolHit = 0;
+  let poolMiss = 0;
+  const newPool = pool.map((p) => {
+    const card = bySlug.get(p.slug);
+    if (!card?.attributes) {
+      poolMiss += 1;
+      return p;
+    }
+    poolHit += 1;
+    return { ...p, tendency: deriveTendency(card.attributes, badgeNames(card), p.stats, p.position) };
+  });
+  writeFileSync(poolFile, JSON.stringify(newPool, null, 2) + '\n');
+
+  const legendsFile = join(outDir, 'nba-legends.json');
+  const legends = JSON.parse(readFileSync(legendsFile, 'utf8')) as BakedLegend[];
+  let legHit = 0;
+  let legMiss = 0;
+  const newLegends = legends.map((l) => {
+    const entry = {
+      slug: l.slug, teamAbbr: l.teamAbbr, era: l.era, position: l.position,
+      jerseyNumber: l.jerseyNumber, ability: l.ability ?? '',
+    } as RosterEntry;
+    const card = matchCard(entry, bySlug, allt);
+    if (!card?.attributes) {
+      legMiss += 1;
+      return l;
+    }
+    legHit += 1;
+    return { ...l, tendency: deriveTendency(card.attributes, badgeNames(card), l.stats, l.position) };
+  });
+  writeFileSync(legendsFile, JSON.stringify(newLegends, null, 2) + '\n');
+
+  console.log(`\ntendency baked: pool ${poolHit} hit / ${poolMiss} miss; legends ${legHit} hit / ${legMiss} miss`);
+}
+
 async function main(): Promise<void> {
   const mode = (process.argv.find((a) => a.startsWith('--mode='))?.split('=')[1] ?? 'legends') as
     | 'legends'
     | 'pool'
     | 'reanchor'
-    | 'demote';
+    | 'demote'
+    | 'tendency';
   if (mode === 'reanchor') {
     bakeReanchor(); // offline: re-spreads the committed pool, no API key needed
     return;
@@ -785,6 +857,7 @@ async function main(): Promise<void> {
     process.exit(1);
   }
   if (mode === 'pool') await bakePool();
+  else if (mode === 'tendency') await bakeTendency();
   else await bakeLegends();
 }
 
