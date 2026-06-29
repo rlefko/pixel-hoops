@@ -6,8 +6,14 @@ import {
   playerKey,
   rememberDraftRotation,
   resolveDraftRotation,
+  serializeHomeRoster,
+  deserializeHomeRoster,
+  grantCoach,
+  selectCoach,
+  ownsCoach,
   type HomeRoster,
 } from '@/game/home-roster';
+import { STARTER_COACH_ID, earnedCoachIds, coachesByClass } from '@/game/coaches';
 import { poolByClass, realPlayerToRosterPlayer } from '@/game/player-pool';
 import { tierPool } from '@/game/player-gacha';
 import { createRNG } from '@/game/rng';
@@ -107,6 +113,62 @@ describe('draft roster memory', () => {
     expect(resolveDraftRotation(home, 'hard', 'S')).toBeUndefined();
     // On easy, asking for C (below the only saved cell, S) finds nothing lower.
     expect(resolveDraftRotation(home, 'easy', 'C')).toBeUndefined();
+  });
+});
+
+describe('coaches', () => {
+  it('starts a fresh save owning and equipping only the starter coach', () => {
+    const home = createRookieRoster(createRNG('coach'));
+    expect(home.ownedCoaches).toEqual([STARTER_COACH_ID]);
+    expect(home.selectedCoachId).toBe(STARTER_COACH_ID);
+  });
+
+  it('wins coaches on a championship (and keeps the equipped coach)', () => {
+    const home = createRookieRoster(createRNG('coach2'));
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [] };
+    // First clear of C on easy: grants C rank-1 AND opens B (the B opener): two coaches.
+    const next = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
+    expect(next.ownedCoaches.length).toBe(home.ownedCoaches.length + 2);
+    expect(next.selectedCoachId).toBe(home.selectedCoachId); // a win never changes the equip
+    // A loss wins nothing.
+    const lost = mergeRunGainsIntoHome(home, runRoster, rewards, false, false, 'C', 'easy');
+    expect(lost.ownedCoaches).toEqual(home.ownedCoaches);
+  });
+
+  it('grant and select mutators are owned-gated and idempotent', () => {
+    let home = createRookieRoster(createRNG('coach3'));
+    const target = coachesByClass('B').find((c) => c.unlock.kind === 'opener')!.id;
+    expect(selectCoach(home, target)).toBe(home); // not owned → no-op
+    home = grantCoach(home, target);
+    expect(ownsCoach(home, target)).toBe(true);
+    expect(grantCoach(home, target)).toBe(home); // idempotent
+    expect(grantCoach(home, 'not-a-coach')).toBe(home); // unknown id → no-op
+    expect(selectCoach(home, target).selectedCoachId).toBe(target);
+  });
+
+  it('derives owned coaches from ladder progress on load (retroactive for veterans)', () => {
+    // A veteran who cleared B on easy + medium and A on hard, with no saved coach fields.
+    const home = createRookieRoster(createRNG('coach4'));
+    home.ladderProgress = { easy: 'B', medium: 'B', hard: 'A', insane: null };
+    const serialized = serializeHomeRoster(home);
+    // Simulate a pre-v11 save: strip the coach fields entirely.
+    delete (serialized.data as Partial<HomeRoster>).ownedCoaches;
+    delete (serialized.data as Partial<HomeRoster>).selectedCoachId;
+    const restored = deserializeHomeRoster(serialized)!;
+    expect(restored.ownedCoaches).toEqual(earnedCoachIds(home.ladderProgress));
+    expect(restored.ownedCoaches).toContain(STARTER_COACH_ID);
+    expect(restored.selectedCoachId).toBe(STARTER_COACH_ID); // defaulted when absent
+  });
+
+  it('keeps a valid saved selection and drops unknown owned ids on load', () => {
+    const home = createRookieRoster(createRNG('coach5'));
+    home.ladderProgress = { easy: 'C', medium: null, hard: null, insane: null };
+    home.ownedCoaches = [...earnedCoachIds(home.ladderProgress), 'ghost-coach'];
+    const bOpener = coachesByClass('B').find((c) => c.unlock.kind === 'opener')!.id;
+    home.selectedCoachId = bOpener; // owned via the C clear (B opener)
+    const restored = deserializeHomeRoster(serializeHomeRoster(home))!;
+    expect(restored.ownedCoaches).not.toContain('ghost-coach');
+    expect(restored.selectedCoachId).toBe(bOpener);
   });
 });
 

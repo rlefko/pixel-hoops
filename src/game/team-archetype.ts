@@ -1,6 +1,7 @@
 import type { PlayerStats } from '@/types/player';
-import type { Position } from '@/types/roster';
+import type { Position, RosterPlayer } from '@/types/roster';
 import type { Team } from '@/types/team';
+import type { Focus, Pace } from '@/types/tactics';
 import type { StatDelta } from './effects';
 import { ovr } from './ratings';
 
@@ -62,8 +63,19 @@ function mean(values: number[]): number {
  * Run & Gun). Falls back to `balanced` when nothing dominates.
  */
 export function deriveArchetype(team: Team): TeamArchetype {
-  const five = team.lineup.players;
-  const { pace, focus } = team.tactic;
+  return deriveArchetypeFromFive(team.lineup.players, team.tactic);
+}
+
+/**
+ * The archetype classification, decoupled from a built {@link Team} so callers that
+ * only have the five and the pace/focus (e.g. the coach system-bonus check, before
+ * buildTeam) classify identically to the sim. {@link deriveArchetype} delegates here.
+ */
+export function deriveArchetypeFromFive(
+  five: RosterPlayer[],
+  tactic: { pace: Pace; focus: Focus }
+): TeamArchetype {
+  const { pace, focus } = tactic;
   const m = (key: keyof PlayerStats): number => mean(five.map((rp) => rp.player.stats[key]));
 
   const counts = new Map<Position, number>();
@@ -149,7 +161,7 @@ export function counterVerdict(
 }
 
 /** Rating points one q-unit of edge is worth (the 6-20 band width). */
-const Q_TO_RATING = 14;
+export const Q_TO_RATING = 14;
 /** How strongly the counter edge expresses: a knob tuned against the balance
  * harness so a clear counter lands in the ~10-20% win-prob band. */
 const COUNTER_STRENGTH = 1.0;

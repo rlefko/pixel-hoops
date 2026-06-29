@@ -29,6 +29,7 @@ import { computeUsageWeights, computeTeamStats } from './lineup';
 import { computeSynergy } from './synergy';
 import type { StatDelta } from './effects';
 import { deriveArchetype, counterDelta } from './team-archetype';
+import { DEFAULT_ROTATION, type RotationPolicy } from './coaches';
 import { tendencyFor, blendTendency, type TendencyProfile } from './playstyle';
 import { ovrRaw } from './ratings';
 import { pickRiskPosture, type RiskPosture } from './ai';
@@ -116,22 +117,11 @@ const DRAIN_BASE = 2.6;
 const RECOVER = 4;
 /** The ball-handler/scorer works harder, so drains faster. */
 const SCORER_DRAIN_MULT = 1.5;
-/** Pull a starter once energy drops below this (the soft sub zone). */
-const SUB_OUT_ENERGY = 50;
-/** Only bring in a bench player who has recovered above this (hysteresis). */
-const SUB_IN_ENERGY = 72;
-/**
- * A gassed starter below this is ALWAYS pulled for the best rested body, even a
- * worse one: nobody plays a full game spent. This guarantees the bench gets real
- * minutes and the stars are not run into the ground for 48.
- */
-const HARD_FLOOR = 28;
-/**
- * Soft-sub acceptance: spell a tired starter when a fresh bench player is at
- * least this fraction as effective right now. The fatigue penalty only maxes
- * near 20%, so this lets a fresh body within ~10% of a tired star come in.
- */
-const SUB_OUT_GOOD_ENOUGH = 0.9;
+// The substitution energy thresholds (soft-out, soft-in, the gassed hard floor, and
+// the soft-sub acceptance fraction) and the rotation-size cap now live on the side's
+// RotationPolicy (see DEFAULT_ROTATION / rotationForCoach in coaches.ts), so a coach's
+// rotation size can tighten or deepen the bench. DEFAULT_ROTATION holds the historical
+// values, keeping every opponent and a no-coach home side byte-identical.
 /** Abs score margin (in a late quarter) that counts as garbage time. */
 const BLOWOUT_MARGIN = 18;
 /** Extra sub-out threshold for starters in garbage time, so the bench plays. */
@@ -201,6 +191,13 @@ export interface SimConfig {
   away: Team;
   seed: number | string;
   decisionHook?: CrunchTimeHook;
+  /**
+   * The home side's substitution policy (from the equipped coach's rotation size).
+   * Defaults to {@link DEFAULT_ROTATION} (the historical uncapped behavior), so a
+   * game without one resolves exactly as before. The opponent always runs the
+   * default policy.
+   */
+  homeRotation?: RotationPolicy;
 }
 
 // --- Action selection ---
@@ -392,6 +389,11 @@ interface SideState {
    * momentum proc. Reset to 'none' at every quarter boundary, then overwritten
    * after each of this side's offensive possessions. */
   lastResult: 'madeThree' | 'none';
+  /** This side's substitution policy (energy thresholds + rotation-size cap). */
+  rotation: RotationPolicy;
+  /** Distinct players who have taken the floor this game (starters seeded). The
+   * rotation cap limits how many bench bodies join this set. */
+  hasPlayed: Set<PlayerGameState>;
 }
 
 function newBoxLine(rp: RosterPlayer, slot: Position, starter: boolean): BoxLine {
@@ -415,7 +417,7 @@ function newBoxLine(rp: RosterPlayer, slot: Position, starter: boolean): BoxLine
   };
 }
 
-function initSide(team: Team, form: number): SideState {
+function initSide(team: Team, form: number, rotation: RotationPolicy): SideState {
   const starters = team.lineup.players.map(
     (rp, i): PlayerGameState => ({
       rp,
@@ -445,6 +447,10 @@ function initSide(team: Team, form: number): SideState {
     tendencies: starters.map((s) => tendencyFor(s.rp)),
     quarterMakes: 0,
     lastResult: 'none',
+    rotation,
+    // The five who tip off have "played"; the rotation cap then bounds how many
+    // bench players may join them.
+    hasPlayed: new Set(starters),
   };
 }
 
@@ -564,19 +570,22 @@ function applyHooks(
 }
 
 /**
- * Deterministic rotation, three layered rules per slot (priority order):
+ * Deterministic rotation, three layered rules per slot (priority order). All the
+ * energy thresholds and the rotation-size cap come from `side.rotation` (the coach's
+ * RotationPolicy; DEFAULT_ROTATION reproduces the historical values):
  *
- *  1. HARD_FLOOR: a starter below it is ALWAYS pulled for the best rested body,
+ *  1. hardFloor: a starter below it is ALWAYS pulled for the best rested body,
  *     even a worse one, so nobody plays a full game spent and the bench gets run.
- *  2. Soft sub: above the floor but below SUB_OUT_ENERGY, spell the starter for a
- *     fresh player who is at least SUB_OUT_GOOD_ENOUGH as effective right now.
+ *  2. Soft sub: above the floor but below subOutEnergy, spell the starter for a
+ *     fresh player who is at least subOutGoodEnough as effective right now.
  *  3. Blowout rest: in a late-game blowout, raise a starter's sub-out threshold
  *     so the stars rest and the bench plays garbage time.
  *
- * Same-position first, then higher fatigue-weighted overall, roster index as the
- * tie-break. Hysteresis (soft out at SUB_OUT_ENERGY, in at SUB_IN_ENERGY) prevents
- * thrashing; a benchless team simply never subs. No RNG, so subs are fully
- * reproducible. Returns the subs made for the event stream.
+ * A fresh bench body is eligible only while fewer than `maxPlayers` distinct players
+ * have appeared (the rotation-size cap). Same-position first, then higher fatigue-
+ * weighted overall, roster index as the tie-break. Hysteresis (soft out at
+ * subOutEnergy, in at subInEnergy) prevents thrashing; a benchless team simply never
+ * subs. No RNG, so subs are fully reproducible. Returns the subs for the event stream.
  */
 function substitute(
   side: SideState,
@@ -592,9 +601,9 @@ function substitute(
 
     // A gassed starter must rest no matter what; in a late blowout the stars also
     // yield to the bench (garbage time), with a widened sub-out threshold.
-    const forced = current.energy < HARD_FLOOR;
+    const forced = current.energy < side.rotation.hardFloor;
     const blowoutRest = blowout && current.box.starter;
-    const subOutThreshold = SUB_OUT_ENERGY + (blowoutRest ? BLOWOUT_SUB_OUT_BONUS : 0);
+    const subOutThreshold = side.rotation.subOutEnergy + (blowoutRest ? BLOWOUT_SUB_OUT_BONUS : 0);
     if (!forced && current.energy >= subOutThreshold) continue;
 
     // Effective value weights overall by the real fatigue multiplier (not raw
@@ -605,12 +614,16 @@ function substitute(
 
     // A forced sub takes the best rested body even if not fully recovered; a soft
     // sub still wants a comfortably-rested replacement (the hysteresis bar).
-    const inBar = forced ? HARD_FLOOR : SUB_IN_ENERGY;
+    const inBar = forced ? side.rotation.hardFloor : side.rotation.subInEnergy;
+    // The rotation-size cap: once the allowed number of distinct players have
+    // appeared, no fresh bench body may enter (only those who have already played).
+    const rotationFull = side.hasPlayed.size >= side.rotation.maxPlayers;
     let best: PlayerGameState | undefined;
     let bestKey = -Infinity;
     for (let index = 0; index < side.all.length; index++) {
       const p = side.all[index];
       if (p.onCourt || p.energy < inBar) continue;
+      if (rotationFull && !side.hasPlayed.has(p)) continue;
       const samePos = p.rp.position === position ? 1 : 0;
       const key = samePos * 1000 + effective(p) - index * 0.001;
       if (key > bestKey) {
@@ -622,12 +635,13 @@ function substitute(
     // A star who must rest (gassed, or garbage time) takes any rested body; a
     // normal soft sub still needs a near-equal fresh player.
     const acceptAny = forced || blowoutRest;
-    if (!acceptAny && effective(best) < effective(current) * SUB_OUT_GOOD_ENOUGH) continue;
+    if (!acceptAny && effective(best) < effective(current) * side.rotation.subOutGoodEnough) continue;
 
     current.onCourt = false;
     best.onCourt = true;
     best.box.slot = position;
     side.onCourt[slot] = best;
+    side.hasPlayed.add(best);
     subs.push({ team, slot: position, outName: current.rp.player.name, inName: best.rp.player.name });
   }
   if (subs.length > 0) recomputeAggregate(side);
@@ -710,8 +724,8 @@ export function simulateGame(config: SimConfig): SimResult {
   const homeForm = (rng.next() - 0.5) * 2 * FORM_RANGE;
   const awayForm = (rng.next() - 0.5) * 2 * FORM_RANGE;
 
-  const homeState = initSide(config.home, homeForm);
-  const awayState = initSide(config.away, awayForm);
+  const homeState = initSide(config.home, homeForm, config.homeRotation ?? DEFAULT_ROTATION);
+  const awayState = initSide(config.away, awayForm, DEFAULT_ROTATION);
   const stateFor = (side: SimTeamSide): SideState =>
     side === 'home' ? homeState : awayState;
 
