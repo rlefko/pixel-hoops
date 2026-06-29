@@ -1,6 +1,6 @@
 import { useReducer, useEffect, useMemo, useRef } from 'react';
 import { runReducer } from '@/game/run-machine';
-import { mergeRunGainsIntoHome, playerKey, rememberDraftRotation } from '@/game/home-roster';
+import { mergeRunGainsIntoHome, playerKey, rememberDraftRotation, selectCoach } from '@/game/home-roster';
 import { coachesWonByClear } from '@/game/coaches';
 import { buildHallOfFameEntry } from '@/game/hall-of-fame';
 import { useHomeRoster } from '@/context/HomeRosterContext';
@@ -18,9 +18,9 @@ export function useRun() {
   const [model, dispatch] = useReducer(runReducer, null);
   const savedRef = useRef(false);
   const draftRememberedRef = useRef(false);
-  // The headline coach won by this run's championship (computed BEFORE the merge,
-  // which then folds it into the owned collection), surfaced in the summary beat.
-  const wonCoachRef = useRef<string | undefined>(undefined);
+  // The coach ids won by this run's championship (computed BEFORE the merge, which
+  // then folds them into the owned collection), surfaced in the unlock reveal beat.
+  const wonCoachRef = useRef<string[]>([]);
 
   // Start a run once the home roster has loaded from storage.
   useEffect(() => {
@@ -63,8 +63,8 @@ export function useRun() {
             model.difficulty,
             model.ladderClass,
             new Set(homeRoster.ownedCoaches)
-          )[0]
-        : undefined;
+          )
+        : [];
       // A championship banks a Hall of Fame snapshot of the final game. Date.now()
       // lives here (the hook), keeping the merge and the entry builder clock-free.
       const championEntry =
@@ -92,7 +92,7 @@ export function useRun() {
     }
     if (model.phase.kind !== 'summary') {
       savedRef.current = false;
-      wonCoachRef.current = undefined;
+      wonCoachRef.current = [];
     }
   }, [model, homeRoster, saveHomeRoster]);
 
@@ -107,6 +107,9 @@ export function useRun() {
         dispatch({ type: 'setLineup', starters, bench }),
       cancelLineup: () => dispatch({ type: 'cancelLineup' }),
       acceptCoachRec: () => dispatch({ type: 'acceptCoachRec' }),
+      // Equip a newly-won coach for the next run (a home mutation, not a run action),
+      // straight from the unlock reveal so it feeds the next run.
+      equipCoach: (id: string) => homeRoster && saveHomeRoster(selectCoach(homeRoster, id)),
       enterGame: () => dispatch({ type: 'enterGame' }),
       finishReplay: () => dispatch({ type: 'finishReplay' }),
       resolveGameResult: () => dispatch({ type: 'resolveGameResult' }),
@@ -140,8 +143,14 @@ export function useRun() {
         homeRoster &&
         dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster }),
     }),
-    [homeRoster]
+    [homeRoster, saveHomeRoster]
   );
 
-  return { model, loaded, actions, wonCoachId: wonCoachRef.current };
+  return {
+    model,
+    loaded,
+    actions,
+    wonCoachIds: wonCoachRef.current,
+    equippedCoachId: homeRoster?.selectedCoachId,
+  };
 }
