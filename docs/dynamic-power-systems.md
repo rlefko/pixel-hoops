@@ -84,17 +84,16 @@ into the frozen modifier, and survive substitutions like any other team bonus.
 Progress is surfaced in the map HUD (`SetRow`) and as a hint on draft offers
 (`set-ui.ts`), so synergy is discoverable rather than buried in a wiki.
 
-## 4. Boost-draft agency: reroll, banish, pity
+## 4. Boost-draft agency: banish and pity
 
-The 1-of-N boost draft gained three levers so a cold board is never a trap:
+The 1-of-N boost draft has two levers so a cold board is never a trap, both free
+(no coins are spent at the draft):
 
-- **Reroll**: redraw the whole board for an escalating coin cost
-  (`boostRerollCost = 5 + 5 * rerolls`), reset per node. Spends run coins, a real
-  meta cost, and derives a fresh deterministic board from `<drawLabel>-reroll-<n>`.
 - **Banish**: remove an offered boost from this run's pool (free, hard-capped at
   `MAX_BANISHES = 6`) and draw a single distinct replacement so the board stays full.
   The cap keeps the pool from being narrowed into a guaranteed build. A pool-floor
-  guard ensures the board can always fill.
+  guard ensures the board can always fill. It is the one explicit lever, surfaced as
+  a clearly labeled per-offer button with a visible "N left" count.
 - **Pity**: a run-scoped streak (`boostPity`) that climbs each draft node with no
   epic+ offer and resets when the player sees one. It biases the next draw's rarity
   roll toward epic+ (`rollRarity(rng, pityOffset)`), rising from about 6 percent
@@ -111,7 +110,6 @@ Every draw derives from `core.seed`, so replays are stable. Seed labels:
 | ------------------- | ---------------------------------- |
 | Map 0 draft         | `boost-m0`                         |
 | Map N draft         | `boost-m<N>`                       |
-| Reroll (n-th)       | `<drawLabel>-reroll-<n>`           |
 | Banish replacement  | `<drawLabel>-banish-<k>`           |
 
 ## 5. Balancing and tuning
@@ -136,5 +134,4 @@ expected limitation of measuring a single boost in isolation, not an imbalance.
   [abilities-gacha.ts](../src/game/abilities-gacha.ts)).
 - Scaling ramps: `every` / `maxStacks` / `perStack` on each `ScalingSpec`.
 - Set bonuses: `bonus` and `reqs` in `SET_DEFS`.
-- Agency: `REROLL_BASE` / `REROLL_STEP` (boosts.ts), `MAX_BANISHES` (run-machine.ts),
-  `PITY_PER_STREAK` / `PITY_MAX` (rarity.ts).
+- Agency: `MAX_BANISHES` (run-machine.ts), `PITY_PER_STREAK` / `PITY_MAX` (rarity.ts).

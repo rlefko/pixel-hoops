@@ -905,7 +905,7 @@ describe('boosts, economy, and legends', () => {
         { id: 'iron-legs' },
         { id: 'no-easy-buckets' },
       ],
-      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false, drawLabel: 'boost-m0', rerolls: 0 },
+      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false, drawLabel: 'boost-m0' },
     };
     m = runReducer(m, { type: 'draftBoost', offer: { kind: 'new', defId: 'splash-brothers' } })!;
     expect(m.phase.kind).toBe('boostDraft');
@@ -928,7 +928,7 @@ describe('boosts, economy, and legends', () => {
         { id: 'iron-legs' },
         { id: 'no-easy-buckets' },
       ],
-      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false, drawLabel: 'boost-m0', rerolls: 0 },
+      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false, drawLabel: 'boost-m0' },
     };
     m = runReducer(m, { type: 'draftBoost', offer: { kind: 'new', defId: 'splash-brothers' } })!;
     expect(m.phase.kind === 'boostDraft' && m.phase.pendingFull).toBe(true);
@@ -949,31 +949,7 @@ describe('boosts, economy, and legends', () => {
     expect(lost.phase).toEqual({ kind: 'summary', champion: false });
   });
 
-  const withCoins = (m: RunModel, coins: number): RunModel => ({
-    ...m,
-    core: { ...m.core, rewards: { ...m.core.rewards, coins } },
-  });
-
-  it('rerolls the whole board for an escalating coin cost, deterministically', () => {
-    const base = withCoins(start(), 100);
-    expect(base.phase.kind).toBe('boostDraft');
-    const first = runReducer(base, { type: 'rerollBoosts' })!;
-    expect(first.core.rewards.coins).toBe(95); // 100 - 5
-    expect(first.phase.kind === 'boostDraft' && first.phase.rerolls).toBe(1);
-    const second = runReducer(first, { type: 'rerollBoosts' })!;
-    expect(second.core.rewards.coins).toBe(85); // 95 - 10 (escalating)
-    // Same model rerolled from scratch yields an identical board (deterministic seed).
-    const again = runReducer(base, { type: 'rerollBoosts' })!;
-    const offersOf = (m: RunModel) => (m.phase.kind === 'boostDraft' ? m.phase.offers : null);
-    expect(offersOf(again)).toEqual(offersOf(first));
-  });
-
-  it('refuses a reroll the player cannot afford (no-op)', () => {
-    const broke = withCoins(start(), 3); // below the base cost of 5
-    expect(runReducer(broke, { type: 'rerollBoosts' })).toBe(broke);
-  });
-
-  it('banishes an offered boost, replaces it, and never offers it again', () => {
+  it('banishes an offered boost, replaces it, and keeps the board full', () => {
     const m = start();
     if (m.phase.kind !== 'boostDraft') throw new Error('expected boostDraft');
     const count = m.phase.offers.length;
@@ -983,10 +959,11 @@ describe('boosts, economy, and legends', () => {
     const board = after.phase.kind === 'boostDraft' ? after.phase.offers : [];
     expect(board).toHaveLength(count);
     expect(board.some((o) => o.defId === target.defId)).toBe(false);
-    // A later reroll still excludes the banished boost.
-    const rerolled = runReducer(withCoins(after, 100), { type: 'rerollBoosts' })!;
-    const after2 = rerolled.phase.kind === 'boostDraft' ? rerolled.phase.offers : [];
-    expect(after2.some((o) => o.defId === target.defId)).toBe(false);
+    // A second banish on the new board still never re-surfaces the first one.
+    const next = after.phase.kind === 'boostDraft' ? after.phase.offers[0] : target;
+    const after2model = runReducer(after, { type: 'banishBoost', offer: next })!;
+    const board2 = after2model.phase.kind === 'boostDraft' ? after2model.phase.offers : [];
+    expect(board2.some((o) => o.defId === target.defId)).toBe(false);
   });
 
   it('caps banishes per run', () => {
@@ -1013,7 +990,7 @@ describe('boosts, economy, and legends', () => {
     const seeded: RunModel = {
       ...base,
       boostPity: 3,
-      phase: { kind: 'boostDraft', round: 2, offers: [{ kind: 'new', defId: 'lockdown' }], pendingFull: false, drawLabel: 'boost-m1', rerolls: 0 },
+      phase: { kind: 'boostDraft', round: 2, offers: [{ kind: 'new', defId: 'lockdown' }], pendingFull: false, drawLabel: 'boost-m1' },
     };
     expect(runReducer(seeded, { type: 'draftBoost', offer: { kind: 'new', defId: 'lockdown' } })!.boostPity).toBe(0);
   });

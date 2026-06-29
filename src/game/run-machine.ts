@@ -44,7 +44,6 @@ import {
   MAX_BOOSTS,
   BOOST_BY_ID,
   BOOST_DEFS,
-  boostRerollCost,
   drawBoostOffers,
   type BoostOffer,
   type PassiveBoost,
@@ -133,11 +132,9 @@ export type RunPhase =
       offers: BoostOffer[];
       pendingFull: boolean;
       forced?: BoostOffer;
-      /** Seed label this node's offers were drawn from, so a reroll derives a fresh
-       * deterministic board (`<drawLabel>-reroll-<n>`). */
+      /** Seed label this node's offers were drawn from, so a banish replacement
+       * derives a fresh deterministic offer (`<drawLabel>-banish-<n>`). */
       drawLabel: string;
-      /** Rerolls used at THIS node (resets per node, since the phase is recreated). */
-      rerolls: number;
     }
   // Boost node: grab one free item and assign it (the renamed, coin-free shop).
   | { kind: 'boost'; nodeId: string; stock: ItemDef[] }
@@ -214,7 +211,6 @@ export type RunAction =
   | { type: 'draftBoost'; offer: BoostOffer }
   | { type: 'dropBoostForNew'; dropIndex: number }
   | { type: 'skipBoostDraft' }
-  | { type: 'rerollBoosts' }
   | { type: 'banishBoost'; offer: BoostOffer }
   | { type: 'takeBoostItem'; defId: string; playerIndex: number }
   | { type: 'leaveBoost' }
@@ -675,7 +671,7 @@ function advanceToNextMap(model: RunModel): RunModel {
     ...model,
     core,
     game: null,
-    phase: { kind: 'boostDraft', round, offers, pendingFull: false, drawLabel, rerolls: 0 },
+    phase: { kind: 'boostDraft', round, offers, pendingFull: false, drawLabel },
   };
 }
 
@@ -716,7 +712,7 @@ export function runReducer(
       return {
         ...model,
         core: { ...model.core, roster },
-        phase: { kind: 'boostDraft', round: 1, offers, pendingFull: false, drawLabel, rerolls: 0 },
+        phase: { kind: 'boostDraft', round: 1, offers, pendingFull: false, drawLabel },
       };
     }
 
@@ -946,28 +942,6 @@ export function runReducer(
     case 'skipBoostDraft': {
       if (model.phase.kind !== 'boostDraft') return model;
       return afterBoostDraft(model, model.phase.offers);
-    }
-
-    case 'rerollBoosts': {
-      // Whole-board reroll: costs run coins (escalating per node), keeps the same
-      // banish set and pity, derives a fresh deterministic board. No-op if it cannot
-      // be afforded or while resolving a full-boosts drop.
-      if (model.phase.kind !== 'boostDraft' || model.phase.pendingFull) return model;
-      const phase = model.phase;
-      const cost = boostRerollCost(phase.rerolls);
-      if (model.core.rewards.coins < cost) return model;
-      const offers = drawBoostOffers(
-        model.boosts,
-        createRNG(deriveSeed(model.core.seed, `${phase.drawLabel}-reroll-${phase.rerolls + 1}`)),
-        model.mods.boostOfferCount,
-        { banished: new Set(model.banishedBoosts), pityOffset: pityRarityOffset(model.boostPity) }
-      );
-      const rewards = { ...model.core.rewards, coins: model.core.rewards.coins - cost };
-      return {
-        ...model,
-        core: { ...model.core, rewards },
-        phase: { ...phase, offers, rerolls: phase.rerolls + 1 },
-      };
     }
 
     case 'banishBoost': {

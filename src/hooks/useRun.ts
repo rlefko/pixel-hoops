@@ -119,7 +119,6 @@ export function useRun() {
       dropBoostForNew: (dropIndex: number) =>
         dispatch({ type: 'dropBoostForNew', dropIndex }),
       skipBoostDraft: () => dispatch({ type: 'skipBoostDraft' }),
-      rerollBoosts: () => dispatch({ type: 'rerollBoosts' }),
       banishBoost: (offer: BoostOffer) => dispatch({ type: 'banishBoost', offer }),
       takeBoostItem: (defId: string, playerIndex: number) =>
         dispatch({ type: 'takeBoostItem', defId, playerIndex }),
