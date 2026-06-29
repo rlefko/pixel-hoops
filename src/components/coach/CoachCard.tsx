@@ -1,9 +1,9 @@
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { PixelButton } from '@/components/PixelButton';
-import { WhistleIcon } from '@/components/run/PixelIcons';
+import { WhistleIcon, LockIcon } from '@/components/run/PixelIcons';
 import { CLASS_COLOR } from '@/components/run/class-ui';
-import { coachUnlockLabel, type CoachProfile } from '@/game/coaches';
+import { coachUnlockLabel, coachTags, type CoachProfile } from '@/game/coaches';
 import { archetypeLabel } from '@/game/team-archetype';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -21,23 +21,6 @@ interface CoachCardProps {
   onEquip?: () => void;
 }
 
-function paceLabel(p: CoachProfile['prefPace']): string {
-  if (p === 'auto') return 'Adapts';
-  return p === 'fast' ? 'Fast' : p === 'slow' ? 'Slow' : 'Balanced';
-}
-
-function focusLabel(f: CoachProfile['prefFocus']): string {
-  if (f === 'auto') return 'Reads roster';
-  return f === 'inside' ? 'Inside' : f === 'outside' ? 'Outside' : f === 'lockdown' ? 'Lockdown' : 'Balanced';
-}
-
-const ROTATION_LABEL: Record<number, string> = { 8: 'Short bench', 9: 'Standard', 10: 'Deep bench' };
-const USAGE_LABEL: Record<CoachProfile['usage'], string> = {
-  star: 'Star-led',
-  egalitarian: 'Egalitarian',
-  balanced: 'Balanced share',
-};
-
 function systemLabel(coach: CoachProfile): string {
   if (coach.system.length === 0) return 'Fundamentals';
   return coach.system.map(archetypeLabel).join(' / ');
@@ -45,7 +28,7 @@ function systemLabel(coach: CoachProfile): string {
 
 export function CoachCard({ coach, owned, equipped, onEquip }: CoachCardProps) {
   const accent = CLASS_COLOR[coach.class];
-  const tags = [paceLabel(coach.prefPace), focusLabel(coach.prefFocus), ROTATION_LABEL[coach.rotation], USAGE_LABEL[coach.usage]];
+  const tags = coachTags(coach);
   return (
     <View style={[styles.card, { borderColor: accent }, !owned && styles.locked]}>
       <View style={styles.header}>
@@ -63,8 +46,8 @@ export function CoachCard({ coach, owned, equipped, onEquip }: CoachCardProps) {
 
       <View style={styles.tagRow}>
         {tags.map((t) => (
-          <Text key={t} style={styles.tag}>
-            {t}
+          <Text key={t.key} style={styles.tag}>
+            {t.label}
           </Text>
         ))}
       </View>
@@ -76,7 +59,10 @@ export function CoachCard({ coach, owned, equipped, onEquip }: CoachCardProps) {
           <PixelButton label="EQUIP" variant="secondary" size="small" style={styles.equip} onPress={onEquip ?? (() => {})} />
         )
       ) : (
-        <Text style={styles.unlock}>🔒 {coachUnlockLabel(coach.unlock)}</Text>
+        <View style={styles.unlockRow}>
+          <LockIcon size={11} color={palette.inkDim} />
+          <Text style={styles.unlock}>{coachUnlockLabel(coach.unlock)}</Text>
+        </View>
       )}
     </View>
   );
@@ -116,5 +102,6 @@ const styles = StyleSheet.create({
   },
   equip: { alignSelf: 'flex-start', marginTop: space(2) },
   equipped: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, marginTop: space(2) },
-  unlock: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim, marginTop: space(2) },
+  unlockRow: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), marginTop: space(2) },
+  unlock: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim },
 });

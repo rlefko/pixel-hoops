@@ -143,6 +143,46 @@ export function WhistleIcon({ size, color }: IconProps) {
   );
 }
 
+/** locked: a padlock (an open-bottom shackle arch over a body with a keyhole). */
+export function LockIcon({ size, color }: IconProps) {
+  const shackleW = size * 0.42;
+  return (
+    <View style={box(size)}>
+      <View
+        style={{
+          width: shackleW,
+          height: size * 0.34,
+          borderWidth: Math.max(1, Math.round(size * 0.1)),
+          borderBottomWidth: 0,
+          borderColor: color,
+          borderTopLeftRadius: shackleW / 2,
+          borderTopRightRadius: shackleW / 2,
+          marginBottom: -size * 0.06,
+        }}
+      />
+      <View
+        style={{
+          width: size * 0.7,
+          height: size * 0.5,
+          borderRadius: Math.max(1, Math.round(size * 0.08)),
+          backgroundColor: color,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <View
+          style={{
+            width: size * 0.12,
+            height: size * 0.12,
+            borderRadius: size * 0.06,
+            backgroundColor: palette.bgPanel,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
 /** recruit: a person with a plus. */
 export function RecruitIcon({ size, color }: IconProps) {
   const bar = Math.max(1, Math.round(size * 0.1));
