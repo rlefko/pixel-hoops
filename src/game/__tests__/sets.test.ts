@@ -36,9 +36,15 @@ describe('set families', () => {
     }
   });
 
-  it('every set has unique ids and a non-empty bonus', () => {
+  it('every set has unique ids and at least one prerequisite unit', () => {
     const ids = SET_DEFS.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
+    // Every set needs a positive requirement total, so progress ratios never divide
+    // by zero (SetRow relies on this).
+    for (const def of SET_DEFS) {
+      const need = def.reqs.reduce((n, r) => n + (r.fromBoosts ?? 0) + (r.fromItems ?? 0), 0);
+      expect(need, def.id).toBeGreaterThan(0);
+    }
   });
 });
 

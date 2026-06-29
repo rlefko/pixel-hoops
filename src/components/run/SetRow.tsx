@@ -13,9 +13,10 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
  */
 export function SetRow({ five, boosts }: { five: RosterPlayer[]; boosts: PassiveBoost[] }) {
   const { progress } = resolveSets(five, boosts);
+  const ratio = (p: { have: number; need: number }): number => (p.need ? p.have / p.need : 0);
   const shown = progress
     .filter((p) => p.met || p.have > 0)
-    .sort((a, b) => Number(b.met) - Number(a.met) || b.have / b.need - a.have / a.need)
+    .sort((a, b) => Number(b.met) - Number(a.met) || ratio(b) - ratio(a))
     .slice(0, 4);
 
   if (shown.length === 0) return null;

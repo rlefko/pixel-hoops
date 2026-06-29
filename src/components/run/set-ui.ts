@@ -1,5 +1,5 @@
 import type { PassiveBoost } from '@/game/boosts';
-import { resolveSets } from '@/game/sets';
+import { resolveSets, type SetProgress } from '@/game/sets';
 import type { RosterPlayer } from '@/types/roster';
 
 /**
@@ -17,17 +17,16 @@ export function setHintForOffer(
   const before = new Map(resolveSets(five, owned).progress.map((p) => [p.def.id, p]));
   const after = resolveSets(five, [...owned, { id: offerId }]).progress;
 
-  let best: { name: string; have: number; need: number; met: boolean } | null = null;
+  let best: SetProgress | null = null;
   for (const a of after) {
     const b = before.get(a.def.id);
     if (!b || b.met || a.have <= b.have) continue; // only sets this offer advances
-    const cand = { name: a.def.name, have: a.have, need: a.need, met: a.met };
     const better =
       !best ||
-      (cand.met && !best.met) ||
-      (cand.met === best.met && cand.need - cand.have < best.need - best.have);
-    if (better) best = cand;
+      (a.met && !best.met) ||
+      (a.met === best.met && a.need - a.have < best.need - best.have);
+    if (better) best = a;
   }
   if (!best) return null;
-  return best.met ? `→ ${best.name}` : `${best.have}/${best.need} ${best.name}`;
+  return best.met ? `→ ${best.def.name}` : `${best.have}/${best.need} ${best.def.name}`;
 }
