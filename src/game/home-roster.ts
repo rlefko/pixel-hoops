@@ -18,6 +18,7 @@ import {
 import { pullPlayer, PLAYER_MACHINES, type PlayerGachaTier, type PlayerPullResult } from './player-gacha';
 import { GACHA_MACHINES, getGachaAbility } from './abilities-gacha';
 import { HALL_OF_FAME_CAP, sanitizeHallOfFame, type HallOfFameEntry } from './hall-of-fame';
+import { COACHES, STARTER_COACH_ID, earnedCoachIds, coachesWonByClear, isCoachId } from './coaches';
 
 /**
  * The persistent "home roster" that compounds across runs. It is now an UNCAPPED,
@@ -60,8 +61,17 @@ export interface HomeRoster {
   seenWelcome?: boolean;
   /** Championship rosters, newest first (capped at HALL_OF_FAME_CAP). */
   hallOfFame: HallOfFameEntry[];
+  /** Owned coach ids (won off the ladder, never bought; always includes the
+   * starter). Derived from ladderProgress on load, then grown on championships. */
+  ownedCoaches: string[];
+  /** The coach equipped for the next run (must be owned; defaults to the starter). */
+  selectedCoachId: string;
 }
 
+// v11 adds the Coach system (`ownedCoaches`/`selectedCoachId`). On load, owned coaches
+// are DERIVED from `ladderProgress` so veteran saves retroactively receive every coach
+// their progress has earned; the starter is always granted and the selection defaults to
+// the starter when missing/invalid (so coaches need no separate persisted unlock state).
 // v9 replaces the single `lastRotation` with `rosterMemory`, a per-(difficulty x class)
 // map of remembered draft rotations; on load an older save's `lastRotation` seeds the
 // currently selected cell (best-effort, since the cell it was drafted on was not stored).
@@ -73,7 +83,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 10;
+const HOME_ROSTER_VERSION = 11;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -185,6 +195,8 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     legendDryStreak: 0,
     seenWelcome: false,
     hallOfFame: [],
+    ownedCoaches: [STARTER_COACH_ID],
+    selectedCoachId: STARTER_COACH_ID,
   };
 }
 
@@ -306,6 +318,27 @@ export function unequipAbility(home: HomeRoster, key: string): HomeRoster {
   return { ...home, equippedAbilities: next };
 }
 
+// --- Coaches (won off the ladder, never bought) ---
+
+/** Whether a coach is owned. */
+export function ownsCoach(home: HomeRoster, id: string): boolean {
+  return home.ownedCoaches.includes(id);
+}
+
+/** Grant a coach (idempotent; ignores unknown ids). Returns a NEW home roster, or
+ * the same reference when nothing changes. Keeps the list in catalog order. */
+export function grantCoach(home: HomeRoster, id: string): HomeRoster {
+  if (!isCoachId(id) || home.ownedCoaches.includes(id)) return home;
+  const owned = new Set([...home.ownedCoaches, id]);
+  return { ...home, ownedCoaches: COACHES.filter((c) => owned.has(c.id)).map((c) => c.id) };
+}
+
+/** Equip an owned coach for the next run (no-op when not owned). */
+export function selectCoach(home: HomeRoster, id: string): HomeRoster {
+  if (home.selectedCoachId === id || !home.ownedCoaches.includes(id)) return home;
+  return { ...home, selectedCoachId: id };
+}
+
 // --- Player scouting gacha ---
 
 /**
@@ -400,7 +433,20 @@ export function mergeRunGainsIntoHome(
 
   const ladderProgress = { ...home.ladderProgress };
   let selectedLadderClass = home.selectedLadderClass;
+  let ownedCoaches = home.ownedCoaches;
   if (champion && clearedClass) {
+    // Win any coaches this clear entitles (computed BEFORE the ladder write;
+    // coachesWonByClear re-applies advanceLadder itself). Keeps the equipped coach.
+    const won = coachesWonByClear(
+      home.ladderProgress,
+      playedDifficulty,
+      clearedClass,
+      new Set(home.ownedCoaches)
+    );
+    if (won.length) {
+      const owned = new Set([...home.ownedCoaches, ...won]);
+      ownedCoaches = COACHES.filter((c) => owned.has(c.id)).map((c) => c.id);
+    }
     const advanced = advanceLadder(ladderProgress[playedDifficulty], clearedClass);
     ladderProgress[playedDifficulty] = advanced;
     // Auto-select the next unlocked class (the new frontier), like the old ladder.
@@ -416,6 +462,7 @@ export function mergeRunGainsIntoHome(
     reputation: home.reputation + (rewards?.reputation ?? 0),
     ladderProgress,
     selectedLadderClass,
+    ownedCoaches,
     legendDryStreak: legendOffered ? 0 : home.legendDryStreak + 1,
     seenWelcome: home.seenWelcome ?? true,
     hallOfFame:
@@ -571,6 +618,19 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
       : {};
   const abilities = sanitizeAbilities(rawInventory, rawEquipped);
 
+  // v11: derive owned coaches from ladder progress (so veterans retroactively own
+  // every coach their progress has earned), then union with any explicitly-saved ids
+  // (forward-compat), always including the starter; drop unknown ids defensively.
+  const ownedSet = new Set(earnedCoachIds(ladderProgress));
+  ownedSet.add(STARTER_COACH_ID);
+  const savedCoaches = Array.isArray(data.ownedCoaches) ? data.ownedCoaches : [];
+  for (const id of savedCoaches) if (typeof id === 'string' && isCoachId(id)) ownedSet.add(id);
+  const ownedCoaches = COACHES.filter((c) => ownedSet.has(c.id)).map((c) => c.id);
+  const selectedCoachId =
+    typeof data.selectedCoachId === 'string' && ownedSet.has(data.selectedCoachId)
+      ? data.selectedCoachId
+      : STARTER_COACH_ID;
+
   return {
     players,
     coins: (typeof data.coins === 'number' ? data.coins : 0) + abilities.refund,
@@ -585,5 +645,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     legendDryStreak: typeof data.legendDryStreak === 'number' ? data.legendDryStreak : 0,
     seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
     hallOfFame: sanitizeHallOfFame(data.hallOfFame),
+    ownedCoaches,
+    selectedCoachId,
   };
 }

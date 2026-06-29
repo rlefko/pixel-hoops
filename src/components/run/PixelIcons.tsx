@@ -93,6 +93,56 @@ export function CrownIcon({ size, color }: IconProps) {
   );
 }
 
+/** coach: a referee/coach whistle (chamber + mouthpiece + a lanyard nub). */
+export function WhistleIcon({ size, color }: IconProps) {
+  const body = size * 0.56;
+  return (
+    <View style={box(size)}>
+      <View
+        style={{
+          position: 'absolute',
+          top: size * 0.1,
+          left: size * 0.42,
+          width: Math.max(1, size * 0.12),
+          height: size * 0.16,
+          backgroundColor: color,
+        }}
+      />
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: size * 0.12 }}>
+        <View
+          style={{
+            width: body,
+            height: body,
+            borderRadius: body / 2,
+            backgroundColor: color,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <View
+            style={{
+              width: body * 0.3,
+              height: body * 0.3,
+              borderRadius: body * 0.15,
+              backgroundColor: palette.bgPanel,
+            }}
+          />
+        </View>
+        <View
+          style={{
+            width: size * 0.22,
+            height: size * 0.2,
+            marginLeft: -size * 0.03,
+            borderTopRightRadius: 2,
+            borderBottomRightRadius: 2,
+            backgroundColor: color,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
 /** recruit: a person with a plus. */
 export function RecruitIcon({ size, color }: IconProps) {
   const bar = Math.max(1, Math.round(size * 0.1));

@@ -13,6 +13,8 @@ import {
 } from '@/game/run-machine';
 import { boostRerollCost } from '@/game/boosts';
 import { classAboveLadder } from '@/game/difficulty-mode';
+import { getCoach } from '@/game/coaches';
+import { CoachRecBanner } from '@/components/run/CoachRecBanner';
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { TeamIdentityCard, MatchupHeadline } from '@/components/game/TeamIdentityCard';
 import { deriveTeamIdentity } from '@/game/team-identity';
@@ -44,7 +46,7 @@ type RunActions = ReturnType<typeof useRun>['actions'];
 
 export default function RunScreen() {
   const nav = useArcadeRouter();
-  const { model, loaded, actions } = useRun();
+  const { model, loaded, actions, wonCoachId } = useRun();
   const goMenu = () => nav.replace('/', 'menu');
 
   if (!loaded || !model) {
@@ -212,6 +214,7 @@ export default function RunScreen() {
         model.phase.champion && model.atFrontier && model.ladderClass !== 'S+'
           ? classAboveLadder(model.ladderClass)
           : undefined;
+      const wonCoach = model.phase.champion && wonCoachId ? getCoach(wonCoachId) : undefined;
       // A won ladder gets the full champion celebration (it needs the final game's
       // score and five). Losses, and the defensive champion-without-game case, fall
       // back to the flat summary.
@@ -223,6 +226,7 @@ export default function RunScreen() {
             ladderClass={model.ladderClass}
             wins={model.wins}
             unlockedClass={unlockedClass}
+            wonCoach={wonCoach}
             onNewRun={actions.newRun}
             onHome={goMenu}
           />
@@ -235,6 +239,7 @@ export default function RunScreen() {
           difficulty={model.difficulty}
           ladderClass={model.ladderClass}
           unlockedClass={unlockedClass}
+          wonCoach={wonCoach}
           onNewRun={actions.newRun}
           onMenu={goMenu}
         />
@@ -249,8 +254,10 @@ function depthOf(model: RunModel, nodeId: string): number {
 }
 
 function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
+  const [recDismissed, setRecDismissed] = useState(false);
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
   const timeoutUsed = model.phase.kind === 'pregame' && model.phase.timeoutUsed;
+  const coachRec = model.phase.kind === 'pregame' ? model.phase.coachRec : undefined;
   const round = depthOf(model, nodeId);
   // The away board scouts the opponent the run will field. The home board shows the
   // player's chosen five in their own slots, with an injured starter marked OUT in
@@ -287,6 +294,14 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
       <Text style={styles.section}>YOUR FIVE</Text>
       <TeamIdentityCard identity={deriveTeamIdentity(home)} accentHex={home.colorHex} variant="lite" />
       <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} compact />
+      {coachRec && !recDismissed ? (
+        <CoachRecBanner
+          coach={getCoach(model.coachId)}
+          rec={coachRec}
+          onAccept={actions.acceptCoachRec}
+          onDismiss={() => setRecDismissed(true)}
+        />
+      ) : null}
       <Pressable onPress={actions.openLineupBuilder}>
         <Text style={styles.link}>Change Lineup</Text>
       </Pressable>

@@ -26,6 +26,7 @@ const ROUTE_WIPE: Record<string, { color: string; label: string }> = {
   '/arcade': { color: palette.flame, label: 'ARCADE' },
   '/roster': { color: palette.steelBlue, label: 'ROSTER' },
   '/hall-of-fame': { color: palette.gold, label: 'HALL OF FAME' },
+  '/coaches': { color: palette.chrome, label: 'COACHES' },
   '/settings': { color: palette.inkDim, label: 'SETTINGS' },
 };
 
