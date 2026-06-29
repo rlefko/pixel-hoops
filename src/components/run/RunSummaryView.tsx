@@ -5,7 +5,8 @@ import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/dif
 import type { PlayerClass } from '@/game/ratings';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
-/** End-of-run summary. The home roster has already banked the run's gains. */
+/** End-of-run summary. Coins were banked into the wallet as they were earned; a clear
+ * also carries recruits home and advances the ladder. */
 
 interface RunSummaryViewProps {
   champion: boolean;
@@ -42,7 +43,7 @@ export function RunSummaryView({
         <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
       ) : null}
       <Text style={[styles.note, !champion && styles.noteLost]}>
-        {champion ? 'Recruits carried home.' : 'Run recruits lost. Coins banked.'}
+        {champion ? 'Recruits carried home.' : 'Run recruits lost. Your coins are safe.'}
       </Text>
       <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
         <Text style={styles.buttonText}>NEW RUN</Text>

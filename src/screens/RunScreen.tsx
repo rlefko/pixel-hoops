@@ -4,6 +4,7 @@ import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { useRun } from '@/hooks/useRun';
+import { useActiveRun } from '@/context/ActiveRunContext';
 import {
   buildHomeTeam,
   buildOpponentTeam,
@@ -50,6 +51,9 @@ type RunActions = ReturnType<typeof useRun>['actions'];
 export default function RunScreen() {
   const nav = useArcadeRouter();
   const { model, loaded, actions, wonCoachIds, equippedCoachId } = useRun();
+  const { savedRun } = useActiveRun();
+  // Leaving the run is a suspend, not a quit: the run is auto-saved continuously, so
+  // we just return home and let the saved snapshot persist (no banking, no end).
   const goMenu = () => nav.replace('/', 'menu');
 
   // The coach-unlock reveal plays after the champion celebration. Reset whenever the
@@ -79,7 +83,7 @@ export default function RunScreen() {
           timeouts={model.secondChancesRemaining}
           bagCount={model.bag.length}
           onChoose={actions.chooseNode}
-          onQuit={actions.endRun}
+          onLeave={goMenu}
           onOpenLineup={actions.openLineupBuilder}
           onOpenBag={actions.openBag}
         />
@@ -92,7 +96,9 @@ export default function RunScreen() {
           defaultBench={model.phase.defaultBench}
           difficulty={model.difficulty}
           ladderClass={model.ladderClass}
+          replacesSavedRun={savedRun !== null}
           onConfirm={actions.confirmDraft}
+          onCancel={goMenu}
         />
       );
     case 'dropForRecruit':

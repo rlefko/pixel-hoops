@@ -195,6 +195,8 @@ export interface RunModel {
 
 export type RunAction =
   | { type: 'newRun'; seed: string; homeRoster: HomeRoster }
+  // Resume a suspended run by loading its saved model wholesale (see useRun).
+  | { type: 'loadRun'; model: RunModel }
   | { type: 'confirmDraft'; starters: RosterPlayer[]; bench: RosterPlayer[] }
   | { type: 'chooseNode'; nodeId: string }
   | { type: 'openLineupBuilder' }
@@ -225,8 +227,7 @@ export type RunAction =
   | { type: 'scoutLegend' }
   | { type: 'declineLegend' }
   | { type: 'skipNode' }
-  | { type: 'backToMap' }
-  | { type: 'endRun' };
+  | { type: 'backToMap' };
 
 /** Whether the run's ladder class is at/above the cleared frontier, so a
  * championship advances the ladder (drives the summary "unlocked" beat). */
@@ -739,6 +740,7 @@ export function runReducer(
   action: RunAction
 ): RunModel | null {
   if (action.type === 'newRun') return initRun(action.seed, action.homeRoster);
+  if (action.type === 'loadRun') return action.model;
   if (model === null) return null;
 
   switch (action.type) {
@@ -1100,8 +1102,5 @@ export function runReducer(
     case 'skipNode':
     case 'backToMap':
       return { ...model, phase: { kind: 'map' } };
-
-    case 'endRun':
-      return { ...model, phase: { kind: 'summary', champion: false } };
   }
 }

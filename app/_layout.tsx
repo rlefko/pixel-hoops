@@ -12,6 +12,7 @@ import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 
 import { FeelSettingsProvider } from '@/feel';
 import { HomeRosterProvider } from '@/context/HomeRosterContext';
+import { ActiveRunProvider } from '@/context/ActiveRunContext';
 import { TransitionProvider } from '@/navigation';
 import { FONT_ASSETS, palette } from '@/theme';
 
@@ -62,7 +63,9 @@ export default function RootLayout() {
   return (
     <FeelSettingsProvider>
       <HomeRosterProvider>
-        <RootLayoutNav />
+        <ActiveRunProvider>
+          <RootLayoutNav />
+        </ActiveRunProvider>
       </HomeRosterProvider>
     </FeelSettingsProvider>
   );

@@ -46,7 +46,13 @@ interface DraftViewProps {
   defaultBench: RosterPlayer[];
   difficulty: Difficulty;
   ladderClass: LadderClass;
+  /** True when a suspended run exists: confirming this draft will replace it (the
+   * forfeit commit point). Surfaces an inline heads-up; cancelling keeps the old run. */
+  replacesSavedRun?: boolean;
   onConfirm: (starters: RosterPlayer[], bench: RosterPlayer[]) => void;
+  /** Back out of the draft without starting (returns home). Leaves any saved run intact,
+   * since the draft is never auto-saved. */
+  onCancel: () => void;
 }
 
 const keyOf = (rp: RosterPlayer): string => `${rp.player.name}|${rp.position}`;
@@ -61,7 +67,9 @@ export function DraftView({
   defaultBench,
   difficulty,
   ladderClass,
+  replacesSavedRun,
   onConfirm,
+  onCancel,
 }: DraftViewProps) {
   const [slots, setSlots] = useState<(RosterPlayer | null)[]>(() => {
     const s: (RosterPlayer | null)[] = Array(MAX_DRAFT_ROTATION).fill(null);
@@ -141,11 +149,14 @@ export function DraftView({
     });
 
   return (
-    <Screen style={styles.container}>
+    <Screen style={styles.container} onBack={onCancel} backLabel="CANCEL">
       <Text style={styles.title}>DRAFT YOUR LINEUP</Text>
       <Text style={styles.subtitle}>
         {DIFFICULTY_LABELS[difficulty].name} · {ladderClass} · POINTS {spent}/{budget}
       </Text>
+      {replacesSavedRun ? (
+        <Text style={styles.replaceNote}>Starting this five replaces your saved run.</Text>
+      ) : null}
 
       <View style={styles.board}>
         {slots.map((rp, i) => {
@@ -306,6 +317,13 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     textAlign: 'center',
     marginTop: space(1),
+    marginBottom: space(2),
+  },
+  replaceNote: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.orange,
+    textAlign: 'center',
     marginBottom: space(2),
   },
   board: { flexDirection: 'row', flexWrap: 'wrap', gap: space(1) },

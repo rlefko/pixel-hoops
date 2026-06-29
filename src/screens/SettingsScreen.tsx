@@ -7,6 +7,7 @@ import { CheckboxRow } from '@/components/CheckboxRow';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useFeelSettings } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
+import { useActiveRun } from '@/context/ActiveRunContext';
 import { BORDER, FONT, FONT_SIZE, palette, RADIUS, space } from '@/theme';
 
 /**
@@ -19,6 +20,7 @@ export default function SettingsScreen() {
   const nav = useArcadeRouter();
   const { shakeEnabled, hapticsEnabled, reducedMotion, update } = useFeelSettings();
   const { resetHomeRoster } = useHomeRoster();
+  const { clearActiveRun } = useActiveRun();
   const [confirmingReset, setConfirmingReset] = useState(false);
 
   return (
@@ -69,6 +71,7 @@ export default function SettingsScreen() {
         onConfirm={() => {
           setConfirmingReset(false);
           resetHomeRoster();
+          clearActiveRun();
           nav.replace('/', 'menu');
         }}
         onCancel={() => setConfirmingReset(false)}

@@ -13,6 +13,7 @@ import { MapNodeTile } from './MapNodeTile';
 import { PositionMarker, EntryBanner } from './PositionMarker';
 import { ResourceHeader } from './ResourceHeader';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
+import { useHomeRoster } from '@/context/HomeRosterContext';
 import { RosterStrip } from './RosterStrip';
 import { BoostRow } from './BoostRow';
 import { SetRow } from './SetRow';
@@ -41,7 +42,8 @@ interface RunMapViewProps {
   /** Number of items in the run bag, shown on the Bag button. */
   bagCount: number;
   onChoose: (nodeId: string) => void;
-  onQuit: () => void;
+  /** Suspend the run and return home; the run stays saved and resumable. */
+  onLeave: () => void;
   /** Opens the lineup builder from the roster strip (optional). */
   onOpenLineup?: () => void;
   /** Opens the item bag. */
@@ -66,10 +68,12 @@ export function RunMapView({
   timeouts,
   bagCount,
   onChoose,
-  onQuit,
+  onLeave,
   onOpenLineup,
   onOpenBag,
 }: RunMapViewProps) {
+  // Coins bank as-earned into the wallet, so the HUD shows the live home total.
+  const { homeRoster } = useHomeRoster();
   const reachable = useMemo(
     () =>
       new Set(getReachableNodes(core.map, core.currentNodeId).map((n) => n.id)),
@@ -99,9 +103,10 @@ export function RunMapView({
     scrollRef.current?.scrollTo({ y, animated: true });
   }, [currentLayer]);
 
-  // Quitting banks progress but ends the run, so confirm before leaving. A
-  // custom dialog (not Alert.alert, which has no working buttons on web).
-  const [confirmingQuit, setConfirmingQuit] = useState(false);
+  // Leaving suspends the run (it auto-saves as you climb), so this is lossless and
+  // resumable. A light confirm just guards against a stray back-tap mid-run. A custom
+  // dialog (not Alert.alert, which has no working buttons on web).
+  const [confirmingLeave, setConfirmingLeave] = useState(false);
 
   // The current node's screen position, for the "you are here" marker.
   const currentMarker = useMemo(() => {
@@ -114,9 +119,10 @@ export function RunMapView({
   }, [core.map, core.currentNodeId]);
 
   return (
-    <Screen onBack={() => setConfirmingQuit(true)} backLabel="QUIT">
+    <Screen onBack={() => setConfirmingLeave(true)} backLabel="LEAVE">
       <ResourceHeader
         rewards={core.rewards}
+        walletCoins={homeRoster?.coins ?? 0}
         mapNumber={core.currentMapIndex + 1}
         totalMaps={TOTAL_MAPS}
         boostCount={boosts.length}
@@ -183,16 +189,15 @@ export function RunMapView({
       <Scanlines />
 
       <ConfirmDialog
-        visible={confirmingQuit}
-        title="QUIT RUN?"
-        message="Your progress is banked but the run will end."
-        confirmLabel="QUIT"
-        destructive
+        visible={confirmingLeave}
+        title="LEAVE RUN?"
+        message="Your run is saved. Resume anytime from the home screen."
+        confirmLabel="LEAVE"
         onConfirm={() => {
-          setConfirmingQuit(false);
-          onQuit();
+          setConfirmingLeave(false);
+          onLeave();
         }}
-        onCancel={() => setConfirmingQuit(false)}
+        onCancel={() => setConfirmingLeave(false)}
       />
     </Screen>
   );
