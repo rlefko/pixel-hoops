@@ -9,6 +9,7 @@ import {
 } from '@/game/boosts';
 import type { TeamModifier } from '@/game/effects';
 import { RARITY_NET, teamNet, type Rarity } from '@/game/rarity';
+import { hookStatKeys, isRealStatKey } from './hook-keys';
 
 /** A boost's static net on the team line. Abstract bonuses fan out: offense/defense
  * hit two stats each, pace/clutch one. Hook-only boosts net 0 (budget-exempt). */
@@ -41,6 +42,18 @@ describe('boost budget', () => {
   it('has unique ids', () => {
     const ids = BOOST_DEFS.map((d) => d.id);
     expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('only references real stat keys (team extra and hooks)', () => {
+    for (const d of BOOST_DEFS) {
+      for (const k of Object.keys(d.effect.extra ?? {})) expect(isRealStatKey(k)).toBe(true);
+      for (const h of d.effect.hooks ?? []) {
+        for (const k of hookStatKeys(h)) expect(isRealStatKey(k)).toBe(true);
+        if (h.kind === 'hotHand') expect(h.halfLife).toBeGreaterThan(0);
+        if (h.kind === 'whenTrailing') expect(h.marginBehind).toBeGreaterThan(0);
+        if (h.kind === 'whenLeading') expect(h.marginAhead).toBeGreaterThan(0);
+      }
+    }
   });
 });
 

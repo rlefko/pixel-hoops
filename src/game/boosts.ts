@@ -46,6 +46,10 @@ export const BOOST_DEFS: readonly BoostDef[] = [
   { id: 'full-court-press', name: 'Full-Court Press', blurb: '+2 team perimeter D, but -1 athleticism', rarity: 'common', effect: { extra: { perimeterD: 2, athleticism: -1 } } },
   { id: 'no-easy-buckets', name: 'No Easy Buckets', blurb: '+2 team interior D, but -1 inside', rarity: 'common', effect: { extra: { interiorD: 2, inside: -1 } } },
   { id: 'bully-ball', name: 'Bully Ball', blurb: '+2 team inside, but -1 outside', rarity: 'common', effect: { extra: { inside: 2, outside: -1 } } },
+  { id: 'crash-the-glass', name: 'Crash the Glass', blurb: '+1 team rebounding', rarity: 'common', effect: { extra: { rebounding: 1 } } },
+  { id: 'quick-hands', name: 'Quick Hands', blurb: '+1 team stealing', rarity: 'common', effect: { extra: { stealing: 1 } } },
+  { id: 'rim-runners', name: 'Rim Runners', blurb: '+2 team inside, but -1 stamina', rarity: 'common', effect: { extra: { inside: 2, stamina: -1 } } },
+  { id: 'swarm-d', name: 'Swarm D', blurb: '+2 team perimeter D, but -1 inside', rarity: 'common', effect: { extra: { perimeterD: 2, inside: -1 } } },
 
   // --- Rare (net +2) ---
   { id: 'sharpshooting', name: 'Sharpshooting', blurb: '+2 team outside', rarity: 'rare', effect: { extra: { outside: 2 } } },
@@ -54,6 +58,10 @@ export const BOOST_DEFS: readonly BoostDef[] = [
   { id: 'iron-legs', name: 'Iron Legs', blurb: '+2 team stamina and durability, but -2 athleticism', rarity: 'rare', effect: { extra: { stamina: 2, durability: 2, athleticism: -2 } } },
   { id: 'paint-presence', name: 'Paint Presence', blurb: '+2 team interior D, +1 inside, but -1 outside', rarity: 'rare', effect: { extra: { interiorD: 2, inside: 1, outside: -1 } } },
   { id: 'run-and-gun', name: 'Run and Gun', blurb: 'Playing fast adds +4 clutch', rarity: 'rare', effect: { hooks: [{ kind: 'paceClutch', minPace: 14, clutchAdd: 4 }] } },
+  { id: 'three-and-d', name: 'Three and D', blurb: '+1 team outside and +1 perimeter D', rarity: 'rare', effect: { extra: { outside: 1, perimeterD: 1 } } },
+  { id: 'grit-and-grind', name: 'Grit and Grind', blurb: '+2 team interior D, +1 strength, but -1 athleticism', rarity: 'rare', effect: { extra: { interiorD: 2, strength: 1, athleticism: -1 } } },
+  { id: 'comeback-story', name: 'Comeback Story', blurb: 'Trailing by 6 or more: +4 team outside', rarity: 'rare', effect: { hooks: [{ kind: 'whenTrailing', marginBehind: 6, delta: { outside: 4 } }] } },
+  { id: 'momentum-swing', name: 'Momentum Swing', blurb: 'After a made three, +3 team outside', rarity: 'rare', effect: { hooks: [{ kind: 'onResult', on: 'madeThree', delta: { outside: 3 } }] } },
 
   // --- Epic (net +3) ---
   { id: 'switch-everything', name: 'Switch Everything', blurb: '+4 team perimeter D, +2 athleticism, but -3 interior D', rarity: 'epic', effect: { extra: { perimeterD: 4, athleticism: 2, interiorD: -3 } } },
@@ -61,6 +69,10 @@ export const BOOST_DEFS: readonly BoostDef[] = [
   { id: 'lockdown', name: 'Lockdown', blurb: '+2 team perimeter and interior D, but -1 athleticism', rarity: 'epic', effect: { extra: { perimeterD: 2, interiorD: 2, athleticism: -1 } } },
   { id: 'high-motor', name: 'High Motor', blurb: '+2 team stamina and athleticism, but -1 IQ', rarity: 'epic', effect: { extra: { stamina: 2, athleticism: 2, iq: -1 } } },
   { id: 'ice-water', name: 'Ice Water', blurb: '+4 clutch and +3 outside in the fourth', rarity: 'epic', effect: { hooks: [{ kind: 'quarterDelta', quarter: 4, delta: { clutch: 4, outside: 3 } }] } },
+  { id: 'glass-eaters', name: 'Glass Eaters', blurb: '+3 team rebounding, +1 interior D, but -1 athleticism', rarity: 'epic', effect: { extra: { rebounding: 3, interiorD: 1, athleticism: -1 } } },
+  { id: 'chaos-press', name: 'Chaos Press', blurb: '+3 team stealing, +1 athleticism, but -1 IQ', rarity: 'epic', effect: { extra: { stealing: 3, athleticism: 1, iq: -1 } } },
+  { id: 'heat-wave', name: 'Heat Wave', blurb: 'The team heats up: each make adds up to +4 team outside', rarity: 'epic', effect: { hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 4, halfLife: 3, reset: 'quarter' }] } },
+  { id: 'front-runners', name: 'Front Runners', blurb: 'Ahead by 6 or more: +3 team outside and +2 perimeter D', rarity: 'epic', effect: { hooks: [{ kind: 'whenLeading', marginAhead: 6, delta: { outside: 3, perimeterD: 2 } }] } },
 
   // --- Legendary (net +5, build-defining) ---
   { id: 'death-lineup', name: 'Death Lineup', blurb: '+3 team perimeter and interior D, but -1 athleticism', rarity: 'legendary', effect: { extra: { perimeterD: 3, interiorD: 3, athleticism: -1 } } },
@@ -68,6 +80,10 @@ export const BOOST_DEFS: readonly BoostDef[] = [
   { id: 'small-ball', name: 'Small Ball', blurb: '+4 team outside, +2 athleticism, but -1 interior D', rarity: 'legendary', effect: { extra: { outside: 4, athleticism: 2, interiorD: -1 } } },
   { id: 'positionless', name: 'Positionless', blurb: '+2 team outside, playmaking, and perimeter D, but -1 inside', rarity: 'legendary', effect: { extra: { outside: 2, playmaking: 2, perimeterD: 2, inside: -1 } } },
   { id: 'sixth-man', name: 'Sixth Man', blurb: 'When starters tire, the team gets +2 across the board', rarity: 'legendary', effect: { hooks: [{ kind: 'tiredBench', energyBelow: 50, benchDelta: { inside: 2, outside: 2, perimeterD: 2, interiorD: 2 } }] } },
+  { id: 'twin-towers', name: 'Twin Towers', blurb: '+3 team interior D, +2 rebounding, +1 blocking, but -1 athleticism', rarity: 'legendary', effect: { extra: { interiorD: 3, rebounding: 2, blocking: 1, athleticism: -1 } } },
+  { id: 'motion-offense', name: 'Motion Offense', blurb: '+2 team outside, +2 playmaking, +1 IQ', rarity: 'legendary', effect: { extra: { outside: 2, playmaking: 2, iq: 1 } } },
+  { id: 'never-say-die', name: 'Never Say Die', blurb: 'Down 3 or more: +5 team inside and outside', rarity: 'legendary', effect: { hooks: [{ kind: 'whenTrailing', marginBehind: 3, delta: { inside: 5, outside: 5 } }] } },
+  { id: 'unconscious', name: 'Unconscious', blurb: 'Limitless team heat: each make adds up to +6 team outside', rarity: 'legendary', effect: { hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 6, halfLife: 2, reset: 'quarter' }] } },
 ];
 
 export const BOOST_BY_ID: Record<string, BoostDef> = Object.fromEntries(
