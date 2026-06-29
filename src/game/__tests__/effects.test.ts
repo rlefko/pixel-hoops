@@ -75,4 +75,17 @@ describe('effects: team modifiers', () => {
     expect(scaled.extra).toEqual({ outside: 3 });
     expect(scaled.hooks).toHaveLength(1); // not tripled
   });
+
+  it('carries the new conditional hook kinds and keeps them serializable', () => {
+    const m = mergeTeamModifiers([
+      teamModifierFromPartial({ hooks: [{ kind: 'whenTrailing', marginBehind: 6, delta: { outside: 4 } }] }),
+      teamModifierFromPartial({ hooks: [{ kind: 'whenLeading', marginAhead: 6, delta: { clutch: 3 } }] }),
+      teamModifierFromPartial({ hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 5, halfLife: 3, reset: 'quarter' }] }),
+      teamModifierFromPartial({ hooks: [{ kind: 'onResult', on: 'madeThree', delta: { outside: 4 } }] }),
+    ]);
+    expect(m.hooks).toHaveLength(4);
+    // Plain data only (no closures): a JSON round-trip is identical, so a Team or
+    // SimResult carrying these hooks stays replay-safe and deterministic.
+    expect(JSON.parse(JSON.stringify(m))).toEqual(m);
+  });
 });
