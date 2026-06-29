@@ -13,11 +13,18 @@ export const palette = {
   inkDim: '#9A9AB0', // secondary text
 
   // Accents
-  gold: '#FFD54F', // selection, energy, titles (also the legendary rarity, pulsing)
-  orange: '#FF9800', // brand highlight, special (also the epic rarity)
+  gold: '#FFD54F', // selection, energy, titles (also the legendary rarity and S++ apex, pulsing)
+  orange: '#FF9800', // brand highlight, special (also the S+ class)
   courtLine: '#FF7A1A', // bright orange court accent
-  rareYellow: '#FFE83D', // the rare rarity: a brighter, cooler lemon, distinct from gold
-  purple: '#A974FF', // reward-screen chrome (boost / item nodes), distinct from gold rests
+
+  // Tier ramp: one cool -> warm -> gold language shared by item rarity and player class, so power
+  // reads the same everywhere. common/rare/epic/legendary line up with class C/B/S/S++; the floor
+  // (D = inkDim), the A bridge (magenta), and S+ (orange) fill in the 7-step class ladder. Blue
+  // (steelBlue), gold, inkDim, and orange are reused from the sections around this one.
+  rarePurple: '#9B5CFF', // rare rarity + class B: a saturated royal violet
+  epicRed: '#FF2D55', // epic rarity + class S: scarlet crimson, kept distinct from the coral missRed
+  classMagenta: '#D24DC8', // class A: the magenta bridge between purple and red
+  chrome: '#2DD4BF', // reward-screen + reward-node chrome (teal), distinct from every rarity color
 
   // Outcome semantics
   makeGreen: '#66BB6A',
