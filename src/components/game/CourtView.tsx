@@ -63,16 +63,33 @@ function playerAt(
   team: Team,
   position: Position,
   side: SimTeamSide,
-  current: SimEvent | null
+  current: SimEvent | null,
+  roster: Map<string, RosterPlayer>
 ): RosterPlayer | undefined {
   const starter = team.lineup.players[POSITIONS.indexOf(position)];
   const onCourtName = current?.onCourt[side]?.[position];
   if (!onCourtName) return starter;
-  return (
-    [...team.lineup.players, ...team.bench].find(
-      (rp) => rp.player.name === onCourtName
-    ) ?? starter
-  );
+  // Resolve through a prebuilt name -> player map (memoized once per team) rather
+  // than rebuilding a combined starters+bench array on every sprite, every event.
+  // Falls back to the starter before tip-off or on an unknown name.
+  return roster.get(onCourtName) ?? starter;
+}
+
+/**
+ * A name -> player lookup across a team's starters and bench, built once per team
+ * and reused for every sprite/event. Starters win over the bench on the (not
+ * expected) name clash, matching the prior first-match `.find` over the combined
+ * `[...starters, ...bench]` list.
+ */
+function rosterByName(team: Team): Map<string, RosterPlayer> {
+  const map = new Map<string, RosterPlayer>();
+  for (const rp of team.lineup.players) {
+    if (!map.has(rp.player.name)) map.set(rp.player.name, rp);
+  }
+  for (const rp of team.bench) {
+    if (!map.has(rp.player.name)) map.set(rp.player.name, rp);
+  }
+  return map;
 }
 
 interface Burst {
@@ -136,6 +153,7 @@ function SpriteAt({
   side,
   position,
   team,
+  roster,
   current,
   width,
   height,
@@ -144,6 +162,7 @@ function SpriteAt({
   side: SimTeamSide;
   position: Position;
   team: Team;
+  roster: Map<string, RosterPlayer>;
   current: SimEvent | null;
   width: number;
   height: number;
@@ -151,7 +170,7 @@ function SpriteAt({
 }) {
   const { reducedMotion, simSpeed } = useFeelSettings();
   const speed = SIM_SPEED_FACTOR[simSpeed];
-  const rp = playerAt(team, position, side, current);
+  const rp = playerAt(team, position, side, current, roster);
 
   const role = roleFor(current, side, position);
   const active =
@@ -285,6 +304,11 @@ export function CourtView({
     [awayTeam.colorHex, awayTeam.accentHex]
   );
 
+  // Name -> player lookups, built once per team so each sprite resolves its
+  // on-court player without rebuilding a combined starters+bench array per event.
+  const homeRoster = useMemo(() => rosterByName(homeTeam), [homeTeam]);
+  const awayRoster = useMemo(() => rosterByName(awayTeam), [awayTeam]);
+
   // Aspect-lock the floor to the true 50:94 court inside the available space, so
   // feet map to pixels uniformly on both axes (circles stay round, and every
   // fractional player/ball coordinate lands on the drawn markings). The leftover
@@ -345,6 +369,7 @@ export function CourtView({
               side={side}
               position={position}
               team={side === 'home' ? homeTeam : awayTeam}
+              roster={side === 'home' ? homeRoster : awayRoster}
               current={current}
               width={size.width}
               height={size.height}
