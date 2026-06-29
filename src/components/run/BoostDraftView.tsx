@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
   },
   cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
   familyTag: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME, marginTop: space(0.5) },
-  setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME },
+  setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME, marginTop: space(0.5) },
   bottomButton: { marginTop: space(4) },
   offerRow: { flexDirection: 'row', alignItems: 'center', gap: space(2) },
   cardWrap: { position: 'relative', flex: 1 },
