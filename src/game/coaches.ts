@@ -94,10 +94,10 @@ export const COACHES: readonly CoachProfile[] = [
     unlock: { kind: 'starter' },
   },
   {
-    id: 'mike-brown', name: 'Mike Brown', class: 'C',
-    prefPace: 'balanced', prefFocus: 'lockdown', usage: 'balanced', rotation: 9, iq: 9,
-    system: ['grit-and-grind', 'balanced'], systemBonus: { perimeterD: 0.6 },
-    blurb: 'Defense first, every possession a grind.',
+    id: 'don-nelson', name: 'Don Nelson', class: 'C',
+    prefPace: 'fast', prefFocus: 'outside', usage: 'egalitarian', rotation: 8, iq: 9,
+    system: ['run-and-gun', 'pace-and-space'], systemBonus: { outside: 0.6 },
+    blurb: 'Nellie ball: small, fast, and impossible to guard.',
     unlock: { kind: 'ladder', forClass: 'C', rank: 1 },
   },
   {
@@ -131,10 +131,10 @@ export const COACHES: readonly CoachProfile[] = [
     unlock: { kind: 'opener', forClass: 'B' },
   },
   {
-    id: 'don-nelson', name: 'Don Nelson', class: 'B',
-    prefPace: 'fast', prefFocus: 'outside', usage: 'egalitarian', rotation: 10, iq: 10,
-    system: ['run-and-gun', 'pace-and-space'], systemBonus: { outside: 0.8 },
-    blurb: 'Nellie ball: small, fast, and impossible to guard.',
+    id: 'doc-rivers', name: 'Doc Rivers', class: 'B',
+    prefPace: 'balanced', prefFocus: 'balanced', usage: 'star', rotation: 8, iq: 11,
+    system: ['iso-heavy', 'balanced'], systemBonus: { clutch: 0.8 },
+    blurb: 'Trust your best player when it matters most.',
     unlock: { kind: 'ladder', forClass: 'B', rank: 1 },
   },
   {
@@ -168,10 +168,10 @@ export const COACHES: readonly CoachProfile[] = [
     unlock: { kind: 'opener', forClass: 'A' },
   },
   {
-    id: 'doc-rivers', name: 'Doc Rivers', class: 'A',
-    prefPace: 'balanced', prefFocus: 'balanced', usage: 'star', rotation: 8, iq: 12,
-    system: ['iso-heavy', 'balanced'], systemBonus: { clutch: 1.0 },
-    blurb: 'Trust your best player when it matters most.',
+    id: 'mike-brown', name: 'Mike Brown', class: 'A',
+    prefPace: 'balanced', prefFocus: 'lockdown', usage: 'balanced', rotation: 10, iq: 14,
+    system: ['grit-and-grind', 'pace-and-space'], systemBonus: { perimeterD: 1.0, playmaking: 0.5 },
+    blurb: 'Spurs-bred defense, Warriors-bred motion, and a ring to prove it.',
     unlock: { kind: 'ladder', forClass: 'A', rank: 1 },
   },
   {
