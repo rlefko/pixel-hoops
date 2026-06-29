@@ -13,6 +13,7 @@ import {
   GearIcon,
   HelpIcon,
   JoystickIcon,
+  LockIcon,
   LockerIcon,
   RecruitIcon,
   WhistleIcon,
@@ -134,9 +135,11 @@ export default function HomeScreen() {
                     !isUnlocked && styles.chipLocked,
                   ]}
                 >
-                  <Text style={[styles.classChipText, { color: isUnlocked ? color : palette.inkDim }]}>
-                    {isUnlocked ? cls : '🔒'}
-                  </Text>
+                  {isUnlocked ? (
+                    <Text style={[styles.classChipText, { color }]}>{cls}</Text>
+                  ) : (
+                    <LockIcon size={14} color={palette.inkDim} />
+                  )}
                 </Pressable>
               );
             })}

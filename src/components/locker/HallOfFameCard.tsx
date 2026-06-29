@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { LegendaryHalo } from '@/components/run/reward-fx';
+import { VictoryTierIcon } from '@/components/run/PixelIcons';
 import { haptics } from '@/feel';
 import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
@@ -38,9 +39,10 @@ export function HallOfFameCard({ entry }: HallOfFameCardProps) {
         >
           <View style={styles.headerMain}>
             <View style={styles.titleRow}>
-              <Text style={[styles.stamp, { color: tier.color }]}>
-                {tier.emoji} {tier.label}
-              </Text>
+              <View style={styles.stampRow}>
+                <VictoryTierIcon tier={tier.key} size={11} color={tier.color} />
+                <Text style={[styles.stamp, { color: tier.color }]}>{tier.label}</Text>
+              </View>
               <Text style={styles.config}>
                 {DIFFICULTY_LABELS[entry.difficulty].name} · {entry.ladderClass}
               </Text>
@@ -89,6 +91,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center' },
   headerMain: { flex: 1, minWidth: 0 },
   titleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stampRow: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
   stamp: { fontFamily: FONT.display, fontSize: FONT_SIZE.small },
   config: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
   scoreRow: { flexDirection: 'row', alignItems: 'baseline', marginTop: space(2), gap: space(2) },

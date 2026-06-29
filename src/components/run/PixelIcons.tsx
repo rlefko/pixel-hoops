@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, G, Line, Path } from 'react-native-svg';
 import { palette } from '@/theme';
 import type { MapNodeType } from '@/types/run-map';
+import type { VictoryTierKey } from '@/game/victory-tier';
 
 /**
  * Tiny 8-bit icons drawn with plain Views (no assets), matching the procedural
@@ -308,6 +309,55 @@ export function StarIcon({ size, color }: IconProps) {
   );
 }
 
+/** timeout: a clock face (a ring with two hands), the run's "second chance" glyph. */
+export function ClockIcon({ size, color }: IconProps) {
+  const hand = Math.max(1, Math.round(size * 0.1));
+  return (
+    <View style={box(size)}>
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: color,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <View
+          style={{
+            width: size * 0.62,
+            height: size * 0.62,
+            borderRadius: size * 0.31,
+            backgroundColor: palette.bgPanel,
+          }}
+        />
+        {/* minute hand (up) and hour hand (right), both anchored at the center. */}
+        <View
+          style={{
+            position: 'absolute',
+            width: hand,
+            height: size * 0.26,
+            left: (size - hand) / 2,
+            top: size / 2 - size * 0.26,
+            backgroundColor: color,
+          }}
+        />
+        <View
+          style={{
+            position: 'absolute',
+            width: size * 0.2,
+            height: hand,
+            left: size / 2,
+            top: (size - hand) / 2,
+            backgroundColor: color,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
 /**
  * energy: three stacked cells that fill green/gold/red by an energy (0..100)
  * reading. Full energy lights all three green, mid lights two gold, low lights
@@ -476,5 +526,20 @@ const ICONS: Record<MapNodeType, (p: IconProps) => React.ReactElement> = {
 /** Dispatch to the right icon for a node type. */
 export function NodeIcon({ type, size, color }: { type: MapNodeType } & IconProps) {
   const Icon = ICONS[type];
+  return <Icon size={size} color={color} />;
+}
+
+// The celebration-tier stamp glyph, reusing existing icons so each tier reads as a
+// distinct pixel mark: a medallion, a star, a flame, and the champion's crown.
+const TIER_ICONS: Record<VictoryTierKey, (p: IconProps) => React.ReactElement> = {
+  rookie: CoinIcon,
+  pro: StarIcon,
+  elite: FlameIcon,
+  legend: CrownIcon,
+};
+
+/** Dispatch to the right stamp icon for a victory tier. */
+export function VictoryTierIcon({ tier, size, color }: { tier: VictoryTierKey } & IconProps) {
+  const Icon = TIER_ICONS[tier];
   return <Icon size={size} color={color} />;
 }

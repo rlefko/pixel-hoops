@@ -34,6 +34,7 @@ import { RunSummaryView } from '@/components/run/RunSummaryView';
 import { ChampionView } from '@/components/run/ChampionView';
 import { CoachUnlockView } from '@/components/run/CoachUnlockView';
 import { BoxScoreView } from '@/components/run/BoxScoreView';
+import { ClockIcon } from '@/components/run/PixelIcons';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -283,7 +284,10 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
     <Screen scroll contentContainerStyle={styles.pregame}>
       {timeoutUsed ? (
         <View style={styles.timeoutBanner}>
-          <Text style={styles.timeoutBannerTitle}>⏱ TIMEOUT</Text>
+          <View style={styles.timeoutBannerTitleRow}>
+            <ClockIcon size={12} color={palette.gold} />
+            <Text style={styles.timeoutBannerTitle}>TIMEOUT</Text>
+          </View>
           <Text style={styles.timeoutBannerBody}>
             That one's forgiven. Reset your five and run it back.
             {' '}
@@ -408,6 +412,12 @@ const styles = StyleSheet.create({
     borderWidth: BORDER.thin,
     borderColor: palette.gold + '66',
     borderRadius: RADIUS.chip,
+  },
+  timeoutBannerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space(1),
   },
   timeoutBannerTitle: {
     fontFamily: FONT.display,
