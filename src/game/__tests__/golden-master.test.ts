@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createRNG } from '@/game/rng';
+import { createRNG, hashSeed } from '@/game/rng';
 import { buildStartingRoster, generateOpponentTeam } from '@/game/tournament';
 import { buildTeam } from '@/game/lineup';
 import { simulateGame } from '@/game/simulation';
@@ -21,15 +21,10 @@ import type { Team } from '@/types/team';
  * intentional gameplay change lands (never to paper over an accidental drift).
  */
 
-/** FNV-1a over the fully serialized result: any byte-level change flips it. */
+/** Hash the fully serialized result (reusing the engine's FNV-1a): any
+ * byte-level change flips it. */
 function hashResult(r: SimResult): string {
-  const json = JSON.stringify(r);
-  let h = 0x811c9dc5;
-  for (let i = 0; i < json.length; i++) {
-    h ^= json.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0).toString(16).padStart(8, '0');
+  return hashSeed(JSON.stringify(r)).toString(16).padStart(8, '0');
 }
 
 /**
@@ -55,7 +50,7 @@ function teamFromRoster(name: string, starters: RosterPlayer[]): Team {
   return buildTeam(name, starters, DEFAULT_GAME_PLAN, '#FFD54F', '#1D428A');
 }
 
-function bench(count: number, seed: string): RosterPlayer[] {
+function makeBench(count: number, seed: string): RosterPlayer[] {
   return Array.from({ length: count }, (_, i) => {
     const position = POSITIONS[i % POSITIONS.length];
     return {
@@ -80,7 +75,7 @@ describe('simulateGame golden master', () => {
 
   it('deep bench vs thin (subs fire) is unchanged', () => {
     const starters = buildStartingRoster(createRNG('gm-rot')).starters;
-    const deep = buildTeam('Deep', starters, DEFAULT_GAME_PLAN, '#fff', '#000', bench(5, 'gm-bench'));
+    const deep = buildTeam('Deep', starters, DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(5, 'gm-bench'));
     const thin = buildTeam('Thin', starters, DEFAULT_GAME_PLAN, '#fff', '#000', []);
     expect(digest(simulateGame({ home: deep, away: thin, seed: 'gm-subs' }))).toMatchSnapshot();
   });
