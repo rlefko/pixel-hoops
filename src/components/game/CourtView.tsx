@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -24,7 +24,7 @@ import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { COURT } from '@/components/game/courtDimensions';
 import { idleBobFor, moveOffsetFor, roleFor, MOVE, DUNK } from '@/components/game/possession';
-import { useFeelSettings, usePulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
+import { useFeelSettings, useBobPulse, useGlowPulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
 import { palette, FONT, FONT_SIZE } from '@/theme';
 import { courtThemeFor } from '@/theme/courtTheme';
 import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
@@ -147,7 +147,7 @@ const DUNK_KF = [
   1,
 ];
 
-function SpriteAt({
+const SpriteAt = memo(function SpriteAt({
   side,
   position,
   team,
@@ -184,7 +184,7 @@ function SpriteAt({
 
   // Idle breathe, detuned per sprite so the floor undulates instead of marching.
   const bob = useMemo(() => idleBobFor(side, position), [side, position]);
-  const { bobStyle } = usePulse(bob.durationMs, {
+  const bobStyle = useBobPulse(bob.durationMs, {
     delayMs: bob.delayMs,
     bobAmplitude: bob.bobAmplitude,
   });
@@ -250,7 +250,7 @@ function SpriteAt({
   // On-fire aura: a flame glow behind a hot scorer (NBA Jam). Steady under reduced
   // motion. Paused (no loop) unless this sprite is actually hot, so the other nine
   // sprites don't run an unread shared-value loop every frame of the whole watch.
-  const { glowStyle } = usePulse(560, { paused: !hot });
+  const glowStyle = useGlowPulse(560, { paused: !hot });
 
   if (!rp) return null;
   const inner = (
@@ -287,13 +287,17 @@ function SpriteAt({
       </Animated.View>
     </View>
   );
-}
+});
 
-export function CourtView({
+// Stable empty default so a non-hot frame doesn't hand CourtView a fresh array and
+// defeat its memo (the busy case passes the memoized hotKeys from the feed).
+const NO_HOT_KEYS: string[] = [];
+
+function CourtViewImpl({
   homeTeam,
   awayTeam,
   current,
-  hotKeys = [],
+  hotKeys = NO_HOT_KEYS,
   onArrival,
 }: CourtViewProps) {
   // Every game is hosted in the opponent's arena, so the floor takes their colors.
@@ -398,6 +402,14 @@ export function CourtView({
     </View>
   );
 }
+
+/**
+ * Memoized so the court subtree skips re-render when the feed re-renders without a
+ * new play (a ball arrival, a speed/highlights toggle): only a changed `current` or
+ * `hotKeys` re-renders the ten sprites. SpriteAt is memoized in turn so an arrival
+ * that only flips the hot aura re-renders just the sprites whose hot flag changed.
+ */
+export const CourtView = memo(CourtViewImpl);
 
 const SPRITE_W = 30;
 

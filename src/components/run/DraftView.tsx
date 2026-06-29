@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from '@/components/run/PlayerCard';
@@ -179,13 +179,24 @@ export function DraftView({
         enabledClasses={enabledClasses}
       />
 
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {filtered.map((rp, i) => {
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        data={filtered}
+        keyExtractor={(rp, i) => `${keyOf(rp)}-${i}`}
+        // Re-render the rows when the selected slot changes so each row's tap assigns
+        // to the current slot; slot/loadout changes flow through `filtered` (the data).
+        extraData={selected}
+        windowSize={5}
+        initialNumToRender={10}
+        removeClippedSubviews
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={<Text style={styles.empty}>No players match.</Text>}
+        renderItem={({ item: rp }) => {
           const cost = draftCostFor(rp, ladderClass);
           const barred = cost === null;
           return (
             <Pressable
-              key={`${keyOf(rp)}-${i}`}
               onPress={() => assign(rp)}
               disabled={barred}
               style={[styles.row, barred && styles.rowBarred]}
@@ -196,9 +207,8 @@ export function DraftView({
               <CostBadge cost={cost} />
             </Pressable>
           );
-        })}
-        {filtered.length === 0 ? <Text style={styles.empty}>No players match.</Text> : null}
-      </ScrollView>
+        }}
+      />
 
       <Pressable
         onPress={() => onConfirm(starters, bench)}
@@ -337,7 +347,7 @@ const styles = StyleSheet.create({
     marginTop: space(3),
     marginBottom: space(1),
   },
-  list: { marginTop: space(2), alignSelf: 'stretch' },
+  list: { flex: 1, marginTop: space(2), alignSelf: 'stretch' },
   listContent: { gap: space(0.5), paddingBottom: space(2) },
   row: {
     flexDirection: 'row',

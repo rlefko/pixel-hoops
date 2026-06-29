@@ -4,7 +4,7 @@ import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import { mix } from '@/theme/color';
-import { usePulse } from '@/feel';
+import { useGlowPulse, useScalePulse } from '@/feel';
 import { previewOpponent } from '@/game/opponent-preview';
 import { NodeIcon } from './PixelIcons';
 import { NODE_META } from './node-meta';
@@ -53,7 +53,9 @@ export function MapNodeTile({
 }: MapNodeTileProps) {
   const meta = NODE_META[node.type];
   const isCombat = COMBAT.includes(node.type);
-  const { glowStyle, scaleStyle } = usePulse();
+  // Only reachable tiles breathe; the rest hold steady (no loop) so an idle map costs nothing.
+  const glowStyle = useGlowPulse(900, { paused: !isReachable });
+  const scaleStyle = useScalePulse(900, { paused: !isReachable });
 
   const preview = useMemo(
     () => (isCombat ? previewOpponent(seed, node.id) : null),

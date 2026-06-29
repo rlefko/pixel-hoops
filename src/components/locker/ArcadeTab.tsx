@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native';
+import { View, StyleSheet, Pressable, FlatList, TextInput } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { Pop, ShakeView, FlashOverlay } from '@/components/fx';
-import { usePulse } from '@/feel';
+import { useGlowPulse } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { LegendaryHalo, RewardConfetti } from '@/components/run/reward-fx';
 import { RARITY_COLOR, RARITY_LABEL } from '@/components/run/rarity-ui';
@@ -37,6 +37,7 @@ import {
 import { CLASS_COLOR } from '@/components/run/class-ui';
 import { createRNG } from '@/game/rng';
 import type { Rarity } from '@/game/rarity';
+import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -44,7 +45,8 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
  * new players into the collection (see src/game/player-gacha.ts), and an ABILITIES
  * section of four machines (common / rare / epic / legendary) pulls passive
  * abilities plus an equip loadout to assign owned abilities onto owned players
- * (persists between runs). The shell (back, title, coin pill) is owned by
+ * (persists between runs). The owned-player loadout list is virtualized (FlatList)
+ * so only the visible rows mount. The shell (back, title, coin pill) is owned by
  * ArcadeScreen.
  */
 
@@ -74,7 +76,9 @@ export function ArcadeTab() {
     [homeRoster]
   );
   // One shared breathe for legendary ability chips (top-tier only); lower rarities stay flat.
-  const { glowStyle } = usePulse();
+  // Paused (no loop) when no legendary ability is owned.
+  const hasLegendaryAbility = ownedAbilities.some((a) => a.rarity === 'legendary');
+  const glowStyle = useGlowPulse(900, { paused: !hasLegendaryAbility });
 
   if (!homeRoster) return null;
 
@@ -100,7 +104,7 @@ export function ArcadeTab() {
     saveHomeRoster(home);
   };
 
-  const onPlayer = (rp: (typeof players)[number]) => {
+  const onPlayer = (rp: RosterPlayer) => {
     const key = playerKey(rp);
     if (selected && homeRoster.equippedAbilities[key] !== selected) {
       saveHomeRoster(equipAbility(homeRoster, key, selected));
@@ -115,132 +119,151 @@ export function ArcadeTab() {
       ? CLASS_COLOR[lastScout.player.originalClass ?? 'C']
       : palette.gold;
 
+  // Everything above the player loadout list. Passed as a single element to the
+  // FlatList header (a stable element, so the search field keeps focus across the
+  // list's re-renders) while the player rows below virtualize.
+  const header = (
+    <>
+      <Text style={[styles.section, styles.sectionTop]}>SCOUTING</Text>
+      <View style={styles.machines}>
+        {PLAYER_GACHA_TIERS.map((tier) => {
+          const m = PLAYER_MACHINES[tier];
+          const counts = tierCounts(tier, ownedKeys);
+          const color = m.legendary ? palette.gold : CLASS_COLOR[m.cls];
+          const disabled = coins < m.cost || counts.complete;
+          return (
+            <View key={tier} style={styles.machine}>
+              <View style={styles.machineHead}>
+                <Text style={[styles.machineName, { color }]}>{m.name}</Text>
+                <Text style={styles.collected}>
+                  {counts.owned}/{counts.total}
+                </Text>
+              </View>
+              <Text style={styles.machineBlurb}>{m.blurb}</Text>
+              <Pressable
+                onPress={() => scout(tier)}
+                disabled={disabled}
+                style={[styles.pullBtn, disabled && styles.pullDisabled]}
+              >
+                <Text style={styles.pullText}>
+                  {counts.complete ? 'COLLECTED' : `SCOUT · ${m.cost}c`}
+                </Text>
+              </Pressable>
+            </View>
+          );
+        })}
+      </View>
+
+      {lastScout ? (
+        <Pop trigger={lastScout.player.player.name} style={[styles.reveal, { borderColor: scoutColor }]}>
+          <Text style={[styles.revealRarity, { color: scoutColor }]}>
+            {lastScout.isDupe ? `REPEAT · +${lastScout.refund}c REFUNDED` : 'NEW SIGNING'}
+          </Text>
+          <View style={styles.revealCardWrap}>
+            <PlayerCard rp={lastScout.player} />
+          </View>
+        </Pop>
+      ) : null}
+
+      <Text style={styles.section}>ABILITIES</Text>
+      <View style={styles.machines}>
+        {(Object.keys(GACHA_MACHINES) as MachineId[]).map((id) => {
+          const m = GACHA_MACHINES[id];
+          const afford = coins >= m.cost;
+          return (
+            <View key={id} style={styles.machine}>
+              <Text style={[styles.machineName, { color: RARITY_COLOR[m.topRarity] }]}>{m.name}</Text>
+              <Text style={styles.machineBlurb}>{m.blurb}</Text>
+              <Pressable
+                onPress={() => pull(id)}
+                disabled={!afford}
+                style={[styles.pullBtn, !afford && styles.pullDisabled]}
+              >
+                <Text style={styles.pullText}>PULL · {m.cost}c</Text>
+              </Pressable>
+            </View>
+          );
+        })}
+      </View>
+
+      {lastAbility ? (
+        <View style={styles.revealWrap}>
+          <LegendaryHalo visible={lastAbility.rarity === 'legendary'} />
+          <Pop trigger={lastPull?.id ?? ''} style={[styles.reveal, { borderColor: RARITY_COLOR[lastAbility.rarity] }]}>
+            <Text style={[styles.revealRarity, { color: RARITY_COLOR[lastAbility.rarity] }]}>
+              {RARITY_LABEL[lastAbility.rarity]}
+            </Text>
+            <Text style={styles.revealName}>{lastAbility.name}</Text>
+            <Text style={styles.revealBlurb}>{lastAbility.blurb}</Text>
+          </Pop>
+        </View>
+      ) : null}
+
+      <Text style={styles.section}>YOUR ABILITIES</Text>
+      {ownedAbilities.length === 0 ? (
+        <Text style={styles.empty}>Pull a machine to win abilities.</Text>
+      ) : (
+        <View style={styles.abilityChips}>
+          {ownedAbilities.map((a) => {
+            const owned = abilityOwned(homeRoster, a.id);
+            const equipped = abilityEquipped(homeRoster, a.id);
+            const active = selected === a.id;
+            const color = RARITY_COLOR[a.rarity];
+            const legendary = a.rarity === 'legendary';
+            return (
+              <Animated.View key={a.id} style={legendary ? glowStyle : undefined}>
+                <Pressable
+                  onPress={() => setSelected(active ? null : a.id)}
+                  style={[styles.abilityChip, { borderColor: color }, active && { backgroundColor: color + '33' }]}
+                >
+                  <Text style={[styles.abilityChipName, { color }]}>{a.name}</Text>
+                  <Text style={styles.abilityChipMeta}>
+                    {equipped}/{owned} · {a.blurb}
+                  </Text>
+                </Pressable>
+              </Animated.View>
+            );
+          })}
+        </View>
+      )}
+
+      <Text style={styles.section}>
+        {selected ? 'TAP A PLAYER TO EQUIP' : 'EQUIPPED LOADOUT'}
+      </Text>
+      <TextInput
+        style={styles.search}
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Search players..."
+        placeholderTextColor={palette.inkDim}
+        autoCorrect={false}
+        autoCapitalize="none"
+      />
+    </>
+  );
+
   return (
     <ShakeView ref={shakeRef} style={styles.tab}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-        <Text style={[styles.section, styles.sectionTop]}>SCOUTING</Text>
-        <View style={styles.machines}>
-          {PLAYER_GACHA_TIERS.map((tier) => {
-            const m = PLAYER_MACHINES[tier];
-            const counts = tierCounts(tier, ownedKeys);
-            const color = m.legendary ? palette.gold : CLASS_COLOR[m.cls];
-            const disabled = coins < m.cost || counts.complete;
-            return (
-              <View key={tier} style={styles.machine}>
-                <View style={styles.machineHead}>
-                  <Text style={[styles.machineName, { color }]}>{m.name}</Text>
-                  <Text style={styles.collected}>
-                    {counts.owned}/{counts.total}
-                  </Text>
-                </View>
-                <Text style={styles.machineBlurb}>{m.blurb}</Text>
-                <Pressable
-                  onPress={() => scout(tier)}
-                  disabled={disabled}
-                  style={[styles.pullBtn, disabled && styles.pullDisabled]}
-                >
-                  <Text style={styles.pullText}>
-                    {counts.complete ? 'COLLECTED' : `SCOUT · ${m.cost}c`}
-                  </Text>
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
-
-        {lastScout ? (
-          <Pop trigger={lastScout.player.player.name} style={[styles.reveal, { borderColor: scoutColor }]}>
-            <Text style={[styles.revealRarity, { color: scoutColor }]}>
-              {lastScout.isDupe ? `REPEAT · +${lastScout.refund}c REFUNDED` : 'NEW SIGNING'}
-            </Text>
-            <View style={styles.revealCardWrap}>
-              <PlayerCard rp={lastScout.player} />
-            </View>
-          </Pop>
-        ) : null}
-
-        <Text style={styles.section}>ABILITIES</Text>
-        <View style={styles.machines}>
-          {(Object.keys(GACHA_MACHINES) as MachineId[]).map((id) => {
-            const m = GACHA_MACHINES[id];
-            const afford = coins >= m.cost;
-            return (
-              <View key={id} style={styles.machine}>
-                <Text style={[styles.machineName, { color: RARITY_COLOR[m.topRarity] }]}>{m.name}</Text>
-                <Text style={styles.machineBlurb}>{m.blurb}</Text>
-                <Pressable
-                  onPress={() => pull(id)}
-                  disabled={!afford}
-                  style={[styles.pullBtn, !afford && styles.pullDisabled]}
-                >
-                  <Text style={styles.pullText}>PULL · {m.cost}c</Text>
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
-
-        {lastAbility ? (
-          <View style={styles.revealWrap}>
-            <LegendaryHalo visible={lastAbility.rarity === 'legendary'} />
-            <Pop trigger={lastPull?.id ?? ''} style={[styles.reveal, { borderColor: RARITY_COLOR[lastAbility.rarity] }]}>
-              <Text style={[styles.revealRarity, { color: RARITY_COLOR[lastAbility.rarity] }]}>
-                {RARITY_LABEL[lastAbility.rarity]}
-              </Text>
-              <Text style={styles.revealName}>{lastAbility.name}</Text>
-              <Text style={styles.revealBlurb}>{lastAbility.blurb}</Text>
-            </Pop>
-          </View>
-        ) : null}
-
-        <Text style={styles.section}>YOUR ABILITIES</Text>
-        {ownedAbilities.length === 0 ? (
-          <Text style={styles.empty}>Pull a machine to win abilities.</Text>
-        ) : (
-          <View style={styles.abilityChips}>
-            {ownedAbilities.map((a) => {
-              const owned = abilityOwned(homeRoster, a.id);
-              const equipped = abilityEquipped(homeRoster, a.id);
-              const active = selected === a.id;
-              const color = RARITY_COLOR[a.rarity];
-              const legendary = a.rarity === 'legendary';
-              return (
-                <Animated.View key={a.id} style={legendary ? glowStyle : undefined}>
-                  <Pressable
-                    onPress={() => setSelected(active ? null : a.id)}
-                    style={[styles.abilityChip, { borderColor: color }, active && { backgroundColor: color + '33' }]}
-                  >
-                    <Text style={[styles.abilityChipName, { color }]}>{a.name}</Text>
-                    <Text style={styles.abilityChipMeta}>
-                      {equipped}/{owned} · {a.blurb}
-                    </Text>
-                  </Pressable>
-                </Animated.View>
-              );
-            })}
-          </View>
-        )}
-
-        <Text style={styles.section}>
-          {selected ? 'TAP A PLAYER TO EQUIP' : 'EQUIPPED LOADOUT'}
-        </Text>
-        <TextInput
-          style={styles.search}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search players..."
-          placeholderTextColor={palette.inkDim}
-          autoCorrect={false}
-          autoCapitalize="none"
-        />
-        {players.map((rp, i) => {
+      <FlatList
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        ListHeaderComponent={header}
+        data={players}
+        keyExtractor={(rp, i) => `${playerKey(rp)}-${i}`}
+        // Equipping rebuilds `homeRoster`, which rebuilds `players` (the data array) and
+        // re-renders the rows; `extraData` covers the other trigger, toggling `selected`.
+        extraData={selected}
+        keyboardShouldPersistTaps="handled"
+        windowSize={5}
+        initialNumToRender={10}
+        removeClippedSubviews
+        renderItem={({ item: rp }) => {
           const key = playerKey(rp);
           const equippedId = homeRoster.equippedAbilities[key];
           const equipped = getGachaAbility(equippedId);
           const blocked = !!selected && equippedId !== selected && !canEquipAbility(homeRoster, selected);
           return (
             <Pressable
-              key={`${key}-${i}`}
               onPress={() => onPlayer(rp)}
               disabled={blocked}
               style={[styles.playerRow, blocked && styles.rowBlocked]}
@@ -253,8 +276,8 @@ export function ArcadeTab() {
               </Text>
             </Pressable>
           );
-        })}
-      </ScrollView>
+        }}
+      />
       <FlashOverlay ref={flashRef} />
       <RewardConfetti trigger={confettiTrigger} />
     </ShakeView>

@@ -5,10 +5,13 @@ import {
   useEffect,
   useCallback,
   useMemo,
+  useRef,
   type ReactNode,
 } from 'react';
+import { AppState } from 'react-native';
 import { createRNG } from '@/game/rng';
-import { getJSON, setJSON } from '@/storage/storage';
+import { getJSON } from '@/storage/storage';
+import { createDebouncedWriter, type DebouncedWriter } from '@/storage/debouncedWriter';
 import {
   createRookieRoster,
   serializeHomeRoster,
@@ -43,6 +46,14 @@ export function HomeRosterProvider({ children }: { children: ReactNode }) {
   const [homeRoster, setHomeRoster] = useState<HomeRoster | null>(null);
   const [loaded, setLoaded] = useState(false);
 
+  // Debounced persistence: state updates stay instant, but the full-roster
+  // JSON.stringify is coalesced so an upgrade spray writes once after it settles
+  // rather than stalling the JS thread on every tap. (Created lazily; the factory
+  // is side-effect free, so building it during render is safe.)
+  const writerRef = useRef<DebouncedWriter | null>(null);
+  if (writerRef.current === null) writerRef.current = createDebouncedWriter(STORAGE_KEY);
+  const writer = writerRef.current;
+
   useEffect(() => {
     let active = true;
     void (async () => {
@@ -59,17 +70,34 @@ export function HomeRosterProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const saveHomeRoster = useCallback((next: HomeRoster) => {
-    setHomeRoster(next);
-    void setJSON(STORAGE_KEY, serializeHomeRoster(next));
-  }, []);
+  // Flush any pending write when the app backgrounds or the provider unmounts, so a
+  // debounced upgrade is never lost on app switch or close.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') writer.flush();
+    });
+    return () => {
+      writer.flush();
+      sub.remove();
+    };
+  }, [writer]);
+
+  const saveHomeRoster = useCallback(
+    (next: HomeRoster) => {
+      setHomeRoster(next);
+      writer.write(serializeHomeRoster(next));
+    },
+    [writer]
+  );
 
   // Reset to a fresh rookie team and persist it (overwriting the save), so the UI
-  // re-renders clean without an app restart. Feel/accessibility settings are a
-  // separate store and are intentionally left untouched.
+  // re-renders clean without an app restart. A full wipe persists immediately rather
+  // than after the debounce window. Feel/accessibility settings are a separate store
+  // and are intentionally left untouched.
   const resetHomeRoster = useCallback(() => {
     saveHomeRoster(createRookieRoster(createRNG(`home-${Date.now()}`)));
-  }, [saveHomeRoster]);
+    writer.flush();
+  }, [saveHomeRoster, writer]);
 
   const value = useMemo<HomeRosterContextValue>(
     () => ({ homeRoster, loaded, saveHomeRoster, resetHomeRoster }),

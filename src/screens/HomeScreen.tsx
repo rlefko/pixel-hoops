@@ -20,7 +20,7 @@ import {
 } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { CLASS_COLOR } from '@/components/run/class-ui';
-import { usePulse } from '@/feel';
+import { useGlowPulse, useBobPulse } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import {
   DIFFICULTIES,
@@ -42,8 +42,9 @@ export default function HomeScreen() {
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   // One idle "breathe" loop drives the title: a glow behind the gold word and a
   // gentle bob on the pixel basketball. Slower than the default so it reads as a
-  // title, not a flicker. Held steady under reduced motion (handled by usePulse).
-  const { glowStyle, bobStyle } = usePulse(1300, { bobAmplitude: 4 });
+  // title, not a flicker. Held steady under reduced motion (handled by the pulse hooks).
+  const glowStyle = useGlowPulse(1300);
+  const bobStyle = useBobPulse(1300, { bobAmplitude: 4 });
 
   // First launch: welcome the player with their starting free agents, once.
   if (loaded && homeRoster && !homeRoster.seenWelcome) {

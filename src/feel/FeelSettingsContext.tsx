@@ -5,10 +5,13 @@ import {
   useMemo,
   useEffect,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
+import { AppState } from 'react-native';
 import { setHapticsEnabled } from './haptics';
-import { getJSON, setJSON } from '@/storage/storage';
+import { getJSON } from '@/storage/storage';
+import { createDebouncedWriter, type DebouncedWriter } from '@/storage/debouncedWriter';
 
 /**
  * Global feel toggles. One place to turn off haptics, motion, or scanlines (for
@@ -66,6 +69,12 @@ const FeelSettingsContext = createContext<FeelSettingsContextValue>({
 export function FeelSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<FeelSettings>(DEFAULTS);
 
+  // Debounced persistence (mirrors HomeRosterContext): toggling speed/highlights mid
+  // replay coalesces into one write instead of a write per tap.
+  const writerRef = useRef<DebouncedWriter | null>(null);
+  if (writerRef.current === null) writerRef.current = createDebouncedWriter(STORAGE_KEY);
+  const writer = writerRef.current;
+
   // Hydrate from storage on mount, merging over defaults so missing or unknown
   // keys stay safe. Hydration itself does not write back; only explicit updates persist.
   useEffect(() => {
@@ -87,13 +96,27 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
     setHapticsEnabled(settings.hapticsEnabled);
   }, [settings.hapticsEnabled]);
 
-  const update = useCallback((patch: Partial<FeelSettings>) => {
-    setSettings((s) => {
-      const next = { ...s, ...patch };
-      void setJSON(STORAGE_KEY, next);
-      return next;
+  // Flush any pending write on app background / unmount so a toggle is never lost.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') writer.flush();
     });
-  }, []);
+    return () => {
+      writer.flush();
+      sub.remove();
+    };
+  }, [writer]);
+
+  const update = useCallback(
+    (patch: Partial<FeelSettings>) => {
+      setSettings((s) => {
+        const next = { ...s, ...patch };
+        writer.write(next);
+        return next;
+      });
+    },
+    [writer]
+  );
 
   const value = useMemo<FeelSettingsContextValue>(
     () => ({ ...settings, update }),

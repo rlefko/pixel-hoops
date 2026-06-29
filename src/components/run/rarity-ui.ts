@@ -6,7 +6,7 @@ import type { Rarity } from '@/game/rarity';
  * power reads at a glance everywhere. common = blue, rare = purple, epic = red,
  * legendary = gold: the cool -> warm -> gold tier ramp the player class ladder also
  * follows (see class-ui.ts). The legendary GOLD additionally pulses at reveal sites
- * (a static color cannot carry the halo); see useRewardBurst / usePulse.
+ * (a static color cannot carry the halo); see useRewardBurst / useGlowPulse.
  *
  * The hues are shared with the class ladder by design (rare/epic == class B/S), and
  * the rarity read is always reinforced by the label text.

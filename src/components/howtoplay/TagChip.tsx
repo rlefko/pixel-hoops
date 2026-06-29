@@ -2,7 +2,7 @@ import { type ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { MonoText } from '@/components/StyledText';
-import { usePulse } from '@/feel';
+import { useGlowPulse } from '@/feel';
 import { palette, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 interface TagChipProps {
@@ -27,7 +27,7 @@ interface TagChipProps {
  * leading PixelIcon, a mono label, and an optional sub line. The shared badge
  * primitive across the How to Play page (loop beats, position pills, synergy
  * tiles, FAST/SLOW tags, ladder rungs, power systems). An optional staggered glow
- * pulse (reduced-motion safe via usePulse) makes a row of chips read as "live".
+ * pulse (reduced-motion safe via useGlowPulse) makes a row of chips read as "live".
  */
 export function TagChip({
   label,
@@ -40,7 +40,7 @@ export function TagChip({
   size = 'small',
 }: TagChipProps) {
   const glow = glowDelayMs !== undefined;
-  const { glowStyle } = usePulse(glowDurationMs, { delayMs: glowDelayMs ?? 0, paused: !glow });
+  const glowStyle = useGlowPulse(glowDurationMs, { delayMs: glowDelayMs ?? 0, paused: !glow });
   const fontSize = size === 'micro' ? FONT_SIZE.micro : FONT_SIZE.small;
 
   return (

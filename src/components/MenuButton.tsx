@@ -11,7 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
-import { DUR, haptics, useFeelSettings, useFlash, usePulse } from '@/feel';
+import { DUR, haptics, useFeelSettings, useFlash, useGlowPulse } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -100,7 +100,7 @@ export function MenuButton({
 }: MenuButtonProps) {
   const cfg = VARIANTS[variant];
   const { reducedMotion } = useFeelSettings();
-  const { glowStyle } = usePulse(1100, { delayMs: attractDelayMs, paused: !attract });
+  const glowStyle = useGlowPulse(1100, { delayMs: attractDelayMs, paused: !attract });
   const { flashStyle, color: flashColor, flash } = useFlash();
   const pressed = useSharedValue(0);
 

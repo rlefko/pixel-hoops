@@ -260,7 +260,7 @@ export function PlayByPlayFeed({
           homeTeam={homeTeam}
           awayTeam={awayTeam}
           current={current}
-          hotKeys={landedHot?.hotKeys ?? []}
+          hotKeys={landedHot?.hotKeys}
           onArrival={handleArrival}
         />
         <View style={styles.feed}>

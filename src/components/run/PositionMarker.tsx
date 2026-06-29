@@ -2,7 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { usePulse } from '@/feel';
+import { useBobPulse, useGlowPulse } from '@/feel';
 import { nodeTop } from './map-geometry';
 
 /**
@@ -16,7 +16,7 @@ const MARKER_W = 96;
 const MARKER_H = 26;
 
 export function PositionMarker({ centerX, layer }: { centerX: number; layer: number }) {
-  const { bobStyle } = usePulse(1100);
+  const bobStyle = useBobPulse(1100);
   return (
     <Animated.View
       pointerEvents="none"
@@ -35,7 +35,7 @@ export function PositionMarker({ centerX, layer }: { centerX: number; layer: num
 }
 
 export function EntryBanner({ width }: { width: number }) {
-  const { glowStyle } = usePulse(1100);
+  const glowStyle = useGlowPulse(1100);
   return (
     <Animated.View
       pointerEvents="none"
