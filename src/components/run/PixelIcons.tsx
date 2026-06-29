@@ -22,11 +22,11 @@ function box(size: number) {
 
 /**
  * game: a basketball. An orange disc crossed by the four classic seams: a
- * vertical and a horizontal center seam plus two side seams that bow out to
- * ~56% of the radius and meet at the poles. Drawn with react-native-svg (as in
- * SvgCourt) so the curves scale cleanly across icon sizes and render the same on
- * iOS, Android, and web. Seams are clipped to the disc so nothing spills past
- * the silhouette at the poles.
+ * vertical and a horizontal center seam plus two curved side seams that hug the
+ * left and right of the ball. Drawn with react-native-svg (as in SvgCourt) so
+ * the curves scale cleanly across icon sizes and render the same on iOS,
+ * Android, and web. Seams are clipped to the disc so nothing spills past the
+ * silhouette.
  */
 export function BasketballIcon({ size, color }: IconProps) {
   // Seams read ~8% of the icon, matching the old Math.round(size * 0.08) look:
@@ -46,9 +46,9 @@ export function BasketballIcon({ size, color }: IconProps) {
           {/* Center seams */}
           <Line x1={16} y1={0} x2={16} y2={32} />
           <Line x1={0} y1={16} x2={32} y2={16} />
-          {/* Side seams: half-ellipses (rx 9, ry 16) bowing left then right */}
-          <Path d="M 16 0 A 9 16 0 0 0 16 32" />
-          <Path d="M 16 0 A 9 16 0 0 1 16 32" />
+          {/* Side seams: half-ellipses (rx 9, ry 16) down each edge, curving inward */}
+          <Path d="M 0 0 A 9 16 0 0 1 0 32" />
+          <Path d="M 32 0 A 9 16 0 0 0 32 32" />
         </G>
       </Svg>
     </View>
