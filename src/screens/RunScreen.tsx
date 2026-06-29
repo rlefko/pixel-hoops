@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
@@ -32,6 +32,7 @@ import { BagView } from '@/components/run/BagView';
 import { LegendRevealView } from '@/components/run/LegendRevealView';
 import { RunSummaryView } from '@/components/run/RunSummaryView';
 import { ChampionView } from '@/components/run/ChampionView';
+import { CoachUnlockView } from '@/components/run/CoachUnlockView';
 import { BoxScoreView } from '@/components/run/BoxScoreView';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -45,8 +46,16 @@ type RunActions = ReturnType<typeof useRun>['actions'];
 
 export default function RunScreen() {
   const nav = useArcadeRouter();
-  const { model, loaded, actions, wonCoachId } = useRun();
+  const { model, loaded, actions, wonCoachIds, equippedCoachId } = useRun();
   const goMenu = () => nav.replace('/', 'menu');
+
+  // The coach-unlock reveal plays after the champion celebration. Reset whenever the
+  // run leaves the summary phase so it never leaks into the next run's summary.
+  const [showCoachReveal, setShowCoachReveal] = useState(false);
+  const phaseKind = model?.phase.kind;
+  useEffect(() => {
+    if (phaseKind !== 'summary') setShowCoachReveal(false);
+  }, [phaseKind]);
 
   if (!loaded || !model) {
     return (
@@ -208,7 +217,23 @@ export default function RunScreen() {
         model.phase.champion && model.atFrontier && model.ladderClass !== 'S+'
           ? classAboveLadder(model.ladderClass)
           : undefined;
-      const wonCoach = model.phase.champion && wonCoachId ? getCoach(wonCoachId) : undefined;
+      const wonCoaches = model.phase.champion ? wonCoachIds.map(getCoach) : [];
+      // After the celebration, reveal any newly-won coach(es) as the climactic spoils.
+      if (showCoachReveal && wonCoaches.length > 0) {
+        return (
+          <CoachUnlockView
+            coaches={wonCoaches}
+            equippedId={equippedCoachId ?? ''}
+            onEquip={actions.equipCoach}
+            onNewRun={actions.newRun}
+            onHome={goMenu}
+          />
+        );
+      }
+      // When a coach was won, the celebration's exits lead INTO the reveal first.
+      const toReveal = () => setShowCoachReveal(true);
+      const exitHome = wonCoaches.length > 0 ? toReveal : goMenu;
+      const exitNewRun = wonCoaches.length > 0 ? toReveal : actions.newRun;
       // A won ladder gets the full champion celebration (it needs the final game's
       // score and five). Losses, and the defensive champion-without-game case, fall
       // back to the flat summary.
@@ -220,9 +245,8 @@ export default function RunScreen() {
             ladderClass={model.ladderClass}
             wins={model.wins}
             unlockedClass={unlockedClass}
-            wonCoach={wonCoach}
-            onNewRun={actions.newRun}
-            onHome={goMenu}
+            onNewRun={exitNewRun}
+            onHome={exitHome}
           />
         );
       }
@@ -233,9 +257,8 @@ export default function RunScreen() {
           difficulty={model.difficulty}
           ladderClass={model.ladderClass}
           unlockedClass={unlockedClass}
-          wonCoach={wonCoach}
-          onNewRun={actions.newRun}
-          onMenu={goMenu}
+          onNewRun={exitNewRun}
+          onMenu={exitHome}
         />
       );
     }
