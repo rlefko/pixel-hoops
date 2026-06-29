@@ -15,6 +15,7 @@ import { ResourceHeader } from './ResourceHeader';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import { RosterStrip } from './RosterStrip';
 import { BoostRow } from './BoostRow';
+import { SetRow } from './SetRow';
 import {
   BOARD_WIDTH,
   ROW_PITCH,
@@ -123,6 +124,7 @@ export function RunMapView({
         modeLabel={`${DIFFICULTY_LABELS[difficulty].name} · ${ladderClass}`}
       />
       <BoostRow boosts={boosts} />
+      <SetRow five={core.roster.starters} boosts={boosts} />
 
       <ScrollView
         ref={scrollRef}

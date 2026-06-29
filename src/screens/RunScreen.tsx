@@ -97,6 +97,7 @@ export default function RunScreen() {
           pendingFull={model.phase.pendingFull}
           forced={model.phase.forced}
           owned={model.boosts}
+          five={model.core.roster.starters}
           onDraft={actions.draftBoost}
           onDrop={actions.dropBoostForNew}
           onSkip={actions.skipBoostDraft}

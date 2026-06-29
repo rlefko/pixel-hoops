@@ -5,7 +5,9 @@ import { PixelButton } from '@/components/PixelButton';
 import { ShakeView, FlashOverlay } from '@/components/fx';
 import { BOOST_BY_ID, type BoostOffer, type PassiveBoost } from '@/game/boosts';
 import type { Rarity } from '@/game/rarity';
+import type { RosterPlayer } from '@/types/roster';
 import { offerDef } from './boost-ui';
+import { setHintForOffer } from './set-ui';
 import { LegendaryHalo, RewardConfetti } from './reward-fx';
 import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME } from './rarity-ui';
 import { useRewardBurst } from './useRewardBurst';
@@ -29,6 +31,8 @@ interface BoostDraftViewProps {
   /** The incoming boost shown in drop mode (set only while pendingFull). */
   forced?: BoostOffer;
   owned: PassiveBoost[];
+  /** The dressed five, used to hint when an offer completes a synergy set. */
+  five?: RosterPlayer[];
   onDraft: (offer: BoostOffer) => void;
   onDrop: (index: number) => void;
   onSkip: () => void;
@@ -40,6 +44,7 @@ export function BoostDraftView({
   pendingFull,
   forced,
   owned,
+  five,
   onDraft,
   onDrop,
   onSkip,
@@ -106,6 +111,7 @@ export function BoostDraftView({
             if (!def) return null;
             const color = RARITY_COLOR[def.rarity];
             const legendary = def.rarity === 'legendary';
+            const setHint = five ? setHintForOffer(offer.defId, owned, five) : null;
             return (
               <Pressable key={i} style={styles.cardWrap} onPress={() => draft(offer)}>
                 <LegendaryHalo visible={legendary} />
@@ -115,6 +121,7 @@ export function BoostDraftView({
                     <Text style={[styles.tag, { color }]}>{RARITY_LABEL[def.rarity]}</Text>
                   </View>
                   <Text style={styles.cardBlurb}>{def.blurb}</Text>
+                  {setHint ? <Text style={styles.setHint}>{setHint}</Text> : null}
                 </View>
               </Pressable>
             );
@@ -187,5 +194,6 @@ const styles = StyleSheet.create({
     marginTop: space(4),
   },
   cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
+  setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.purple, marginTop: space(0.5) },
   bottomButton: { marginTop: space(4) },
 });

@@ -15,6 +15,7 @@ import { getAbility } from './abilities';
 import { getGachaAbility } from './abilities-gacha';
 import { ITEM_BY_ID, itemDelta } from './items';
 import { boostsToModifier, type PassiveBoost } from './boosts';
+import { resolveSets } from './sets';
 
 /**
  * Bridges the declarative effects into the sim. Two pure entry points used
@@ -94,6 +95,12 @@ export function teamModifierFor(
       if (itemDef?.hooks?.length) mods.push(teamModifierFromPartial({ hooks: itemDef.hooks }));
       if (itemDef?.scaling && counters) mods.push(resolveScaling(itemDef.scaling, counters));
     }
+  }
+  // Set/duo synergies are a player BUILD reward: resolved on the player path only
+  // (counters present), so opponents never trigger them. They fold into the frozen
+  // modifier here, surviving substitutions like any other team bonus.
+  if (counters) {
+    for (const m of resolveSets(five, boosts).active) mods.push(m);
   }
   if (hasOnLoan) mods.push(teamModifierFromPartial(LEGEND_CHEMISTRY));
   return mergeTeamModifiers(mods);
