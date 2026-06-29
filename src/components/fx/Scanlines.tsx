@@ -1,12 +1,15 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
+import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 import { palette } from '@/theme';
 import { useFeelSettings } from '@/feel';
 
 /**
  * A subtle CRT scanline overlay: thin dark horizontal lines over the play area.
- * Static (no animation) and non-interactive, so it is cheap. Toggleable via
- * FeelSettings. Mount as a sibling above the content you want to "CRT".
+ * Static (no animation) and non-interactive. Drawn as a single SVG rect filled
+ * with a 1px-line pattern (one tile that repeats down the area), so the whole
+ * overlay is a handful of native nodes instead of one View per line. Toggleable
+ * via FeelSettings. Mount as a sibling above the content you want to "CRT".
  */
 interface ScanlinesProps {
   /** Pixels between lines. Keep >= 2 to stay subtle. */
@@ -16,32 +19,38 @@ interface ScanlinesProps {
   enabled?: boolean;
 }
 
-const MAX_LINES = 400;
-
 export function Scanlines({ spacing = 3, color = palette.scanline, enabled }: ScanlinesProps) {
   const settings = useFeelSettings();
   const on = enabled ?? settings.scanlinesEnabled;
-  const [height, setHeight] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  // Unique, selector-safe pattern id so multiple overlays never collide (notably
+  // on web, where every Svg shares one id namespace).
+  const patternId = `scanlines-${useId().replace(/:/g, '')}`;
 
-  const onLayout = (e: LayoutChangeEvent) => setHeight(e.nativeEvent.layout.height);
+  const onLayout = (e: LayoutChangeEvent) =>
+    setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height });
 
-  const lineCount = on ? Math.min(MAX_LINES, Math.ceil(height / spacing)) : 0;
+  const show = on && size.width > 0 && size.height > 0;
 
   return (
     <View pointerEvents="none" style={StyleSheet.absoluteFill} onLayout={onLayout}>
-      {Array.from({ length: lineCount }, (_, i) => (
-        <View
-          key={i}
-          style={{
-            position: 'absolute',
-            top: i * spacing,
-            left: 0,
-            right: 0,
-            height: 1,
-            backgroundColor: color,
-          }}
-        />
-      ))}
+      {show ? (
+        <Svg width={size.width} height={size.height}>
+          <Defs>
+            <Pattern
+              id={patternId}
+              patternUnits="userSpaceOnUse"
+              x={0}
+              y={0}
+              width={size.width}
+              height={spacing}
+            >
+              <Rect x={0} y={0} width={size.width} height={1} fill={color} />
+            </Pattern>
+          </Defs>
+          <Rect width={size.width} height={size.height} fill={`url(#${patternId})`} />
+        </Svg>
+      ) : null}
     </View>
   );
 }
