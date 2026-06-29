@@ -6,6 +6,7 @@ import type { TeamModifier } from '@/game/effects';
 import {
   BOOST_FAMILIES,
   ITEM_FAMILIES,
+  FAMILY_LABELS,
   SET_DEFS,
   resolveSets,
   type SetProgress,
@@ -34,6 +35,11 @@ describe('set families', () => {
     for (const tag in ITEM_FAMILIES) {
       for (const id of ITEM_FAMILIES[tag]) expect(ITEM_BY_ID[id], `item ${id}`).toBeDefined();
     }
+  });
+
+  it('every family has a non-empty display label', () => {
+    for (const tag in BOOST_FAMILIES) expect(FAMILY_LABELS[tag], tag).toBeTruthy();
+    for (const tag in ITEM_FAMILIES) expect(FAMILY_LABELS[tag], tag).toBeTruthy();
   });
 
   it('every set has unique ids and at least one prerequisite unit', () => {

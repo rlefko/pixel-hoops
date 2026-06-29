@@ -11,7 +11,6 @@ import {
   MAX_BANISHES,
   type RunModel,
 } from '@/game/run-machine';
-import { boostRerollCost } from '@/game/boosts';
 import { classAboveLadder } from '@/game/difficulty-mode';
 import { getCoach } from '@/game/coaches';
 import { CoachRecBanner } from '@/components/run/CoachRecBanner';
@@ -93,8 +92,7 @@ export default function RunScreen() {
           onSkip={actions.backToMap}
         />
       );
-    case 'boostDraft': {
-      const rerollCost = boostRerollCost(model.phase.rerolls);
+    case 'boostDraft':
       return (
         <BoostDraftView
           round={model.phase.round}
@@ -103,17 +101,13 @@ export default function RunScreen() {
           forced={model.phase.forced}
           owned={model.boosts}
           five={model.core.roster.starters}
-          rerollCost={rerollCost}
-          canReroll={!model.phase.pendingFull && model.core.rewards.coins >= rerollCost}
           banishesLeft={MAX_BANISHES - model.banishedBoosts.length}
           onDraft={actions.draftBoost}
           onDrop={actions.dropBoostForNew}
           onSkip={actions.skipBoostDraft}
-          onReroll={actions.rerollBoosts}
           onBanish={actions.banishBoost}
         />
       );
-    }
     case 'boost':
       return (
         <BoostNodeView

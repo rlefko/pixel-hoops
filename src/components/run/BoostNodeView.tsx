@@ -5,7 +5,8 @@ import { Screen } from '@/components/Screen';
 import { ShakeView, FlashOverlay } from '@/components/fx';
 import { PlayerCard } from './PlayerCard';
 import { LegendaryHalo, RewardConfetti } from './reward-fx';
-import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME } from './rarity-ui';
+import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME, SYNERGY_CHROME } from './rarity-ui';
+import { itemFamilyLabels } from './set-ui';
 import { useRewardBurst } from './useRewardBurst';
 import type { ItemDef } from '@/game/items';
 import type { Roster } from '@/types/roster';
@@ -63,6 +64,7 @@ export function BoostNodeView({ stock, roster, onTake, onKeepInBag, onLeave }: B
         {stock.map((item, i) => {
           const color = RARITY_COLOR[item.rarity];
           const legendary = item.rarity === 'legendary';
+          const family = itemFamilyLabels(item.id).join(' · ');
           return (
             <Pressable key={i} style={styles.cardWrap} onPress={() => select(item)}>
               <LegendaryHalo visible={legendary} />
@@ -72,6 +74,7 @@ export function BoostNodeView({ stock, roster, onTake, onKeepInBag, onLeave }: B
                   <Text style={styles.free}>FREE</Text>
                 </View>
                 <Text style={styles.cardBlurb}>{item.blurb}</Text>
+                {family ? <Text style={styles.familyTag}>{family}</Text> : null}
                 <Text style={[styles.rarity, { color }]}>{RARITY_LABEL[item.rarity]}</Text>
               </View>
             </Pressable>
@@ -117,6 +120,7 @@ const styles = StyleSheet.create({
   cardName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body },
   free: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.makeGreen },
   cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
+  familyTag: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME },
   rarity: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
   pick: {
     borderWidth: BORDER.chunk,

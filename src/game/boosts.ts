@@ -39,14 +39,6 @@ export type BoostOffer = { kind: 'new'; defId: string };
 export const MAX_BOOSTS = 5;
 const OFFER_COUNT = 3;
 
-/** Whole-board reroll cost in run coins. Escalates within a node and resets per
- * node (the phase, and its `rerolls` count, is rebuilt at each draft): 5, 10, 15... */
-export const REROLL_BASE = 5;
-export const REROLL_STEP = 5;
-export function boostRerollCost(rerolls: number): number {
-  return REROLL_BASE + REROLL_STEP * rerolls;
-}
-
 /** Options for {@link drawBoostOffers}: a run-scoped banish set (never offered) and
  * a rarity pity offset (a drought biases the roll toward epic+). */
 export interface DrawBoostOpts {

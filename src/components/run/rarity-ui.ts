@@ -31,3 +31,11 @@ export const RARITY_LABEL: Record<Rarity, string> = {
  * color (rare is now purple). Individual cards still carry their per-rarity RARITY_COLOR.
  */
 export const REWARD_CHROME = palette.chrome;
+
+/**
+ * Synergy chrome for sets and families: flame orange, energetic and distinct from
+ * every rarity color and from the teal reward chrome, so a player reads "these pieces
+ * combine" at a glance. Used by the set chips, the draft set hints, and per-card
+ * family tags.
+ */
+export const SYNERGY_CHROME = palette.flame;

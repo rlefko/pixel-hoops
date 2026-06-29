@@ -3,14 +3,16 @@ import { Text } from '@/components/StyledText';
 import type { PassiveBoost } from '@/game/boosts';
 import { resolveSets } from '@/game/sets';
 import type { RosterPlayer } from '@/types/roster';
-import { REWARD_CHROME } from './rarity-ui';
+import { SYNERGY_CHROME } from './rarity-ui';
+import { summarizeSetBonus } from './set-ui';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
- * A compact strip of synergy sets on the map: active sets read solid (purple, the
- * reward-chrome color), and the one or two closest in-progress sets show a "have/need"
- * ghost chip so the player can chase a completion. Hidden when nothing is active or
- * even partially built.
+ * A compact strip of synergy sets on the map: active sets read solid (flame, the
+ * synergy color) with their effect, and the one or two closest in-progress sets show
+ * a dimmed "have/need" chip so the player can chase a completion. Each chip names the
+ * set and its bonus, e.g. "Track Meet (+2 pace, +1 ath)". Hidden when nothing is
+ * active or even partially built.
  */
 export function SetRow({ five, boosts }: { five: RosterPlayer[]; boosts: PassiveBoost[] }) {
   const { progress } = resolveSets(five, boosts);
@@ -25,11 +27,13 @@ export function SetRow({ five, boosts }: { five: RosterPlayer[]; boosts: Passive
   return (
     <View style={styles.row}>
       {shown.map((p) => {
-        const color = p.met ? REWARD_CHROME : palette.inkDim;
+        const color = p.met ? SYNERGY_CHROME : palette.inkDim;
+        const head = p.met ? p.def.name : `${p.have}/${p.need} ${p.def.name}`;
+        const effect = summarizeSetBonus(p.def.bonus);
         return (
           <View key={p.def.id} style={[styles.chip, { borderColor: color, opacity: p.met ? 1 : 0.75 }]}>
             <Text style={[styles.name, { color }]} numberOfLines={1}>
-              {p.met ? p.def.name : `${p.have}/${p.need} ${p.def.name}`}
+              {effect ? `${head} (${effect})` : head}
             </Text>
           </View>
         );
