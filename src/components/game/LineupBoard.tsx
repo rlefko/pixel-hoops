@@ -1,6 +1,9 @@
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { POSITION_COLOR } from '@/components/game/positionColor';
+import { ovr } from '@/game/ratings';
+import { applyTrainingDelta } from '@/game/effects';
 import { palette, FONT, FONT_SIZE, space, BORDER } from '@/theme';
 import type { Team } from '@/types/team';
 import type { RosterPlayer } from '@/types/roster';
@@ -8,7 +11,7 @@ import type { RosterPlayer } from '@/types/roster';
 /** Pregame roster view: the five by position, their stats, and active synergies. */
 
 // Re-exported for existing importers; the source of truth is positionColor.ts.
-export { POSITION_COLOR } from '@/components/game/positionColor';
+export { POSITION_COLOR };
 
 interface LineupBoardProps {
   team: Team;
@@ -24,6 +27,29 @@ interface LineupBoardProps {
   steppingIn?: RosterPlayer[];
   /** Slim each card to a single row (drops the OFF/DEF/ATH chips) to save height. */
   compact?: boolean;
+  /**
+   * The slimmest read: a box-score-height name list (position, name, OVR) with no
+   * player sprites and no synergy labels, so the scouting report stays short.
+   * Overrides {@link compact}.
+   */
+  dense?: boolean;
+}
+
+/** A single box-score-height roster row: position, name, OVR. No sprite. */
+function DenseRow({ rp, condition }: { rp: RosterPlayer; condition: boolean }) {
+  const stats = applyTrainingDelta(rp.player.stats, rp.trainingDelta);
+  const overall = ovr(stats, rp.position);
+  const injured = condition && (rp.gamesOut ?? 0) > 0;
+  return (
+    <View style={[styles.denseRow, injured && styles.denseInjured]}>
+      <Text style={[styles.densePos, { color: POSITION_COLOR[rp.position] }]}>{rp.position}</Text>
+      <Text style={[styles.denseName, rp.legendary && styles.denseLegend]} numberOfLines={1}>
+        {rp.player.name}
+      </Text>
+      {injured ? <Text style={styles.denseOut}>OUT {rp.gamesOut}</Text> : null}
+      <Text style={styles.denseOvr}>{overall}</Text>
+    </View>
+  );
 }
 
 export function LineupBoard({
@@ -32,15 +58,20 @@ export function LineupBoard({
   condition = false,
   steppingIn,
   compact = false,
+  dense = false,
 }: LineupBoardProps) {
   const lineup = players ?? team.lineup.players;
   return (
     <View style={styles.wrap}>
-      {lineup.map((rp, i) => (
-        <View key={i} style={[styles.row, compact && styles.rowCompact]}>
-          <PlayerCard rp={rp} condition={condition} compact={compact} />
-        </View>
-      ))}
+      {lineup.map((rp, i) =>
+        dense ? (
+          <DenseRow key={i} rp={rp} condition={condition} />
+        ) : (
+          <View key={i} style={[styles.row, compact && styles.rowCompact]}>
+            <PlayerCard rp={rp} condition={condition} compact={compact} />
+          </View>
+        )
+      )}
       {steppingIn && steppingIn.length > 0 ? (
         <View style={styles.steppingIn}>
           <Text style={styles.steppingInLabel}>STEPPING IN</Text>
@@ -49,7 +80,7 @@ export function LineupBoard({
           </Text>
         </View>
       ) : null}
-      {team.synergy.labels.length > 0 ? (
+      {!dense && team.synergy.labels.length > 0 ? (
         <View style={styles.synergyRow}>
           {team.synergy.labels.map((label) => (
             <Text key={label} style={styles.synergy}>
@@ -79,6 +110,39 @@ const styles = StyleSheet.create({
   },
   rowCompact: {
     paddingVertical: space(0.75),
+  },
+  denseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
+    paddingVertical: space(1),
+    borderBottomWidth: BORDER.thin,
+    borderBottomColor: palette.bgPanel,
+  },
+  denseInjured: { opacity: 0.5 },
+  densePos: {
+    width: space(6),
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+  },
+  denseName: {
+    flex: 1,
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.ink,
+  },
+  denseLegend: { color: palette.gold },
+  denseOut: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.injury,
+  },
+  denseOvr: {
+    minWidth: space(6),
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.ink,
+    textAlign: 'right',
   },
   steppingIn: {
     flexDirection: 'row',

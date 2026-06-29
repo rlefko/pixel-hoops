@@ -248,17 +248,11 @@ export default function RunScreen() {
   }
 }
 
-function depthOf(model: RunModel, nodeId: string): number {
-  const node = model.core.map.nodes[nodeId];
-  return node.round ?? node.layer + 1;
-}
-
 function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const [recDismissed, setRecDismissed] = useState(false);
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
   const timeoutUsed = model.phase.kind === 'pregame' && model.phase.timeoutUsed;
   const coachRec = model.phase.kind === 'pregame' ? model.phase.coachRec : undefined;
-  const round = depthOf(model, nodeId);
   // The away board scouts the opponent the run will field. The home board shows the
   // player's chosen five in their own slots, with an injured starter marked OUT in
   // place rather than silently swapped; the healthy sub who dresses for them in the
@@ -270,7 +264,6 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const steppingIn = steppingInSubs(model.core.roster);
   return (
     <Screen scroll contentContainerStyle={styles.pregame}>
-      <Text style={styles.depth}>DEPTH {round}</Text>
       {timeoutUsed ? (
         <View style={styles.timeoutBanner}>
           <Text style={styles.timeoutBannerTitle}>⏱ TIMEOUT</Text>
@@ -281,7 +274,6 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
           </Text>
         </View>
       ) : null}
-      <MatchupHeadline home={home} away={away} />
       <Text style={styles.section}>SCOUTING REPORT</Text>
       <View style={styles.scoutHeader}>
         <View style={[styles.swatch, { backgroundColor: away.colorHex }]} />
@@ -289,11 +281,12 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
           {away.name}
         </Text>
       </View>
-      <TeamIdentityCard identity={deriveTeamIdentity(away)} accentHex={away.colorHex} variant="full" />
-      <LineupBoard team={away} compact />
+      <TeamIdentityCard identity={deriveTeamIdentity(away)} accentHex={away.colorHex} />
+      <LineupBoard team={away} dense />
+      <MatchupHeadline home={home} away={away} />
       <Text style={styles.section}>YOUR FIVE</Text>
-      <TeamIdentityCard identity={deriveTeamIdentity(home)} accentHex={home.colorHex} variant="lite" />
-      <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} compact />
+      <TeamIdentityCard identity={deriveTeamIdentity(home)} accentHex={home.colorHex} />
+      <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} dense />
       {coachRec && !recDismissed ? (
         <CoachRecBanner
           coach={getCoach(model.coachId)}
@@ -429,12 +422,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignSelf: 'stretch',
     marginTop: space(3),
-  },
-  depth: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.small,
-    color: palette.inkDim,
-    textAlign: 'center',
   },
   section: {
     fontFamily: FONT.display,
