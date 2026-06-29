@@ -33,9 +33,17 @@ interface BoostDraftViewProps {
   owned: PassiveBoost[];
   /** The dressed five, used to hint when an offer completes a synergy set. */
   five?: RosterPlayer[];
+  /** Coin cost of the next whole-board reroll (escalates within the node). */
+  rerollCost?: number;
+  /** Whether a reroll is affordable right now. */
+  canReroll?: boolean;
+  /** Banishes left in the run (0 hides the per-offer banish control). */
+  banishesLeft?: number;
   onDraft: (offer: BoostOffer) => void;
   onDrop: (index: number) => void;
   onSkip: () => void;
+  onReroll?: () => void;
+  onBanish?: (offer: BoostOffer) => void;
 }
 
 export function BoostDraftView({
@@ -45,15 +53,29 @@ export function BoostDraftView({
   forced,
   owned,
   five,
+  rerollCost,
+  canReroll,
+  banishesLeft,
   onDraft,
   onDrop,
   onSkip,
+  onReroll,
+  onBanish,
 }: BoostDraftViewProps) {
   const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
   const draft = (offer: BoostOffer) => {
     fire(offerRarity(offer));
     onDraft(offer);
   };
+  const reroll = () => {
+    fire('rare');
+    onReroll?.();
+  };
+  const banish = (offer: BoostOffer) => {
+    fire('common');
+    onBanish?.(offer);
+  };
+  const canBanish = !!onBanish && (banishesLeft ?? 0) > 0;
 
   let content;
   if (pendingFull) {
@@ -113,24 +135,37 @@ export function BoostDraftView({
             const legendary = def.rarity === 'legendary';
             const setHint = five ? setHintForOffer(offer.defId, owned, five) : null;
             return (
-              <Pressable key={i} style={styles.cardWrap} onPress={() => draft(offer)}>
-                <LegendaryHalo visible={legendary} />
-                <View style={[styles.card, { borderColor: color }]}>
-                  <View style={styles.cardHead}>
-                    <Text style={[styles.cardName, { color }]}>{def.name}</Text>
-                    <Text style={[styles.tag, { color }]}>{RARITY_LABEL[def.rarity]}</Text>
+              <View key={i} style={styles.offerRow}>
+                <Pressable style={styles.cardWrap} onPress={() => draft(offer)}>
+                  <LegendaryHalo visible={legendary} />
+                  <View style={[styles.card, { borderColor: color }]}>
+                    <View style={styles.cardHead}>
+                      <Text style={[styles.cardName, { color }]}>{def.name}</Text>
+                      <Text style={[styles.tag, { color }]}>{RARITY_LABEL[def.rarity]}</Text>
+                    </View>
+                    <Text style={styles.cardBlurb}>{def.blurb}</Text>
+                    {setHint ? <Text style={styles.setHint}>{setHint}</Text> : null}
                   </View>
-                  <Text style={styles.cardBlurb}>{def.blurb}</Text>
-                  {setHint ? <Text style={styles.setHint}>{setHint}</Text> : null}
-                </View>
-              </Pressable>
+                </Pressable>
+                {canBanish ? (
+                  <Pressable hitSlop={8} style={styles.banishBtn} onPress={() => banish(offer)}>
+                    <Text style={styles.banishX}>✕</Text>
+                    <Text style={styles.banishLabel}>BANISH</Text>
+                  </Pressable>
+                ) : null}
+              </View>
             );
           })}
           {offers.length === 0 ? (
             <Text style={styles.subtitle}>No new boosts available.</Text>
           ) : null}
         </ScrollView>
-        <PixelButton label="Skip" onPress={onSkip} style={styles.bottomButton} />
+        <View style={styles.bottomRow}>
+          {canReroll ? (
+            <PixelButton label={`Reroll · ${rerollCost}c`} onPress={reroll} style={styles.rerollButton} />
+          ) : null}
+          <PixelButton label="Skip" onPress={onSkip} style={styles.skipButton} />
+        </View>
       </Screen>
     );
   }
@@ -164,7 +199,6 @@ const styles = StyleSheet.create({
   },
   scroll: { flex: 1, alignSelf: 'stretch' },
   offers: { marginTop: space(4), gap: space(3), paddingBottom: space(4) },
-  cardWrap: { position: 'relative' },
   card: {
     padding: space(3),
     borderWidth: BORDER.chunk,
@@ -196,4 +230,12 @@ const styles = StyleSheet.create({
   cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
   setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.purple, marginTop: space(0.5) },
   bottomButton: { marginTop: space(4) },
+  offerRow: { flexDirection: 'row', alignItems: 'center', gap: space(2) },
+  cardWrap: { position: 'relative', flex: 1 },
+  banishBtn: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: space(1.5), paddingVertical: space(1) },
+  banishX: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.missRed },
+  banishLabel: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  bottomRow: { flexDirection: 'row', justifyContent: 'center', gap: space(3), marginTop: space(4) },
+  rerollButton: { flex: 1 },
+  skipButton: { flex: 1 },
 });

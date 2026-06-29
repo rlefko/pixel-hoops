@@ -39,6 +39,21 @@ export type BoostOffer = { kind: 'new'; defId: string };
 export const MAX_BOOSTS = 5;
 const OFFER_COUNT = 3;
 
+/** Whole-board reroll cost in run coins. Escalates within a node and resets per
+ * node (the phase, and its `rerolls` count, is rebuilt at each draft): 5, 10, 15... */
+export const REROLL_BASE = 5;
+export const REROLL_STEP = 5;
+export function boostRerollCost(rerolls: number): number {
+  return REROLL_BASE + REROLL_STEP * rerolls;
+}
+
+/** Options for {@link drawBoostOffers}: a run-scoped banish set (never offered) and
+ * a rarity pity offset (a drought biases the roll toward epic+). */
+export interface DrawBoostOpts {
+  banished?: ReadonlySet<string>;
+  pityOffset?: number;
+}
+
 export const BOOST_DEFS: readonly BoostDef[] = [
   // --- Common (net +1 on the team line) ---
   { id: 'splash-brothers', name: 'Splash Brothers', blurb: '+1 team outside', rarity: 'common', effect: { extra: { outside: 1 } } },
@@ -119,29 +134,34 @@ const BY_RARITY: Record<Rarity, BoostDef[]> = {
 export function drawBoostOffers(
   owned: readonly PassiveBoost[],
   rng: RNG,
-  offerCount: number = OFFER_COUNT
+  offerCount: number = OFFER_COUNT,
+  opts: DrawBoostOpts = {}
 ): BoostOffer[] {
+  const { banished, pityOffset = 0 } = opts;
   const ownedIds = new Set(owned.map((b) => b.id));
   const chosen = new Set<string>();
   const offers: BoostOffer[] = [];
 
-  const available = (r: Rarity): BoostDef[] =>
-    BY_RARITY[r].filter((d) => !ownedIds.has(d.id) && !chosen.has(d.id));
+  const blocked = (id: string): boolean =>
+    ownedIds.has(id) || chosen.has(id) || (banished?.has(id) ?? false);
+  const available = (r: Rarity): BoostDef[] => BY_RARITY[r].filter((d) => !blocked(d.id));
 
   for (let attempt = 0; offers.length < offerCount && attempt < offerCount * 12; attempt++) {
-    const pool = available(rollRarity(rng));
+    const pool = available(rollRarity(rng, pityOffset));
     if (!pool.length) continue;
     const def = rng.pick(pool);
     chosen.add(def.id);
     offers.push({ kind: 'new', defId: def.id });
   }
 
-  // Safety fill (rare): rng kept rolling empty rarities; top up from anything left.
+  // Safety fill (rare): rng kept rolling empty rarities; top up from anything left
+  // that is not owned, already chosen, or banished.
   if (offers.length < offerCount) {
-    const rest = BOOST_DEFS.filter((d) => !ownedIds.has(d.id) && !chosen.has(d.id));
+    const rest = BOOST_DEFS.filter((d) => !blocked(d.id));
     while (offers.length < offerCount && rest.length) {
       const idx = rng.int(0, rest.length - 1);
       const def = rest.splice(idx, 1)[0];
+      chosen.add(def.id);
       offers.push({ kind: 'new', defId: def.id });
     }
   }

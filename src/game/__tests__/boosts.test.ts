@@ -115,3 +115,40 @@ describe('boostsToModifier', () => {
     expect(boostsToModifier([{ id: 'does-not-exist' }]).extra).toEqual({});
   });
 });
+
+describe('boost draft agency (banish + pity)', () => {
+  it('never offers a banished boost and still fills the board', () => {
+    const banished = new Set(['splash-brothers', 'lockdown', 'sharpshooting', 'closer']);
+    for (let s = 0; s < 120; s++) {
+      const offers = drawBoostOffers([], createRNG(`ban-${s}`), 3, { banished });
+      for (const o of offers) expect(banished.has(o.defId)).toBe(false);
+      expect(offers).toHaveLength(3);
+      expect(new Set(offers.map((o) => o.defId)).size).toBe(3);
+    }
+  });
+
+  it('is deterministic with banish + pity options', () => {
+    const opts = { banished: new Set(['splash-brothers']), pityOffset: 3 };
+    const a = drawBoostOffers([], createRNG('det'), 3, opts);
+    const b = drawBoostOffers([], createRNG('det'), 3, opts);
+    expect(a).toEqual(b);
+  });
+
+  it('raises the epic+ share over a drought but never makes it the norm', () => {
+    const epicPlusShare = (pityOffset: number): number => {
+      let count = 0;
+      const draws = 1500;
+      for (let s = 0; s < draws; s++) {
+        for (const o of drawBoostOffers([], createRNG(`p-${pityOffset}-${s}`), 3, { pityOffset })) {
+          const r = BOOST_BY_ID[o.defId].rarity;
+          if (r === 'epic' || r === 'legendary') count += 1;
+        }
+      }
+      return count / (draws * 3);
+    };
+    const cold = epicPlusShare(0);
+    const hot = epicPlusShare(4);
+    expect(hot).toBeGreaterThan(cold);
+    expect(hot).toBeLessThan(0.5);
+  });
+});
