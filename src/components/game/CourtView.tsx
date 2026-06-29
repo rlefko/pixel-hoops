@@ -230,8 +230,10 @@ function SpriteAt({
     };
   });
 
-  // On-fire aura: a flame glow behind a hot scorer (NBA Jam). Steady under reduced motion.
-  const { glowStyle } = usePulse(560);
+  // On-fire aura: a flame glow behind a hot scorer (NBA Jam). Steady under reduced
+  // motion. Paused (no loop) unless this sprite is actually hot, so the other nine
+  // sprites don't run an unread shared-value loop every frame of the whole watch.
+  const { glowStyle } = usePulse(560, { paused: !hot });
 
   if (!rp) return null;
   const inner = (
