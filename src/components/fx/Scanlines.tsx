@@ -23,9 +23,9 @@ export function Scanlines({ spacing = 3, color = palette.scanline, enabled }: Sc
   const settings = useFeelSettings();
   const on = enabled ?? settings.scanlinesEnabled;
   const [size, setSize] = useState({ width: 0, height: 0 });
-  // Unique, selector-safe pattern id so multiple overlays never collide (notably
-  // on web, where every Svg shares one id namespace).
-  const patternId = `scanlines-${useId().replace(/:/g, '')}`;
+  // A unique pattern id so multiple overlays never collide (notably on web,
+  // where every Svg shares one id namespace), as in PixelIcons' clip paths.
+  const patternId = useId();
 
   const onLayout = (e: LayoutChangeEvent) =>
     setSize({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height });
