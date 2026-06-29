@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { memo, useEffect, useRef, type ReactNode } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
@@ -79,7 +79,7 @@ const RATING_GROUPS: { label: string; keys: (keyof PlayerStats)[] }[] = [
   { label: 'PLAY STYLE', keys: [...PLAYSTYLE_STAT_KEYS] },
 ];
 
-export function PlayerCard({
+function PlayerCardImpl({
   rp,
   expanded = false,
   onToggleExpand,
@@ -270,6 +270,13 @@ export function PlayerCard({
     </View>
   );
 }
+
+/**
+ * Memoized so a long list (locker, roster, draft) only re-renders the cards whose
+ * player object actually changed. `applyUpgrade` preserves the identity of every
+ * unchanged player, so buying a +1 on one card never re-renders the rest of the grid.
+ */
+export const PlayerCard = memo(PlayerCardImpl);
 
 /** A small colored tier badge (C/B/A/S/S+/S++). The S++ apex animates a shining
  * gold halo (the legendary breathe), so a fully-trained player reads as a jackpot.

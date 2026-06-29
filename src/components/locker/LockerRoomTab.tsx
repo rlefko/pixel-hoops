@@ -1,12 +1,18 @@
-import { useMemo, useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { haptics } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { applyUpgrade, playerKey, totalUpgrades, upgradeCount } from '@/game/home-roster';
+import {
+  applyUpgrade,
+  playerKey,
+  totalUpgrades,
+  upgradeCount,
+  type HomeRoster,
+} from '@/game/home-roster';
 import { canUpgrade, isPremiumStat, perStatMax, upgradeCost } from '@/game/upgrades';
 import { availableClasses, availablePositions, compareByRatingDesc } from '@/game/roster-filter';
 import type { PlayerClass } from '@/game/ratings';
@@ -18,8 +24,9 @@ import type { Position, RosterPlayer } from '@/types/roster';
  * The Locker tab: spend coins between runs on permanent +1 stat upgrades, capped
  * at +5 per stat. Premium stats (outside/playmaking/clutch) cost more. The owned
  * collection is large, so it is searchable + class-filterable, sorted by most
- * recently used (the home-roster order). Mirrors the in-run TrainingView grid.
- * The shell (back, title, coin pill) is owned by LockerScreen.
+ * recently used (the home-roster order), and virtualized (FlatList) so only the
+ * visible rows mount. Mirrors the in-run TrainingView grid. The shell (back, title,
+ * coin pill) is owned by LockerScreen.
  */
 
 interface StatDef {
@@ -53,6 +60,97 @@ const STAT_GROUPS: { label: string; stats: StatDef[] }[] = [
   },
 ];
 
+/** A rendered row: the live player plus the roster index the upgrade action keys on. */
+interface Row {
+  rp: RosterPlayer;
+  i: number;
+}
+
+/** One +1 upgrade button: the stat label, its current value, and its coin cost (or MAX). */
+function StatUpgradeButton({
+  label,
+  value,
+  cost,
+  upgradable,
+  disabled,
+  premium,
+  onPress,
+}: {
+  label: string;
+  value: number;
+  cost: number;
+  upgradable: boolean;
+  disabled: boolean;
+  premium: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={[styles.statBtn, premium && styles.premium, disabled && styles.disabled]}
+    >
+      <View style={styles.statBtnLine}>
+        <Text style={styles.statBtnText}>{label}</Text>
+        <StatNumber value={value} style={styles.statBtnText} />
+      </View>
+      <Text style={styles.statCost}>{upgradable ? `${cost}c` : 'MAX'}</Text>
+    </Pressable>
+  );
+}
+
+/**
+ * One roster row in the locker grid: the (memoized) player card plus its eight
+ * upgrade buttons. Only the visible rows mount, so a few hundred owned players no
+ * longer freeze the screen on open, filter, or upgrade.
+ */
+function LockerRow({
+  rp,
+  index,
+  home,
+  coins,
+  onUpgrade,
+}: {
+  rp: RosterPlayer;
+  index: number;
+  home: HomeRoster;
+  coins: number;
+  onUpgrade: (index: number, stat: keyof PlayerStats) => void;
+}) {
+  return (
+    <View style={styles.row}>
+      <PlayerCard rp={rp} showSpecialty />
+      <View style={styles.groups}>
+        {STAT_GROUPS.map((group) => (
+          <View key={group.label} style={styles.group}>
+            <Text style={styles.groupLabel}>{group.label}</Text>
+            <View style={styles.statButtons}>
+              {group.stats.map((s) => {
+                const value = rp.player.stats[s.key];
+                const bought = upgradeCount(home, rp, s.key);
+                const cost = upgradeCost(s.key, bought);
+                const upgradable = canUpgrade(s.key, value, bought, perStatMax());
+                return (
+                  <StatUpgradeButton
+                    key={s.key}
+                    label={s.label}
+                    value={value}
+                    cost={cost}
+                    upgradable={upgradable}
+                    disabled={!upgradable || coins < cost}
+                    premium={isPremiumStat(s.key)}
+                    onPress={() => onUpgrade(index, s.key)}
+                  />
+                );
+              })}
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function LockerRoomTab() {
   const { homeRoster, saveHomeRoster } = useHomeRoster();
   const [query, setQuery] = useState('');
@@ -68,10 +166,19 @@ export function LockerRoomTab() {
   // the tab and re-sorts to current overalls; a new signing changes the signature and
   // re-derives the indices so they never go stale. The captured roster only produces an
   // index ordering; the rows below read the live roster, so the stat numbers stay fresh.
-  const rosterSignature = homeRoster?.players.map(playerKey).join('\n') ?? '';
+  const rosterSignature = useMemo(
+    () => homeRoster?.players.map(playerKey).join('\n') ?? '',
+    [homeRoster]
+  );
   const orderedIndices = useMemo(() => {
     if (!homeRoster) return [];
-    const byRating = compareByRatingDesc((rp: RosterPlayer) => totalUpgrades(homeRoster, rp));
+    // Precompute each player's total upgrades once, so the sort tiebreaker doesn't
+    // recompute it O(n log n) times inside the comparator.
+    const upgradesByKey = new Map<string, number>();
+    for (const rp of homeRoster.players) {
+      upgradesByKey.set(playerKey(rp), totalUpgrades(homeRoster, rp));
+    }
+    const byRating = compareByRatingDesc((rp: RosterPlayer) => upgradesByKey.get(playerKey(rp)) ?? 0);
     return homeRoster.players
       .map((rp, i) => ({ rp, i }))
       .filter(({ rp }) => {
@@ -84,6 +191,16 @@ export function LockerRoomTab() {
       .map(({ i }) => i);
   }, [rosterSignature, q, classes, positions]);
 
+  // Buy one +1 against the LIVE roster (read through the latest homeRoster).
+  const onUpgrade = useCallback(
+    (index: number, stat: keyof PlayerStats) => {
+      if (!homeRoster) return;
+      haptics.selection();
+      saveHomeRoster(applyUpgrade(homeRoster, index, stat));
+    },
+    [homeRoster, saveHomeRoster]
+  );
+
   if (!homeRoster) return null;
 
   const coins = homeRoster.coins;
@@ -94,7 +211,7 @@ export function LockerRoomTab() {
   // covers any momentary mismatch.
   const shown = orderedIndices
     .map((i) => ({ rp: homeRoster.players[i], i }))
-    .filter((row): row is { rp: RosterPlayer; i: number } => Boolean(row.rp));
+    .filter((row): row is Row => Boolean(row.rp));
   const toggleClass = (cls: PlayerClass) =>
     setClasses((prev) => {
       const next = new Set(prev);
@@ -124,53 +241,25 @@ export function LockerRoomTab() {
         enabledClasses={enabledClasses}
       />
 
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {shown.map(({ rp, i }) => (
-          <View key={`${rp.player.name}-${i}`} style={styles.row}>
-            <PlayerCard rp={rp} showSpecialty />
-            <View style={styles.groups}>
-              {STAT_GROUPS.map((group) => (
-                <View key={group.label} style={styles.group}>
-                  <Text style={styles.groupLabel}>{group.label}</Text>
-                  <View style={styles.statButtons}>
-                    {group.stats.map((s) => {
-                      const value = rp.player.stats[s.key];
-                      const bought = upgradeCount(homeRoster, rp, s.key);
-                      const cost = upgradeCost(s.key, bought);
-                      const upgradable = canUpgrade(s.key, value, bought, perStatMax());
-                      const afford = coins >= cost;
-                      const disabled = !upgradable || !afford;
-                      return (
-                        <Pressable
-                          key={s.key}
-                          disabled={disabled}
-                          onPress={() => {
-                            haptics.selection();
-                            saveHomeRoster(applyUpgrade(homeRoster, i, s.key));
-                          }}
-                          style={[
-                            styles.statBtn,
-                            isPremiumStat(s.key) && styles.premium,
-                            disabled && styles.disabled,
-                          ]}
-                        >
-                          <View style={styles.statBtnLine}>
-                            <Text style={styles.statBtnText}>{s.label}</Text>
-                            <StatNumber value={value} style={styles.statBtnText} />
-                          </View>
-                          <Text style={styles.statCost}>
-                            {upgradable ? `${cost}c` : 'MAX'}
-                          </Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-        ))}
-      </ScrollView>
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        data={shown}
+        keyExtractor={(row) => `${row.rp.player.name}-${row.i}`}
+        renderItem={({ item }) => (
+          <LockerRow
+            rp={item.rp}
+            index={item.i}
+            home={homeRoster}
+            coins={coins}
+            onUpgrade={onUpgrade}
+          />
+        )}
+        extraData={homeRoster}
+        windowSize={5}
+        initialNumToRender={8}
+        removeClippedSubviews
+      />
     </View>
   );
 }

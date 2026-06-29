@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
@@ -14,8 +14,9 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
  * The roster browser: search and filter the full owned collection (now hundreds of
- * players) by name, class, and position, sortable by power / class / name. Reuses
- * PlayerCard and the shared RosterFilterBar so it reads the same as the draft.
+ * players) by name, class, and position, sortable by power / class / name. The list
+ * is virtualized (FlatList) so only the visible cards mount. Reuses PlayerCard and
+ * the shared RosterFilterBar so it reads the same as the draft.
  */
 
 type Sort = 'recent' | 'power' | 'class' | 'name';
@@ -25,6 +26,29 @@ const SORTS: { id: Sort; label: string }[] = [
   { id: 'class', label: 'CLASS' },
   { id: 'name', label: 'NAME' },
 ];
+
+/** One browse row: a (memoized) expandable player card. Memoized so toggling one
+ * card's stat spread, or scrolling, only re-renders the cards that actually changed. */
+const RosterRow = memo(function RosterRow({
+  rp,
+  expanded,
+  onToggle,
+}: {
+  rp: RosterPlayer;
+  expanded: boolean;
+  onToggle: (rp: RosterPlayer) => void;
+}) {
+  return (
+    <View style={styles.row}>
+      <PlayerCard
+        rp={rp}
+        showSpecialty
+        expanded={expanded}
+        onToggleExpand={() => onToggle(rp)}
+      />
+    </View>
+  );
+});
 
 export default function RosterScreen() {
   const nav = useArcadeRouter();
@@ -38,6 +62,11 @@ export default function RosterScreen() {
   // spread follows the player across re-sorts and filters (the collection can hold
   // duplicate name/position pairs, and ownedRosterPlayers returns stable instances).
   const [expanded, setExpanded] = useState<RosterPlayer | null>(null);
+  // Stable toggle so memoized rows only re-render when their own expanded flag flips.
+  const onToggle = useCallback(
+    (rp: RosterPlayer) => setExpanded((prev) => (prev === rp ? null : rp)),
+    []
+  );
 
   const players = useMemo(
     () => (homeRoster ? ownedRosterPlayers(homeRoster) : []),
@@ -115,19 +144,20 @@ export default function RosterScreen() {
           </Pressable>
         }
       />
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
-        {shown.map((rp, i) => (
-          <View key={`${rp.player.name}-${rp.position}-${i}`} style={styles.row}>
-            <PlayerCard
-              rp={rp}
-              showSpecialty
-              expanded={expanded === rp}
-              onToggleExpand={() => setExpanded(expanded === rp ? null : rp)}
-            />
-          </View>
-        ))}
-        {shown.length === 0 ? <Text style={styles.empty}>No players match.</Text> : null}
-      </ScrollView>
+      <FlatList
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        data={shown}
+        keyExtractor={(rp, i) => `${rp.player.name}-${rp.position}-${i}`}
+        renderItem={({ item }) => (
+          <RosterRow rp={item} expanded={expanded === item} onToggle={onToggle} />
+        )}
+        extraData={expanded}
+        windowSize={5}
+        initialNumToRender={10}
+        removeClippedSubviews
+        ListEmptyComponent={<Text style={styles.empty}>No players match.</Text>}
+      />
     </Screen>
   );
 }
