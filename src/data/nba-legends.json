@@ -482,7 +482,7 @@
   {
     "name": "Kevin Durant",
     "slug": "kevin-durant",
-    "teamAbbr": "PHX",
+    "teamAbbr": "HOU",
     "era": "modern",
     "position": "SF",
     "jerseyNumber": 35,
@@ -522,7 +522,7 @@
   {
     "name": "Giannis Antetokounmpo",
     "slug": "giannis-antetokounmpo",
-    "teamAbbr": "MIL",
+    "teamAbbr": "MIA",
     "era": "modern",
     "position": "PF",
     "jerseyNumber": 34,
@@ -642,7 +642,7 @@
   {
     "name": "Luka Doncic",
     "slug": "luka-doncic",
-    "teamAbbr": "DAL",
+    "teamAbbr": "LAL",
     "era": "modern",
     "position": "PG",
     "jerseyNumber": 77,
@@ -722,7 +722,7 @@
   {
     "name": "Anthony Davis",
     "slug": "anthony-davis",
-    "teamAbbr": "LAL",
+    "teamAbbr": "WAS",
     "era": "modern",
     "position": "PF",
     "jerseyNumber": 3,
@@ -1469,7 +1469,7 @@
   {
     "name": "Ray Allen",
     "slug": "ray-allen",
-    "teamAbbr": "OKC",
+    "teamAbbr": "MIL",
     "era": "historical",
     "position": "SG",
     "jerseyNumber": 34,
@@ -2109,7 +2109,7 @@
   {
     "name": "James Harden",
     "slug": "james-harden",
-    "teamAbbr": "LAC",
+    "teamAbbr": "CLE",
     "era": "modern",
     "position": "PG",
     "jerseyNumber": 13,
