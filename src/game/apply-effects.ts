@@ -77,9 +77,16 @@ export function teamModifierFor(
       if (ability.teamAura) mods.push(teamModifierFromPartial(ability.teamAura));
       if (ability.hooks?.length) mods.push(teamModifierFromPartial({ hooks: ability.hooks }));
     }
-    // The equipped gacha ability can also carry a team aura (rare/legendary team boosts).
+    // The equipped gacha ability can also carry a team aura and/or conditional hooks.
     const gacha = getGachaAbility(rp.equippedAbility?.id);
     if (gacha?.teamAura) mods.push(teamModifierFromPartial(gacha.teamAura));
+    if (gacha?.hooks?.length) mods.push(teamModifierFromPartial({ hooks: gacha.hooks }));
+    // A run item's conditional hooks ride the team modifier (a separate channel
+    // from its flat itemDelta, which is baked once in effectivePlayers).
+    if (rp.item) {
+      const itemDef = ITEM_BY_ID[rp.item.defId];
+      if (itemDef?.hooks?.length) mods.push(teamModifierFromPartial({ hooks: itemDef.hooks }));
+    }
   }
   if (hasOnLoan) mods.push(teamModifierFromPartial(LEGEND_CHEMISTRY));
   return mergeTeamModifiers(mods);

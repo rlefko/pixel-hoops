@@ -1,4 +1,4 @@
-import type { StatDelta } from './effects';
+import type { SimHook, StatDelta } from './effects';
 import { addStatDelta } from './effects';
 import { type Rarity, rollBossRarity, rollRarity } from './rarity';
 import type { RNG } from './rng';
@@ -22,6 +22,15 @@ export interface ItemDef {
   effect: StatDelta;
   /** Optional off-stat downside (negative deltas) applied to the same player. */
   downside?: StatDelta;
+  /**
+   * Optional conditional rule-benders (comebacks, hot-hand streaks, momentum
+   * procs). Folded into the team modifier while this player STARTS (matching the
+   * legend-signature hook contract: team-wide for the game, frozen at tip-off),
+   * NOT into the flat per-player bake. Hooks are sized by expected value, so a
+   * hook-carrying item may spend less than its full rarity net on flat stats (the
+   * remainder is "paid" by the conditional effect). See src/game/effects.ts.
+   */
+  hooks?: SimHook[];
 }
 
 export const ITEM_DEFS: readonly ItemDef[] = [
@@ -59,6 +68,16 @@ export const ITEM_DEFS: readonly ItemDef[] = [
   { id: 'iron-man-brace', name: 'Iron Man Brace', rarity: 'legendary', blurb: '+6 interior D, +3 inside, but -4 stamina', effect: { interiorD: 6, inside: 3 }, downside: { stamina: -4 } },
   { id: 'mvp-mouthpiece', name: 'MVP Mouthpiece', rarity: 'legendary', blurb: '+3 outside, +2 inside, +1 playmaking, but -1 perimeter D', effect: { outside: 3, inside: 2, playmaking: 1 }, downside: { perimeterD: -1 } },
   { id: 'cold-blooded-cuff', name: 'Cold-Blooded Cuff', rarity: 'legendary', blurb: '+5 clutch, +2 outside, but -2 IQ', effect: { clutch: 5, outside: 2 }, downside: { iq: -2 } },
+
+  // --- Conditional (hook) items: the effect is a rule-bender, sized by feel and
+  // budget-exempt. Most are pure-hook (no flat stats); a couple pair a small flat
+  // bonus with their trigger. These are the "spicy" build-definers. ---
+  { id: 'momentum-band', name: 'Momentum Band', rarity: 'rare', blurb: 'After a made three, +3 outside next possession', effect: {}, hooks: [{ kind: 'onResult', on: 'madeThree', delta: { outside: 3 } }] },
+  { id: 'comeback-kid-cuff', name: 'Comeback Kid', rarity: 'rare', blurb: 'Down 8 or more: +3 outside', effect: {}, hooks: [{ kind: 'whenTrailing', marginBehind: 8, delta: { outside: 3 } }] },
+  { id: 'heat-check-visor', name: 'Heat-Check Visor', rarity: 'epic', blurb: 'Each make this quarter heats you up, to +4 outside', effect: {}, hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 4, halfLife: 3, reset: 'quarter' }] },
+  { id: 'closer-mentality', name: 'Closer Mentality', rarity: 'epic', blurb: '+1 clutch, and +3 more clutch when ahead late', effect: { clutch: 1 }, hooks: [{ kind: 'whenLeading', marginAhead: 6, delta: { clutch: 3 } }] },
+  { id: 'furious-comeback-vest', name: 'Furious Comeback', rarity: 'legendary', blurb: 'Down 3 or more: +6 inside, +6 outside, +4 clutch', effect: {}, hooks: [{ kind: 'whenTrailing', marginBehind: 3, delta: { inside: 6, outside: 6, clutch: 4 } }] },
+  { id: 'supernova-goggles', name: 'Supernova', rarity: 'legendary', blurb: 'Limitless heat: each make adds up to +7 outside', effect: {}, hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 7, halfLife: 2, reset: 'quarter' }] },
 ];
 
 export const ITEM_BY_ID: Record<string, ItemDef> = Object.fromEntries(

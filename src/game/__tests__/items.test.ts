@@ -1,12 +1,34 @@
 import { describe, it, expect } from 'vitest';
 import { createRNG } from '@/game/rng';
-import { ITEM_BY_ID, ITEM_DEFS, itemDelta, rollDrop, rollBoostStock } from '@/game/items';
+import { ITEM_BY_ID, ITEM_DEFS, type ItemDef, itemDelta, rollDrop, rollBoostStock } from '@/game/items';
 import { RARITY_NET, individualNet, type Rarity } from '@/game/rarity';
+import { hookStatKeys, isRealStatKey } from './hook-keys';
+
+const isHookItem = (d: ItemDef): boolean => (d.hooks?.length ?? 0) > 0;
 
 describe('item budget', () => {
-  it('every item nets exactly its rarity budget (effect plus downside)', () => {
+  it('every flat item nets its rarity budget; hook items spend 0..budget on flat stats', () => {
     for (const d of ITEM_DEFS) {
-      expect(individualNet(itemDelta(d))).toBe(RARITY_NET[d.rarity]);
+      const net = individualNet(itemDelta(d));
+      if (isHookItem(d)) {
+        // The conditional hook pays the remainder of the budget (sized by EV), so
+        // the flat spend may be anywhere from 0 up to the full rarity net.
+        expect(net).toBeGreaterThanOrEqual(0);
+        expect(net).toBeLessThanOrEqual(RARITY_NET[d.rarity]);
+      } else {
+        expect(net).toBe(RARITY_NET[d.rarity]);
+      }
+    }
+  });
+
+  it('every item hook references only real stat keys and is well-formed', () => {
+    for (const d of ITEM_DEFS) {
+      for (const h of d.hooks ?? []) {
+        for (const k of hookStatKeys(h)) expect(isRealStatKey(k)).toBe(true);
+        if (h.kind === 'hotHand') expect(h.halfLife).toBeGreaterThan(0);
+        if (h.kind === 'whenTrailing') expect(h.marginBehind).toBeGreaterThan(0);
+        if (h.kind === 'whenLeading') expect(h.marginAhead).toBeGreaterThan(0);
+      }
     }
   });
 

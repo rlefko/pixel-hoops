@@ -3,6 +3,7 @@ import { createRNG } from '@/game/rng';
 import { createPlayer } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
 import { effectivePlayers, teamModifierFor } from '@/game/apply-effects';
+import { ITEM_BY_ID, itemDelta } from '@/game/items';
 
 function rp(overrides: Partial<RosterPlayer> = {}): RosterPlayer {
   const player = createPlayer('Test', 'small-forward', createRNG('p').int);
@@ -86,5 +87,19 @@ describe('teamModifierFor', () => {
     // 'floor-raiser' is a legendary +2 team outside (team aura via extra).
     const mod = teamModifierFor([rp({ equippedAbility: { id: 'floor-raiser' } })], []);
     expect(mod.extra.outside).toBe(2);
+  });
+
+  it('folds a run item conditional hook into the team modifier', () => {
+    // 'momentum-band' is a pure-hook rare item (onResult madeThree -> +3 outside).
+    const mod = teamModifierFor([rp({ item: { defId: 'momentum-band' } })], []);
+    expect(mod.hooks).toContainEqual({ kind: 'onResult', on: 'madeThree', delta: { outside: 3 } });
+    // A pure-hook item bakes no flat stats: its itemDelta is empty (no double-count).
+    expect(itemDelta(ITEM_BY_ID['momentum-band'])).toEqual({});
+  });
+
+  it('folds an equipped gacha ability conditional hook into the team modifier', () => {
+    // 'human-torch' is a pure-hook legendary ability (hotHand outside).
+    const mod = teamModifierFor([rp({ equippedAbility: { id: 'human-torch' } })], []);
+    expect(mod.hooks.some((h) => h.kind === 'hotHand')).toBe(true);
   });
 });
