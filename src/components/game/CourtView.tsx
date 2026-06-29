@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -147,7 +147,7 @@ const DUNK_KF = [
   1,
 ];
 
-function SpriteAt({
+const SpriteAt = memo(function SpriteAt({
   side,
   position,
   team,
@@ -287,13 +287,17 @@ function SpriteAt({
       </Animated.View>
     </View>
   );
-}
+});
 
-export function CourtView({
+// Stable empty default so a non-hot frame doesn't hand CourtView a fresh array and
+// defeat its memo (the busy case passes the memoized hotKeys from the feed).
+const NO_HOT_KEYS: string[] = [];
+
+function CourtViewImpl({
   homeTeam,
   awayTeam,
   current,
-  hotKeys = [],
+  hotKeys = NO_HOT_KEYS,
   onArrival,
 }: CourtViewProps) {
   // Every game is hosted in the opponent's arena, so the floor takes their colors.
@@ -398,6 +402,14 @@ export function CourtView({
     </View>
   );
 }
+
+/**
+ * Memoized so the court subtree skips re-render when the feed re-renders without a
+ * new play (a ball arrival, a speed/highlights toggle): only a changed `current` or
+ * `hotKeys` re-renders the ten sprites. SpriteAt is memoized in turn so an arrival
+ * that only flips the hot aura re-renders just the sprites whose hot flag changed.
+ */
+export const CourtView = memo(CourtViewImpl);
 
 const SPRITE_W = 30;
 
