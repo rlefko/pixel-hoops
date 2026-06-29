@@ -161,7 +161,7 @@ export function counterVerdict(
 }
 
 /** Rating points one q-unit of edge is worth (the 6-20 band width). */
-const Q_TO_RATING = 14;
+export const Q_TO_RATING = 14;
 /** How strongly the counter edge expresses: a knob tuned against the balance
  * harness so a clear counter lands in the ~10-20% win-prob band. */
 const COUNTER_STRENGTH = 1.0;
