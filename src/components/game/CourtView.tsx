@@ -83,12 +83,10 @@ function playerAt(
  */
 function rosterByName(team: Team): Map<string, RosterPlayer> {
   const map = new Map<string, RosterPlayer>();
-  for (const rp of team.lineup.players) {
-    if (!map.has(rp.player.name)) map.set(rp.player.name, rp);
-  }
-  for (const rp of team.bench) {
-    if (!map.has(rp.player.name)) map.set(rp.player.name, rp);
-  }
+  // Bench first, then starters, so a starter overwrites the (not expected) name
+  // clash and wins, matching the prior first-match `.find` over starters+bench.
+  for (const rp of team.bench) map.set(rp.player.name, rp);
+  for (const rp of team.lineup.players) map.set(rp.player.name, rp);
   return map;
 }
 
