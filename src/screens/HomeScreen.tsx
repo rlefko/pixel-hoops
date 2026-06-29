@@ -251,6 +251,9 @@ const styles = StyleSheet.create({
     color: palette.ink,
     letterSpacing: 2,
     lineHeight: FONT_SIZE.h2 + 8,
+    // letterSpacing adds its advance after the last glyph too; pull the box edge
+    // back flush so centered words and the HOOPS glow stay symmetric.
+    marginRight: -2,
   },
   highlight: {
     color: palette.orange,
