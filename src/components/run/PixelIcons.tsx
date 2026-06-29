@@ -1,4 +1,6 @@
+import { useId } from 'react';
 import { View } from 'react-native';
+import Svg, { Circle, ClipPath, Defs, G, Line, Path } from 'react-native-svg';
 import { palette } from '@/theme';
 import type { MapNodeType } from '@/types/run-map';
 
@@ -17,29 +19,37 @@ function box(size: number) {
   return { width: size, height: size, alignItems: 'center', justifyContent: 'center' } as const;
 }
 
-/** game: a basketball with two seams. */
+/**
+ * game: a basketball. An orange disc crossed by the four classic seams: a
+ * vertical and a horizontal center seam plus two side seams that bow out to
+ * ~56% of the radius and meet at the poles. Drawn with react-native-svg (as in
+ * SvgCourt) so the curves scale cleanly across icon sizes and render the same on
+ * iOS, Android, and web. Seams are clipped to the disc so nothing spills past
+ * the silhouette at the poles.
+ */
 export function BasketballIcon({ size, color }: IconProps) {
-  const seam = Math.max(1, Math.round(size * 0.08));
+  // Seams read ~8% of the icon, matching the old Math.round(size * 0.08) look:
+  // 0.08 * 32 (the viewBox span) = 2.56 viewBox units.
+  const seam = 2.6;
+  const clipId = useId();
   return (
     <View style={box(size)}>
-      <View
-        style={{
-          width: size,
-          height: size,
-          borderRadius: size / 2,
-          backgroundColor: color,
-          overflow: 'hidden',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <View
-          style={{ position: 'absolute', width: seam, height: size, backgroundColor: palette.bgPanel }}
-        />
-        <View
-          style={{ position: 'absolute', width: size, height: seam, backgroundColor: palette.bgPanel }}
-        />
-      </View>
+      <Svg width={size} height={size} viewBox="0 0 32 32">
+        <Defs>
+          <ClipPath id={clipId}>
+            <Circle cx={16} cy={16} r={16} />
+          </ClipPath>
+        </Defs>
+        <Circle cx={16} cy={16} r={16} fill={color} />
+        <G clipPath={`url(#${clipId})`} stroke={palette.bgPanel} strokeWidth={seam} fill="none">
+          {/* Center seams */}
+          <Line x1={16} y1={0} x2={16} y2={32} />
+          <Line x1={0} y1={16} x2={32} y2={16} />
+          {/* Side seams: half-ellipses (rx 9, ry 16) bowing left then right */}
+          <Path d="M 16 0 A 9 16 0 0 0 16 32" />
+          <Path d="M 16 0 A 9 16 0 0 1 16 32" />
+        </G>
+      </Svg>
     </View>
   );
 }
