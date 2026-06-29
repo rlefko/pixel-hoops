@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { Pop, ShakeView, FlashOverlay } from '@/components/fx';
+import { usePulse } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { LegendaryHalo, RewardConfetti } from '@/components/run/reward-fx';
 import { RARITY_COLOR, RARITY_LABEL } from '@/components/run/rarity-ui';
@@ -71,6 +73,8 @@ export function ArcadeTab() {
     () => new Set(homeRoster ? homeRoster.players.map(playerKey) : []),
     [homeRoster]
   );
+  // One shared breathe for legendary ability chips (top-tier only); lower rarities stay flat.
+  const { glowStyle } = usePulse();
 
   if (!homeRoster) return null;
 
@@ -199,17 +203,19 @@ export function ArcadeTab() {
               const equipped = abilityEquipped(homeRoster, a.id);
               const active = selected === a.id;
               const color = RARITY_COLOR[a.rarity];
+              const legendary = a.rarity === 'legendary';
               return (
-                <Pressable
-                  key={a.id}
-                  onPress={() => setSelected(active ? null : a.id)}
-                  style={[styles.abilityChip, { borderColor: color }, active && { backgroundColor: color + '33' }]}
-                >
-                  <Text style={[styles.abilityChipName, { color }]}>{a.name}</Text>
-                  <Text style={styles.abilityChipMeta}>
-                    {equipped}/{owned} · {a.blurb}
-                  </Text>
-                </Pressable>
+                <Animated.View key={a.id} style={legendary ? glowStyle : undefined}>
+                  <Pressable
+                    onPress={() => setSelected(active ? null : a.id)}
+                    style={[styles.abilityChip, { borderColor: color }, active && { backgroundColor: color + '33' }]}
+                  >
+                    <Text style={[styles.abilityChipName, { color }]}>{a.name}</Text>
+                    <Text style={styles.abilityChipMeta}>
+                      {equipped}/{owned} · {a.blurb}
+                    </Text>
+                  </Pressable>
+                </Animated.View>
               );
             })}
           </View>

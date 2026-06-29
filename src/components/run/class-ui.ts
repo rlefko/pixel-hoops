@@ -1,13 +1,19 @@
 import { palette } from '@/theme';
 import { classForOvr, type PlayerClass } from '@/game/ratings';
 
-/** Class -> badge color, matching PlayerCard's tier palette so power reads at a glance. */
+/**
+ * Class -> badge color on the shared cool -> warm -> gold tier ramp (see rarity-ui.ts):
+ * D gray floor, C blue, B purple, A magenta, S red, S+ orange, S++ glowing gold. The
+ * blue/purple/red/gold anchors are the same hues as common/rare/epic/legendary, so a
+ * class badge and a rarity chip read in one language. Gold is reserved for the S++ apex,
+ * which keeps the legendary pulse climactic. PlayerCard consumes this map directly.
+ */
 export const CLASS_COLOR: Record<PlayerClass, string> = {
   D: palette.inkDim,
   C: palette.steelBlue,
-  B: palette.makeGreen,
-  A: palette.gold,
-  S: palette.flame,
+  B: palette.rarePurple,
+  A: palette.classMagenta,
+  S: palette.epicRed,
   'S+': palette.orange,
   'S++': palette.gold,
 };

@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from './PlayerCard';
+import { LegendaryHalo } from './reward-fx';
 import { ITEM_BY_ID } from '@/game/items';
 import { RARITY_COLOR, REWARD_CHROME } from './rarity-ui';
 import type { Roster } from '@/types/roster';
@@ -73,17 +74,19 @@ export function BagView({ bag, roster, onEquip, onUnequip, onDone }: BagViewProp
             if (!def) return null;
             const color = RARITY_COLOR[def.rarity];
             return (
-              <Pressable
-                key={i}
-                style={[styles.card, { borderColor: color }]}
-                onPress={() => setEquipping(i)}
-              >
-                <View style={styles.cardHead}>
-                  <Text style={[styles.cardName, { color }]}>{def.name}</Text>
-                  <Text style={[styles.action, { color }]}>EQUIP</Text>
-                </View>
-                <Text style={styles.cardBlurb}>{def.blurb}</Text>
-              </Pressable>
+              <View key={i} style={styles.legendWrap}>
+                <LegendaryHalo visible={def.rarity === 'legendary'} />
+                <Pressable
+                  style={[styles.card, { borderColor: color }]}
+                  onPress={() => setEquipping(i)}
+                >
+                  <View style={styles.cardHead}>
+                    <Text style={[styles.cardName, { color }]}>{def.name}</Text>
+                    <Text style={[styles.action, { color }]}>EQUIP</Text>
+                  </View>
+                  <Text style={styles.cardBlurb}>{def.blurb}</Text>
+                </Pressable>
+              </View>
             );
           })
         )}
@@ -130,6 +133,7 @@ const styles = StyleSheet.create({
     marginTop: space(3),
   },
   hint: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim },
+  legendWrap: { position: 'relative' }, // anchors a legendary item's gold halo to its card
   card: {
     padding: space(3),
     borderWidth: BORDER.chunk,

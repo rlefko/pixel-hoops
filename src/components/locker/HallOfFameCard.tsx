@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { LegendaryHalo } from '@/components/run/reward-fx';
 import { haptics } from '@/feel';
 import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
@@ -25,55 +26,59 @@ export function HallOfFameCard({ entry }: HallOfFameCardProps) {
   const tier = victoryTier(entry.difficulty, entry.ladderClass);
 
   return (
-    <View style={[styles.card, { borderColor: tier.color }]}>
-      <Pressable
-        style={styles.header}
-        onPress={() => {
-          haptics.selection();
-          setOpen((v) => !v);
-        }}
-      >
-        <View style={styles.headerMain}>
-          <View style={styles.titleRow}>
-            <Text style={[styles.stamp, { color: tier.color }]}>
-              {tier.emoji} {tier.label}
-            </Text>
-            <Text style={styles.config}>
-              {DIFFICULTY_LABELS[entry.difficulty].name} · {entry.ladderClass}
-            </Text>
+    <View style={styles.wrap}>
+      <LegendaryHalo visible={tier.legend} />
+      <View style={[styles.card, { borderColor: tier.color }]}>
+        <Pressable
+          style={styles.header}
+          onPress={() => {
+            haptics.selection();
+            setOpen((v) => !v);
+          }}
+        >
+          <View style={styles.headerMain}>
+            <View style={styles.titleRow}>
+              <Text style={[styles.stamp, { color: tier.color }]}>
+                {tier.emoji} {tier.label}
+              </Text>
+              <Text style={styles.config}>
+                {DIFFICULTY_LABELS[entry.difficulty].name} · {entry.ladderClass}
+              </Text>
+            </View>
+            <View style={styles.scoreRow}>
+              <Text style={styles.score}>
+                {entry.finalHome} - {entry.finalAway}
+              </Text>
+              <Text style={styles.opponent} numberOfLines={1}>
+                vs {entry.opponentName}
+              </Text>
+            </View>
           </View>
-          <View style={styles.scoreRow}>
-            <Text style={styles.score}>
-              {entry.finalHome} - {entry.finalAway}
-            </Text>
-            <Text style={styles.opponent} numberOfLines={1}>
-              vs {entry.opponentName}
-            </Text>
-          </View>
-        </View>
-        <Text style={styles.chevron}>{open ? '▲' : '▼'}</Text>
-      </Pressable>
+          <Text style={styles.chevron}>{open ? '▲' : '▼'}</Text>
+        </Pressable>
 
-      {open ? (
-        <View style={styles.drop}>
-          <Text style={styles.dropLabel}>STARTING 5</Text>
-          <View style={styles.five}>
-            {entry.starters.map((rp, i) => (
-              <View key={`${rp.player.name}-${i}`} style={styles.fiveRow}>
-                <PlayerCard rp={rp} compact />
-              </View>
-            ))}
+        {open ? (
+          <View style={styles.drop}>
+            <Text style={styles.dropLabel}>STARTING 5</Text>
+            <View style={styles.five}>
+              {entry.starters.map((rp, i) => (
+                <View key={`${rp.player.name}-${i}`} style={styles.fiveRow}>
+                  <PlayerCard rp={rp} compact />
+                </View>
+              ))}
+            </View>
+            <Pressable style={styles.shareBtn} onPress={() => void shareVictory(entry)}>
+              <Text style={styles.shareText}>SHARE</Text>
+            </Pressable>
           </View>
-          <Pressable style={styles.shareBtn} onPress={() => void shareVictory(entry)}>
-            <Text style={styles.shareText}>SHARE</Text>
-          </Pressable>
-        </View>
-      ) : null}
+        ) : null}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: { alignSelf: 'stretch', position: 'relative' }, // anchors a legend banner's gold halo
   card: {
     alignSelf: 'stretch',
     borderWidth: BORDER.chunk,

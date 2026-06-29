@@ -11,6 +11,7 @@ import {
 import { haptics } from '@/feel';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from './PlayerCard';
+import { LegendaryHalo } from './reward-fx';
 import { getAbility } from '@/game/abilities';
 import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -56,9 +57,12 @@ export function LegendRevealView({ offer, onScout, onDecline }: LegendRevealView
 
       <ShakeView ref={shakeRef} style={styles.stage}>
         {revealed ? (
-          <View style={styles.card}>
-            <PlayerCard rp={offer} expanded />
-            <Text style={styles.onLoan}>ON LOAN: yours for this run only</Text>
+          <View style={styles.cardWrap}>
+            <LegendaryHalo visible />
+            <View style={styles.card}>
+              <PlayerCard rp={offer} expanded />
+              <Text style={styles.onLoan}>ON LOAN: yours for this run only</Text>
+            </View>
           </View>
         ) : (
           <Pressable style={styles.facedown} onPress={scout}>
@@ -104,6 +108,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   stage: { marginTop: space(8), alignSelf: 'stretch', alignItems: 'center' },
+  cardWrap: { alignSelf: 'stretch', position: 'relative' }, // anchors the legend's gold halo
   facedown: {
     width: 180,
     height: 220,

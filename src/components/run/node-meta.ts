@@ -12,5 +12,5 @@ export const NODE_META: Record<
   recruit: { glyph: '+', color: palette.steelBlue, label: 'Recruit' },
   training: { glyph: '^', color: palette.makeGreen, label: 'Training' },
   rest: { glyph: 'z', color: palette.gold, label: 'Rest' },
-  boost: { glyph: '!', color: palette.purple, label: 'Boost' },
+  boost: { glyph: '!', color: palette.chrome, label: 'Boost' },
 };
