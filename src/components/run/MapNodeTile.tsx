@@ -29,7 +29,7 @@ const ICON_COLOR: Record<MapNodeType, string> = {
   recruit: palette.steelBlue,
   training: palette.makeGreen,
   rest: palette.gold,
-  boost: palette.purple,
+  boost: palette.chrome,
 };
 
 interface MapNodeTileProps {

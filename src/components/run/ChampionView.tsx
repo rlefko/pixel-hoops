@@ -5,6 +5,7 @@ import { Screen } from '@/components/Screen';
 import { Counter, FlashOverlay, ParticleBurst, ShakeView } from '@/components/fx';
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { useRewardBurst } from './useRewardBurst';
+import { LegendaryHalo } from './reward-fx';
 import { buildHallOfFameEntry, type ChampionGame } from '@/game/hall-of-fame';
 import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
@@ -80,10 +81,13 @@ export function ChampionView({
         <ShakeView ref={shakeRef} style={styles.hero}>
           <Text style={styles.crown}>👑</Text>
           <Text style={styles.title}>CHAMPIONS!</Text>
-          <View style={[styles.stamp, { borderColor: tier.color }]}>
-            <Text style={[styles.stampText, { color: tier.color }]}>
-              {tier.emoji} {tier.label}
-            </Text>
+          <View style={styles.stampWrap}>
+            <LegendaryHalo visible={tier.legend} />
+            <View style={[styles.stamp, { borderColor: tier.color }]}>
+              <Text style={[styles.stampText, { color: tier.color }]}>
+                {tier.emoji} {tier.label}
+              </Text>
+            </View>
           </View>
           <Text style={styles.meta}>
             {DIFFICULTY_LABELS[difficulty].name} · {ladderClass} LADDER · {wins}{' '}
@@ -140,8 +144,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: space(1),
   },
+  stampWrap: { position: 'relative', marginTop: space(3) }, // anchors the legend win's gold halo
   stamp: {
-    marginTop: space(3),
     paddingVertical: space(1),
     paddingHorizontal: space(3),
     borderWidth: BORDER.chunk,

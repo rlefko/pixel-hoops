@@ -8,7 +8,7 @@ import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { POSITION_COLOR } from '@/components/game/positionColor';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { ovr, off, def, ath, tierFor, classForOvr, CLASS_ORDER, type TierKey } from '@/game/ratings';
+import { ovr, off, def, ath, tierFor, classForOvr, CLASS_ORDER } from '@/game/ratings';
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
@@ -16,6 +16,7 @@ import { getSpecialty } from '@/game/specialty';
 import { derivePlaystyle, tendencyFor } from '@/game/playstyle';
 import { getGachaAbility } from '@/game/abilities-gacha';
 import { RARITY_COLOR } from './rarity-ui';
+import { CLASS_COLOR } from './class-ui';
 import { StatNumber } from './StatNumber';
 import { PLAYSTYLE_STAT_KEYS, STAT_NORMAL_MAX, type PlayerStats } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
@@ -49,17 +50,6 @@ interface PlayerCardProps {
    * a glance read for the roster, draft, locker, and recruit screens. */
   showSpecialty?: boolean;
 }
-
-/** Tier key -> palette color for the badge (verified palette keys, no new hex). */
-const TIER_COLOR: Record<TierKey, string> = {
-  rookie: palette.inkDim, // D: the streetball floor
-  bronze: palette.steelBlue, // C
-  silver: palette.makeGreen, // B
-  gold: palette.gold, // A
-  elite: palette.flame, // S
-  apex: palette.orange, // S+: legendary tier
-  zenith: palette.gold, // S++: animated shining gold, the trained/boss apex
-};
 
 /** One rating's short label, for the expanded breakdown grid. */
 const RATING_LABEL: Record<keyof PlayerStats, string> = {
@@ -104,7 +94,8 @@ export function PlayerCard({
   const stats = applyTrainingDelta(rp.player.stats, rp.trainingDelta);
   const overall = ovr(stats, rp.position);
   const tier = tierFor(overall);
-  const tierColor = TIER_COLOR[tier.key];
+  // tier.label is the PlayerClass, so the class ramp is the single source for the badge color.
+  const tierColor = CLASS_COLOR[tier.label];
   // Show the player's fixed original class with an arrow to the current class when
   // upgrades/abilities/training have lifted them past their starting tier.
   const currentClass = classForOvr(overall);
@@ -184,9 +175,10 @@ export function PlayerCard({
             </Text>
             {isLegendary ? <Text style={styles.legendStar}>★</Text> : null}
             {itemDef ? (
-              <Text style={[styles.itemMark, { color: RARITY_COLOR[itemDef.rarity] }]}>
-                ◆
-              </Text>
+              // A legendary item's diamond breathes (top-tier only); lower rarities stay flat.
+              <Animated.View style={itemDef.rarity === 'legendary' ? glowStyle : undefined}>
+                <Text style={[styles.itemMark, { color: RARITY_COLOR[itemDef.rarity] }]}>◆</Text>
+              </Animated.View>
             ) : null}
           </View>
           {injured ? (
