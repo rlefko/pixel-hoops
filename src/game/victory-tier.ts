@@ -15,7 +15,8 @@ export interface VictoryTier {
   key: VictoryTierKey;
   /** Short stamp label shown on the celebration screen and the Hall of Fame card. */
   label: string;
-  /** A celebratory emoji for the stamp and the share text. */
+  /** A celebratory emoji for the share text only (the in-app stamp uses a pixel
+   * VictoryTierIcon; pixel art cannot render in the exported share blurb). */
   emoji: string;
   /** The palette color the celebration tints toward (border, confetti, stamp). */
   color: string;

@@ -6,6 +6,7 @@ import { Counter, FlashOverlay, ParticleBurst, ShakeView } from '@/components/fx
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
+import { CrownIcon, VictoryTierIcon } from './PixelIcons';
 import { buildHallOfFameEntry, type ChampionGame } from '@/game/hall-of-fame';
 import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
@@ -79,14 +80,13 @@ export function ChampionView({
     <Screen style={styles.container} topGap={space(4)}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <ShakeView ref={shakeRef} style={styles.hero}>
-          <Text style={styles.crown}>👑</Text>
+          <CrownIcon size={48} color={palette.gold} />
           <Text style={styles.title}>CHAMPIONS!</Text>
           <View style={styles.stampWrap}>
             <LegendaryHalo visible={tier.legend} />
             <View style={[styles.stamp, { borderColor: tier.color }]}>
-              <Text style={[styles.stampText, { color: tier.color }]}>
-                {tier.emoji} {tier.label}
-              </Text>
+              <VictoryTierIcon tier={tier.key} size={12} color={tier.color} />
+              <Text style={[styles.stampText, { color: tier.color }]}>{tier.label}</Text>
             </View>
           </View>
           <Text style={styles.meta}>
@@ -136,7 +136,6 @@ const styles = StyleSheet.create({
   scroll: { alignSelf: 'stretch' },
   scrollContent: { alignItems: 'center', paddingBottom: space(6) },
   hero: { alignSelf: 'stretch', alignItems: 'center' },
-  crown: { fontFamily: FONT.body, fontSize: 40, color: palette.gold },
   title: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.h1,
@@ -146,6 +145,9 @@ const styles = StyleSheet.create({
   },
   stampWrap: { position: 'relative', marginTop: space(3) }, // anchors the legend win's gold halo
   stamp: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(1),
     paddingVertical: space(1),
     paddingHorizontal: space(3),
     borderWidth: BORDER.chunk,
