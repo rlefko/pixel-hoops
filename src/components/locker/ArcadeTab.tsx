@@ -3,7 +3,7 @@ import { View, StyleSheet, Pressable, ScrollView, TextInput } from 'react-native
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { Pop, ShakeView, FlashOverlay } from '@/components/fx';
-import { usePulse } from '@/feel';
+import { useGlowPulse } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { LegendaryHalo, RewardConfetti } from '@/components/run/reward-fx';
 import { RARITY_COLOR, RARITY_LABEL } from '@/components/run/rarity-ui';
@@ -74,7 +74,9 @@ export function ArcadeTab() {
     [homeRoster]
   );
   // One shared breathe for legendary ability chips (top-tier only); lower rarities stay flat.
-  const { glowStyle } = usePulse();
+  // Paused (no loop) when no legendary ability is owned.
+  const hasLegendaryAbility = ownedAbilities.some((a) => a.rarity === 'legendary');
+  const glowStyle = useGlowPulse(900, { paused: !hasLegendaryAbility });
 
   if (!homeRoster) return null;
 

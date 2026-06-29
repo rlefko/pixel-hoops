@@ -3,7 +3,7 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { PixelPlayer } from '@/components/fx';
-import { usePop, usePulse } from '@/feel';
+import { usePop, useGlowPulse } from '@/feel';
 import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { POSITION_COLOR } from '@/components/game/positionColor';
@@ -124,9 +124,11 @@ export function PlayerCard({
   const dietSum = dietPaint + tend.midrange + tend.three || 1;
   const dietPct = (x: number): number => Math.round((x / dietSum) * 100);
   const onBallTag = tend.onBall >= 0.6 ? ' · on-ball' : tend.onBall <= 0.35 ? ' · off-ball' : '';
-  // A slow gold breathe behind a legendary's name, so a real great reads as a
-  // jackpot wherever the card appears (recruit, lineup, pregame).
-  const { glowStyle } = usePulse();
+  // A slow gold breathe behind a legendary's name (and a legendary item's diamond), so a
+  // real great reads as a jackpot wherever the card appears (recruit, lineup, pregame).
+  // Paused (no loop) on ordinary cards so a long roster list never runs unread animations.
+  const legendaryGlow = isLegendary || itemDef?.rarity === 'legendary';
+  const glowStyle = useGlowPulse(900, { paused: !legendaryGlow });
 
   return (
     <View
@@ -283,7 +285,8 @@ function TierBadge({
   animated?: boolean;
   celebrate?: boolean;
 }) {
-  const { glowStyle } = usePulse();
+  // Only the animated (zenith / S++) badge breathes; every other tier holds steady (no loop).
+  const glowStyle = useGlowPulse(900, { paused: !animated });
   const { popStyle, pop } = usePop();
   useEffect(() => {
     if (celebrate) pop({ scale: 1.4 });

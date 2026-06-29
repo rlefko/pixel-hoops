@@ -5,7 +5,7 @@ import { Screen } from '@/components/Screen';
 import { MenuButton } from '@/components/MenuButton';
 import { DisplayText, MonoText } from '@/components/StyledText';
 import { Callout, Counter, Pop } from '@/components/fx';
-import { usePulse } from '@/feel';
+import { useBobPulse } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import {
   BasketballIcon,
@@ -66,9 +66,9 @@ export default function HowToPlayScreen() {
 
   // A few looping accents on the always-visible hero (the rest of the page's juice
   // rides on per-component pops, glows, and bursts). All hold lit under reduced motion.
-  const bob0 = usePulse(1100, { delayMs: 0 });
-  const bob1 = usePulse(1100, { delayMs: 150 });
-  const bob2 = usePulse(1100, { delayMs: 300 });
+  const bob0 = useBobPulse(1100, { delayMs: 0 });
+  const bob1 = useBobPulse(1100, { delayMs: 150 });
+  const bob2 = useBobPulse(1100, { delayMs: 300 });
 
   return (
     <Screen
@@ -91,13 +91,13 @@ export default function HowToPlayScreen() {
           Build a squad. Set your five. Watch them ball. Win to climb. One more run.
         </MonoText>
         <View style={styles.crest}>
-          <Animated.View style={bob0.bobStyle}>
+          <Animated.View style={bob0}>
             <JoystickIcon size={20} color={palette.orange} />
           </Animated.View>
-          <Animated.View style={bob1.bobStyle}>
+          <Animated.View style={bob1}>
             <BasketballIcon size={20} color={palette.gold} />
           </Animated.View>
-          <Animated.View style={bob2.bobStyle}>
+          <Animated.View style={bob2}>
             <CrownIcon size={20} color={palette.classMagenta} />
           </Animated.View>
         </View>

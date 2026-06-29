@@ -24,7 +24,7 @@ import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { COURT } from '@/components/game/courtDimensions';
 import { idleBobFor, moveOffsetFor, roleFor, MOVE, DUNK } from '@/components/game/possession';
-import { useFeelSettings, usePulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
+import { useFeelSettings, useBobPulse, useGlowPulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
 import { palette, FONT, FONT_SIZE } from '@/theme';
 import { courtThemeFor } from '@/theme/courtTheme';
 import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
@@ -184,7 +184,7 @@ function SpriteAt({
 
   // Idle breathe, detuned per sprite so the floor undulates instead of marching.
   const bob = useMemo(() => idleBobFor(side, position), [side, position]);
-  const { bobStyle } = usePulse(bob.durationMs, {
+  const bobStyle = useBobPulse(bob.durationMs, {
     delayMs: bob.delayMs,
     bobAmplitude: bob.bobAmplitude,
   });
@@ -250,7 +250,7 @@ function SpriteAt({
   // On-fire aura: a flame glow behind a hot scorer (NBA Jam). Steady under reduced
   // motion. Paused (no loop) unless this sprite is actually hot, so the other nine
   // sprites don't run an unread shared-value loop every frame of the whole watch.
-  const { glowStyle } = usePulse(560, { paused: !hot });
+  const glowStyle = useGlowPulse(560, { paused: !hot });
 
   if (!rp) return null;
   const inner = (

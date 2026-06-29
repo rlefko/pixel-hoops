@@ -2,14 +2,16 @@ import { View, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { BOOST_BY_ID, type PassiveBoost } from '@/game/boosts';
-import { usePulse } from '@/feel';
+import { useGlowPulse } from '@/feel';
 import { RARITY_COLOR } from './rarity-ui';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** A compact strip of the run's equipped passive boosts (shown on the map). */
 export function BoostRow({ boosts }: { boosts: PassiveBoost[] }) {
-  // One shared breathe for the strip's legendary chips (top-tier only); lower rarities stay flat.
-  const { glowStyle } = usePulse();
+  // One shared breathe for the strip's legendary chips (top-tier only); lower rarities stay
+  // flat. Paused (no loop) when there is no legendary chip to animate.
+  const hasLegendary = boosts.some((b) => BOOST_BY_ID[b.id]?.rarity === 'legendary');
+  const glowStyle = useGlowPulse(900, { paused: !hasLegendary });
   if (boosts.length === 0) return null;
   return (
     <View style={styles.row}>

@@ -1,7 +1,7 @@
 import { Dimensions, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { ParticleBurst } from '@/components/fx';
-import { usePulse } from '@/feel';
+import { useGlowPulse } from '@/feel';
 import { palette, space, RADIUS } from '@/theme';
 
 const CENTER_X = Dimensions.get('window').width / 2;
@@ -19,7 +19,7 @@ export function LegendaryHalo({
   visible: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
-  const { glowStyle } = usePulse();
+  const glowStyle = useGlowPulse();
   if (!visible) return null;
   return <Animated.View pointerEvents="none" style={[styles.halo, style, glowStyle]} />;
 }
