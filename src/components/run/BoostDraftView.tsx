@@ -7,9 +7,9 @@ import { BOOST_BY_ID, type BoostOffer, type PassiveBoost } from '@/game/boosts';
 import type { Rarity } from '@/game/rarity';
 import type { RosterPlayer } from '@/types/roster';
 import { offerDef } from './boost-ui';
-import { setHintForOffer } from './set-ui';
+import { setHintForOffer, boostFamilyLabels } from './set-ui';
 import { LegendaryHalo, RewardConfetti } from './reward-fx';
-import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME } from './rarity-ui';
+import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME, SYNERGY_CHROME } from './rarity-ui';
 import { useRewardBurst } from './useRewardBurst';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -23,6 +23,10 @@ function offerRarity(offer: BoostOffer | undefined): Rarity {
  * reward). When the 5 slots are full, taking a new boost flips into a "drop one"
  * mode that shows the incoming boost beside the owned five, so the player can
  * drop one to make room or skip to keep their five.
+ *
+ * Each offer carries a flame family tag (its synergy group) and, when relevant, a
+ * flame hint showing which set it advances. Banish (free, capped) drops a boost from
+ * the rest of the run; its remaining count is shown and explained in-screen.
  */
 interface BoostDraftViewProps {
   round: number;
@@ -33,16 +37,11 @@ interface BoostDraftViewProps {
   owned: PassiveBoost[];
   /** The dressed five, used to hint when an offer completes a synergy set. */
   five?: RosterPlayer[];
-  /** Coin cost of the next whole-board reroll (escalates within the node). */
-  rerollCost?: number;
-  /** Whether a reroll is affordable right now. */
-  canReroll?: boolean;
-  /** Banishes left in the run (0 hides the per-offer banish control). */
+  /** Banishes left in the run (0 hides the banish control). */
   banishesLeft?: number;
   onDraft: (offer: BoostOffer) => void;
   onDrop: (index: number) => void;
   onSkip: () => void;
-  onReroll?: () => void;
   onBanish?: (offer: BoostOffer) => void;
 }
 
@@ -53,13 +52,10 @@ export function BoostDraftView({
   forced,
   owned,
   five,
-  rerollCost,
-  canReroll,
   banishesLeft,
   onDraft,
   onDrop,
   onSkip,
-  onReroll,
   onBanish,
 }: BoostDraftViewProps) {
   const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
@@ -67,15 +63,12 @@ export function BoostDraftView({
     fire(offerRarity(offer));
     onDraft(offer);
   };
-  const reroll = () => {
-    fire('rare');
-    onReroll?.();
-  };
   const banish = (offer: BoostOffer) => {
     fire('common');
     onBanish?.(offer);
   };
-  const canBanish = !!onBanish && (banishesLeft ?? 0) > 0;
+  const left = banishesLeft ?? 0;
+  const canBanish = !!onBanish && left > 0;
 
   let content;
   if (pendingFull) {
@@ -127,12 +120,18 @@ export function BoostDraftView({
       <Screen style={styles.container} bottomGap={space(5)}>
         <Text style={styles.title}>ROUND {round} BOOST</Text>
         <Text style={styles.subtitle}>Pick a passive boost for your squad</Text>
+        {canBanish ? (
+          <Text style={styles.helper}>
+            Banish drops a boost from the rest of this run so it stops appearing. {left} left.
+          </Text>
+        ) : null}
         <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
           {offers.map((offer, i) => {
             const def = offerDef(offer);
             if (!def) return null;
             const color = RARITY_COLOR[def.rarity];
             const legendary = def.rarity === 'legendary';
+            const family = boostFamilyLabels(offer.defId).join(' · ');
             const setHint = five ? setHintForOffer(offer.defId, owned, five) : null;
             return (
               <View key={i} style={styles.offerRow}>
@@ -144,13 +143,13 @@ export function BoostDraftView({
                       <Text style={[styles.tag, { color }]}>{RARITY_LABEL[def.rarity]}</Text>
                     </View>
                     <Text style={styles.cardBlurb}>{def.blurb}</Text>
+                    {family ? <Text style={styles.familyTag}>{family}</Text> : null}
                     {setHint ? <Text style={styles.setHint}>{setHint}</Text> : null}
                   </View>
                 </Pressable>
                 {canBanish ? (
                   <Pressable hitSlop={8} style={styles.banishBtn} onPress={() => banish(offer)}>
-                    <Text style={styles.banishX}>✕</Text>
-                    <Text style={styles.banishLabel}>BANISH</Text>
+                    <Text style={styles.banishLabel}>Banish</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -160,12 +159,7 @@ export function BoostDraftView({
             <Text style={styles.subtitle}>No new boosts available.</Text>
           ) : null}
         </ScrollView>
-        <View style={styles.bottomRow}>
-          {canReroll ? (
-            <PixelButton label={`Reroll · ${rerollCost}c`} onPress={reroll} style={styles.rerollButton} />
-          ) : null}
-          <PixelButton label="Skip" onPress={onSkip} style={styles.skipButton} />
-        </View>
+        <PixelButton label="Skip" onPress={onSkip} style={styles.bottomButton} />
       </Screen>
     );
   }
@@ -196,6 +190,13 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     textAlign: 'center',
     marginTop: space(2),
+  },
+  helper: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+    textAlign: 'center',
+    marginTop: space(1.5),
   },
   scroll: { flex: 1, alignSelf: 'stretch' },
   offers: { marginTop: space(4), gap: space(3), paddingBottom: space(4) },
@@ -228,14 +229,19 @@ const styles = StyleSheet.create({
     marginTop: space(4),
   },
   cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
-  setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: REWARD_CHROME, marginTop: space(0.5) },
+  familyTag: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME, marginTop: space(0.5) },
+  setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME },
   bottomButton: { marginTop: space(4) },
   offerRow: { flexDirection: 'row', alignItems: 'center', gap: space(2) },
   cardWrap: { position: 'relative', flex: 1 },
-  banishBtn: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: space(1.5), paddingVertical: space(1) },
-  banishX: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.missRed },
-  banishLabel: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
-  bottomRow: { flexDirection: 'row', justifyContent: 'center', gap: space(3), marginTop: space(4) },
-  rerollButton: { flex: 1 },
-  skipButton: { flex: 1 },
+  banishBtn: {
+    alignSelf: 'center',
+    borderWidth: BORDER.thin,
+    borderColor: palette.missRed,
+    borderRadius: RADIUS.chip,
+    paddingHorizontal: space(2.5),
+    paddingVertical: space(1.5),
+    backgroundColor: palette.missRed + '14',
+  },
+  banishLabel: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.missRed },
 });

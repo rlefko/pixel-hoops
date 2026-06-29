@@ -31,6 +31,17 @@ export const ITEM_FAMILIES: Record<string, readonly string[]> = {
   anchor: ['anchor-brace', 'rim-protector-pads', 'iron-man-brace', 'two-way-harness', 'swatter-gauntlets'],
 };
 
+/** Display names for each family tag (UI labels for the per-card family chips). */
+export const FAMILY_LABELS: Record<string, string> = {
+  'run-gun': 'Run & Gun',
+  lockdown: 'Lockdown',
+  splash: 'Splash',
+  shooter: 'Shooter',
+  passer: 'Passer',
+  'rim-runner': 'Rim Runner',
+  anchor: 'Anchor',
+};
+
 /** Reverse lookup: id -> the families it belongs to. */
 function reverse(families: Record<string, readonly string[]>): Map<string, string[]> {
   const out = new Map<string, string[]>();
