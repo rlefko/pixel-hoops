@@ -19,6 +19,9 @@ interface TeamIdentityCardProps {
   identity: TeamIdentity;
   /** Team accent color for the left rule (the franchise primary). */
   accentHex: string;
+  /** The team's coach (the opponent's real franchise coach, or your equipped coach):
+   * shown so the scout read explains WHY a team plays the way it does. */
+  coachName?: string;
 }
 
 const THREE_LEAN_LABEL: Record<TeamIdentity['tendencies']['threeLean'], string> = {
@@ -37,13 +40,21 @@ function Chip({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-export function TeamIdentityCard({ identity, accentHex }: TeamIdentityCardProps) {
+export function TeamIdentityCard({ identity, accentHex, coachName }: TeamIdentityCardProps) {
   const { tags, blurb, weaknesses, tendencies } = identity;
   return (
     <View style={[styles.card, { borderLeftColor: accentHex }]}>
-      <Text style={styles.archetype} numberOfLines={1}>
-        {archetypeLabel(tendencies.archetype).toUpperCase()}
-      </Text>
+      <View style={styles.headerRow}>
+        <Text style={styles.archetype} numberOfLines={1}>
+          {archetypeLabel(tendencies.archetype).toUpperCase()}
+        </Text>
+        {coachName ? (
+          <Text style={styles.coach} numberOfLines={1}>
+            <Text style={styles.coachLabel}>COACH </Text>
+            {coachName}
+          </Text>
+        ) : null}
+      </View>
       <View style={styles.tagRow}>
         {tags.map((tag) => (
           <Text key={tag} style={styles.tag}>
@@ -141,10 +152,27 @@ const styles = StyleSheet.create({
     marginBottom: space(1),
     borderLeftWidth: BORDER.chunkier,
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space(2),
+  },
   archetype: {
+    flexShrink: 1,
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.small,
     color: palette.ink,
+  },
+  coach: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
+  coachLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
   },
   tagRow: {
     flexDirection: 'row',

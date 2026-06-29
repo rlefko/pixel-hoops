@@ -38,7 +38,8 @@ import {
   coachSystemModifier,
   type CoachProfile,
 } from './coaches';
-import { recommendLineup, recMinDelta, type CoachRec } from './coach-reco';
+import { coachForTeamName } from './opponent-coach';
+import { recommendLineup, reorderForCoach, recMinDelta, type CoachRec } from './coach-reco';
 import { legendRecruit } from './player-pool';
 import {
   MAX_BOOSTS,
@@ -482,6 +483,46 @@ export function buildHomeTeam(model: RunModel): Team {
 }
 
 /**
+ * The opponent the lineup builder should reorder against, when one is in view: the
+ * current pregame matchup (or the pregame the builder was opened from). Outside a
+ * matchup (the map / a rest node) there is no opponent, so the reorder falls back to
+ * a pure-style read. Lets the "let the coach set my lineup" button thread the same
+ * matchup the pregame banner does, when it is known.
+ */
+function builderOpponent(model: RunModel): Team | undefined {
+  const phase = model.phase;
+  if (phase.kind === 'pregame') return buildOpponentTeam(model.core, phase.nodeId, model.mods);
+  if (phase.kind === 'lineup' && phase.returnTo.kind === 'pregame') {
+    return buildOpponentTeam(model.core, phase.returnTo.nodeId, model.mods);
+  }
+  return undefined;
+}
+
+/**
+ * The equipped coach's full reorder of a given roster, in the coach's playstyle, for
+ * the lineup builder's "let the coach set it" button. Matchup-aware when an opponent
+ * is in view (see {@link builderOpponent}), pure-style otherwise. Returns null when
+ * the coach would not change the five, so the caller can leave the lineup untouched.
+ * Pure (no dispatch): the builder applies the returned order locally, then the player
+ * can still hand-tweak any slot before confirming.
+ */
+export function coachReorderRoster(model: RunModel, roster: RunState['roster']): RunState['roster'] | null {
+  const coach = getCoach(model.coachId);
+  const counters: RunCounters = {
+    wins: model.wins,
+    mapIndex: model.core.currentMapIndex,
+    forgivenLosses: model.forgivenLosses,
+  };
+  const { roster: reordered, changes } = reorderForCoach({
+    roster,
+    coach,
+    opponent: builderOpponent(model),
+    buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts, counters),
+  });
+  return changes > 0 ? reordered : null;
+}
+
+/**
  * The deterministic opponent Team for a combat node. The node's baked difficulty
  * already encodes the run's ladder class AND the difficulty's ramp (see
  * src/game/difficulty.ts), so it is the opponent level directly and the pregame
@@ -497,10 +538,16 @@ export function buildOpponentTeam(core: RunState, nodeId: string, mods: Difficul
     createRNG(deriveSeed(core.seed, `opp-${nodeId}`)),
     { isBoss, extraLegend: isBoss && mods.bossExtraLegend }
   );
+  // The franchise's real coach shapes how the opponent plays (tempo / focus / star
+  // usage), STYLE ONLY: no system bonus is applied, so opponents are distinct
+  // without an unfair rating bump. A pure table lookup keyed by franchise, so it
+  // adds no RNG draw and determinism / the opponent preview hold. Their substitution
+  // depth (rotationForCoach) rides on SimConfig.awayRotation at the tip-off call.
+  const coach = coachForTeamName(opp.name);
   return buildTeam(
     opp.name,
     effectivePlayers(opp.roster.starters),
-    planForRoster(opp.roster),
+    planForCoach(planForRoster(opp.roster), coach, opp.roster),
     opp.colorHex,
     opp.accentHex,
     effectivePlayers(opp.roster.bench),
@@ -772,6 +819,7 @@ export function runReducer(
         away,
         seed: deriveSeed(model.core.seed, `game-${nodeId}-${model.forgivenLosses}`),
         homeRotation: rotationForCoach(getCoach(model.coachId)),
+        awayRotation: rotationForCoach(coachForTeamName(away.name)),
       });
       return {
         ...model,

@@ -7,12 +7,14 @@ import { useRun } from '@/hooks/useRun';
 import {
   buildHomeTeam,
   buildOpponentTeam,
+  coachReorderRoster,
   steppingInSubs,
   MAX_BANISHES,
   type RunModel,
 } from '@/game/run-machine';
 import { classAboveLadder } from '@/game/difficulty-mode';
 import { getCoach } from '@/game/coaches';
+import { coachForTeamName } from '@/game/opponent-coach';
 import { CoachRecBanner } from '@/components/run/CoachRecBanner';
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { TeamIdentityCard, MatchupHeadline } from '@/components/game/TeamIdentityCard';
@@ -194,6 +196,8 @@ export default function RunScreen() {
         <LineupBuilderView
           roster={model.core.roster}
           bagCount={model.bag.length}
+          coachName={getCoach(model.coachId).name}
+          onCoachSet={(roster) => coachReorderRoster(model, roster)}
           onConfirm={actions.setLineup}
           onCancel={actions.cancelLineup}
           onOpenBag={(starters, bench) => {
@@ -302,11 +306,19 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
           {away.name}
         </Text>
       </View>
-      <TeamIdentityCard identity={deriveTeamIdentity(away)} accentHex={away.colorHex} />
+      <TeamIdentityCard
+        identity={deriveTeamIdentity(away)}
+        accentHex={away.colorHex}
+        coachName={coachForTeamName(away.name).name}
+      />
       <LineupBoard team={away} dense />
       <MatchupHeadline home={home} away={away} />
       <Text style={styles.section}>YOUR FIVE</Text>
-      <TeamIdentityCard identity={deriveTeamIdentity(home)} accentHex={home.colorHex} />
+      <TeamIdentityCard
+        identity={deriveTeamIdentity(home)}
+        accentHex={home.colorHex}
+        coachName={getCoach(model.coachId).name}
+      />
       <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} dense />
       {coachRec && !recDismissed ? (
         <CoachRecBanner

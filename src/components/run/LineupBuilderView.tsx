@@ -31,6 +31,12 @@ interface LineupBuilderViewProps {
   hideBag?: boolean;
   /** Hide the cancel link (you cannot back out of starting a run). */
   hideCancel?: boolean;
+  /** Equipped coach name, for the "let the coach set it" button label. */
+  coachName?: string;
+  /** Reorder the whole roster in the coach's playstyle. Given the CURRENT on-screen
+   * order, returns the coach's preferred order (or null when they would not change
+   * it). The result seeds the editor, so the player can still hand-tweak any slot. */
+  onCoachSet?: (roster: Roster) => Roster | null;
 }
 
 type Cell = { zone: 'slot' | 'bench'; index: number };
@@ -48,6 +54,8 @@ export function LineupBuilderView({
   subtitle,
   hideBag,
   hideCancel,
+  coachName,
+  onCoachSet,
 }: LineupBuilderViewProps) {
   // Seed the five slots from the whole pool so there are always five starters,
   // even if the incoming roster split is uneven.
@@ -60,6 +68,24 @@ export function LineupBuilderView({
   // Which row's full-ratings panel is open, keyed by its stable cell id so it
   // tracks the cell, not the player, as swaps reorder the pool.
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Brief note when the coach is asked to set the lineup but would not change it.
+  const [coachNote, setCoachNote] = useState<string | null>(null);
+
+  // Let the coach reorder the CURRENT on-screen lineup in their playstyle. The result
+  // seeds the editor (it does not commit), so the player can still hand-tweak any slot
+  // before confirming: the coach's order is a starting point, never a lock.
+  const coachSet = () => {
+    if (!onCoachSet) return;
+    const next = onCoachSet({ starters, bench });
+    if (next) {
+      setStarters(next.starters);
+      setBench(next.bench);
+      setPicked(null);
+      setCoachNote(null);
+    } else {
+      setCoachNote('Coach likes this lineup');
+    }
+  };
 
   const playerAt = (c: Cell) => (c.zone === 'slot' ? starters : bench)[c.index];
 
@@ -100,6 +126,14 @@ export function LineupBuilderView({
           <Text style={styles.bagText}>OPEN BAG ({bagCount})</Text>
         </Pressable>
       )}
+      {onCoachSet ? (
+        <Pressable style={styles.coachButton} onPress={coachSet}>
+          <Text style={styles.coachText}>
+            {coachName ? `LET COACH ${coachName.toUpperCase()} SET IT` : 'LET COACH SET IT'}
+          </Text>
+        </Pressable>
+      ) : null}
+      {coachNote ? <Text style={styles.coachNote}>{coachNote}</Text> : null}
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
         <Text style={styles.sectionLabel}>STARTERS</Text>
@@ -266,4 +300,22 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.chip,
   },
   bagText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.gold },
+  coachButton: {
+    alignSelf: 'center',
+    marginTop: space(2),
+    paddingVertical: space(1.5),
+    paddingHorizontal: space(4),
+    borderWidth: BORDER.thin,
+    borderColor: palette.steelBlue + '88',
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.steelBlue + '14',
+  },
+  coachText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.steelBlue },
+  coachNote: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+    textAlign: 'center',
+    marginTop: space(1),
+  },
 });
