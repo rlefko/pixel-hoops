@@ -2,7 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Pop } from '@/components/fx';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { CoinIcon, DumbbellIcon, StarIcon } from './PixelIcons';
+import { ClockIcon, CoinIcon, DumbbellIcon, StarIcon } from './PixelIcons';
 import type { RunRewards } from '@/types/run-map';
 
 /**
@@ -74,9 +74,7 @@ export function ResourceHeader({
         ) : null}
         {typeof timeouts === 'number' ? (
           <Pop trigger={timeouts} style={[styles.pill, timeouts === 0 ? styles.pillDanger : null]}>
-            <Text style={[styles.timeoutGlyph, timeouts === 0 ? styles.timeoutGlyphEmpty : null]}>
-              ⏱
-            </Text>
+            <ClockIcon size={12} color={timeouts === 0 ? palette.missRed : palette.makeGreen} />
             <Text style={styles.pillValue}>{timeouts}</Text>
             <Text style={styles.pillLabel}>TIMEOUTS</Text>
           </Pop>
@@ -143,14 +141,6 @@ const styles = StyleSheet.create({
   },
   pillDanger: {
     borderColor: palette.missRed + '77',
-  },
-  timeoutGlyph: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.small,
-    color: palette.makeGreen,
-  },
-  timeoutGlyphEmpty: {
-    color: palette.missRed,
   },
   pillLabel: {
     fontFamily: FONT.body,
