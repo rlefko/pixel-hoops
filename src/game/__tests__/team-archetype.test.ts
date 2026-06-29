@@ -125,6 +125,15 @@ describe('team archetype counter matrix', () => {
     expect(deriveArchetype(balanced('x'))).toBe('balanced');
   });
 
+  it('no longer labels a standard inflated five as Twin Towers', () => {
+    // A standard PG/SG/SF/PF/C five whose ratings all rise with difficulty used to
+    // trip the old twin-towers rule (any two bigs with interiorD >= 15). It now needs
+    // an inside scheme AND genuine size, so a flat strong five is never Twin Towers.
+    for (const delta of [2, 3, 5]) {
+      expect(deriveArchetype(balanced(`infl-${delta}`, delta))).not.toBe('twin-towers');
+    }
+  });
+
   it('telegraphs the matchup verdict (even / slight / strong, signed)', () => {
     // Even vs balanced or a mirror; a real counter reads strong and favorable;
     // the reverse reads as an unfavorable mismatch.

@@ -1097,6 +1097,7 @@ describe('coaches in a run', () => {
       starters: [...original.starters].reverse(),
       bench: original.bench,
       edge: 'solid' as const,
+      changes: 5,
       summary: 'test swap',
     };
     const withRec: RunModel = { ...pregame, phase: { kind: 'pregame', nodeId: bossId, coachRec: rec } };

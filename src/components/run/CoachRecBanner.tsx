@@ -9,8 +9,9 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
  * The equipped coach's optional, one-click lineup suggestion before a game. A quiet,
- * dismissible INLINE card (never a blocking modal): the player can accept it in one
- * tap, ignore it, or scroll past to tip off. It only renders when the coach found a
+ * dismissible INLINE card (never a blocking modal): accepting it reorders the whole
+ * roster (starters + bench) in the coach's playstyle in one tap; the player can also
+ * ignore it or scroll past to tip off. It only renders when the coach found a
  * meaningful edge, so on easy it rarely appears and on hard it speaks up often. The
  * edge is qualitative (matching the game's telegraphed matchup verdict), never a raw
  * percentage.
@@ -41,6 +42,9 @@ export function CoachRecBanner({ coach, rec, onAccept, onDismiss }: CoachRecBann
         <Text style={styles.edge}>{EDGE_LABEL[rec.edge]}</Text>
       </View>
       <Text style={styles.summary}>{rec.summary}</Text>
+      {rec.changes > 1 ? (
+        <Text style={styles.moves}>{rec.changes} lineup changes</Text>
+      ) : null}
       <View style={styles.actions}>
         <PixelButton label="ACCEPT" variant="primary" onPress={onAccept} />
         <PixelButton label="IGNORE" variant="secondary" size="small" onPress={onDismiss} />
@@ -68,6 +72,11 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.body,
     color: palette.ink,
     lineHeight: FONT_SIZE.body + 4,
+  },
+  moves: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
   },
   actions: {
     flexDirection: 'row',

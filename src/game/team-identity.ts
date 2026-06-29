@@ -3,7 +3,7 @@ import type { Position } from '@/types/roster';
 import type { Pace, Focus } from '@/types/tactics';
 import type { Team } from '@/types/team';
 import { ovr } from './ratings';
-import { deriveArchetype, type TeamArchetype } from './team-archetype';
+import { archetypeLabel, deriveArchetype, type TeamArchetype } from './team-archetype';
 
 /**
  * Team identity: the scouting read. Turns a dressed five plus its auto-derived
@@ -25,6 +25,13 @@ const WEAK = 11.5;
 const ELITE = 16;
 /** OVR gap between the top scorer and the next that reads as iso-heavy. */
 const ISO_GAP = 3;
+/** How far a stat must clear the team's own overall level to count as a STANDOUT
+ * trait. Keeps an across-the-board-strong team from collecting every tag: a tag
+ * fires on what a team is sharpest at, not on raw inflation. */
+const REL = 1.5;
+/** A clear lean of one offensive stat family over its opposite (inside vs outside),
+ * mirroring TILT in team-archetype.ts. */
+const TILT = 1.5;
 /** Max tags shown (strongest first). */
 const MAX_TAGS = 3;
 
@@ -126,10 +133,21 @@ export function deriveTeamIdentity(team: Team): TeamIdentity {
   const { pace, focus } = team.tactic;
   const m = {} as Record<keyof PlayerStats, number>;
   for (const key of DISPLAY_KEYS) m[key] = mean(five.map((rp) => rp.player.stats[key]));
+  // The team's overall level: tags fire on a trait that STANDS OUT from this (clears
+  // it by REL), not on a raw threshold, so an across-the-board-strong team surfaces
+  // its sharpest traits (or reads Balanced) instead of every high-level team
+  // collecting the same handful of tags.
+  const archetype = deriveArchetype(team);
+  const avg = mean(DISPLAY_KEYS.map((k) => m[k]));
+  const standout = (key: keyof PlayerStats, floor = STRONG): boolean =>
+    m[key] >= floor && m[key] - avg >= REL;
 
   // --- Tags (priority order; capped at MAX_TAGS, always at least one) ---
   const tags: string[] = [];
   const push = (t: string): void => {
+    // Skip the archetype's own label so the supporting tags COMPLEMENT the bold
+    // headline instead of echoing it.
+    if (t === archetypeLabel(archetype)) return;
     if (tags.length < MAX_TAGS && !tags.includes(t)) tags.push(t);
   };
   const sorted = [...five].sort(
@@ -139,16 +157,18 @@ export function deriveTeamIdentity(team: Team): TeamIdentity {
   const topOvr = ovr(top.player.stats, top.position);
   const secondOvr = sorted[1] ? ovr(sorted[1].player.stats, sorted[1].position) : topOvr;
 
-  if (m.interiorD >= STRONG && m.blocking >= STRONG - 1) push('Paint Fortress');
-  if ((m.perimeterD + m.interiorD) / 2 >= STRONG) push('Lockdown Wall');
-  if (m.stealing >= ELITE) push('Ball Hawks');
-  if (pace === 'fast' && m.stealing >= 13) push('Press & Run');
-  if (m.rebounding >= STRONG) push('Glass Cleaners');
-  if (m.strength >= STRONG && focus === 'inside') push('Bully Ball');
-  if (m.outside >= STRONG && focus === 'outside') push('Perimeter Snipers');
-  if (pace === 'fast' && m.outside >= 14) push('Run & Gun');
-  if (pace === 'slow' && m.interiorD >= 14) push('Grind It Out');
-  if (m.playmaking >= STRONG) push('Floor Generals');
+  if (standout('interiorD') && m.blocking >= STRONG - 1) push('Paint Fortress');
+  if (m.perimeterD >= STRONG && m.interiorD >= STRONG && (m.perimeterD + m.interiorD) / 2 - avg >= REL)
+    push('Lockdown Wall');
+  if (standout('stealing', ELITE)) push('Ball Hawks');
+  if (pace === 'fast' && m.stealing >= 13 && m.stealing - avg >= REL) push('Press & Run');
+  if (standout('rebounding')) push('Glass Cleaners');
+  if (focus === 'inside' && m.strength >= STRONG && m.inside - m.outside >= TILT) push('Bully Ball');
+  if (focus === 'outside' && m.outside >= STRONG && m.outside - m.inside >= TILT)
+    push('Perimeter Snipers');
+  if (pace === 'fast' && m.outside >= 14 && m.outside - m.inside >= TILT) push('Run & Gun');
+  if (pace === 'slow' && standout('interiorD', 14)) push('Grind It Out');
+  if (standout('playmaking')) push('Floor Generals');
   if (topOvr - secondOvr >= ISO_GAP) push('Iso Heavy');
   if (tags.length === 0) push('Balanced Squad');
 
@@ -182,7 +202,7 @@ export function deriveTeamIdentity(team: Team): TeamIdentity {
     tendencies: {
       pace,
       focus,
-      archetype: deriveArchetype(team),
+      archetype,
       threeLean,
       projSteals: project(m.stealing, 5, 2, 2, 9),
       projBlocks: project(m.blocking, 5, 1, 1, 7),

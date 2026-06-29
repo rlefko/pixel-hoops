@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { recommendLineup, recMinDelta } from '@/game/coach-reco';
+import { recommendLineup, reorderForCoach, recMinDelta } from '@/game/coach-reco';
 import { buildTeam } from '@/game/lineup';
 import { getCoach } from '@/game/coaches';
 import { createRNG } from '@/game/rng';
@@ -93,6 +93,55 @@ describe('recommendLineup', () => {
     const smart = recommendLineup({ ...args, coach: getCoach('steve-kerr') }); // iq 16
     expect(dumb).toBeNull();
     expect(smart).not.toBeNull();
+  });
+
+  it('reorders the WHOLE roster (multiple slots) for a smart coach', () => {
+    // A weak five with a strong, deep bench: a high-IQ coach pulls several upgrades
+    // into the lineup at once, not a single swap.
+    const roster: Roster = {
+      starters: fiveAt(8, 'weak'),
+      bench: [
+        flatPlayer('S1', 'PG', 18),
+        flatPlayer('S2', 'SG', 18),
+        flatPlayer('S3', 'C', 18),
+      ],
+    };
+    const rec = recommendLineup({
+      roster,
+      coach: getCoach('gregg-popovich'), // iq 19 (deep search)
+      opponent,
+      buildHome,
+      minDelta: recMinDelta('hard', 'game'),
+    });
+    expect(rec).not.toBeNull();
+    expect(rec!.changes).toBeGreaterThan(1);
+  });
+
+  it('a low-IQ coach makes at most one blunt change', () => {
+    const roster: Roster = {
+      starters: fiveAt(10, 'weak'),
+      bench: [flatPlayer('S1', 'PG', 16), flatPlayer('S2', 'SG', 16)],
+    };
+    const rec = recommendLineup({
+      roster,
+      coach: getCoach('george-karl'), // iq 8 (one move only)
+      opponent,
+      buildHome,
+      minDelta: 0.1,
+    });
+    expect(rec).not.toBeNull();
+    expect(rec!.changes).toBe(1);
+  });
+
+  it('orders the bench by rotation priority (best reserve first), even with no opponent', () => {
+    const roster: Roster = {
+      starters: fiveAt(16, 'me'),
+      bench: [flatPlayer('Weak', 'PG', 9), flatPlayer('Strong', 'PG', 14)],
+    };
+    // No opponent: a pure-style reorder. The five is already strong, so the bench is
+    // simply reordered by the coach's rotation priority.
+    const { roster: out } = reorderForCoach({ roster, coach: getCoach('nate-mcmillan'), buildHome });
+    expect(out.bench[0].player.name).toBe('Strong');
   });
 });
 
