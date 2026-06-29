@@ -6,7 +6,8 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import { mix } from '@/theme/color';
 import { useGlowPulse, useScalePulse } from '@/feel';
 import { previewOpponent } from '@/game/opponent-preview';
-import { NodeIcon } from './PixelIcons';
+import { NodeIcon, FlameIcon, CrownIcon } from './PixelIcons';
+import { TeamLogo } from './TeamLogo';
 import { NODE_META } from './node-meta';
 import { NODE_SIZE, nodeCenterX, nodeTop } from './map-geometry';
 import type { MapNode, MapNodeType, RunState } from '@/types/run-map';
@@ -63,7 +64,17 @@ export function MapNodeTile({
   );
 
   const round = node.round ?? node.layer + 1;
-  const labelText = preview ? preview.abbreviation : meta.label;
+  // A played combat node stamps a W/L and its score in place of the abbreviation;
+  // everything else keeps the scouting label. result is only ever set on combat nodes.
+  const result = isCombat ? node.result : undefined;
+  const played = !!result;
+  const resultColor = result && (result.won ? palette.makeGreen : palette.missRed);
+  const labelText = result
+    ? `${result.home}-${result.away}`
+    : preview
+      ? preview.abbreviation
+      : meta.label;
+  const labelColor = resultColor ?? (node.cleared ? palette.inkDim : meta.color);
   const fill = preview ? mix(palette.bgPanel, preview.primaryHex, 0.22) : palette.bgPanel;
 
   const borderColor =
@@ -73,7 +84,8 @@ export function MapNodeTile({
         ? palette.inkDim
         : meta.color;
 
-  const opacity = isCurrent || isReachable ? 1 : node.cleared ? 0.5 : 0.35;
+  // Played tiles stay brighter than other cleared tiles so the W/L stamp reads.
+  const opacity = isCurrent || isReachable ? 1 : played ? 0.85 : node.cleared ? 0.5 : 0.35;
 
   return (
     <View
@@ -90,7 +102,7 @@ export function MapNodeTile({
           hitSlop={6}
           accessibilityRole="button"
           accessibilityState={{ disabled: !isReachable }}
-          accessibilityLabel={`${meta.label}${preview ? ` vs ${preview.city} ${preview.name}` : ''}${isCurrent ? ', you are here' : isReachable ? ', reachable' : node.cleared ? ', cleared' : ', locked'}`}
+          accessibilityLabel={`${meta.label}${preview ? ` vs ${preview.city} ${preview.name}` : ''}${result ? `, ${result.won ? 'won' : 'lost'} ${result.home} to ${result.away}` : isCurrent ? ', you are here' : isReachable ? ', reachable' : node.cleared ? ', cleared' : ', locked'}`}
           style={[
             styles.tile,
             {
@@ -100,23 +112,42 @@ export function MapNodeTile({
             },
           ]}
         >
-          <NodeIcon type={node.type} size={NODE_SIZE * 0.46} color={ICON_COLOR[node.type]} />
+          {isCombat && preview ? (
+            <View style={styles.logoBox}>
+              <TeamLogo abbr={preview.abbreviation} size={LOGO_SIZE} opacity={result ? 0.3 : 1} />
+              {result ? (
+                <Text style={[styles.resultStamp, { color: resultColor }]}>
+                  {result.won ? 'W' : 'L'}
+                </Text>
+              ) : null}
+            </View>
+          ) : (
+            <NodeIcon type={node.type} size={NODE_SIZE * 0.46} color={ICON_COLOR[node.type]} />
+          )}
+          {/* Elite/boss combat tiles keep a small tier mark so danger still reads
+              now that the center is the opponent's logo. */}
+          {node.type === 'elite' || node.type === 'boss' ? (
+            <View style={styles.tierBadge}>
+              {node.type === 'boss' ? (
+                <CrownIcon size={TIER_MARK} color={palette.gold} />
+              ) : (
+                <FlameIcon size={TIER_MARK} color={palette.orange} />
+              )}
+            </View>
+          ) : null}
           {isCombat ? (
             <View style={styles.roundBadge}>
               <Text style={styles.roundText}>R{round}</Text>
             </View>
           ) : null}
-          {node.cleared ? (
+          {node.cleared && !played ? (
             <View style={styles.checkBadge}>
               <Text style={styles.checkText}>{'✓'}</Text>
             </View>
           ) : null}
         </Pressable>
       </Animated.View>
-      <Text
-        style={[styles.label, { color: node.cleared ? palette.inkDim : meta.color }]}
-        numberOfLines={1}
-      >
+      <Text style={[styles.label, { color: labelColor }]} numberOfLines={1}>
         {labelText}
       </Text>
     </View>
@@ -124,6 +155,10 @@ export function MapNodeTile({
 }
 
 const GLOW_PAD = 5;
+// Logos read a touch larger than the old basketball glyph (NODE_SIZE * 0.46).
+const LOGO_SIZE = NODE_SIZE * 0.62;
+// px, the small elite/boss corner mark that keeps the danger tier legible.
+const TIER_MARK = 13;
 
 const styles = StyleSheet.create({
   cell: {
@@ -154,6 +189,28 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.chip,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  logoBox: {
+    width: LOGO_SIZE,
+    height: LOGO_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  resultStamp: {
+    position: 'absolute',
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.h2,
+    textShadowColor: palette.bgDeep,
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  tierBadge: {
+    position: 'absolute',
+    bottom: 1,
+    right: 1,
+    padding: 1,
+    backgroundColor: palette.bgPanel + 'CC',
+    borderRadius: RADIUS.chip,
   },
   roundBadge: {
     position: 'absolute',
