@@ -1,0 +1,79 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`simulateGame golden master > deep bench vs thin (subs fire) is unchanged 1`] = `
+{
+  "awayBoxPts": "Marcus Sullivan:14,Lorenzo Osborne:5,Jalen Kemp:15,Kyle Walters:7,Cole Chambers:11",
+  "eventCount": 104,
+  "finalAway": 52,
+  "finalHome": 68,
+  "hash": "7231808d",
+  "homeBoxPts": "Marcus Sullivan:2,Lorenzo Osborne:11,Jalen Kemp:7,Kyle Walters:10,Cole Chambers:2,Bench0:3,Bench1:7,Bench2:2,Bench3:16,Bench4:8",
+  "scoringPath": "2-0 2-0 4-0 4-2 6-2 6-2 6-2 6-2 8-2 8-2 8-2 8-2 8-2 8-2 10-2 10-4 12-4 12-4 12-4 12-6 14-6 14-6 14-6 14-6 16-6 16-9 16-9 18-9 18-11 21-11 21-11 23-11 23-11 25-11 25-13 25-13 25-13 27-13 27-13 27-13 27-15 29-15 29-17 31-17 31-17 31-17 31-17 31-17 31-17 33-17 33-19 35-19 37-19 37-22 39-22 39-25 39-25 39-28 39-28 39-28 42-28 42-28 42-28 42-28 44-28 44-28 46-28 46-28 49-28 49-28 51-28 51-30 53-30 53-32 56-32 56-32 56-32 56-35 56-35 56-35 56-38 56-38 56-38 58-38 58-38 58-38 58-41 61-41 61-41 61-41 61-41 64-41 64-44 64-44 64-47 64-47 64-49 64-49 64-52 66-52 66-52 66-52 66-52 68-52",
+  "winner": "home",
+}
+`;
+
+exports[`simulateGame golden master > hooked team (conditional boosts fire) is unchanged 1`] = `
+{
+  "awayBoxPts": "Dalton Walters:4,Amir Stratton:13,Bruno Hampton:5,Isaiah Oakley:16,Gary Singleton:2",
+  "eventCount": 104,
+  "finalAway": 40,
+  "finalHome": 43,
+  "hash": "15e10c60",
+  "homeBoxPts": "Niko Jefferson:9,Mateo Mendez:7,Dalton Abbott:0,Dennis Garrison:12,Solomon Sullivan:15",
+  "scoringPath": "0-0 0-0 0-0 0-0 0-0 0-3 2-3 2-3 4-3 4-5 6-5 6-5 6-5 6-7 8-7 8-7 8-7 8-9 10-9 10-9 12-9 12-9 12-9 12-12 12-12 12-12 12-12 12-12 12-14 12-14 12-14 14-14 14-14 17-14 17-14 19-14 19-14 19-14 19-16 19-16 19-16 19-16 19-16 21-16 21-19 24-19 24-19 24-19 24-19 24-19 24-21 26-21 26-21 26-21 28-21 28-21 31-21 31-24 31-24 31-26 31-26 31-26 33-26 33-29 33-29 33-29 33-29 33-29 33-29 33-29 33-29 33-29 33-29 33-31 33-31 33-34 35-34 35-34 35-36 35-36 35-36 37-36 37-36 37-36 37-36 37-36 37-36 39-36 39-36 39-36 39-38 39-38 39-38 39-38 39-38 39-38 39-40 41-40 41-40 43-40 43-40 43-40 43-40 43-40",
+  "winner": "home",
+}
+`;
+
+exports[`simulateGame golden master > mirror match (team vs itself) is unchanged 1`] = `
+{
+  "awayBoxPts": "Julian Bishop:7,Gary Vaughn:17,Amir Jennings:16,Jalen Lockhart:11,Spencer Caldwell:8",
+  "eventCount": 104,
+  "finalAway": 59,
+  "finalHome": 52,
+  "hash": "889841fb",
+  "homeBoxPts": "Julian Bishop:6,Gary Vaughn:7,Amir Jennings:14,Jalen Lockhart:15,Spencer Caldwell:10",
+  "scoringPath": "3-0 3-2 3-2 3-2 3-2 3-2 5-2 5-2 7-2 7-4 7-4 7-6 10-6 10-8 10-8 10-11 12-11 12-11 15-11 15-11 15-11 15-13 17-13 17-13 17-13 17-13 17-16 20-16 20-18 20-18 20-20 23-20 23-20 23-20 23-22 23-22 23-24 25-24 25-24 25-24 25-26 25-26 25-26 27-26 27-29 27-29 27-29 29-29 29-31 29-31 29-34 29-34 29-34 29-34 29-34 29-34 29-34 29-36 31-36 31-39 33-39 33-39 33-39 33-42 36-42 36-42 36-42 36-42 36-42 36-44 36-44 36-44 36-44 36-44 38-44 38-46 40-46 40-48 40-48 42-48 42-48 42-48 42-50 44-50 44-53 47-53 47-53 47-53 47-53 49-53 49-55 52-55 52-57 52-57 52-59 52-59 52-59 52-59 52-59 52-59 52-59 52-59 52-59 52-59",
+  "winner": "away",
+}
+`;
+
+exports[`simulateGame golden master > stacked-position lineup (synergy branches) is unchanged 1`] = `
+{
+  "awayBoxPts": "Dalton Hollis:14,Emeka Kemp:13,Dalton Prescott:6,Trevor Patton:6,Grant Patton:0",
+  "eventCount": 104,
+  "finalAway": 39,
+  "finalHome": 22,
+  "hash": "0089bb66",
+  "homeBoxPts": "Stack0:2,Stack1:0,Stack2:2,Stack3:9,Stack4:9",
+  "scoringPath": "2-0 2-0 2-0 2-0 2-0 2-0 2-0 2-2 4-2 4-2 4-2 4-2 4-2 4-4 4-4 4-6 7-6 7-6 7-6 7-6 7-6 7-6 7-6 7-8 7-8 7-8 7-10 7-10 7-10 7-10 7-10 7-10 7-10 7-10 7-12 9-12 9-14 9-14 9-14 9-14 9-16 9-16 9-18 12-18 12-18 12-18 12-18 12-18 12-18 12-18 12-20 12-20 14-20 14-20 16-20 16-20 16-20 16-22 16-22 16-22 16-22 16-22 16-22 16-22 16-22 16-22 16-22 16-22 16-22 16-24 16-24 16-26 16-26 16-28 16-28 16-28 18-28 18-31 18-31 18-31 18-31 18-31 18-33 18-33 18-33 18-33 18-33 18-33 18-35 18-35 18-35 18-35 18-35 18-35 18-35 18-35 18-35 18-35 18-37 18-37 18-39 20-39 20-39 22-39",
+  "winner": "away",
+}
+`;
+
+exports[`simulateGame golden master > standard matchup is unchanged 1`] = `
+{
+  "awayBoxPts": "JD Davison:10,Aaron Holiday:4,Kevon Harris:3,Jeff Green:16,Steven Adams:8",
+  "eventCount": 96,
+  "finalAway": 41,
+  "finalHome": 59,
+  "hash": "6c338013",
+  "homeBoxPts": "Damon Avery:14,Hunter Underwood:14,Mateo Norwood:0,Aaron Ingram:20,Hunter Calloway:11",
+  "scoringPath": "2-0 2-0 2-0 2-2 2-2 2-2 4-2 4-2 6-2 6-4 8-4 8-4 8-4 8-4 10-4 10-4 10-4 10-7 10-7 10-7 10-7 10-7 13-7 13-7 13-9 13-9 13-11 13-11 13-13 16-13 16-15 16-15 16-18 18-18 18-20 20-20 20-20 22-20 22-22 25-22 25-25 25-25 25-25 27-25 27-28 27-28 27-30 29-30 29-30 29-33 31-33 31-33 34-33 34-35 36-35 36-35 36-35 36-35 36-35 36-35 38-35 38-37 40-37 40-37 40-37 40-37 42-37 42-39 42-39 42-39 42-39 42-39 42-39 44-39 44-39 46-39 46-39 49-39 49-39 51-39 51-41 53-41 53-41 53-41 53-41 55-41 55-41 55-41 55-41 55-41 55-41 57-41 57-41 59-41 59-41 59-41",
+  "winner": "home",
+}
+`;
+
+exports[`simulateGame golden master > strong opponent (deep round) is unchanged 1`] = `
+{
+  "awayBoxPts": "Adama Bal:18,Jahmai Mashack:13,Vince Williams Jr.:6,Santi Aldama:12,Pau Gasol:33",
+  "eventCount": 112,
+  "finalAway": 82,
+  "finalHome": 62,
+  "hash": "85c571a4",
+  "homeBoxPts": "Gary Easton:19,Emeka Patton:8,Marcus Singleton:15,Marcus Norwood:10,Marcus Abbott:10",
+  "scoringPath": "0-0 0-0 0-0 0-2 0-2 0-4 3-4 3-6 3-6 3-6 5-6 5-8 7-8 7-10 7-10 7-12 7-12 7-12 7-12 7-14 10-14 10-16 10-16 10-18 10-18 10-20 13-20 13-22 13-22 16-22 16-22 19-22 19-24 19-24 19-24 19-24 19-26 19-26 19-28 19-28 19-30 22-30 22-32 24-32 24-34 26-34 26-34 26-34 26-36 28-36 28-38 28-38 28-38 28-38 28-40 28-40 31-40 31-40 31-40 31-42 33-42 33-42 35-42 35-42 37-42 37-45 40-45 40-47 40-47 40-49 42-49 42-52 42-52 42-54 45-54 45-54 45-54 45-54 47-54 47-54 47-54 47-56 47-56 47-56 47-58 47-58 47-60 50-60 50-62 52-62 52-64 52-64 52-66 54-66 54-68 54-68 54-71 54-71 54-74 56-74 56-76 58-76 58-78 58-78 58-78 60-78 60-80 62-80 62-80 62-80 62-82 62-82",
+  "winner": "away",
+}
+`;

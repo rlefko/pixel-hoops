@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { palette, FONT } from '@/theme';
@@ -30,7 +31,7 @@ interface PixelPlayerProps {
   active?: boolean;
 }
 
-export function PixelPlayer({
+function PixelPlayerView({
   color,
   accent,
   number,
@@ -91,6 +92,13 @@ export function PixelPlayer({
     </View>
   );
 }
+
+/**
+ * Memoized: every prop is a primitive that rarely changes, so the idle sprites on
+ * the court skip re-rendering their ~10-View subtree on each play-by-play event
+ * (only the active player's `active` flag flips). Behavior is unchanged.
+ */
+export const PixelPlayer = memo(PixelPlayerView);
 
 const styles = StyleSheet.create({
   wrap: {
