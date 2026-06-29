@@ -1,4 +1,4 @@
-import type { SimHook, StatDelta } from './effects';
+import type { ScalingSpec, SimHook, StatDelta } from './effects';
 import { addStatDelta } from './effects';
 import { type Rarity, rollBossRarity, rollRarity } from './rarity';
 import type { RNG } from './rng';
@@ -31,6 +31,12 @@ export interface ItemDef {
    * remainder is "paid" by the conditional effect). See src/game/effects.ts.
    */
   hooks?: SimHook[];
+  /**
+   * Optional snowball. The flat `effect` still bakes per-player as usual; this
+   * ramp rides the TEAM modifier instead (resolved in teamModifierFor from the run
+   * counters), so it never compounds through the per-player bake. Budget-exempt.
+   */
+  scaling?: ScalingSpec;
 }
 
 export const ITEM_DEFS: readonly ItemDef[] = [
@@ -90,6 +96,11 @@ export const ITEM_DEFS: readonly ItemDef[] = [
   { id: 'closer-mentality', name: 'Closer Mentality', rarity: 'epic', blurb: '+1 clutch, and +3 more clutch when ahead late', effect: { clutch: 1 }, hooks: [{ kind: 'whenLeading', marginAhead: 6, delta: { clutch: 3 } }] },
   { id: 'furious-comeback-vest', name: 'Furious Comeback', rarity: 'legendary', blurb: 'Down 3 or more: +6 inside, +6 outside, +4 clutch', effect: {}, hooks: [{ kind: 'whenTrailing', marginBehind: 3, delta: { inside: 6, outside: 6, clutch: 4 } }] },
   { id: 'supernova-goggles', name: 'Supernova', rarity: 'legendary', blurb: 'Limitless heat: each make adds up to +7 outside', effect: {}, hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 7, halfLife: 2, reset: 'quarter' }] },
+
+  // --- Scaling (snowball) item: a flat chase relic whose bearer's whole team
+  // grows stronger every win. The flat stats keep the legendary budget; the team
+  // ramp is budget-exempt and capped. ---
+  { id: 'crown-jewel', name: 'Crown Jewel', rarity: 'legendary', blurb: '+8 inside, -3 athleticism; the team gains +1 outside every 2 wins', effect: { inside: 8 }, downside: { athleticism: -3 }, scaling: { per: 'win', every: 2, perStack: { extra: { outside: 1 } }, maxStacks: 3 } },
 ];
 
 export const ITEM_BY_ID: Record<string, ItemDef> = Object.fromEntries(

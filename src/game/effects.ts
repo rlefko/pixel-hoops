@@ -220,3 +220,50 @@ export function mergeTeamModifiers(mods: readonly TeamModifier[]): TeamModifier 
   }
   return out;
 }
+
+/**
+ * Run counters a scaling effect reads at TEAM-BUILD time (a pure snapshot of the
+ * RunModel). Scaling is resolved into concrete magnitudes here, before the sim,
+ * so the sim never reads run state and replays stay deterministic.
+ */
+export interface RunCounters {
+  /** Games won so far this run (RunModel.wins). */
+  wins: number;
+  /** Current map index, 0-based (RunModel.core.currentMapIndex). */
+  mapIndex: number;
+  /** Timeouts spent this run (RunModel.forgivenLosses); breaks a greedy chain. */
+  forgivenLosses: number;
+}
+
+/**
+ * A snowball descriptor on a boost or item. The def's static effect is the floor;
+ * `perStack` (a team-modifier fragment) is added once per stack on top, capped at
+ * `maxStacks`. `every` is the counter units per stack (default 1), so "+1 every 2
+ * wins" is `{ per: 'win', every: 2, perStack: ..., maxStacks: N }`. `greedy` zeroes
+ * ALL stacks the moment a timeout is spent (a Green-Joker risk/reward: a clean run
+ * keeps it, one forgiven loss wipes it for the rest of the run). Sized so the base
+ * plus full ramp lands near twice the rarity's static net by late game; front-loaded
+ * weak (0 stacks at game 1). Budget-exempt, like conditional hooks.
+ */
+export interface ScalingSpec {
+  per: 'win' | 'map';
+  every?: number;
+  perStack: Partial<TeamModifier>;
+  maxStacks: number;
+  greedy?: boolean;
+}
+
+/** Stack count for a spec given the run counters (pure, deterministic). */
+export function scalingStacks(spec: ScalingSpec, c: RunCounters): number {
+  if (spec.greedy && c.forgivenLosses > 0) return 0;
+  const raw = spec.per === 'win' ? c.wins : c.mapIndex;
+  const stacks = Math.floor(raw / (spec.every ?? 1));
+  return Math.max(0, Math.min(spec.maxStacks, stacks));
+}
+
+/** The concrete TeamModifier a scaling spec contributes for these counters. */
+export function resolveScaling(spec: ScalingSpec, c: RunCounters): TeamModifier {
+  const stacks = scalingStacks(spec, c);
+  if (stacks === 0) return teamModifierFromPartial({});
+  return scaleTeamModifier(spec.perStack, stacks);
+}

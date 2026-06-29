@@ -5,7 +5,9 @@ import {
   applyTrainingDelta,
   hasDelta,
   mergeTeamModifiers,
+  resolveScaling,
   teamModifierFromPartial,
+  type RunCounters,
   type StatDelta,
   type TeamModifier,
 } from './effects';
@@ -66,9 +68,10 @@ export function effectivePlayers(players: RosterPlayer[]): RosterPlayer[] {
  */
 export function teamModifierFor(
   five: readonly RosterPlayer[],
-  boosts: readonly PassiveBoost[]
+  boosts: readonly PassiveBoost[],
+  counters?: RunCounters
 ): TeamModifier {
-  const mods: TeamModifier[] = [boostsToModifier(boosts)];
+  const mods: TeamModifier[] = [boostsToModifier(boosts, counters)];
   let hasOnLoan = false;
   for (const rp of five) {
     if (rp.onLoan) hasOnLoan = true;
@@ -82,10 +85,14 @@ export function teamModifierFor(
     if (gacha?.teamAura) mods.push(teamModifierFromPartial(gacha.teamAura));
     if (gacha?.hooks?.length) mods.push(teamModifierFromPartial({ hooks: gacha.hooks }));
     // A run item's conditional hooks ride the team modifier (a separate channel
-    // from its flat itemDelta, which is baked once in effectivePlayers).
+    // from its flat itemDelta, which is baked once in effectivePlayers). Its
+    // snowball ramp also rides here (resolved from the run counters), so the
+    // growing portion never compounds through the per-player bake. Both are
+    // player-team only: opponents pass no counters, so item scaling is skipped.
     if (rp.item) {
       const itemDef = ITEM_BY_ID[rp.item.defId];
       if (itemDef?.hooks?.length) mods.push(teamModifierFromPartial({ hooks: itemDef.hooks }));
+      if (itemDef?.scaling && counters) mods.push(resolveScaling(itemDef.scaling, counters));
     }
   }
   if (hasOnLoan) mods.push(teamModifierFromPartial(LEGEND_CHEMISTRY));

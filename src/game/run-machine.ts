@@ -24,7 +24,7 @@ import {
   MAX_RUN_ROSTER,
 } from './draft';
 import { effectivePlayers, teamModifierFor } from './apply-effects';
-import { MAX_TRAINED_STAT, trainedStat } from './effects';
+import { MAX_TRAINED_STAT, trainedStat, type RunCounters } from './effects';
 import { legendRecruit } from './player-pool';
 import {
   MAX_BOOSTS,
@@ -398,6 +398,13 @@ export function steppingInSubs(roster: RunState['roster']): RosterPlayer[] {
  */
 export function buildHomeTeam(model: RunModel): Team {
   const dressed = dressedRoster(model.core.roster);
+  // Run counters drive snowball boosts/items; resolved into concrete magnitudes
+  // here (build time), so the sim stays a pure function of the serialized Team.
+  const counters: RunCounters = {
+    wins: model.wins,
+    mapIndex: model.core.currentMapIndex,
+    forgivenLosses: model.forgivenLosses,
+  };
   return buildTeam(
     'Your Squad',
     effectivePlayers(dressed.starters),
@@ -405,7 +412,7 @@ export function buildHomeTeam(model: RunModel): Team {
     palette.homeTeam,
     palette.homeTeamAccent,
     effectivePlayers(dressed.bench),
-    teamModifierFor(dressed.starters, model.boosts)
+    teamModifierFor(dressed.starters, model.boosts, counters)
   );
 }
 

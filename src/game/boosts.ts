@@ -1,5 +1,5 @@
-import type { TeamModifier } from './effects';
-import { mergeTeamModifiers, teamModifierFromPartial } from './effects';
+import type { RunCounters, ScalingSpec, TeamModifier } from './effects';
+import { mergeTeamModifiers, resolveScaling, teamModifierFromPartial } from './effects';
 import { type Rarity, rollRarity } from './rarity';
 import type { RNG } from './rng';
 
@@ -23,6 +23,9 @@ export interface BoostDef {
    * budget is exact; paceBonus/clutchBonus count x1, and hook-only effects are
    * budget-exempt. */
   effect: Partial<TeamModifier>;
+  /** Optional snowball: the static `effect` is the floor, this ramps on top per
+   * win/map. Budget-exempt (see src/game/effects.ts ScalingSpec). */
+  scaling?: ScalingSpec;
 }
 
 /** An equipped boost: just a def id (no tiers). */
@@ -84,6 +87,16 @@ export const BOOST_DEFS: readonly BoostDef[] = [
   { id: 'motion-offense', name: 'Motion Offense', blurb: '+2 team outside, +2 playmaking, +1 IQ', rarity: 'legendary', effect: { extra: { outside: 2, playmaking: 2, iq: 1 } } },
   { id: 'never-say-die', name: 'Never Say Die', blurb: 'Down 3 or more: +5 team inside and outside', rarity: 'legendary', effect: { hooks: [{ kind: 'whenTrailing', marginBehind: 3, delta: { inside: 5, outside: 5 } }] } },
   { id: 'unconscious', name: 'Unconscious', blurb: 'Limitless team heat: each make adds up to +6 team outside', rarity: 'legendary', effect: { hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 6, halfLife: 2, reset: 'quarter' }] } },
+
+  // --- Scaling (snowball) boosts: a static floor that GROWS across the run. The
+  // base effect keeps its rarity budget; the `scaling` ramp is budget-exempt and
+  // capped, so it starts humble and pays off late. "Killer Instinct" is greedy:
+  // the whole stack wipes the instant you spend a timeout. ---
+  { id: 'momentum', name: 'Momentum', blurb: '+1 team outside, growing +1 every 2 wins', rarity: 'common', effect: { extra: { outside: 1 } }, scaling: { per: 'win', every: 2, perStack: { extra: { outside: 1 } }, maxStacks: 2 } },
+  { id: 'stonewall', name: 'Stonewall', blurb: '+2 team interior D, hardening each map', rarity: 'rare', effect: { extra: { interiorD: 2 } }, scaling: { per: 'map', every: 2, perStack: { extra: { interiorD: 1 } }, maxStacks: 2 } },
+  { id: 'avalanche', name: 'Avalanche', blurb: '+1 team pace and +2 athleticism, faster every 3 wins', rarity: 'epic', effect: { paceBonus: 1, extra: { athleticism: 2 } }, scaling: { per: 'win', every: 3, perStack: { paceBonus: 1 }, maxStacks: 3 } },
+  { id: 'dynasty', name: 'Dynasty', blurb: '+2 team outside and perimeter D, +1 clutch, growing toward a juggernaut', rarity: 'legendary', effect: { extra: { outside: 2, perimeterD: 2, clutch: 1 } }, scaling: { per: 'win', every: 3, perStack: { extra: { outside: 1, perimeterD: 1 } }, maxStacks: 2 } },
+  { id: 'killer-instinct', name: 'Killer Instinct', blurb: '+2 team clutch, +1 per win, but it all resets if you ever use a timeout', rarity: 'rare', effect: { extra: { clutch: 2 } }, scaling: { per: 'win', every: 1, perStack: { extra: { clutch: 1 } }, maxStacks: 5, greedy: true } },
 ];
 
 export const BOOST_BY_ID: Record<string, BoostDef> = Object.fromEntries(
@@ -135,8 +148,13 @@ export function drawBoostOffers(
   return offers;
 }
 
-/** Fold an owned boost set into a single TeamModifier. */
-export function boostsToModifier(boosts: readonly PassiveBoost[]): TeamModifier {
+/** Fold an owned boost set into a single TeamModifier. When `counters` are supplied
+ * (the player's run state), each scaling boost also contributes its current ramp;
+ * opponents pass none, so they fold the static floor only. */
+export function boostsToModifier(
+  boosts: readonly PassiveBoost[],
+  counters?: RunCounters
+): TeamModifier {
   const mods: TeamModifier[] = [];
   for (const b of boosts) {
     const def = BOOST_BY_ID[b.id];
@@ -144,6 +162,7 @@ export function boostsToModifier(boosts: readonly PassiveBoost[]): TeamModifier 
     const mod = teamModifierFromPartial(def.effect);
     if (!mod.labels.length) mod.labels = [def.name];
     mods.push(mod);
+    if (def.scaling && counters) mods.push(resolveScaling(def.scaling, counters));
   }
   return mods.length ? mergeTeamModifiers(mods) : teamModifierFromPartial({});
 }

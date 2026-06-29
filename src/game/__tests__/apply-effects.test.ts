@@ -102,4 +102,13 @@ describe('teamModifierFor', () => {
     const mod = teamModifierFor([rp({ equippedAbility: { id: 'human-torch' } })], []);
     expect(mod.hooks.some((h) => h.kind === 'hotHand')).toBe(true);
   });
+
+  it('folds a scaling item ramp from the run counters (player path only)', () => {
+    // 'crown-jewel' grows team outside +1 every 2 wins (cap 3). The flat +8 inside
+    // bakes per-player (effectivePlayers), so the team modifier carries only the ramp.
+    const five = [rp({ item: { defId: 'crown-jewel' } })];
+    expect(teamModifierFor(five, []).extra.outside ?? 0).toBe(0); // no counters: no ramp
+    const ramped = teamModifierFor(five, [], { wins: 6, mapIndex: 3, forgivenLosses: 0 });
+    expect(ramped.extra.outside).toBe(3); // floor(6/2) = 3 stacks, capped at 3
+  });
 });
