@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     marginTop: space(4),
   },
   cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
-  setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.purple, marginTop: space(0.5) },
+  setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: REWARD_CHROME, marginTop: space(0.5) },
   bottomButton: { marginTop: space(4) },
   offerRow: { flexDirection: 'row', alignItems: 'center', gap: space(2) },
   cardWrap: { position: 'relative', flex: 1 },

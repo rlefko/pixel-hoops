@@ -3,6 +3,7 @@ import { Text } from '@/components/StyledText';
 import type { PassiveBoost } from '@/game/boosts';
 import { resolveSets } from '@/game/sets';
 import type { RosterPlayer } from '@/types/roster';
+import { REWARD_CHROME } from './rarity-ui';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -24,7 +25,7 @@ export function SetRow({ five, boosts }: { five: RosterPlayer[]; boosts: Passive
   return (
     <View style={styles.row}>
       {shown.map((p) => {
-        const color = p.met ? palette.purple : palette.inkDim;
+        const color = p.met ? REWARD_CHROME : palette.inkDim;
         return (
           <View key={p.def.id} style={[styles.chip, { borderColor: color, opacity: p.met ? 1 : 0.75 }]}>
             <Text style={[styles.name, { color }]} numberOfLines={1}>
