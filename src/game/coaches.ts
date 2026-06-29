@@ -374,6 +374,49 @@ export function coachUnlockLabel(unlock: CoachUnlock): string {
   }
 }
 
+/** A coach's tendency chip: a stable category `key` (so two chips never collide as
+ * React keys, even when their labels match) plus the display `label`. */
+export interface CoachTag {
+  key: 'pace' | 'focus' | 'rotation' | 'usage';
+  label: string;
+}
+
+function paceLabel(p: CoachProfile['prefPace']): string {
+  if (p === 'auto') return 'Adapts';
+  return p === 'fast' ? 'Fast' : p === 'slow' ? 'Slow' : 'Even pace';
+}
+
+function focusLabel(f: CoachProfile['prefFocus']): string {
+  if (f === 'auto') return 'Reads roster';
+  if (f === 'inside') return 'Inside';
+  if (f === 'outside') return 'Outside';
+  if (f === 'lockdown') return 'Lockdown';
+  return 'Versatile';
+}
+
+const ROTATION_LABEL: Record<number, string> = { 8: 'Short bench', 9: 'Standard', 10: 'Deep bench' };
+
+const USAGE_LABEL: Record<CoachProfile['usage'], string> = {
+  star: 'Star-led',
+  egalitarian: 'Egalitarian',
+  balanced: 'Balanced share',
+};
+
+/**
+ * The four tendency chips shown on a coach's collection card. Labels are pairwise
+ * distinct across the categories (balanced pace reads "Even pace", balanced focus
+ * "Versatile"), so a card never renders two identical chips and the per-category keys
+ * never collide.
+ */
+export function coachTags(coach: CoachProfile): CoachTag[] {
+  return [
+    { key: 'pace', label: paceLabel(coach.prefPace) },
+    { key: 'focus', label: focusLabel(coach.prefFocus) },
+    { key: 'rotation', label: ROTATION_LABEL[coach.rotation] },
+    { key: 'usage', label: USAGE_LABEL[coach.usage] },
+  ];
+}
+
 // --- Sim-shaping (consumed by run-machine's buildHomeTeam) ---
 
 /** Defensive floor at/above which a five can credibly run a lockdown plan without

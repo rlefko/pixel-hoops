@@ -10,6 +10,7 @@ import {
   planForCoach,
   rotationForCoach,
   coachSystemModifier,
+  coachTags,
   DEFAULT_ROTATION,
   type CoachProfile,
 } from '@/game/coaches';
@@ -59,6 +60,18 @@ describe('coach catalog integrity', () => {
         .map((c) => (c.unlock.kind === 'ladder' ? c.unlock.rank : 0))
         .sort();
       expect(ranks).toEqual([1, 2, 3, 4]);
+    }
+  });
+
+  it('gives every coach four uniquely-keyed, distinctly-labeled tendency chips', () => {
+    // Guards the Coaches-page duplicate-key warning: keys must be unique (so two chips
+    // never collide as React keys) and labels distinct (so no card shows two identical
+    // chips, e.g. a balanced-pace + balanced-focus coach must not read "Balanced Balanced").
+    for (const coach of COACHES) {
+      const tags = coachTags(coach);
+      expect(tags).toHaveLength(4);
+      expect(new Set(tags.map((t) => t.key)).size).toBe(4);
+      expect(new Set(tags.map((t) => t.label)).size).toBe(4);
     }
   });
 
