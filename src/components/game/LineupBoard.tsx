@@ -2,9 +2,11 @@ import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { POSITION_COLOR } from '@/components/game/positionColor';
-import { ovr } from '@/game/ratings';
+import { CLASS_COLOR } from '@/components/run/class-ui';
+import { ovr, tierFor } from '@/game/ratings';
+import { derivePlaystyle } from '@/game/playstyle';
 import { applyTrainingDelta } from '@/game/effects';
-import { palette, FONT, FONT_SIZE, space, BORDER } from '@/theme';
+import { palette, FONT, FONT_SIZE, space, BORDER, RADIUS } from '@/theme';
 import type { Team } from '@/types/team';
 import type { RosterPlayer } from '@/types/roster';
 
@@ -35,19 +37,36 @@ interface LineupBoardProps {
   dense?: boolean;
 }
 
-/** A single box-score-height roster row: position, name, OVR. No sprite. */
+/**
+ * A single box-score-height roster row, no sprite: position, class, the player's
+ * name with their playstyle as an italic subtitle (name • playstyle), and the OVR.
+ * Position, class, and OVR are color-coded (slot color and class tier), so the
+ * row stays a legible at-a-glance read.
+ */
 function DenseRow({ rp, condition }: { rp: RosterPlayer; condition: boolean }) {
   const stats = applyTrainingDelta(rp.player.stats, rp.trainingDelta);
   const overall = ovr(stats, rp.position);
+  const tier = tierFor(overall);
+  const classColor = CLASS_COLOR[tier.label];
+  const playstyle = derivePlaystyle(stats, rp.position).label;
   const injured = condition && (rp.gamesOut ?? 0) > 0;
   return (
     <View style={[styles.denseRow, injured && styles.denseInjured]}>
       <Text style={[styles.densePos, { color: POSITION_COLOR[rp.position] }]}>{rp.position}</Text>
-      <Text style={[styles.denseName, rp.legendary && styles.denseLegend]} numberOfLines={1}>
-        {rp.player.name}
-      </Text>
-      {injured ? <Text style={styles.denseOut}>OUT {rp.gamesOut}</Text> : null}
-      <Text style={styles.denseOvr}>{overall}</Text>
+      <View style={[styles.denseClass, { borderColor: classColor }]}>
+        <Text style={[styles.denseClassText, { color: classColor }]}>{tier.label}</Text>
+      </View>
+      <View style={styles.denseMid}>
+        <Text style={styles.denseLine} numberOfLines={1}>
+          <Text style={[styles.denseName, rp.legendary && styles.denseLegend]}>{rp.player.name}</Text>
+          {injured ? (
+            <Text style={styles.denseOut}> • OUT {rp.gamesOut}</Text>
+          ) : (
+            <Text style={styles.denseStyle}> • {playstyle}</Text>
+          )}
+        </Text>
+      </View>
+      <Text style={[styles.denseOvr, { color: classColor }]}>{overall}</Text>
     </View>
   );
 }
@@ -111,10 +130,11 @@ const styles = StyleSheet.create({
   rowCompact: {
     paddingVertical: space(0.75),
   },
+  // No `gap` here: RN-web miscomputes a flex:1 child's width with gap and pushes
+  // the OVR off-screen. Use fixed-width columns + marginRight, like BoxScoreView.
   denseRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space(2),
     paddingVertical: space(1),
     borderBottomWidth: BORDER.thin,
     borderBottomColor: palette.bgPanel,
@@ -122,26 +142,50 @@ const styles = StyleSheet.create({
   denseInjured: { opacity: 0.5 },
   densePos: {
     width: space(6),
+    marginRight: space(1.5),
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
   },
-  denseName: {
+  // The class as a small bordered badge (border in the class color), matching the
+  // tier/position chips elsewhere in the game.
+  denseClass: {
+    width: space(8),
+    marginRight: space(2),
+    alignItems: 'center',
+    paddingVertical: space(0.25),
+    borderWidth: BORDER.thin,
+    borderRadius: RADIUS.chip,
+  },
+  denseClassText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+  },
+  // A flex:1 wrapper with minWidth 0 so it shrinks and the OVR sibling stays on
+  // screen (a flex:1 Text alone overflows in RN-web). Mirrors BoxScoreView.cellName.
+  denseMid: {
     flex: 1,
+    minWidth: 0,
+    marginRight: space(1.5),
+  },
+  // The name (title) and playstyle (italic subtitle) share one truncating line.
+  denseLine: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
+  },
+  denseName: {
     color: palette.ink,
+    fontWeight: '700',
   },
   denseLegend: { color: palette.gold },
-  denseOut: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    color: palette.injury,
+  denseStyle: {
+    color: palette.inkDim,
+    fontStyle: 'italic',
   },
+  denseOut: { color: palette.injury },
   denseOvr: {
-    minWidth: space(6),
+    width: space(8),
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.small,
-    color: palette.ink,
     textAlign: 'right',
   },
   steppingIn: {
