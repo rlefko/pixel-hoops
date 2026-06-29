@@ -6,16 +6,22 @@ import { archetypeLabel, counterVerdict, deriveArchetype } from '@/game/team-arc
 import type { Team } from '@/types/team';
 
 /**
- * The scouting "intent" card: a team's stylistic identity at a glance. Character
- * tags, a one-line read, projected steals/blocks/rebounds, and headline
- * strengths/weaknesses, so the player can plan a counter before tip-off. Pure
- * presentation over a precomputed {@link TeamIdentity}; 8-bit theme tokens only.
+ * The scouting "intent" card: a team's stylistic identity at a glance. The `full`
+ * variant (the opponent you are scouting) reads its archetype, a one-line blurb,
+ * the star, projected tendencies, and where to attack; the `lite` variant (your
+ * own five, which you already know) reads just the archetype and blurb, since its
+ * hard numbers live in the lineup right below. The cross-team counter is the
+ * headline ({@link MatchupHeadline}), so green and red appear only there and a
+ * loss reads as a strategy miss. Pure presentation over a precomputed
+ * {@link TeamIdentity}; 8-bit theme tokens only.
  */
 
 interface TeamIdentityCardProps {
   identity: TeamIdentity;
   /** Team accent color for the left rule (the franchise primary). */
   accentHex: string;
+  /** `full` scouts the opponent in detail; `lite` summarizes your own five. */
+  variant?: 'full' | 'lite';
 }
 
 const THREE_LEAN_LABEL: Record<TeamIdentity['tendencies']['threeLean'], string> = {
@@ -34,85 +40,97 @@ function Chip({ label, value }: { label: string; value: string | number }) {
   );
 }
 
-export function TeamIdentityCard({ identity, accentHex }: TeamIdentityCardProps) {
-  const { tags, blurb, strengths, weaknesses, tendencies } = identity;
+export function TeamIdentityCard({ identity, accentHex, variant = 'full' }: TeamIdentityCardProps) {
+  const { blurb, weaknesses, tendencies } = identity;
   return (
     <View style={[styles.card, { borderLeftColor: accentHex }]}>
       <Text style={styles.archetype} numberOfLines={1}>
         {archetypeLabel(tendencies.archetype).toUpperCase()}
       </Text>
-      <View style={styles.tagRow}>
-        {tags.map((tag) => (
-          <Text key={tag} style={styles.tag}>
-            {tag.toUpperCase()}
-          </Text>
-        ))}
-      </View>
       <Text style={styles.blurb} numberOfLines={2}>
         {blurb}
       </Text>
-      <View style={styles.chipRow}>
-        <Chip label="PACE" value={tendencies.pace.toUpperCase()} />
-        <Chip label="3PA" value={THREE_LEAN_LABEL[tendencies.threeLean]} />
-        <Chip label="STL" value={`~${tendencies.projSteals}`} />
-        <Chip label="BLK" value={`~${tendencies.projBlocks}`} />
-        <Chip label="REB" value={`~${tendencies.projRebounds}`} />
-      </View>
-      <Text style={styles.star} numberOfLines={1}>
-        <Text style={styles.starLabel}>STAR </Text>
-        {tendencies.topScorer.name} · {tendencies.topScorer.position}
-      </Text>
-      {strengths.length > 0 ? (
-        <Text style={styles.strength} numberOfLines={1}>
-          {'▲'} {strengths.join(', ')}
-        </Text>
-      ) : null}
-      {weaknesses.length > 0 ? (
-        <Text style={styles.weakness} numberOfLines={1}>
-          {'▼'} {weaknesses.join(', ')}
-        </Text>
+      {variant === 'full' ? (
+        <>
+          <Text style={styles.star} numberOfLines={1}>
+            <Text style={styles.starLabel}>STAR </Text>
+            {tendencies.topScorer.name} · {tendencies.topScorer.position}
+          </Text>
+          <View style={styles.chipRow}>
+            <Chip label="PACE" value={tendencies.pace.toUpperCase()} />
+            <Chip label="3PA" value={THREE_LEAN_LABEL[tendencies.threeLean]} />
+            <Chip label="STL" value={`~${tendencies.projSteals}`} />
+            <Chip label="BLK" value={`~${tendencies.projBlocks}`} />
+            <Chip label="REB" value={`~${tendencies.projRebounds}`} />
+          </View>
+          {weaknesses.length > 0 ? (
+            <Text style={styles.attack} numberOfLines={1}>
+              <Text style={styles.attackLabel}>ATTACK </Text>
+              {weaknesses.join(', ')}
+            </Text>
+          ) : null}
+        </>
       ) : null}
     </View>
   );
 }
 
 /**
- * The telegraphed matchup verdict between your five and the opponent's, read off
- * the two team archetypes. Surfaces a counter as a STRONG/SLIGHT edge or mismatch
- * before tip-off (or EVEN), so a counter loss reads as a strategy miss, not RNG.
+ * The telegraphed matchup verdict, promoted to a headline banner above both
+ * scout cards: the single cross-team takeaway (who counters whom), read off the
+ * two archetypes. The verdict word carries the direction and the only green/red
+ * on the screen, so a counter is unmistakable before tip-off (a strategy miss,
+ * not RNG). The reason line names both archetypes.
  */
-export function MatchupVerdict({ home, away }: { home: Team; away: Team }) {
+export function MatchupHeadline({ home, away }: { home: Team; away: Team }) {
   const mine = deriveArchetype(home);
   const theirs = deriveArchetype(away);
   const verdict = counterVerdict(mine, theirs);
-  if (verdict.tier === 'even') {
-    return (
-      <Text style={[styles.matchup, { color: palette.inkDim }]} numberOfLines={1}>
-        EVEN MATCHUP: {archetypeLabel(mine).toUpperCase()} VS {archetypeLabel(theirs).toUpperCase()}
-      </Text>
-    );
-  }
-  const word = verdict.tier === 'strong' ? 'STRONG' : 'SLIGHT';
-  const text = verdict.favorable
-    ? `▲ ${word} EDGE: your ${archetypeLabel(mine)} counters their ${archetypeLabel(theirs)}`
-    : `▼ ${word} MISMATCH: their ${archetypeLabel(theirs)} counters your ${archetypeLabel(mine)}`;
+
+  const color = verdict.tier === 'even'
+    ? palette.inkDim
+    : verdict.favorable
+      ? palette.makeGreen
+      : palette.missRed;
+  const word = verdict.tier === 'even'
+    ? 'EVEN MATCHUP'
+    : verdict.favorable
+      ? verdict.tier === 'strong' ? '▲ STRONG EDGE' : '▲ YOUR EDGE'
+      : verdict.tier === 'strong' ? '▼ STRONG MISMATCH' : '▼ MISMATCH';
+
   return (
-    <Text
-      style={[styles.matchup, { color: verdict.favorable ? palette.makeGreen : palette.missRed }]}
-      numberOfLines={2}
-    >
-      {text}
-    </Text>
+    <View style={[styles.banner, { borderColor: color + '66', backgroundColor: color + '14' }]}>
+      <Text style={[styles.bannerWord, { color }]} numberOfLines={1}>
+        {word}
+      </Text>
+      <Text style={styles.bannerReason} numberOfLines={2}>
+        your {archetypeLabel(mine)} vs their {archetypeLabel(theirs)}
+      </Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  matchup: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
+  banner: {
     alignSelf: 'stretch',
+    alignItems: 'center',
+    borderWidth: BORDER.thin,
+    borderRadius: RADIUS.chip,
+    paddingVertical: space(1.5),
+    paddingHorizontal: space(2),
+    marginTop: space(2),
+  },
+  bannerWord: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.label,
     textAlign: 'center',
-    marginBottom: space(1),
+  },
+  bannerReason: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+    textAlign: 'center',
+    marginTop: space(0.5),
   },
   card: {
     alignSelf: 'stretch',
@@ -126,24 +144,12 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.small,
     color: palette.ink,
-    marginBottom: space(0.5),
-  },
-  tagRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-  },
-  tag: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    color: palette.gold,
-    marginRight: space(2),
-    marginBottom: space(0.5),
   },
   blurb: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
     color: palette.inkDim,
-    marginTop: space(0.5),
+    marginTop: space(1),
   },
   chipRow: {
     flexDirection: 'row',
@@ -169,7 +175,7 @@ const styles = StyleSheet.create({
   chipValue: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
-    color: palette.steelBlue,
+    color: palette.ink,
   },
   star: {
     fontFamily: FONT.body,
@@ -182,16 +188,15 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.micro,
     color: palette.inkDim,
   },
-  strength: {
+  attack: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
-    color: palette.makeGreen,
-    marginTop: space(1),
+    color: palette.inkDim,
+    marginTop: space(1.5),
   },
-  weakness: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.small,
-    color: palette.missRed,
-    marginTop: space(0.5),
+  attackLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
   },
 });
