@@ -126,7 +126,7 @@ describe('coaches', () => {
   it('wins coaches on a championship (and keeps the equipped coach)', () => {
     const home = createRookieRoster(createRNG('coach2'));
     const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [] };
-    // First clear of C on easy: grants C rank-1 AND opens B (the B opener) — two coaches.
+    // First clear of C on easy: grants C rank-1 AND opens B (the B opener): two coaches.
     const next = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
     expect(next.ownedCoaches.length).toBe(home.ownedCoaches.length + 2);
     expect(next.selectedCoachId).toBe(home.selectedCoachId); // a win never changes the equip

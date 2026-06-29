@@ -523,14 +523,14 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
       // stay quiet and hard runs get adjustments often (the opponent ramp dominates).
       const coach = getCoach(model.coachId);
       const away = buildOpponentTeam(core, nodeId, model.mods);
-      const nodeType = node.type === 'boss' ? 'boss' : node.type === 'elite' ? 'elite' : 'game';
       const coachRec =
         recommendLineup({
           roster: core.roster,
           coach,
           opponent: away,
           buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts),
-          minDelta: recMinDelta(model.difficulty, nodeType),
+          // node.type is narrowed to 'game' | 'elite' | 'boss' in this case block.
+          minDelta: recMinDelta(model.difficulty, node.type),
         }) ?? undefined;
       return { ...model, core, phase: { kind: 'pregame', nodeId, coachRec } };
     }

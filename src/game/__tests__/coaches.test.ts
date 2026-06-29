@@ -83,7 +83,7 @@ describe('coach unlock logic', () => {
   });
 
   it('opens the next class from a first clear, and grants the class own coach too', () => {
-    // First clear of C on easy: grants C rank-1 AND opens B (B's opener) — two coaches.
+    // First clear of C on easy: grants C rank-1 AND opens B (B's opener): two coaches.
     const won = coachesWonByClear(progress({}), 'easy', 'C', new Set([STARTER_COACH_ID]));
     expect(won).toHaveLength(2);
     const owned = earnedCoachIds(progress({ easy: 'C' }));

@@ -415,6 +415,9 @@ export function planForCoach(base: GamePlan, coach: CoachProfile, dressed: Roste
   if (coach.prefFocus === 'lockdown' && meanDefense(dressed.starters) < CAN_DEFEND_FLOOR) {
     focus = base.focus;
   }
+  // 'star' features the best player; 'egalitarian' forces an even share; 'balanced'
+  // defers to the roster-derived plan (which never features a star today, so it reads
+  // the same as egalitarian for now, but stays correct if planForRoster ever does).
   let starPlayerIndex = base.starPlayerIndex;
   if (coach.usage === 'star') starPlayerIndex = bestStarterIndex(dressed.starters);
   else if (coach.usage === 'egalitarian') starPlayerIndex = null;
