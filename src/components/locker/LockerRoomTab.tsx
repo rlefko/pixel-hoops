@@ -259,6 +259,8 @@ export function LockerRoomTab() {
         windowSize={5}
         initialNumToRender={8}
         removeClippedSubviews
+        keyboardShouldPersistTaps="handled"
+        ListEmptyComponent={<Text style={styles.empty}>No players match.</Text>}
       />
     </View>
   );
@@ -296,4 +298,11 @@ const styles = StyleSheet.create({
   statBtnLine: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
   statBtnText: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
   statCost: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.gold },
+  empty: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.body,
+    color: palette.inkDim,
+    textAlign: 'center',
+    marginTop: space(4),
+  },
 });

@@ -156,6 +156,7 @@ export default function RosterScreen() {
         windowSize={5}
         initialNumToRender={10}
         removeClippedSubviews
+        keyboardShouldPersistTaps="handled"
         ListEmptyComponent={<Text style={styles.empty}>No players match.</Text>}
       />
     </Screen>
