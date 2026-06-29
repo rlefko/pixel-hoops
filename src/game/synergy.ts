@@ -1,4 +1,4 @@
-import type { RosterPlayer, Position } from '@/types/roster';
+import { POSITIONS, type RosterPlayer, type Position } from '@/types/roster';
 import type { SynergyResult } from '@/types/team';
 
 /**
@@ -20,15 +20,20 @@ export function computeSynergy(lineup: RosterPlayer[]): SynergyResult {
     labels: [],
   };
 
-  const counts = new Map<Position, number>();
-  for (const rp of lineup) {
-    counts.set(rp.position, (counts.get(rp.position) ?? 0) + 1);
-  }
+  // Position counts in a fixed record (no per-call Map allocation). Identical
+  // arithmetic: the sums, the distinct count, and the max are all order-free.
+  const counts = {} as Record<Position, number>;
+  for (const p of POSITIONS) counts[p] = 0;
+  for (const rp of lineup) counts[rp.position] += 1;
 
-  const guardCount = GUARDS.reduce((sum, p) => sum + (counts.get(p) ?? 0), 0);
-  const bigCount = BIGS.reduce((sum, p) => sum + (counts.get(p) ?? 0), 0);
-  const distinctPositions = counts.size;
-  const maxAtOnePosition = Math.max(...counts.values());
+  const guardCount = GUARDS.reduce((sum, p) => sum + counts[p], 0);
+  const bigCount = BIGS.reduce((sum, p) => sum + counts[p], 0);
+  let distinctPositions = 0;
+  let maxAtOnePosition = 0;
+  for (const p of POSITIONS) {
+    if (counts[p] > 0) distinctPositions += 1;
+    if (counts[p] > maxAtOnePosition) maxAtOnePosition = counts[p];
+  }
 
   // Backcourt Speed: two or more guards push the pace.
   if (guardCount >= 2) {
