@@ -122,7 +122,8 @@ export function BoostDraftView({
         <Text style={styles.subtitle}>Pick a passive boost for your squad</Text>
         {canBanish ? (
           <Text style={styles.helper}>
-            Banish drops a boost from the rest of this run so it stops appearing. {left} left.
+            Tap ✕ to cut a boost from the rest of this run so it stops appearing. {left} cut
+            {left === 1 ? '' : 's'} left.
           </Text>
         ) : null}
         <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
@@ -134,22 +135,30 @@ export function BoostDraftView({
             const family = boostFamilyLabels(offer.defId).join(' · ');
             const setHint = five ? setHintForOffer(offer.defId, owned, five) : null;
             return (
-              <View key={i} style={styles.offerRow}>
-                <Pressable style={styles.cardWrap} onPress={() => draft(offer)}>
+              <View key={i} style={styles.offerWrap}>
+                <Pressable onPress={() => draft(offer)}>
                   <LegendaryHalo visible={legendary} />
                   <View style={[styles.card, { borderColor: color }]}>
-                    <View style={styles.cardHead}>
-                      <Text style={[styles.cardName, { color }]}>{def.name}</Text>
-                      <Text style={[styles.tag, { color }]}>{RARITY_LABEL[def.rarity]}</Text>
-                    </View>
+                    <Text style={[styles.cardName, styles.offerName, { color }]} numberOfLines={1}>
+                      {def.name}
+                    </Text>
                     <Text style={styles.cardBlurb}>{def.blurb}</Text>
-                    {family ? <Text style={styles.familyTag}>{family}</Text> : null}
+                    <View style={styles.metaRow}>
+                      <Text style={[styles.tag, { color }]}>{RARITY_LABEL[def.rarity]}</Text>
+                      {family ? <Text style={styles.familyTag}>{family}</Text> : null}
+                    </View>
                     {setHint ? <Text style={styles.setHint}>{setHint}</Text> : null}
                   </View>
                 </Pressable>
                 {canBanish ? (
-                  <Pressable hitSlop={8} style={styles.banishBtn} onPress={() => banish(offer)}>
-                    <Text style={styles.banishLabel}>Banish</Text>
+                  <Pressable
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cut this boost from the run"
+                    style={styles.cutX}
+                    onPress={() => banish(offer)}
+                  >
+                    <Text style={styles.cutXText}>✕</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -229,19 +238,27 @@ const styles = StyleSheet.create({
     marginTop: space(4),
   },
   cardBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
-  familyTag: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME, marginTop: space(0.5) },
-  setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME, marginTop: space(0.5) },
+  // Reserve room on the name line so a long name never runs under the corner cut button.
+  offerName: { marginRight: space(6) },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: space(2) },
+  familyTag: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME },
+  setHint: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: SYNERGY_CHROME },
   bottomButton: { marginTop: space(4) },
-  offerRow: { flexDirection: 'row', alignItems: 'center', gap: space(2) },
-  cardWrap: { position: 'relative', flex: 1 },
-  banishBtn: {
-    alignSelf: 'center',
+  offerWrap: { position: 'relative' },
+  // A small "cut" button overlaid in the card's top-right corner: tiny footprint so
+  // the boost card keeps full width. The red glyph reads as a remove action.
+  cutX: {
+    position: 'absolute',
+    top: space(1),
+    right: space(1),
+    width: space(5),
+    height: space(5),
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: BORDER.thin,
     borderColor: palette.missRed,
     borderRadius: RADIUS.chip,
-    paddingHorizontal: space(2.5),
-    paddingVertical: space(1.5),
-    backgroundColor: palette.missRed + '14',
+    backgroundColor: palette.bgPanel,
   },
-  banishLabel: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.missRed },
+  cutXText: { fontFamily: FONT.display, fontSize: FONT_SIZE.label, color: palette.missRed },
 });
