@@ -12,7 +12,7 @@ import {
 } from '@/game/run-machine';
 import { classAboveLadder } from '@/game/difficulty-mode';
 import { LineupBoard } from '@/components/game/LineupBoard';
-import { TeamIdentityCard, MatchupVerdict } from '@/components/game/TeamIdentityCard';
+import { TeamIdentityCard, MatchupHeadline } from '@/components/game/TeamIdentityCard';
 import { deriveTeamIdentity } from '@/game/team-identity';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
 import { RunMapView } from '@/components/run/RunMapView';
@@ -264,6 +264,7 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
           </Text>
         </View>
       ) : null}
+      <MatchupHeadline home={home} away={away} />
       <Text style={styles.section}>SCOUTING REPORT</Text>
       <View style={styles.scoutHeader}>
         <View style={[styles.swatch, { backgroundColor: away.colorHex }]} />
@@ -271,11 +272,10 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
           {away.name}
         </Text>
       </View>
-      <TeamIdentityCard identity={deriveTeamIdentity(away)} accentHex={away.colorHex} />
+      <TeamIdentityCard identity={deriveTeamIdentity(away)} accentHex={away.colorHex} variant="full" />
       <LineupBoard team={away} compact />
-      <MatchupVerdict home={home} away={away} />
       <Text style={styles.section}>YOUR FIVE</Text>
-      <TeamIdentityCard identity={deriveTeamIdentity(home)} accentHex={home.colorHex} />
+      <TeamIdentityCard identity={deriveTeamIdentity(home)} accentHex={home.colorHex} variant="lite" />
       <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} compact />
       <Pressable onPress={actions.openLineupBuilder}>
         <Text style={styles.link}>Change Lineup</Text>
