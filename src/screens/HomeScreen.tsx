@@ -15,6 +15,7 @@ import {
   JoystickIcon,
   LockerIcon,
   RecruitIcon,
+  WhistleIcon,
 } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { CLASS_COLOR } from '@/components/run/class-ui';
@@ -28,6 +29,7 @@ import {
   type Difficulty,
   type LadderClass,
 } from '@/game/difficulty-mode';
+import { getCoach } from '@/game/coaches';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** Main menu screen: the arcade lobby and entry point for the game. */
@@ -53,6 +55,7 @@ export default function HomeScreen() {
   }
 
   const unlocked = homeRoster ? unlockedClasses(homeRoster.ladderProgress[homeRoster.selectedDifficulty]) : [];
+  const coach = homeRoster ? getCoach(homeRoster.selectedCoachId) : null;
 
   const setDifficulty = (d: Difficulty) => {
     if (!homeRoster) return;
@@ -138,6 +141,17 @@ export default function HomeScreen() {
               );
             })}
           </View>
+
+          <Text style={styles.selectLabel}>COACH</Text>
+          {coach ? (
+            <Pressable style={styles.coachRow} onPress={() => nav.push('/coaches')}>
+              <WhistleIcon size={14} color={CLASS_COLOR[coach.class]} />
+              <Text style={[styles.coachName, { color: CLASS_COLOR[coach.class] }]} numberOfLines={1}>
+                {coach.name}
+              </Text>
+              <Text style={styles.coachChange}>CHANGE ›</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -178,6 +192,13 @@ export default function HomeScreen() {
           color={palette.steelBlue}
           icon={<RecruitIcon size={22} color={palette.steelBlue} />}
           onPress={() => nav.push('/roster')}
+        />
+        <MenuButton
+          variant="wide"
+          label="COACHES"
+          color={palette.purple}
+          icon={<WhistleIcon size={22} color={palette.purple} />}
+          onPress={() => nav.push('/coaches')}
         />
         <View style={styles.smallRow}>
           <MenuButton
@@ -311,6 +332,20 @@ const styles = StyleSheet.create({
   },
   classChipText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small },
   chipLocked: { opacity: 0.4, borderColor: palette.inkDim },
+  coachRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
+    paddingHorizontal: space(3),
+    paddingVertical: space(1.5),
+    borderWidth: BORDER.thin,
+    borderColor: palette.purple + '66',
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.purple + '12',
+    maxWidth: 280,
+  },
+  coachName: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, flexShrink: 1 },
+  coachChange: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
   menu: {
     width: '100%',
     maxWidth: 360,

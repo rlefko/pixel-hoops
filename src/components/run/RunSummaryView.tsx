@@ -3,6 +3,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
+import type { CoachProfile } from '@/game/coaches';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** End-of-run summary. The home roster has already banked the run's gains. */
@@ -14,6 +15,8 @@ interface RunSummaryViewProps {
   ladderClass: LadderClass;
   /** The newly unlocked ladder class (shown as a reward when present). */
   unlockedClass?: PlayerClass;
+  /** A coach won by this championship (shown as a reward beat when present). */
+  wonCoach?: CoachProfile;
   onNewRun: () => void;
   onMenu: () => void;
 }
@@ -24,6 +27,7 @@ export function RunSummaryView({
   difficulty,
   ladderClass,
   unlockedClass,
+  wonCoach,
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
@@ -40,6 +44,9 @@ export function RunSummaryView({
       </Text>
       {unlockedClass ? (
         <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
+      ) : null}
+      {wonCoach ? (
+        <Text style={styles.coachWon}>COACH {wonCoach.name.toUpperCase()} JOINS YOUR STAFF</Text>
       ) : null}
       <Text style={[styles.note, !champion && styles.noteLost]}>
         {champion ? 'Recruits carried home.' : 'Run recruits lost. Coins banked.'}
@@ -77,6 +84,14 @@ const styles = StyleSheet.create({
     color: palette.orange,
     textAlign: 'center',
     marginTop: space(3),
+  },
+  coachWon: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.purple,
+    textAlign: 'center',
+    marginTop: space(2),
+    paddingHorizontal: space(4),
   },
   note: {
     fontFamily: FONT.body,

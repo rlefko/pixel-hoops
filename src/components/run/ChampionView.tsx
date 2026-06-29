@@ -10,6 +10,7 @@ import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
+import type { CoachProfile } from '@/game/coaches';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -28,6 +29,8 @@ interface ChampionViewProps {
   wins: number;
   /** The newly unlocked ladder class (shown as a reward when present). */
   unlockedClass?: PlayerClass;
+  /** A coach won by this championship (shown as a reward beat when present). */
+  wonCoach?: CoachProfile;
   onNewRun: () => void;
   onHome: () => void;
 }
@@ -41,6 +44,7 @@ export function ChampionView({
   ladderClass,
   wins,
   unlockedClass,
+  wonCoach,
   onNewRun,
   onHome,
 }: ChampionViewProps) {
@@ -98,6 +102,9 @@ export function ChampionView({
           </Text>
           {unlockedClass ? (
             <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
+          ) : null}
+          {wonCoach ? (
+            <Text style={styles.coachWon}>COACH {wonCoach.name.toUpperCase()} JOINS YOUR STAFF</Text>
           ) : null}
           <ParticleBurst
             origin={{ x: CENTER_X, y: 70 }}
@@ -170,6 +177,14 @@ const styles = StyleSheet.create({
     color: palette.orange,
     textAlign: 'center',
     marginTop: space(3),
+  },
+  coachWon: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.purple,
+    textAlign: 'center',
+    marginTop: space(2),
+    paddingHorizontal: space(4),
   },
   section: {
     fontFamily: FONT.display,
