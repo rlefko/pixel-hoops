@@ -194,10 +194,16 @@ export interface SimConfig {
   /**
    * The home side's substitution policy (from the equipped coach's rotation size).
    * Defaults to {@link DEFAULT_ROTATION} (the historical uncapped behavior), so a
-   * game without one resolves exactly as before. The opponent always runs the
-   * default policy.
+   * game without one resolves exactly as before.
    */
   homeRotation?: RotationPolicy;
+  /**
+   * The away side's substitution policy (from the opponent franchise coach's
+   * rotation size; see opponent-coach.ts). Defaults to {@link DEFAULT_ROTATION}, so
+   * a game without one resolves exactly as before, keeping golden-master scenarios
+   * (which never pass it) byte-identical.
+   */
+  awayRotation?: RotationPolicy;
 }
 
 // --- Action selection ---
@@ -725,7 +731,7 @@ export function simulateGame(config: SimConfig): SimResult {
   const awayForm = (rng.next() - 0.5) * 2 * FORM_RANGE;
 
   const homeState = initSide(config.home, homeForm, config.homeRotation ?? DEFAULT_ROTATION);
-  const awayState = initSide(config.away, awayForm, DEFAULT_ROTATION);
+  const awayState = initSide(config.away, awayForm, config.awayRotation ?? DEFAULT_ROTATION);
   const stateFor = (side: SimTeamSide): SideState =>
     side === 'home' ? homeState : awayState;
 

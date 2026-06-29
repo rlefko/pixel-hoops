@@ -9,6 +9,8 @@ import {
 } from '@/game/difficulty-mode';
 import { buildTeam } from '@/game/lineup';
 import { generateOpponentTeam, generatePlayerOfClass, planForRoster } from '@/game/tournament';
+import { planForCoach, rotationForCoach } from '@/game/coaches';
+import { coachForTeamName } from '@/game/opponent-coach';
 import { generateFixedMap } from '@/game/run-map';
 import { simulateGame } from '@/game/simulation';
 import { teamModifierFromPartial } from '@/game/effects';
@@ -157,18 +159,28 @@ function playRun(difficulty: Difficulty, ladder: LadderClass, delta: number, see
         isBoss: boss,
         extraLegend: boss && mods.bossExtraLegend,
       });
+      // Coach the opponent in its franchise's real style (the live game path), so the
+      // harness measures the same opponents the player actually faces. Style only: no
+      // system bonus, just the coached game plan + substitution depth.
+      const oppCoach = coachForTeamName(opp.name);
       const away = buildTeam(
         opp.name,
         opp.roster.starters,
-        planForRoster(opp.roster),
+        planForCoach(planForRoster(opp.roster), oppCoach, opp.roster),
         opp.colorHex,
         opp.accentHex,
         opp.roster.bench
       );
+      const awayRotation = rotationForCoach(oppCoach);
       // Replay while losing and timeouts remain (a run-wide pool, like the real run).
       let attempt = 0;
       for (;;) {
-        const result = simulateGame({ home, away, seed: deriveSeed(seed, `g-${node.id}-${attempt}`) });
+        const result = simulateGame({
+          home,
+          away,
+          seed: deriveSeed(seed, `g-${node.id}-${attempt}`),
+          awayRotation,
+        });
         if (result.winner === 'home') break;
         if (timeouts > 0) {
           timeouts--;

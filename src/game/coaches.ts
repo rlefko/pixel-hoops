@@ -47,12 +47,16 @@ export type CoachUnlock =
   | { kind: 'opener'; forClass: CoachClass }
   | { kind: 'ladder'; forClass: CoachClass; rank: number };
 
-export interface CoachProfile {
-  /** Stable kebab id (persisted in the save); never changes even if the name does. */
-  id: string;
-  /** Real coach display name. */
+/**
+ * The play-style fields the sim reads to shape how a team plays. Shared by the
+ * player's collectible {@link CoachProfile}s and the lightweight opponent coaches
+ * (see opponent-coach.ts), so planForCoach / rotationForCoach accept either: an
+ * opponent franchise can be coached in its real coach's style without carrying the
+ * collection metadata (id / class / iq / system / unlock).
+ */
+export interface CoachStyle {
+  /** Display name. */
   name: string;
-  class: CoachClass;
   /** Preferred tempo, or `auto` to defer to the roster-derived pace (the starter). */
   prefPace: Pace | 'auto';
   /** Preferred focus, or `auto` to defer to the roster-derived focus (the starter). */
@@ -61,6 +65,12 @@ export interface CoachProfile {
   usage: CoachUsage;
   /** Rotation depth: 8 = short (starters play more), 9 = standard, 10 = deep. */
   rotation: 8 | 9 | 10;
+}
+
+export interface CoachProfile extends CoachStyle {
+  /** Stable kebab id (persisted in the save); never changes even if the name does. */
+  id: string;
+  class: CoachClass;
   /** Coaching IQ on the 6-20 stat scale: drives recommendation search depth. */
   iq: number;
   /** Archetypes this coach's system fits; the system bonus fires only on a match.
@@ -452,7 +462,7 @@ function bestStarterIndex(five: RosterPlayer[]): number {
  * A coach forcing `lockdown` onto a five that cannot defend falls back, so a coach
  * never imposes a pure self-tax.
  */
-export function planForCoach(base: GamePlan, coach: CoachProfile, dressed: Roster): GamePlan {
+export function planForCoach(base: GamePlan, coach: CoachStyle, dressed: Roster): GamePlan {
   const pace: Pace = coach.prefPace === 'auto' ? base.pace : coach.prefPace;
   let focus: Focus = coach.prefFocus === 'auto' ? base.focus : coach.prefFocus;
   if (coach.prefFocus === 'lockdown' && meanDefense(dressed.starters) < CAN_DEFEND_FLOOR) {
@@ -495,7 +505,7 @@ export const DEFAULT_ROTATION: RotationPolicy = {
 
 /** Map a coach's rotation depth to a substitution policy. Rotation 9 (and the
  * starter / no coach) is the uncapped default; 8 tightens, 10 deepens. */
-export function rotationForCoach(coach: CoachProfile | null | undefined): RotationPolicy {
+export function rotationForCoach(coach: CoachStyle | null | undefined): RotationPolicy {
   if (!coach || coach.rotation === 9) return DEFAULT_ROTATION;
   if (coach.rotation === 8) {
     return { hardFloor: 24, subOutEnergy: 42, subInEnergy: 78, subOutGoodEnough: 0.96, maxPlayers: 8 };

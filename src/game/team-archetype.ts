@@ -32,8 +32,16 @@ export type TeamArchetype =
 const STRONG = 15;
 const ELITE = 16;
 const ISO_GAP = 3;
+/** A clear lean of one stat family over its opposite. Identities are SHAPE-relative
+ * (interior vs perimeter, inside vs outside), not absolute, so they stay distinct
+ * as difficulty inflates every stat instead of collapsing into one tag. Tuned so the
+ * generated-opponent pool spreads across identities (most teams get a real one)
+ * rather than everyone reading Balanced. */
+const TILT = 1.0;
+/** Outside rating at/above which a player credibly spaces the floor (mirrors the
+ * sim's SHOOTER_THRESHOLD in lineup.ts). */
+const SHOOTER = 13;
 
-const GUARDS: readonly Position[] = ['PG', 'SG'];
 const BIGS: readonly Position[] = ['PF', 'C'];
 
 const ARCHETYPE_LABEL: Record<TeamArchetype, string> = {
@@ -57,10 +65,13 @@ function mean(values: number[]): number {
 
 /**
  * Classify a five into its single dominant {@link TeamArchetype}. Reads the
- * starters' raw stat means + position shape + the team's auto pace/focus. The
- * priority order resolves overlaps deterministically (a two-big wall reads as
- * Twin Towers before Bully Ball; a fast shooting five reads Pace & Space before
- * Run & Gun). Falls back to `balanced` when nothing dominates.
+ * starters' raw stat means + position shape + the team's auto pace/focus, but the
+ * gates are SHAPE-relative (a stat family must out-weigh its opposite by {@link
+ * TILT}), so an identity needs a real lean, not just inflated stats: a standard
+ * PG/SG/SF/PF/C five whose ratings all rise with difficulty stays `balanced`
+ * instead of every team reading as Twin Towers. The priority order resolves
+ * overlaps deterministically (a fast shooting five reads Pace & Space before Run &
+ * Gun). Falls back to `balanced` when nothing dominates.
  */
 export function deriveArchetype(team: Team): TeamArchetype {
   return deriveArchetypeFromFive(team.lineup.players, team.tactic);
@@ -80,7 +91,6 @@ export function deriveArchetypeFromFive(
 
   const counts = new Map<Position, number>();
   for (const rp of five) counts.set(rp.position, (counts.get(rp.position) ?? 0) + 1);
-  const guardCount = GUARDS.reduce((s, p) => s + (counts.get(p) ?? 0), 0);
   const bigCount = BIGS.reduce((s, p) => s + (counts.get(p) ?? 0), 0);
 
   const sorted = [...five].sort(
@@ -91,20 +101,51 @@ export function deriveArchetypeFromFive(
 
   const interiorD = m('interiorD');
   const perimeterD = m('perimeterD');
-  const outside = m('outside');
-  const strength = m('strength');
-  const athleticism = m('athleticism');
+  const rebounding = m('rebounding');
   const stealing = m('stealing');
+  const teamD = (perimeterD + interiorD) / 2;
+  // How many of the five credibly space the floor: the spacing-vs-clogged signal
+  // that keeps Twin Towers to genuinely paint-bound fronts.
+  const shooters = five.filter((rp) => rp.player.stats.outside >= SHOOTER).length;
 
-  // Priority order: the most identity-defining shape wins.
-  if (bigCount >= 2 && (interiorD >= STRONG || m('rebounding') >= STRONG)) return 'twin-towers';
-  if (pace === 'slow' && (perimeterD + interiorD) / 2 >= STRONG) return 'grit-and-grind';
-  if (stealing >= ELITE && (perimeterD + interiorD) / 2 >= STRONG - 1) return 'grit-and-grind';
-  if (pace === 'fast' && outside >= STRONG && guardCount >= 2) return 'pace-and-space';
-  if (focus === 'outside' && outside >= ELITE) return 'three-point-barrage';
-  if (pace === 'fast' && (athleticism >= STRONG || stealing >= STRONG)) return 'run-and-gun';
-  if (focus === 'inside' && strength >= STRONG) return 'bully-ball';
+  // Priority order, driven primarily by the team's SCHEME (its coached pace/focus,
+  // which now varies by franchise) plus a light stat/shape guard, so identities
+  // spread across the league instead of every team reading the same tag. A team with
+  // no scheme lean and no dominant scorer falls through to `balanced`.
+
+  // TWIN TOWERS: inside-focused with a genuinely oversized, paint-bound front, not
+  // just any PF+C. Needs an interior lean AND either three true bigs or two real
+  // paint/glass anchors on a non-spacing five, so it stays a rare, distinctive read.
+  if (
+    focus === 'inside' &&
+    bigCount >= 2 &&
+    interiorD - perimeterD >= TILT &&
+    (bigCount >= 3 || (interiorD >= STRONG && rebounding >= STRONG && shooters <= 2))
+  )
+    return 'twin-towers';
+
+  // BULLY BALL: an inside-focused scheme that leans on interior scoring and size.
+  if (focus === 'inside' && bigCount >= 2) return 'bully-ball';
+
+  // GRIT AND GRIND: a lockdown scheme (defense-first identity), a slow stout defense,
+  // or elite ball pressure anchoring a strong D.
+  if (focus === 'lockdown') return 'grit-and-grind';
+  if (pace === 'slow' && teamD >= STRONG - 1) return 'grit-and-grind';
+  if (stealing >= ELITE && teamD >= STRONG - 1) return 'grit-and-grind';
+
+  // PACE AND SPACE: a fast, outside-shooting scheme (run and shoot). Checked before
+  // the half-court barrage so a track meet is not mislabeled.
+  if (pace === 'fast' && focus === 'outside') return 'pace-and-space';
+
+  // THREE-POINT BARRAGE: an outside-focused half-court bombing five.
+  if (focus === 'outside') return 'three-point-barrage';
+
+  // RUN AND GUN: a fast scheme without a designated shot focus (push and attack).
+  if (pace === 'fast') return 'run-and-gun';
+
+  // ISO HEAVY: one clear go-to scorer towers over the rest of the five.
   if (topOvr - secondOvr >= ISO_GAP) return 'iso-heavy';
+
   return 'balanced';
 }
 
