@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useMemo, useRef } from 'react';
 import { runReducer } from '@/game/run-machine';
 import { mergeRunGainsIntoHome, playerKey, rememberDraftRotation } from '@/game/home-roster';
+import { coachesWonByClear } from '@/game/coaches';
 import { buildHallOfFameEntry } from '@/game/hall-of-fame';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import type { RosterPlayer } from '@/types/roster';
@@ -17,6 +18,9 @@ export function useRun() {
   const [model, dispatch] = useReducer(runReducer, null);
   const savedRef = useRef(false);
   const draftRememberedRef = useRef(false);
+  // The headline coach won by this run's championship (computed BEFORE the merge,
+  // which then folds it into the owned collection), surfaced in the summary beat.
+  const wonCoachRef = useRef<string | undefined>(undefined);
 
   // Start a run once the home roster has loaded from storage.
   useEffect(() => {
@@ -51,6 +55,16 @@ export function useRun() {
     if (!model) return;
     if (model.phase.kind === 'summary' && !savedRef.current && homeRoster) {
       savedRef.current = true;
+      // The coach(es) this championship wins, captured against the PRE-merge owned set
+      // (the merge below grants them, so the diff would be empty afterward).
+      wonCoachRef.current = model.phase.champion
+        ? coachesWonByClear(
+            homeRoster.ladderProgress,
+            model.difficulty,
+            model.ladderClass,
+            new Set(homeRoster.ownedCoaches)
+          )[0]
+        : undefined;
       // A championship banks a Hall of Fame snapshot of the final game. Date.now()
       // lives here (the hook), keeping the merge and the entry builder clock-free.
       const championEntry =
@@ -76,7 +90,10 @@ export function useRun() {
         )
       );
     }
-    if (model.phase.kind !== 'summary') savedRef.current = false;
+    if (model.phase.kind !== 'summary') {
+      savedRef.current = false;
+      wonCoachRef.current = undefined;
+    }
   }, [model, homeRoster, saveHomeRoster]);
 
   const actions = useMemo(
@@ -89,6 +106,7 @@ export function useRun() {
       setLineup: (starters: RosterPlayer[], bench: RosterPlayer[]) =>
         dispatch({ type: 'setLineup', starters, bench }),
       cancelLineup: () => dispatch({ type: 'cancelLineup' }),
+      acceptCoachRec: () => dispatch({ type: 'acceptCoachRec' }),
       enterGame: () => dispatch({ type: 'enterGame' }),
       finishReplay: () => dispatch({ type: 'finishReplay' }),
       resolveGameResult: () => dispatch({ type: 'resolveGameResult' }),
@@ -124,5 +142,5 @@ export function useRun() {
     [homeRoster]
   );
 
-  return { model, loaded, actions };
+  return { model, loaded, actions, wonCoachId: wonCoachRef.current };
 }

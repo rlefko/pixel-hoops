@@ -1029,3 +1029,41 @@ describe('between-game injuries', () => {
     expect(subs).not.toContain(roster.starters[0]);
   });
 });
+
+describe('coaches in a run', () => {
+  it('equips the selected coach at run start and applies its plan', () => {
+    const m = atMap('coach-plan');
+    // The starter coach is a no-op: no forced star.
+    expect(buildHomeTeam(m).tactic.starPlayerIndex).toBeNull();
+    // A star-centric coach features the team's best player.
+    const starVariant: RunModel = { ...m, coachId: 'phil-jackson' };
+    expect(buildHomeTeam(starVariant).tactic.starPlayerIndex).not.toBeNull();
+  });
+
+  it('acceptCoachRec commits the suggested five and clears the banner', () => {
+    const m = atMap('coach-accept');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    expect(pregame.phase.kind).toBe('pregame');
+    const original = pregame.core.roster;
+    const rec = {
+      starters: [...original.starters].reverse(),
+      bench: original.bench,
+      edge: 'solid' as const,
+      summary: 'test swap',
+    };
+    const withRec: RunModel = { ...pregame, phase: { kind: 'pregame', nodeId: bossId, coachRec: rec } };
+    const accepted = runReducer(withRec, { type: 'acceptCoachRec' })!;
+    expect(accepted.core.roster.starters[0]).toBe(original.starters[4]);
+    expect(accepted.phase.kind).toBe('pregame');
+    expect(accepted.phase.kind === 'pregame' && accepted.phase.coachRec).toBeUndefined();
+  });
+
+  it('acceptCoachRec is a no-op when there is no suggestion', () => {
+    const m = atMap('coach-noop');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    const after = runReducer(pregame, { type: 'acceptCoachRec' })!;
+    expect(after.core.roster).toEqual(pregame.core.roster);
+  });
+});

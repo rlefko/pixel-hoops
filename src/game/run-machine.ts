@@ -24,7 +24,15 @@ import {
   MAX_RUN_ROSTER,
 } from './draft';
 import { effectivePlayers, teamModifierFor } from './apply-effects';
-import { MAX_TRAINED_STAT, trainedStat } from './effects';
+import { MAX_TRAINED_STAT, trainedStat, mergeTeamModifiers, teamModifierFromPartial } from './effects';
+import {
+  getCoach,
+  planForCoach,
+  rotationForCoach,
+  coachSystemModifier,
+  type CoachProfile,
+} from './coaches';
+import { recommendLineup, recMinDelta, type CoachRec } from './coach-reco';
 import { legendRecruit } from './player-pool';
 import {
   MAX_BOOSTS,
@@ -97,7 +105,9 @@ export type RunPhase =
     }
   // `timeoutUsed` is set when this pregame was re-entered after a forgiven loss, so
   // the pregame scouting screen can flag the spent timeout and that this is a replay.
-  | { kind: 'pregame'; nodeId: string; timeoutUsed?: boolean }
+  // `coachRec` is the equipped coach's optional one-click lineup suggestion for this
+  // matchup (absent when the coach has nothing worth surfacing, e.g. on easy).
+  | { kind: 'pregame'; nodeId: string; timeoutUsed?: boolean; coachRec?: CoachRec }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
   | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[]; rerolled: boolean[] }
@@ -131,6 +141,9 @@ export interface RunModel {
   difficulty: Difficulty;
   /** The ladder class this run centers on; clearing it advances that difficulty's ladder. */
   ladderClass: LadderClass;
+  /** The coach equipped for this run (read from HomeRoster at initRun; never mutated
+   * mid-run, so it is the run's strategic identity). */
+  coachId: string;
   /** Cached difficulty modifiers, applied at consumption time. */
   mods: DifficultyMods;
   /** Whether this run is at the player's ladder frontier, so a championship unlocks
@@ -168,6 +181,7 @@ export type RunAction =
   | { type: 'openLineupBuilder' }
   | { type: 'setLineup'; starters: RosterPlayer[]; bench: RosterPlayer[] }
   | { type: 'cancelLineup' }
+  | { type: 'acceptCoachRec' }
   | { type: 'enterGame' }
   | { type: 'finishReplay' }
   | { type: 'resolveGameResult' }
@@ -206,6 +220,7 @@ function isFrontierRun(home: HomeRoster, difficulty: Difficulty, ladderClass: La
 export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
   const difficulty = homeRoster.selectedDifficulty ?? 'easy';
   const ladderClass = homeRoster.selectedLadderClass ?? 'C';
+  const coachId = getCoach(homeRoster.selectedCoachId).id;
   const mods = difficultyMods(difficulty);
   const map = generateFixedMap({
     seed: deriveSeed(seed, 'map-0'),
@@ -235,6 +250,7 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     wins: 0,
     difficulty,
     ladderClass,
+    coachId,
     mods,
     atFrontier: isFrontierRun(homeRoster, difficulty, ladderClass),
     boosts: [],
@@ -392,21 +408,41 @@ export function steppingInSubs(roster: RunState['roster']): RosterPlayer[] {
 }
 
 /**
- * The player's effective home Team for a game: the dressed five plus bench, with
- * items, abilities, and passive boosts baked in. Shared by the pregame preview and
- * the game sim so both read the exact same lineup.
+ * The player's effective home Team for a given run roster + equipped coach: the
+ * dressed five plus bench with items, abilities, and passive boosts baked in, the
+ * coach's preferred game plan applied, and the coach's conditional system bonus merged
+ * in when the five fits its style. Pure (no RunModel), so the coach recommendation
+ * engine scores candidate rosters through the exact same path the sim will use.
  */
-export function buildHomeTeam(model: RunModel): Team {
-  const dressed = dressedRoster(model.core.roster);
+export function buildCoachedHomeTeam(
+  roster: RunState['roster'],
+  coach: CoachProfile,
+  boosts: PassiveBoost[]
+): Team {
+  const dressed = dressedRoster(roster);
+  const effStarters = effectivePlayers(dressed.starters);
+  const plan = planForCoach(planForRoster(dressed), coach, dressed);
+  const modifier = mergeTeamModifiers([
+    teamModifierFor(dressed.starters, boosts),
+    teamModifierFromPartial(coachSystemModifier(effStarters, plan, coach)),
+  ]);
   return buildTeam(
     'Your Squad',
-    effectivePlayers(dressed.starters),
-    planForRoster(dressed),
+    effStarters,
+    plan,
     palette.homeTeam,
     palette.homeTeamAccent,
     effectivePlayers(dressed.bench),
-    teamModifierFor(dressed.starters, model.boosts)
+    modifier
   );
+}
+
+/**
+ * The player's effective home Team for a game. Shared by the pregame preview and the
+ * game sim so both read the exact same lineup, plan, and coach effects.
+ */
+export function buildHomeTeam(model: RunModel): Team {
+  return buildCoachedHomeTeam(model.core.roster, getCoach(model.coachId), model.boosts);
 }
 
 /**
@@ -481,8 +517,23 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
   switch (node.type) {
     case 'game':
     case 'elite':
-    case 'boss':
-      return { ...model, core, phase: { kind: 'pregame', nodeId } };
+    case 'boss': {
+      // The equipped coach scouts the matchup and may offer a one-click lineup tweak.
+      // It surfaces only when the edge clears the difficulty-scaled bar, so easy runs
+      // stay quiet and hard runs get adjustments often (the opponent ramp dominates).
+      const coach = getCoach(model.coachId);
+      const away = buildOpponentTeam(core, nodeId, model.mods);
+      const nodeType = node.type === 'boss' ? 'boss' : node.type === 'elite' ? 'elite' : 'game';
+      const coachRec =
+        recommendLineup({
+          roster: core.roster,
+          coach,
+          opponent: away,
+          buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts),
+          minDelta: recMinDelta(model.difficulty, nodeType),
+        }) ?? undefined;
+      return { ...model, core, phase: { kind: 'pregame', nodeId, coachRec } };
+    }
     case 'recruit': {
       const owned = new Set(
         [...core.roster.starters, ...core.roster.bench].map((p) => p.player.name)
@@ -623,13 +674,32 @@ export function runReducer(
       if (model.phase.kind !== 'lineup') return model;
       if (!validateLineup(action.starters).ok) return model;
       const roster = { starters: action.starters, bench: action.bench };
-      return { ...model, core: { ...model.core, roster }, phase: model.phase.returnTo };
+      // A manual edit makes any pending coach suggestion stale, so drop it on return.
+      let returnTo = model.phase.returnTo;
+      if (returnTo.kind === 'pregame' && returnTo.coachRec) {
+        returnTo = { ...returnTo, coachRec: undefined };
+      }
+      return { ...model, core: { ...model.core, roster }, phase: returnTo };
     }
 
     case 'cancelLineup':
       return model.phase.kind === 'lineup'
         ? { ...model, phase: model.phase.returnTo }
         : model;
+
+    case 'acceptCoachRec': {
+      // One-click apply of the coach's suggestion: commit its five via the same
+      // validated path as a manual lineup edit, then clear the banner.
+      if (model.phase.kind !== 'pregame' || !model.phase.coachRec) return model;
+      const rec = model.phase.coachRec;
+      if (!validateLineup(rec.starters).ok) return model;
+      const roster = { starters: rec.starters, bench: rec.bench };
+      return {
+        ...model,
+        core: { ...model.core, roster },
+        phase: { ...model.phase, coachRec: undefined },
+      };
+    }
 
     case 'enterGame': {
       if (model.phase.kind !== 'pregame') return model;
@@ -643,6 +713,7 @@ export function runReducer(
         home,
         away,
         seed: deriveSeed(model.core.seed, `game-${nodeId}-${model.forgivenLosses}`),
+        homeRotation: rotationForCoach(getCoach(model.coachId)),
       });
       return {
         ...model,
