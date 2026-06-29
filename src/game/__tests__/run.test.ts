@@ -20,6 +20,7 @@ import {
   buildOpponentTeam,
   steppingInSubs,
   TOTAL_MAPS,
+  MAX_BANISHES,
   type RunModel,
 } from '@/game/run-machine';
 import { generateFixedMap } from '@/game/run-map';
@@ -904,7 +905,7 @@ describe('boosts, economy, and legends', () => {
         { id: 'iron-legs' },
         { id: 'no-easy-buckets' },
       ],
-      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false },
+      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false, drawLabel: 'boost-m0', rerolls: 0 },
     };
     m = runReducer(m, { type: 'draftBoost', offer: { kind: 'new', defId: 'splash-brothers' } })!;
     expect(m.phase.kind).toBe('boostDraft');
@@ -927,7 +928,7 @@ describe('boosts, economy, and legends', () => {
         { id: 'iron-legs' },
         { id: 'no-easy-buckets' },
       ],
-      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false },
+      phase: { kind: 'boostDraft', round: 5, offers: [], pendingFull: false, drawLabel: 'boost-m0', rerolls: 0 },
     };
     m = runReducer(m, { type: 'draftBoost', offer: { kind: 'new', defId: 'splash-brothers' } })!;
     expect(m.phase.kind === 'boostDraft' && m.phase.pendingFull).toBe(true);
@@ -946,6 +947,75 @@ describe('boosts, economy, and legends', () => {
     )!;
     expect(lost.core.rewards.coins).toBeGreaterThanOrEqual(10);
     expect(lost.phase).toEqual({ kind: 'summary', champion: false });
+  });
+
+  const withCoins = (m: RunModel, coins: number): RunModel => ({
+    ...m,
+    core: { ...m.core, rewards: { ...m.core.rewards, coins } },
+  });
+
+  it('rerolls the whole board for an escalating coin cost, deterministically', () => {
+    const base = withCoins(start(), 100);
+    expect(base.phase.kind).toBe('boostDraft');
+    const first = runReducer(base, { type: 'rerollBoosts' })!;
+    expect(first.core.rewards.coins).toBe(95); // 100 - 5
+    expect(first.phase.kind === 'boostDraft' && first.phase.rerolls).toBe(1);
+    const second = runReducer(first, { type: 'rerollBoosts' })!;
+    expect(second.core.rewards.coins).toBe(85); // 95 - 10 (escalating)
+    // Same model rerolled from scratch yields an identical board (deterministic seed).
+    const again = runReducer(base, { type: 'rerollBoosts' })!;
+    const offersOf = (m: RunModel) => (m.phase.kind === 'boostDraft' ? m.phase.offers : null);
+    expect(offersOf(again)).toEqual(offersOf(first));
+  });
+
+  it('refuses a reroll the player cannot afford (no-op)', () => {
+    const broke = withCoins(start(), 3); // below the base cost of 5
+    expect(runReducer(broke, { type: 'rerollBoosts' })).toBe(broke);
+  });
+
+  it('banishes an offered boost, replaces it, and never offers it again', () => {
+    const m = start();
+    if (m.phase.kind !== 'boostDraft') throw new Error('expected boostDraft');
+    const count = m.phase.offers.length;
+    const target = m.phase.offers[0];
+    const after = runReducer(m, { type: 'banishBoost', offer: target })!;
+    expect(after.banishedBoosts).toContain(target.defId);
+    const board = after.phase.kind === 'boostDraft' ? after.phase.offers : [];
+    expect(board).toHaveLength(count);
+    expect(board.some((o) => o.defId === target.defId)).toBe(false);
+    // A later reroll still excludes the banished boost.
+    const rerolled = runReducer(withCoins(after, 100), { type: 'rerollBoosts' })!;
+    const after2 = rerolled.phase.kind === 'boostDraft' ? rerolled.phase.offers : [];
+    expect(after2.some((o) => o.defId === target.defId)).toBe(false);
+  });
+
+  it('caps banishes per run', () => {
+    let m = start();
+    for (let i = 0; i < MAX_BANISHES; i++) {
+      if (m.phase.kind !== 'boostDraft' || m.phase.offers.length === 0) break;
+      m = runReducer(m, { type: 'banishBoost', offer: m.phase.offers[0] })!;
+    }
+    expect(m.banishedBoosts.length).toBe(MAX_BANISHES);
+    // One more banish is a no-op (cap reached).
+    if (m.phase.kind === 'boostDraft' && m.phase.offers.length) {
+      const after = runReducer(m, { type: 'banishBoost', offer: m.phase.offers[0] })!;
+      expect(after.banishedBoosts.length).toBe(MAX_BANISHES);
+    }
+  });
+
+  it('advances pity on a dry board and resets it on an epic+ pick', () => {
+    const base = start();
+    if (base.phase.kind !== 'boostDraft') throw new Error('expected boostDraft');
+    // Force an all-common (dry) board, then skip: the streak ticks up.
+    const dry: RunModel = { ...base, phase: { ...base.phase, offers: [{ kind: 'new', defId: 'splash-brothers' }] } };
+    expect(runReducer(dry, { type: 'skipBoostDraft' })!.boostPity).toBe(1);
+    // Drafting an epic ('lockdown') off a non-dry board resets the streak.
+    const seeded: RunModel = {
+      ...base,
+      boostPity: 3,
+      phase: { kind: 'boostDraft', round: 2, offers: [{ kind: 'new', defId: 'lockdown' }], pendingFull: false, drawLabel: 'boost-m1', rerolls: 0 },
+    };
+    expect(runReducer(seeded, { type: 'draftBoost', offer: { kind: 'new', defId: 'lockdown' } })!.boostPity).toBe(0);
   });
 });
 

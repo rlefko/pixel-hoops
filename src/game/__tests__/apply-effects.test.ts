@@ -3,6 +3,7 @@ import { createRNG } from '@/game/rng';
 import { createPlayer } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
 import { effectivePlayers, teamModifierFor } from '@/game/apply-effects';
+import { ITEM_BY_ID, itemDelta } from '@/game/items';
 
 function rp(overrides: Partial<RosterPlayer> = {}): RosterPlayer {
   const player = createPlayer('Test', 'small-forward', createRNG('p').int);
@@ -86,5 +87,41 @@ describe('teamModifierFor', () => {
     // 'floor-raiser' is a legendary +2 team outside (team aura via extra).
     const mod = teamModifierFor([rp({ equippedAbility: { id: 'floor-raiser' } })], []);
     expect(mod.extra.outside).toBe(2);
+  });
+
+  it('folds a run item conditional hook into the team modifier', () => {
+    // 'momentum-band' is a pure-hook rare item (onResult madeThree -> +3 outside).
+    const mod = teamModifierFor([rp({ item: { defId: 'momentum-band' } })], []);
+    expect(mod.hooks).toContainEqual({ kind: 'onResult', on: 'madeThree', delta: { outside: 3 } });
+    // A pure-hook item bakes no flat stats: its itemDelta is empty (no double-count).
+    expect(itemDelta(ITEM_BY_ID['momentum-band'])).toEqual({});
+  });
+
+  it('folds an equipped gacha ability conditional hook into the team modifier', () => {
+    // 'human-torch' is a pure-hook legendary ability (hotHand outside).
+    const mod = teamModifierFor([rp({ equippedAbility: { id: 'human-torch' } })], []);
+    expect(mod.hooks.some((h) => h.kind === 'hotHand')).toBe(true);
+  });
+
+  it('folds a satisfied set bonus on the player path but not for opponents', () => {
+    // 'Bombs Away' = a splash boost + a shooter item. The shooter item (grip-tape
+    // +1 outside) bakes per-player, so the team modifier's outside is the boost's
+    // +1 plus the set's +3 = +4. Opponents (no counters) skip set resolution.
+    const five = [rp({ item: { defId: 'grip-tape' } }), rp(), rp(), rp(), rp()];
+    const playerMod = teamModifierFor(five, [{ id: 'splash-brothers' }], { wins: 0, mapIndex: 0, forgivenLosses: 0 });
+    expect(playerMod.labels).toContain('Bombs Away');
+    expect(playerMod.extra.outside).toBe(4);
+    const oppMod = teamModifierFor(five, [{ id: 'splash-brothers' }]);
+    expect(oppMod.labels).not.toContain('Bombs Away');
+    expect(oppMod.extra.outside).toBe(1);
+  });
+
+  it('folds a scaling item ramp from the run counters (player path only)', () => {
+    // 'crown-jewel' grows team outside +1 every 2 wins (cap 3). The flat +8 inside
+    // bakes per-player (effectivePlayers), so the team modifier carries only the ramp.
+    const five = [rp({ item: { defId: 'crown-jewel' } })];
+    expect(teamModifierFor(five, []).extra.outside ?? 0).toBe(0); // no counters: no ramp
+    const ramped = teamModifierFor(five, [], { wins: 6, mapIndex: 3, forgivenLosses: 0 });
+    expect(ramped.extra.outside).toBe(3); // floor(6/2) = 3 stacks, capped at 3
   });
 });

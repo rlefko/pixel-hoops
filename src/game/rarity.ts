@@ -41,9 +41,32 @@ const BOSS_WEIGHTS: readonly (readonly [Rarity, number])[] = [
   ['legendary', 5],
 ];
 
-/** Roll an in-run rarity: 74 / 20 / 5 / 1 (common / rare / epic / legendary). */
-export function rollRarity(rng: RNG): Rarity {
-  return rng.weightedPick(IN_RUN_WEIGHTS);
+/** Each dry boost-draft node shifts this much weight into epic AND into legendary. */
+const PITY_PER_STREAK = 3;
+/** A drought stops biasing the roll past this many dry nodes (caps the swing). */
+export const PITY_MAX = 4;
+
+/** Clamp a raw pity streak to the range the roll actually uses. */
+export function pityRarityOffset(streak: number): number {
+  return Math.max(0, Math.min(streak, PITY_MAX));
+}
+
+/**
+ * Roll an in-run rarity: 74 / 20 / 5 / 1 (common / rare / epic / legendary). With a
+ * pity offset (a boost-draft drought), weight shifts out of common into epic and
+ * legendary, so a long dry streak still pays off. At the max offset the epic+ share
+ * rises from ~6% to ~30% (never the norm). Rare stays put; common is floored at 1.
+ */
+export function rollRarity(rng: RNG, pityOffset = 0): Rarity {
+  if (pityOffset <= 0) return rng.weightedPick(IN_RUN_WEIGHTS);
+  const b = pityRarityOffset(pityOffset) * PITY_PER_STREAK;
+  const weights: readonly (readonly [Rarity, number])[] = [
+    ['common', Math.max(1, 74 - 2 * b)],
+    ['rare', 20],
+    ['epic', 5 + b],
+    ['legendary', 1 + b],
+  ];
+  return rng.weightedPick(weights);
 }
 
 /** Roll a boss-drop rarity: 75 / 20 / 5 (rare / epic / legendary), never common. */

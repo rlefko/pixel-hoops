@@ -24,14 +24,18 @@ import {
   MAX_RUN_ROSTER,
 } from './draft';
 import { effectivePlayers, teamModifierFor } from './apply-effects';
-import { MAX_TRAINED_STAT, trainedStat } from './effects';
+import { MAX_TRAINED_STAT, trainedStat, type RunCounters } from './effects';
 import { legendRecruit } from './player-pool';
 import {
   MAX_BOOSTS,
+  BOOST_BY_ID,
+  BOOST_DEFS,
+  boostRerollCost,
   drawBoostOffers,
   type BoostOffer,
   type PassiveBoost,
 } from './boosts';
+import { pityRarityOffset, PITY_MAX } from './rarity';
 import { ITEM_BY_ID, rollDrop, rollBoostStock, type ItemDef } from './items';
 import type { MapNode } from '@/types/run-map';
 import type { RunState } from '@/types/run-map';
@@ -113,6 +117,11 @@ export type RunPhase =
       offers: BoostOffer[];
       pendingFull: boolean;
       forced?: BoostOffer;
+      /** Seed label this node's offers were drawn from, so a reroll derives a fresh
+       * deterministic board (`<drawLabel>-reroll-<n>`). */
+      drawLabel: string;
+      /** Rerolls used at THIS node (resets per node, since the phase is recreated). */
+      rerolls: number;
     }
   // Boost node: grab one free item and assign it (the renamed, coin-free shop).
   | { kind: 'boost'; nodeId: string; stock: ItemDef[] }
@@ -152,6 +161,12 @@ export interface RunModel {
   /** Count of timeouts spent so far, used to vary the replay seed so a retry of the
    * same node is a fresh roll rather than a deterministic repeat of the loss. */
   forgivenLosses: number;
+  /** Boost def ids banished from this run's draft pool (hard-capped, run-scoped). */
+  banishedBoosts: string[];
+  /** Consecutive boost-draft nodes that came up with no epic+ offer. Biases the next
+   * draw toward epic+ (run-scoped pity, capped at PITY_MAX). Separate from the
+   * persistent legendary-PLAYER pity in legend.dryStreak. */
+  boostPity: number;
   /** Active game context, set on enterGame and read in game/postgame. */
   game: {
     opponentName: string;
@@ -179,6 +194,8 @@ export type RunAction =
   | { type: 'draftBoost'; offer: BoostOffer }
   | { type: 'dropBoostForNew'; dropIndex: number }
   | { type: 'skipBoostDraft' }
+  | { type: 'rerollBoosts' }
+  | { type: 'banishBoost'; offer: BoostOffer }
   | { type: 'takeBoostItem'; defId: string; playerIndex: number }
   | { type: 'leaveBoost' }
   | { type: 'takeDrop'; playerIndex: number }
@@ -243,9 +260,15 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
     forgivenLosses: 0,
+    banishedBoosts: [],
+    boostPity: 0,
     game: null,
   };
 }
+
+/** Run-scoped banish cap: one per map across a 7-map run is generous but bounded,
+ * so the pool can never be narrowed into a guaranteed build. */
+export const MAX_BANISHES = 6;
 
 // --- Coin payout ---
 
@@ -398,6 +421,13 @@ export function steppingInSubs(roster: RunState['roster']): RosterPlayer[] {
  */
 export function buildHomeTeam(model: RunModel): Team {
   const dressed = dressedRoster(model.core.roster);
+  // Run counters drive snowball boosts/items; resolved into concrete magnitudes
+  // here (build time), so the sim stays a pure function of the serialized Team.
+  const counters: RunCounters = {
+    wins: model.wins,
+    mapIndex: model.core.currentMapIndex,
+    forgivenLosses: model.forgivenLosses,
+  };
   return buildTeam(
     'Your Squad',
     effectivePlayers(dressed.starters),
@@ -405,7 +435,7 @@ export function buildHomeTeam(model: RunModel): Team {
     palette.homeTeam,
     palette.homeTeamAccent,
     effectivePlayers(dressed.bench),
-    teamModifierFor(dressed.starters, model.boosts)
+    teamModifierFor(dressed.starters, model.boosts, counters)
   );
 }
 
@@ -539,9 +569,20 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
   }
 }
 
-/** After a boost draft resolves, show the freshly-opened map. */
-function afterBoostDraft(model: RunModel): RunModel {
-  return { ...model, phase: { kind: 'map' } };
+/** A boost board is "dry" if it offered no epic-or-better boost. */
+function boardWasDry(offers: readonly BoostOffer[]): boolean {
+  return !offers.some((o) => {
+    const r = BOOST_BY_ID[o.defId]?.rarity;
+    return r === 'epic' || r === 'legendary';
+  });
+}
+
+/** After a boost draft resolves (draft/drop/skip), advance the pity streak when the
+ * board the player saw was dry (capped) or reset it when it was not, then open the
+ * map. The streak biases the NEXT node's draw toward epic+. */
+function afterBoostDraft(model: RunModel, offers: readonly BoostOffer[]): RunModel {
+  const boostPity = boardWasDry(offers) ? Math.min(model.boostPity + 1, PITY_MAX) : 0;
+  return { ...model, boostPity, phase: { kind: 'map' } };
 }
 
 /** Clear a boss: build the next map, reset position, and open its boost draft. */
@@ -555,16 +596,18 @@ function advanceToNextMap(model: RunModel): RunModel {
   });
   const core = { ...model.core, map, currentMapIndex: nextIndex, currentNodeId: null };
   const round = nextIndex + 1;
+  const drawLabel = `boost-m${nextIndex}`;
   const offers = drawBoostOffers(
     model.boosts,
-    createRNG(deriveSeed(model.core.seed, `boost-m${nextIndex}`)),
-    model.mods.boostOfferCount
+    createRNG(deriveSeed(model.core.seed, drawLabel)),
+    model.mods.boostOfferCount,
+    { banished: new Set(model.banishedBoosts), pityOffset: pityRarityOffset(model.boostPity) }
   );
   return {
     ...model,
     core,
     game: null,
-    phase: { kind: 'boostDraft', round, offers, pendingFull: false },
+    phase: { kind: 'boostDraft', round, offers, pendingFull: false, drawLabel, rerolls: 0 },
   };
 }
 
@@ -595,15 +638,17 @@ export function runReducer(
       // Starters arrive already slot-ordered (index 0 = PG ... 4 = C) from the
       // loadout, so the run starts correctly positioned. No OVR re-sort.
       const roster = { starters, bench };
+      const drawLabel = 'boost-m0';
       const offers = drawBoostOffers(
         [],
-        createRNG(deriveSeed(model.core.seed, 'boost-m0')),
-        model.mods.boostOfferCount
+        createRNG(deriveSeed(model.core.seed, drawLabel)),
+        model.mods.boostOfferCount,
+        { banished: new Set(model.banishedBoosts), pityOffset: pityRarityOffset(model.boostPity) }
       );
       return {
         ...model,
         core: { ...model.core, roster },
-        phase: { kind: 'boostDraft', round: 1, offers, pendingFull: false },
+        phase: { kind: 'boostDraft', round: 1, offers, pendingFull: false, drawLabel, rerolls: 0 },
       };
     }
 
@@ -795,23 +840,73 @@ export function runReducer(
       const offer = action.offer;
       if (model.boosts.length < MAX_BOOSTS) {
         const boosts = [...model.boosts, { id: offer.defId }];
-        return afterBoostDraft({ ...model, boosts });
+        return afterBoostDraft({ ...model, boosts }, phase.offers);
       }
       return { ...model, phase: { ...phase, pendingFull: true, forced: offer } };
     }
 
     case 'dropBoostForNew': {
       if (model.phase.kind !== 'boostDraft') return model;
-      const forced = model.phase.forced;
+      const phase = model.phase;
+      const forced = phase.forced;
       if (!forced || forced.kind !== 'new') return model;
       const boosts = model.boosts.filter((_, i) => i !== action.dropIndex);
       boosts.push({ id: forced.defId });
-      return afterBoostDraft({ ...model, boosts });
+      return afterBoostDraft({ ...model, boosts }, phase.offers);
     }
 
     case 'skipBoostDraft': {
       if (model.phase.kind !== 'boostDraft') return model;
-      return afterBoostDraft(model);
+      return afterBoostDraft(model, model.phase.offers);
+    }
+
+    case 'rerollBoosts': {
+      // Whole-board reroll: costs run coins (escalating per node), keeps the same
+      // banish set and pity, derives a fresh deterministic board. No-op if it cannot
+      // be afforded or while resolving a full-boosts drop.
+      if (model.phase.kind !== 'boostDraft' || model.phase.pendingFull) return model;
+      const phase = model.phase;
+      const cost = boostRerollCost(phase.rerolls);
+      if (model.core.rewards.coins < cost) return model;
+      const offers = drawBoostOffers(
+        model.boosts,
+        createRNG(deriveSeed(model.core.seed, `${phase.drawLabel}-reroll-${phase.rerolls + 1}`)),
+        model.mods.boostOfferCount,
+        { banished: new Set(model.banishedBoosts), pityOffset: pityRarityOffset(model.boostPity) }
+      );
+      const rewards = { ...model.core.rewards, coins: model.core.rewards.coins - cost };
+      return {
+        ...model,
+        core: { ...model.core, rewards },
+        phase: { ...phase, offers, rerolls: phase.rerolls + 1 },
+      };
+    }
+
+    case 'banishBoost': {
+      // Remove an offered boost from this run's pool (free, hard-capped) and draw a
+      // single distinct replacement so the board stays at offerCount.
+      if (model.phase.kind !== 'boostDraft' || model.phase.pendingFull) return model;
+      const phase = model.phase;
+      const { defId } = action.offer;
+      if (model.banishedBoosts.length >= MAX_BANISHES) return model;
+      if (model.banishedBoosts.includes(defId)) return model;
+      if (!phase.offers.some((o) => o.defId === defId)) return model;
+      const banished = [...model.banishedBoosts, defId];
+      // Pool-floor guard: never banish below the offer count (cannot bite with the
+      // shipped caps, but keeps the invariant explicit and future-proof).
+      if (BOOST_DEFS.length - model.boosts.length - banished.length < model.mods.boostOfferCount) {
+        return model;
+      }
+      const survivors = phase.offers.filter((o) => o.defId !== defId);
+      // Pass the surviving offers as "owned" so the replacement is distinct from them.
+      const replacement = drawBoostOffers(
+        [...model.boosts, ...survivors.map((o) => ({ id: o.defId }))],
+        createRNG(deriveSeed(model.core.seed, `${phase.drawLabel}-banish-${banished.length}`)),
+        1,
+        { banished: new Set(banished), pityOffset: pityRarityOffset(model.boostPity) }
+      )[0];
+      const offers = replacement ? [...survivors, replacement] : survivors;
+      return { ...model, banishedBoosts: banished, phase: { ...phase, offers } };
     }
 
     case 'takeBoostItem': {

@@ -2,20 +2,18 @@ import { describe, it, expect } from 'vitest';
 import {
   GACHA_ABILITIES,
   GACHA_MACHINES,
+  type GachaAbility,
   getGachaAbility,
   pullMachine,
 } from '@/game/abilities-gacha';
 import { RARITY_NET, weightedNet, type Rarity } from '@/game/rarity';
 import { createRNG } from '@/game/rng';
-import type { PlayerStats } from '@/types/player';
+import { hookStatKeys, isRealStatKey } from './hook-keys';
 
-const STAT_KEYS = new Set<keyof PlayerStats>([
-  'inside', 'outside', 'playmaking', 'perimeterD', 'interiorD',
-  'athleticism', 'iq', 'clutch', 'stamina', 'durability',
-]);
+const isHookAbility = (a: GachaAbility): boolean => (a.hooks?.length ?? 0) > 0;
 
 describe('gacha ability budget', () => {
-  it('every ability spends exactly its rarity net budget (team deltas count x3)', () => {
+  it('every flat ability nets its rarity budget; hook abilities spend 0..budget (x3 team)', () => {
     for (const a of GACHA_ABILITIES) {
       // Team effects are expressed only via teamAura.extra so the x3 accounting is
       // exact; the abstract bonuses are reserved for legend signatures.
@@ -23,7 +21,13 @@ describe('gacha ability budget', () => {
       expect(a.teamAura?.defenseBonus ?? 0).toBe(0);
       expect(a.teamAura?.paceBonus ?? 0).toBe(0);
       expect(a.teamAura?.clutchBonus ?? 0).toBe(0);
-      expect(weightedNet(a.selfDelta, a.teamAura?.extra)).toBe(RARITY_NET[a.rarity]);
+      const net = weightedNet(a.selfDelta, a.teamAura?.extra);
+      if (isHookAbility(a)) {
+        expect(net).toBeGreaterThanOrEqual(0);
+        expect(net).toBeLessThanOrEqual(RARITY_NET[a.rarity]);
+      } else {
+        expect(net).toBe(RARITY_NET[a.rarity]);
+      }
     }
   });
 
@@ -35,10 +39,13 @@ describe('gacha ability budget', () => {
     expect(count('legendary')).toBeGreaterThanOrEqual(6);
   });
 
-  it('only references real stat keys', () => {
+  it('only references real stat keys (self, team, and hooks)', () => {
     for (const a of GACHA_ABILITIES) {
-      for (const k of Object.keys(a.selfDelta ?? {})) expect(STAT_KEYS.has(k as keyof PlayerStats)).toBe(true);
-      for (const k of Object.keys(a.teamAura?.extra ?? {})) expect(STAT_KEYS.has(k as keyof PlayerStats)).toBe(true);
+      for (const k of Object.keys(a.selfDelta ?? {})) expect(isRealStatKey(k)).toBe(true);
+      for (const k of Object.keys(a.teamAura?.extra ?? {})) expect(isRealStatKey(k)).toBe(true);
+      for (const h of a.hooks ?? []) {
+        for (const k of hookStatKeys(h)) expect(isRealStatKey(k)).toBe(true);
+      }
     }
   });
 

@@ -1,4 +1,4 @@
-import type { StatDelta } from './effects';
+import type { ScalingSpec, SimHook, StatDelta } from './effects';
 import { addStatDelta } from './effects';
 import { type Rarity, rollBossRarity, rollRarity } from './rarity';
 import type { RNG } from './rng';
@@ -22,6 +22,21 @@ export interface ItemDef {
   effect: StatDelta;
   /** Optional off-stat downside (negative deltas) applied to the same player. */
   downside?: StatDelta;
+  /**
+   * Optional conditional rule-benders (comebacks, hot-hand streaks, momentum
+   * procs). Folded into the team modifier while this player STARTS (matching the
+   * legend-signature hook contract: team-wide for the game, frozen at tip-off),
+   * NOT into the flat per-player bake. Hooks are sized by expected value, so a
+   * hook-carrying item may spend less than its full rarity net on flat stats (the
+   * remainder is "paid" by the conditional effect). See src/game/effects.ts.
+   */
+  hooks?: SimHook[];
+  /**
+   * Optional snowball. The flat `effect` still bakes per-player as usual; this
+   * ramp rides the TEAM modifier instead (resolved in teamModifierFor from the run
+   * counters), so it never compounds through the per-player bake. Budget-exempt.
+   */
+  scaling?: ScalingSpec;
 }
 
 export const ITEM_DEFS: readonly ItemDef[] = [
@@ -34,6 +49,12 @@ export const ITEM_DEFS: readonly ItemDef[] = [
   { id: 'compression-sleeve', name: 'Compression Sleeve', rarity: 'common', blurb: '+2 inside, but -1 playmaking', effect: { inside: 2 }, downside: { playmaking: -1 } },
   { id: 'ankle-braces', name: 'Ankle Braces', rarity: 'common', blurb: '+2 perimeter D, but -1 athleticism', effect: { perimeterD: 2 }, downside: { athleticism: -1 } },
   { id: 'shooting-gloves', name: 'Shooting Gloves', rarity: 'common', blurb: '+2 outside, but -1 perimeter D', effect: { outside: 2 }, downside: { perimeterD: -1 } },
+  { id: 'arm-sleeve-pair', name: 'Arm Sleeve Pair', rarity: 'common', blurb: '+1 stamina', effect: { stamina: 1 } },
+  { id: 'chalk-bag', name: 'Chalk Bag', rarity: 'common', blurb: '+1 playmaking', effect: { playmaking: 1 } },
+  { id: 'mouthguard', name: 'Mouthguard', rarity: 'common', blurb: '+1 strength', effect: { strength: 1 } },
+  { id: 'quick-laces', name: 'Quick Laces', rarity: 'common', blurb: '+2 athleticism, but -1 strength', effect: { athleticism: 2 }, downside: { strength: -1 } },
+  { id: 'palm-grip', name: 'Palm Grip', rarity: 'common', blurb: '+2 inside, but -1 outside', effect: { inside: 2 }, downside: { outside: -1 } },
+  { id: 'film-tablet', name: 'Film Tablet', rarity: 'common', blurb: '+2 IQ, but -1 athleticism', effect: { iq: 2 }, downside: { athleticism: -1 } },
 
   // --- Rare (net +2): a sharper notch, some spiky specialists ---
   { id: 'shooting-sleeve', name: 'Shooting Sleeve', rarity: 'rare', blurb: '+2 outside', effect: { outside: 2 } },
@@ -44,6 +65,9 @@ export const ITEM_DEFS: readonly ItemDef[] = [
   { id: 'power-insoles', name: 'Power Insoles', rarity: 'rare', blurb: '+2 inside, +1 athleticism, but -1 outside', effect: { inside: 2, athleticism: 1 }, downside: { outside: -1 } },
   { id: 'court-vision-visor', name: 'Court Vision Visor', rarity: 'rare', blurb: '+2 IQ, +1 playmaking, but -1 clutch', effect: { iq: 2, playmaking: 1 }, downside: { clutch: -1 } },
   { id: 'clutch-charm', name: 'Clutch Charm', rarity: 'rare', blurb: '+3 clutch, but -1 IQ', effect: { clutch: 3 }, downside: { iq: -1 } },
+  { id: 'corner-specialist-grips', name: 'Corner Specialist Grips', rarity: 'rare', blurb: '+3 outside, but -1 athleticism', effect: { outside: 3 }, downside: { athleticism: -1 } },
+  { id: 'box-out-pads', name: 'Box-Out Pads', rarity: 'rare', blurb: '+3 rebounding, but -1 outside', effect: { rebounding: 3 }, downside: { outside: -1 } },
+  { id: 'pickpocket-tape', name: 'Pickpocket Tape', rarity: 'rare', blurb: '+3 stealing, but -1 inside', effect: { stealing: 3 }, downside: { inside: -1 } },
 
   // --- Epic (net +3): build-shaping gear ---
   { id: 'deadeye-scope', name: 'Deadeye Scope', rarity: 'epic', blurb: '+3 outside', effect: { outside: 3 } },
@@ -52,6 +76,8 @@ export const ITEM_DEFS: readonly ItemDef[] = [
   { id: 'blitz-boots', name: 'Blitz Boots', rarity: 'epic', blurb: '+4 athleticism, +1 inside, but -2 interior D', effect: { athleticism: 4, inside: 1 }, downside: { interiorD: -2 } },
   { id: 'marksman-gloves', name: 'Marksman Gloves', rarity: 'epic', blurb: '+5 outside, but -2 perimeter D', effect: { outside: 5 }, downside: { perimeterD: -2 } },
   { id: 'two-way-harness', name: 'Two-Way Harness', rarity: 'epic', blurb: '+2 perimeter D, +2 interior D, but -1 outside', effect: { perimeterD: 2, interiorD: 2 }, downside: { outside: -1 } },
+  { id: 'swatter-gauntlets', name: 'Swatter Gauntlets', rarity: 'epic', blurb: '+4 blocking, +1 interior D, but -2 athleticism', effect: { blocking: 4, interiorD: 1 }, downside: { athleticism: -2 } },
+  { id: 'triple-threat-rig', name: 'Triple-Threat Rig', rarity: 'epic', blurb: '+2 inside, +2 outside, but -1 perimeter D', effect: { inside: 2, outside: 2 }, downside: { perimeterD: -1 } },
 
   // --- Legendary (net +5): chase relics, real upside for a real cost ---
   { id: 'heavy-hitter-vest', name: 'Heavy Hitter Vest', rarity: 'legendary', blurb: '+8 inside, but -3 athleticism', effect: { inside: 8 }, downside: { athleticism: -3 } },
@@ -59,6 +85,22 @@ export const ITEM_DEFS: readonly ItemDef[] = [
   { id: 'iron-man-brace', name: 'Iron Man Brace', rarity: 'legendary', blurb: '+6 interior D, +3 inside, but -4 stamina', effect: { interiorD: 6, inside: 3 }, downside: { stamina: -4 } },
   { id: 'mvp-mouthpiece', name: 'MVP Mouthpiece', rarity: 'legendary', blurb: '+3 outside, +2 inside, +1 playmaking, but -1 perimeter D', effect: { outside: 3, inside: 2, playmaking: 1 }, downside: { perimeterD: -1 } },
   { id: 'cold-blooded-cuff', name: 'Cold-Blooded Cuff', rarity: 'legendary', blurb: '+5 clutch, +2 outside, but -2 IQ', effect: { clutch: 5, outside: 2 }, downside: { iq: -2 } },
+  { id: 'bully-big-rig', name: 'Bully Big Rig', rarity: 'legendary', blurb: '+9 inside, but -4 athleticism', effect: { inside: 9 }, downside: { athleticism: -4 } },
+
+  // --- Conditional (hook) items: the effect is a rule-bender, sized by feel and
+  // budget-exempt. Most are pure-hook (no flat stats); a couple pair a small flat
+  // bonus with their trigger. These are the "spicy" build-definers. ---
+  { id: 'momentum-band', name: 'Momentum Band', rarity: 'rare', blurb: 'After a made three, +3 outside next possession', effect: {}, hooks: [{ kind: 'onResult', on: 'madeThree', delta: { outside: 3 } }] },
+  { id: 'comeback-kid-cuff', name: 'Comeback Kid', rarity: 'rare', blurb: 'Down 8 or more: +3 outside', effect: {}, hooks: [{ kind: 'whenTrailing', marginBehind: 8, delta: { outside: 3 } }] },
+  { id: 'heat-check-visor', name: 'Heat-Check Visor', rarity: 'epic', blurb: 'Each make this quarter heats you up, to +4 outside', effect: {}, hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 4, halfLife: 3, reset: 'quarter' }] },
+  { id: 'closer-mentality', name: 'Closer Mentality', rarity: 'epic', blurb: '+1 clutch, and +3 more clutch when ahead late', effect: { clutch: 1 }, hooks: [{ kind: 'whenLeading', marginAhead: 6, delta: { clutch: 3 } }] },
+  { id: 'furious-comeback-vest', name: 'Furious Comeback', rarity: 'legendary', blurb: 'Down 3 or more: +6 inside, +6 outside, +4 clutch', effect: {}, hooks: [{ kind: 'whenTrailing', marginBehind: 3, delta: { inside: 6, outside: 6, clutch: 4 } }] },
+  { id: 'supernova-goggles', name: 'Supernova', rarity: 'legendary', blurb: 'Limitless heat: each make adds up to +7 outside', effect: {}, hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 7, halfLife: 2, reset: 'quarter' }] },
+
+  // --- Scaling (snowball) item: a flat chase relic whose bearer's whole team
+  // grows stronger every win. The flat stats keep the legendary budget; the team
+  // ramp is budget-exempt and capped. ---
+  { id: 'crown-jewel', name: 'Crown Jewel', rarity: 'legendary', blurb: '+8 inside, -3 athleticism; the team gains +1 outside every 2 wins', effect: { inside: 8 }, downside: { athleticism: -3 }, scaling: { per: 'win', every: 2, perStack: { extra: { outside: 1 } }, maxStacks: 3 } },
 ];
 
 export const ITEM_BY_ID: Record<string, ItemDef> = Object.fromEntries(

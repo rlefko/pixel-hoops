@@ -9,7 +9,7 @@ import { generateFixedMap, getReachableNodes } from '@/game/run-map';
 import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
 import { POSITIONS, POSITION_ARCHETYPE, type Position, type Roster, type RosterPlayer } from '@/types/roster';
 import { createPlayer, STAT_ELITE_MAX, type PlayerStats } from '@/types/player';
-import { teamModifierFromPartial } from '@/game/effects';
+import { teamModifierFromPartial, type SimHook } from '@/game/effects';
 import type { Team } from '@/types/team';
 
 /** Build N procedural bench players (cycling positions) for rotation tests. */
@@ -356,6 +356,11 @@ describe('reward stacking guard', () => {
     hooks: [
       { kind: 'quarterDelta', quarter: 4, delta: { outside: 8, clutch: 8 } },
       { kind: 'quarterDelta', quarter: 4, delta: { inside: 8 } },
+      // The new unclamped event hooks must also fail to break the make-prob clamp.
+      { kind: 'hotHand', stat: 'outside', maxAdd: 10, halfLife: 2, reset: 'quarter' },
+      { kind: 'whenTrailing', marginBehind: 3, delta: { inside: 10, outside: 10, clutch: 6 } },
+      { kind: 'whenLeading', marginAhead: 3, delta: { inside: 8, outside: 8 } },
+      { kind: 'onResult', on: 'madeThree', delta: { outside: 10 } },
     ],
   });
 
@@ -383,6 +388,75 @@ describe('reward stacking guard', () => {
     const a = simulateGame({ home, away, seed: 'stack-det' });
     const b = simulateGame({ home, away, seed: 'stack-det' });
     expect(a.events).toEqual(b.events);
+  });
+});
+
+describe('conditional hooks', () => {
+  const away = teamFromRoster('HookOpp', buildStartingRoster(createRNG('hook-opp')));
+  const hookTeam = (hook: SimHook): Team =>
+    buildTeam(
+      'Hooked',
+      buildStartingRoster(createRNG('hook-home')).starters,
+      DEFAULT_GAME_PLAN,
+      '#fff',
+      '#000',
+      [],
+      teamModifierFromPartial({ hooks: [hook] })
+    );
+
+  const HOOKS: SimHook[] = [
+    { kind: 'whenTrailing', marginBehind: 6, delta: { outside: 5 } },
+    { kind: 'whenLeading', marginAhead: 6, delta: { clutch: 4 } },
+    { kind: 'hotHand', stat: 'outside', maxAdd: 6, halfLife: 2, reset: 'quarter' },
+    { kind: 'onResult', on: 'madeThree', delta: { outside: 5 } },
+  ];
+
+  it('each new hook kind keeps the sim deterministic', () => {
+    for (const h of HOOKS) {
+      const home = hookTeam(h);
+      const a = simulateGame({ home, away, seed: `hook-${h.kind}` });
+      const b = simulateGame({ home, away, seed: `hook-${h.kind}` });
+      expect(a.events).toEqual(b.events);
+    }
+  });
+
+  it('a comeback (whenTrailing) hook narrows a weak team average deficit', () => {
+    // Weak home vs a much stronger away: home trails most of the game, so a strong
+    // whenTrailing comeback engine fires often and should shrink the deficit.
+    const weakStarters = buildStartingRoster(createRNG('weak-home')).starters;
+    const strong = teamFromRoster('Strong', generateOpponentTeam(16, createRNG('strong-away')).roster);
+    const plain = buildTeam('Plain', weakStarters, DEFAULT_GAME_PLAN, '#fff', '#000');
+    const comeback = buildTeam(
+      'Comeback',
+      weakStarters,
+      DEFAULT_GAME_PLAN,
+      '#fff',
+      '#000',
+      [],
+      teamModifierFromPartial({
+        hooks: [{ kind: 'whenTrailing', marginBehind: 4, delta: { inside: 6, outside: 6, clutch: 4 } }],
+      })
+    );
+    const avgDeficit = (home: Team): number => {
+      let total = 0;
+      const games = 40;
+      for (let s = 0; s < games; s++) {
+        const r = simulateGame({ home, away: strong, seed: `cb-${s}` });
+        total += r.finalAway - r.finalHome;
+      }
+      return total / games;
+    };
+    expect(avgDeficit(comeback)).toBeLessThan(avgDeficit(plain));
+  });
+
+  it('the hot-hand ramp asymptotes below its ceiling (never a sure thing)', () => {
+    const maxAdd = 8;
+    const halfLife = 2;
+    const ramp = (n: number): number => (maxAdd * n) / (n + halfLife);
+    expect(ramp(0)).toBe(0); // cold start: no bonus
+    for (const n of [1, 3, 10, 100, 1000]) {
+      expect(ramp(n)).toBeLessThan(maxAdd);
+    }
   });
 });
 

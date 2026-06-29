@@ -385,6 +385,13 @@ interface SideState {
   /** The current five's shot-diet profiles, parallel to {@link onCourt} by slot
    * index (so the scorer's tendency biases their action). Recomputed on each sub. */
   tendencies: TendencyProfile[];
+  /** Made field goals by this side in the current quarter (drives the `hotHand`
+   * streak hook). Reset to 0 at every quarter boundary. */
+  quarterMakes: number;
+  /** What this side's PREVIOUS offensive possession produced, for the `onResult`
+   * momentum proc. Reset to 'none' at every quarter boundary, then overwritten
+   * after each of this side's offensive possessions. */
+  lastResult: 'madeThree' | 'none';
 }
 
 function newBoxLine(rp: RosterPlayer, slot: Position, starter: boolean): BoxLine {
@@ -436,6 +443,8 @@ function initSide(team: Team, form: number): SideState {
     form,
     counterDelta: {},
     tendencies: starters.map((s) => tendencyFor(s.rp)),
+    quarterMakes: 0,
+    lastResult: 'none',
   };
 }
 
@@ -483,7 +492,8 @@ function anyOnCourtTired(side: SideState, energyBelow: number): boolean {
 function applyHooks(
   offense: SideState,
   defense: SideState,
-  quarter: number
+  quarter: number,
+  margin: number
 ): { off: TeamStats; def: TeamStats } {
   const offHooks = offense.team.modifier.hooks;
   const defHooks = defense.team.modifier.hooks;
@@ -508,6 +518,25 @@ function applyHooks(
         if (h.when === 'offense') {
           const doubled = h.unlessDoubled && def.interiorD >= DOUBLE_INTERIOR_THRESHOLD;
           if (!doubled) def[h.stat] = def[h.stat] * h.mult;
+        }
+        break;
+      case 'whenTrailing':
+        // Owner trails by >= marginBehind going into this possession.
+        if (margin <= -h.marginBehind) addDeltaToStats(off, h.delta);
+        break;
+      case 'whenLeading':
+        if (margin >= h.marginAhead) addDeltaToStats(off, h.delta);
+        break;
+      case 'hotHand': {
+        // Hyperbolic ramp on makes so far this quarter: asymptotes to maxAdd but
+        // never reaches it, so a hot quarter can never make a shot a sure thing.
+        const n = offense.quarterMakes;
+        off[h.stat] = off[h.stat] + (h.maxAdd * n) / (n + h.halfLife);
+        break;
+      }
+      case 'onResult':
+        if (h.on === 'madeThree' && offense.lastResult === 'madeThree') {
+          addDeltaToStats(off, h.delta);
         }
         break;
     }
@@ -742,9 +771,11 @@ export function simulateGame(config: SimConfig): SimResult {
     const baseWeights = actionWeights(offense.aggregate, focus, posture);
     const action = rng.weightedPick(blendTendency(baseWeights, offense.tendencies[slotIndex]));
 
-    // Conditional ability/boost hooks (Q4 surges, post rule-benders, depth) bend
-    // the effective lines for this possession only. A no-hook game is unchanged.
-    const { off: offStats, def: defStats } = applyHooks(offense, defense, quarter);
+    // Conditional ability/boost hooks (Q4 surges, post rule-benders, depth,
+    // comebacks, hot-hand streaks) bend the effective lines for this possession
+    // only, reading the margin and this side's running streak. A no-hook game is
+    // unchanged.
+    const { off: offStats, def: defStats } = applyHooks(offense, defense, quarter, margin);
 
     // L1 ability half: blend the scorer's OWN offensive rating with the team
     // aggregate, so a great shooter taking the shot reads better than the unit and
@@ -815,6 +846,16 @@ export function simulateGame(config: SimConfig): SimResult {
     if (offenseSide === 'home') homeScore += points;
     else awayScore += points;
 
+    // Streak state for this side's NEXT possession (the hooks above already read
+    // the pre-possession state). A make grows the hot-hand count; only a made
+    // three carries momentum for the onResult proc.
+    if (result === 'score' || result === 'and-one') {
+      offense.quarterMakes += 1;
+      offense.lastResult = action === 'three' ? 'madeThree' : 'none';
+    } else {
+      offense.lastResult = 'none';
+    }
+
     // Box accumulation (fixed draw order: assist, then rebound/steal/block).
     if (result === 'score' || result === 'and-one') {
       scorer.box.fga += 1;
@@ -882,6 +923,13 @@ export function simulateGame(config: SimConfig): SimResult {
   const gamePoss = gameTempo(config.home, config.away);
 
   for (let quarter = 1; quarter <= TOTAL_QUARTERS; quarter++) {
+    // Fresh quarter: clear each side's hot-hand count and carried momentum so
+    // streak hooks start cold every period (a clean, deterministic boundary).
+    homeState.quarterMakes = 0;
+    awayState.quarterMakes = 0;
+    homeState.lastResult = 'none';
+    awayState.lastResult = 'none';
+
     // Dormant crunch-time hook: only fires if a caller supplies one.
     if (quarter === TOTAL_QUARTERS && config.decisionHook) {
       const decision = config.decisionHook({

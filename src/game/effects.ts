@@ -27,7 +27,10 @@ export type StatDelta = Partial<Record<keyof PlayerStats, number>>;
 
 /**
  * Conditional, sim-time rule-benders. Evaluated per possession in
- * simulation.ts. Kept intentionally tiny.
+ * simulation.ts. Kept intentionally tiny. All are sized by their average
+ * expected value per game (a conditional hook fires only sometimes), so they sit
+ * OUTSIDE the static rarity-net budget: a rare-tier hook targets roughly the same
+ * per-game uplift as a rare flat effect (~+2), not a raw +2 on every possession.
  *  - quarterDelta: add deltas to the owner team's effective line in a quarter
  *    (Jordan "Flu Game" +3 in Q4; the "Ice Water" boost). Applies to the team's
  *    stats whether it is on offense or defense that possession.
@@ -39,6 +42,18 @@ export type StatDelta = Partial<Record<keyof PlayerStats, number>>;
  *    your interior D); 'defense' fires while the owner defends (a rim wall caps
  *    your finishing). `unlessDoubled` cancels it when the defending five's
  *    interior D aggregate is high (you committed a second big).
+ *  - whenTrailing / whenLeading: a margin-keyed swing. While the owner trails by
+ *    >= marginBehind (resp. leads by >= marginAhead) going into a possession, add
+ *    `delta` to its line. Comeback engines and front-runners; self-limiting (the
+ *    bonus switches off once the gap closes). Offense-side concept (no-op on D).
+ *  - hotHand: a streak ramp. Each made field goal by the owner THIS quarter adds
+ *    `maxAdd * n/(n + halfLife)` to `stat` (n = makes so far this quarter). The
+ *    hyperbolic shape means the bonus asymptotes toward maxAdd and NEVER reaches
+ *    it, so even a scorching quarter cannot push a make rate to certainty.
+ *    Resets each quarter. Offense-side concept (no-op on D).
+ *  - onResult: a one-possession momentum proc. If the owner's PREVIOUS offensive
+ *    possession ended in `on` (a made three), add `delta` to this possession,
+ *    then it decays. A streak primer that compounds with hotHand. Offense-side.
  */
 export type SimHook =
   | { kind: 'quarterDelta'; quarter: number; delta: StatDelta }
@@ -50,7 +65,11 @@ export type SimHook =
       mult: number;
       when: 'offense' | 'defense';
       unlessDoubled?: boolean;
-    };
+    }
+  | { kind: 'whenTrailing'; marginBehind: number; delta: StatDelta }
+  | { kind: 'whenLeading'; marginAhead: number; delta: StatDelta }
+  | { kind: 'hotHand'; stat: keyof PlayerStats; maxAdd: number; halfLife: number; reset: 'quarter' }
+  | { kind: 'onResult'; on: 'madeThree'; delta: StatDelta };
 
 /**
  * Team-wide additive bonuses from passive boosts and legend team-auras. The
@@ -200,4 +219,51 @@ export function mergeTeamModifiers(mods: readonly TeamModifier[]): TeamModifier 
     if (m.labels.length) out.labels = out.labels.concat(m.labels);
   }
   return out;
+}
+
+/**
+ * Run counters a scaling effect reads at TEAM-BUILD time (a pure snapshot of the
+ * RunModel). Scaling is resolved into concrete magnitudes here, before the sim,
+ * so the sim never reads run state and replays stay deterministic.
+ */
+export interface RunCounters {
+  /** Games won so far this run (RunModel.wins). */
+  wins: number;
+  /** Current map index, 0-based (RunModel.core.currentMapIndex). */
+  mapIndex: number;
+  /** Timeouts spent this run (RunModel.forgivenLosses); breaks a greedy chain. */
+  forgivenLosses: number;
+}
+
+/**
+ * A snowball descriptor on a boost or item. The def's static effect is the floor;
+ * `perStack` (a team-modifier fragment) is added once per stack on top, capped at
+ * `maxStacks`. `every` is the counter units per stack (default 1), so "+1 every 2
+ * wins" is `{ per: 'win', every: 2, perStack: ..., maxStacks: N }`. `greedy` zeroes
+ * ALL stacks the moment a timeout is spent (a Green-Joker risk/reward: a clean run
+ * keeps it, one forgiven loss wipes it for the rest of the run). Sized so the base
+ * plus full ramp lands near twice the rarity's static net by late game; front-loaded
+ * weak (0 stacks at game 1). Budget-exempt, like conditional hooks.
+ */
+export interface ScalingSpec {
+  per: 'win' | 'map';
+  every?: number;
+  perStack: Partial<TeamModifier>;
+  maxStacks: number;
+  greedy?: boolean;
+}
+
+/** Stack count for a spec given the run counters (pure, deterministic). */
+export function scalingStacks(spec: ScalingSpec, c: RunCounters): number {
+  if (spec.greedy && c.forgivenLosses > 0) return 0;
+  const raw = spec.per === 'win' ? c.wins : c.mapIndex;
+  const stacks = Math.floor(raw / (spec.every ?? 1));
+  return Math.max(0, Math.min(spec.maxStacks, stacks));
+}
+
+/** The concrete TeamModifier a scaling spec contributes for these counters. */
+export function resolveScaling(spec: ScalingSpec, c: RunCounters): TeamModifier {
+  const stacks = scalingStacks(spec, c);
+  if (stacks === 0) return teamModifierFromPartial({});
+  return scaleTeamModifier(spec.perStack, stacks);
 }

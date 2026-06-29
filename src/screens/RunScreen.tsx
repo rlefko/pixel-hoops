@@ -8,8 +8,10 @@ import {
   buildHomeTeam,
   buildOpponentTeam,
   steppingInSubs,
+  MAX_BANISHES,
   type RunModel,
 } from '@/game/run-machine';
+import { boostRerollCost } from '@/game/boosts';
 import { classAboveLadder } from '@/game/difficulty-mode';
 import { LineupBoard } from '@/components/game/LineupBoard';
 import { TeamIdentityCard, MatchupHeadline } from '@/components/game/TeamIdentityCard';
@@ -89,7 +91,8 @@ export default function RunScreen() {
           onSkip={actions.backToMap}
         />
       );
-    case 'boostDraft':
+    case 'boostDraft': {
+      const rerollCost = boostRerollCost(model.phase.rerolls);
       return (
         <BoostDraftView
           round={model.phase.round}
@@ -97,11 +100,18 @@ export default function RunScreen() {
           pendingFull={model.phase.pendingFull}
           forced={model.phase.forced}
           owned={model.boosts}
+          five={model.core.roster.starters}
+          rerollCost={rerollCost}
+          canReroll={!model.phase.pendingFull && model.core.rewards.coins >= rerollCost}
+          banishesLeft={MAX_BANISHES - model.banishedBoosts.length}
           onDraft={actions.draftBoost}
           onDrop={actions.dropBoostForNew}
           onSkip={actions.skipBoostDraft}
+          onReroll={actions.rerollBoosts}
+          onBanish={actions.banishBoost}
         />
       );
+    }
     case 'boost':
       return (
         <BoostNodeView

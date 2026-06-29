@@ -1,4 +1,4 @@
-import type { StatDelta, TeamModifier } from './effects';
+import type { SimHook, StatDelta, TeamModifier } from './effects';
 import type { Rarity } from './rarity';
 import type { RNG } from './rng';
 
@@ -24,6 +24,13 @@ export interface GachaAbility {
   selfDelta?: StatDelta;
   /** Team-level fragment (team-aggregate deltas), folded into the team modifier. */
   teamAura?: Partial<TeamModifier>;
+  /**
+   * Optional conditional rule-benders (comebacks, hot-hand streaks, momentum
+   * procs), folded into the team modifier while the equipped player STARTS (same
+   * contract as legend-signature hooks). Sized by expected value, so a
+   * hook-carrying ability may spend less than its full rarity net on flat stats.
+   */
+  hooks?: SimHook[];
 }
 
 const COMMONS: GachaAbility[] = [
@@ -39,6 +46,10 @@ const COMMONS: GachaAbility[] = [
   { id: 'bruiser', name: 'Bruiser', rarity: 'common', blurb: '+2 inside, -1 perimeter D', selfDelta: { inside: 2, perimeterD: -1 } },
   { id: 'clamp', name: 'Clamp', rarity: 'common', blurb: '+2 perimeter D, -1 inside', selfDelta: { perimeterD: 2, inside: -1 } },
   { id: 'rim-runner', name: 'Rim Runner', rarity: 'common', blurb: '+2 athleticism, -1 outside', selfDelta: { athleticism: 2, outside: -1 } },
+  { id: 'hustle', name: 'Hustle', rarity: 'common', blurb: '+2 rebounding, -1 outside', selfDelta: { rebounding: 2, outside: -1 } },
+  { id: 'quick-feet', name: 'Quick Feet', rarity: 'common', blurb: '+2 stealing, -1 inside', selfDelta: { stealing: 2, inside: -1 } },
+  { id: 'enforcer', name: 'Enforcer', rarity: 'common', blurb: '+2 strength, -1 athleticism', selfDelta: { strength: 2, athleticism: -1 } },
+  { id: 'spot-up', name: 'Spot-Up', rarity: 'common', blurb: '+2 outside, -1 inside', selfDelta: { outside: 2, inside: -1 } },
 ];
 
 const RARES: GachaAbility[] = [
@@ -52,6 +63,12 @@ const RARES: GachaAbility[] = [
   { id: 'cold-blooded', name: 'Cold Blooded', rarity: 'rare', blurb: '+3 clutch, -1 IQ', selfDelta: { clutch: 3, iq: -1 } },
   { id: 'glue-guy', name: 'Glue Guy', rarity: 'rare', blurb: '+2 inside, +2 interior D, -2 athleticism', selfDelta: { inside: 2, interiorD: 2, athleticism: -2 } },
   { id: 'sniper', name: 'Sniper', rarity: 'rare', blurb: '+3 outside, -1 inside', selfDelta: { outside: 3, inside: -1 } },
+  { id: 'shot-blocker', name: 'Shot Blocker', rarity: 'rare', blurb: '+4 blocking, -2 athleticism', selfDelta: { blocking: 4, athleticism: -2 } },
+  { id: 'ball-hawk', name: 'Ball Hawk', rarity: 'rare', blurb: '+3 stealing, -1 inside', selfDelta: { stealing: 3, inside: -1 } },
+  { id: 'glass-cleaner', name: 'Glass Cleaner', rarity: 'rare', blurb: '+4 rebounding, -2 outside', selfDelta: { rebounding: 4, outside: -2 } },
+  // Conditional (hook) rares: budget-exempt rule-benders.
+  { id: 'streaky-shooter', name: 'Streaky Shooter', rarity: 'rare', blurb: 'After a made three, +4 outside next possession', hooks: [{ kind: 'onResult', on: 'madeThree', delta: { outside: 4 } }] },
+  { id: 'comeback-gene', name: 'Comeback Gene', rarity: 'rare', blurb: 'Down 8 or more: +4 outside', hooks: [{ kind: 'whenTrailing', marginBehind: 8, delta: { outside: 4 } }] },
 ];
 
 const EPICS: GachaAbility[] = [
@@ -65,6 +82,12 @@ const EPICS: GachaAbility[] = [
   { id: 'lockdown-ace', name: 'Lockdown Ace', rarity: 'epic', blurb: '+1 team perimeter D', teamAura: { extra: { perimeterD: 1 } } },
   // Mixed: a big self anchor paid for with a small team tax.
   { id: 'rim-anchor', name: 'Rim Anchor', rarity: 'epic', blurb: '+6 interior D, but -1 team perimeter D', selfDelta: { interiorD: 6 }, teamAura: { extra: { perimeterD: -1 } } },
+  { id: 'rim-rocker', name: 'Rim Rocker', rarity: 'epic', blurb: '+3 inside', selfDelta: { inside: 3 } },
+  { id: 'defensive-tackle', name: 'Defensive Tackle', rarity: 'epic', blurb: '+5 interior D, -2 athleticism', selfDelta: { interiorD: 5, athleticism: -2 } },
+  { id: 'combo-guard', name: 'Combo Guard', rarity: 'epic', blurb: '+3 outside, +2 playmaking, -2 perimeter D', selfDelta: { outside: 3, playmaking: 2, perimeterD: -2 } },
+  // Conditional (hook) epics.
+  { id: 'microwave', name: 'Microwave', rarity: 'epic', blurb: 'Each make this quarter heats you up, to +5 outside', hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 5, halfLife: 3, reset: 'quarter' }] },
+  { id: 'clutch-trailer', name: 'Clutch Trailer', rarity: 'epic', blurb: 'Down 6 or more: +5 inside', hooks: [{ kind: 'whenTrailing', marginBehind: 6, delta: { inside: 5 } }] },
 ];
 
 const LEGENDARIES: GachaAbility[] = [
@@ -76,6 +99,12 @@ const LEGENDARIES: GachaAbility[] = [
   { id: 'floor-raiser', name: 'Floor Raiser', rarity: 'legendary', blurb: '+2 team outside, -1 stamina', selfDelta: { stamina: -1 }, teamAura: { extra: { outside: 2 } } },
   // One-Way Player: +3 to every offensive stat, but the team's perimeter D drops.
   { id: 'one-way-player', name: 'One-Way Player', rarity: 'legendary', blurb: '+3 inside/outside/playmaking, -1 clutch, but -1 team perimeter D', selfDelta: { inside: 3, outside: 3, playmaking: 3, clutch: -1 }, teamAura: { extra: { perimeterD: -1 } } },
+  { id: 'two-way-star', name: 'Two-Way Star', rarity: 'legendary', blurb: '+3 outside, +2 perimeter D', selfDelta: { outside: 3, perimeterD: 2 } },
+  { id: 'paint-beast', name: 'Paint Beast', rarity: 'legendary', blurb: '+3 inside, +2 rebounding', selfDelta: { inside: 3, rebounding: 2 } },
+  { id: 'perimeter-menace', name: 'Perimeter Menace', rarity: 'legendary', blurb: '+3 perimeter D, +2 stealing', selfDelta: { perimeterD: 3, stealing: 2 } },
+  // Conditional (hook) legendaries: the build-defining rule-benders.
+  { id: 'the-takeover', name: 'The Takeover', rarity: 'legendary', blurb: 'Down 3 or more: +6 inside and +6 outside', hooks: [{ kind: 'whenTrailing', marginBehind: 3, delta: { inside: 6, outside: 6 } }] },
+  { id: 'human-torch', name: 'Human Torch', rarity: 'legendary', blurb: 'Limitless heat: each make adds up to +7 outside', hooks: [{ kind: 'hotHand', stat: 'outside', maxAdd: 7, halfLife: 2, reset: 'quarter' }] },
 ];
 
 export const GACHA_ABILITIES: readonly GachaAbility[] = [
