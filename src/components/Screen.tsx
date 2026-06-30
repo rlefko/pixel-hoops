@@ -38,6 +38,9 @@ interface BaseScreenProps {
   backLabel?: string;
   /** Render a full-bleed CRT scanline overlay across the whole screen. */
   scanlines?: boolean;
+  /** Fired when a touch begins anywhere on the screen (passive; does not capture the
+   * touch, so Pressables and scrolling still work). Used to wake idle attract loops. */
+  onTouchStart?: () => void;
 }
 
 interface ViewScreenProps extends BaseScreenProps {
@@ -61,6 +64,7 @@ export function Screen(props: ScreenProps) {
     onBack,
     backLabel = 'BACK',
     scanlines,
+    onTouchStart,
   } = props;
 
   const bottom = insets.bottom + bottomGap;
@@ -90,7 +94,7 @@ export function Screen(props: ScreenProps) {
   // The outer view is full-bleed (no inset padding) so the optional scanline
   // overlay covers the entire screen, including the status-bar area and back bar.
   return (
-    <View style={styles.fill}>
+    <View style={styles.fill} onTouchStart={onTouchStart}>
       <View style={[styles.fill, { paddingTop: insets.top }]}>
         {onBack ? (
           <View style={styles.topBar}>

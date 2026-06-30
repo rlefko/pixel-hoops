@@ -20,7 +20,7 @@ import {
 } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { CLASS_COLOR } from '@/components/run/class-ui';
-import { useGlowPulse, useBobPulse } from '@/feel';
+import { useGlowPulse, useBobPulse, useIdle } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import {
@@ -34,6 +34,11 @@ import {
 import { getCoach } from '@/game/coaches';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
+// Quiet the menu's attract loops after this long with no touch (a player lingering on
+// the menu). The screen is the app's busiest idle screen, so this is real foreground
+// savings; the loops resume on the next touch.
+const HOME_IDLE_MS = 30000;
+
 /** Main menu screen: the arcade lobby and entry point for the game. */
 export default function HomeScreen() {
   // Plain router for the How to Play modal so it keeps its native slide-up; the
@@ -42,11 +47,14 @@ export default function HomeScreen() {
   const nav = useArcadeRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const { savedRun } = useActiveRun();
+  // Pause every menu attract loop after a stretch of no touch; bump() (wired to the
+  // screen's onTouchStart below) wakes them on the next interaction.
+  const { idle, bump } = useIdle(HOME_IDLE_MS);
   // One idle "breathe" loop drives the title: a glow behind the gold word and a
   // gentle bob on the pixel basketball. Slower than the default so it reads as a
-  // title, not a flicker. Held steady under reduced motion (handled by the pulse hooks).
-  const glowStyle = useGlowPulse(1300);
-  const bobStyle = useBobPulse(1300, { bobAmplitude: 4 });
+  // title, not a flicker. Held steady under reduced motion or while idle.
+  const glowStyle = useGlowPulse(1300, { paused: idle });
+  const bobStyle = useBobPulse(1300, { bobAmplitude: 4, paused: idle });
 
   // First launch: welcome the player with their starting free agents, once.
   if (loaded && homeRoster && !homeRoster.seenWelcome) {
@@ -77,7 +85,7 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen scroll scanlines contentContainerStyle={styles.container}>
+    <Screen scroll scanlines contentContainerStyle={styles.container} onTouchStart={bump}>
       <View style={styles.titleBlock}>
         <Animated.View style={bobStyle}>
           <BasketballIcon size={22} color={palette.courtLine} />
@@ -167,7 +175,7 @@ export default function HomeScreen() {
           label="NEW RUN"
           color={palette.gold}
           icon={<BasketballIcon size={28} color={palette.gold} />}
-          attract
+          attract={!idle}
           onPress={() => nav.push({ pathname: '/run', params: { mode: 'new' } }, 'run')}
         />
         {savedRun ? (
@@ -177,7 +185,7 @@ export default function HomeScreen() {
             sublabel={`${DIFFICULTY_LABELS[savedRun.difficulty].name} • ${savedRun.ladderClass}`}
             color={palette.orange}
             icon={<BasketballIcon size={22} color={palette.orange} />}
-            attract
+            attract={!idle}
             attractDelayMs={200}
             onPress={() => nav.push({ pathname: '/run', params: { mode: 'resume' } }, 'run')}
           />
@@ -189,7 +197,7 @@ export default function HomeScreen() {
             label="LOCKER ROOM"
             color={palette.makeGreen}
             icon={<LockerIcon size={32} color={palette.makeGreen} />}
-            attract
+            attract={!idle}
             attractDelayMs={150}
             onPress={() => nav.push('/locker')}
           />
@@ -199,7 +207,7 @@ export default function HomeScreen() {
             label="ARCADE"
             color={palette.flame}
             icon={<JoystickIcon size={32} color={palette.flame} />}
-            attract
+            attract={!idle}
             attractDelayMs={300}
             onPress={() => nav.push('/arcade')}
           />

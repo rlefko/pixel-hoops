@@ -79,6 +79,27 @@ const RATING_GROUPS: { label: string; keys: (keyof PlayerStats)[] }[] = [
   { label: 'PLAY STYLE', keys: [...PLAYSTYLE_STAT_KEYS] },
 ];
 
+/**
+ * The scoring identity shown only in the expanded breakdown: a position-aware playstyle
+ * label plus a paint/mid/three shot-diet read. `derivePlaystyle` scans every playstyle,
+ * so this is computed lazily (only for an expanded card) to keep a collapsed card in a
+ * long virtualized list cheap.
+ */
+function buildStyleRead(stats: PlayerStats, rp: RosterPlayer) {
+  const playstyle = derivePlaystyle(stats, rp.position);
+  const tend = tendencyFor(rp);
+  const dietPaint = tend.post + tend.drive + tend.layup + tend.dunk;
+  const dietSum = dietPaint + tend.midrange + tend.three || 1;
+  const pct = (x: number): number => Math.round((x / dietSum) * 100);
+  return {
+    label: playstyle.label,
+    paintPct: pct(dietPaint),
+    midPct: pct(tend.midrange),
+    threePct: pct(tend.three),
+    onBallTag: tend.onBall >= 0.6 ? ' · on-ball' : tend.onBall <= 0.35 ? ' · off-ball' : '',
+  };
+}
+
 function PlayerCardImpl({
   rp,
   expanded = false,
@@ -116,14 +137,9 @@ function PlayerCardImpl({
   const itemDef = rp.item ? ITEM_BY_ID[rp.item.defId] : undefined;
   const abilityDef = getAbility(rp.ability);
   const gachaDef = getGachaAbility(rp.equippedAbility?.id);
-  // The player's scoring identity for the expanded breakdown: a position-aware
-  // playstyle label plus a paint/mid/three shot-diet read (the L1 personality).
-  const playstyle = derivePlaystyle(stats, rp.position);
-  const tend = tendencyFor(rp);
-  const dietPaint = tend.post + tend.drive + tend.layup + tend.dunk;
-  const dietSum = dietPaint + tend.midrange + tend.three || 1;
-  const dietPct = (x: number): number => Math.round((x / dietSum) * 100);
-  const onBallTag = tend.onBall >= 0.6 ? ' · on-ball' : tend.onBall <= 0.35 ? ' · off-ball' : '';
+  // Only the expanded breakdown reads the playstyle/shot-diet, so derive it lazily; a
+  // collapsed card in a long list never runs the playstyle scan.
+  const styleRead = expanded ? buildStyleRead(stats, rp) : null;
   // A slow gold breathe behind a legendary's name (and a legendary item's diamond), so a
   // real great reads as a jackpot wherever the card appears (recruit, lineup, pregame).
   // Paused (no loop) on ordinary cards so a long roster list never runs unread animations.
@@ -220,13 +236,15 @@ function PlayerCardImpl({
 
       {expanded ? (
         <View style={styles.panel}>
-          <View style={styles.metaRow}>
-            <Text style={[styles.metaLabel, { color: palette.steelBlue }]}>STYLE</Text>
-            <Text style={styles.metaText}>
-              {playstyle.label} · {dietPct(dietPaint)}% paint / {dietPct(tend.midrange)}% mid /{' '}
-              {dietPct(tend.three)}% three{onBallTag}
-            </Text>
-          </View>
+          {styleRead ? (
+            <View style={styles.metaRow}>
+              <Text style={[styles.metaLabel, { color: palette.steelBlue }]}>STYLE</Text>
+              <Text style={styles.metaText}>
+                {styleRead.label} · {styleRead.paintPct}% paint / {styleRead.midPct}% mid /{' '}
+                {styleRead.threePct}% three{styleRead.onBallTag}
+              </Text>
+            </View>
+          ) : null}
           {abilityDef ? (
             <View style={styles.metaRow}>
               <Text style={[styles.metaLabel, { color: palette.gold }]}>SIGNATURE</Text>
