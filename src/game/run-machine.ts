@@ -582,6 +582,21 @@ function applyInjuries(
   return mapRoster(core.roster, update);
 }
 
+/** Stamp a combat node with its final game result (W/L + score) so the map tile can
+ * render it. Immutable: clones the node map and leaves the rest of the run untouched. */
+function withNodeResult(
+  core: RunState,
+  nodeId: string,
+  result: { won: boolean; home: number; away: number }
+): RunState {
+  const node = core.map.nodes[nodeId];
+  if (!node) return core;
+  return {
+    ...core,
+    map: { ...core.map, nodes: { ...core.map.nodes, [nodeId]: { ...node, result } } },
+  };
+}
+
 /** Fraction of the run completed by map index (0 on the first map, ~1 on the last). */
 function mapProgress(mapIndex: number): number {
   return TOTAL_MAPS > 1 ? mapIndex / (TOTAL_MAPS - 1) : 0;
@@ -851,7 +866,16 @@ export function runReducer(
           };
         }
         const rewards = { ...model.core.rewards, coins: model.core.rewards.coins + LOSS_COINS };
-        return { ...model, core: { ...model.core, rewards }, phase: { kind: 'summary', champion: false } };
+        // Stamp the lost node with a red L for forward-compatibility (losses end the
+        // run today, so the map is not shown again, but this keeps the data honest).
+        const lostCore = model.game
+          ? withNodeResult({ ...model.core, rewards }, nodeId, {
+              won: false,
+              home: model.game.result.finalHome,
+              away: model.game.result.finalAway,
+            })
+          : { ...model.core, rewards };
+        return { ...model, core: lostCore, phase: { kind: 'summary', champion: false } };
       }
       const node = model.core.map.nodes[nodeId];
       const isBoss = node.type === 'boss' || nodeId === model.core.map.bossNodeId;
@@ -878,8 +902,17 @@ export function runReducer(
           ? { ...advanced, phase: { kind: 'itemDrop', nodeId, drop, returnTo: advanced.phase } }
           : advanced;
       }
-      // Elites no longer drop gear (coins / TP / reputation only).
-      return { ...model, core, wins, phase: { kind: 'map' }, game: null };
+      // Elites no longer drop gear (coins / TP / reputation only). Stamp the node with
+      // the win + score so the map tile shows a green W and the final (boss wins replace
+      // the map via advanceToNextMap, so their node is never revisited and is not stamped).
+      const stamped = model.game
+        ? withNodeResult(core, nodeId, {
+            won: true,
+            home: model.game.result.finalHome,
+            away: model.game.result.finalAway,
+          })
+        : core;
+      return { ...model, core: stamped, wins, phase: { kind: 'map' }, game: null };
     }
 
     case 'recruit': {

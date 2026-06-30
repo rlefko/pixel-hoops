@@ -533,6 +533,48 @@ describe('run reducer', () => {
     expect(won.core.rewards.trainingPoints).toBe(1);
   });
 
+  it('stamps a played combat node with its result so the map tile can show W/score', () => {
+    // Run a real sim so the model carries genuine scores, then resolve the node.
+    const pre = withNode(start(), node({ id: 'g1', type: 'game', round: 1 }));
+    const game = runReducer({ ...pre, phase: { kind: 'pregame', nodeId: 'g1' } }, {
+      type: 'enterGame',
+    })!;
+    const { finalHome, finalAway } = game.game!.result;
+    // Force a win so the W path is exercised regardless of the sim's outcome.
+    const won = runReducer(
+      { ...game, phase: { kind: 'postgame', nodeId: 'g1', won: true } },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(won.phase.kind).toBe('map');
+    expect(won.core.map.nodes.g1.result).toEqual({ won: true, home: finalHome, away: finalAway });
+  });
+
+  it('stamps a red L on a run-ending loss (no timeouts left)', () => {
+    const pre = withNode(start(), node({ id: 'g1', type: 'game', round: 1 }));
+    const game = runReducer({ ...pre, phase: { kind: 'pregame', nodeId: 'g1' } }, {
+      type: 'enterGame',
+    })!;
+    const lost = runReducer(
+      { ...game, secondChancesRemaining: 0, phase: { kind: 'postgame', nodeId: 'g1', won: false } },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(lost.phase.kind).toBe('summary');
+    expect(lost.core.map.nodes.g1.result?.won).toBe(false);
+  });
+
+  it('does not stamp a node when a loss is forgiven by a timeout (it may be replayed)', () => {
+    const pre = withNode(start(), node({ id: 'g1', type: 'game', round: 1 }));
+    const game = runReducer({ ...pre, phase: { kind: 'pregame', nodeId: 'g1' } }, {
+      type: 'enterGame',
+    })!;
+    const forgiven = runReducer(
+      { ...game, secondChancesRemaining: 1, phase: { kind: 'postgame', nodeId: 'g1', won: false } },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(forgiven.phase.kind).toBe('pregame');
+    expect(forgiven.core.map.nodes.g1.result).toBeUndefined();
+  });
+
   it('an elite win drops no gear but banks 2 training points', () => {
     const m = withNode(start(), node({ id: 'e1', type: 'elite', round: 2 }));
     const won = runReducer(

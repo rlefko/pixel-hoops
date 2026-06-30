@@ -3,50 +3,27 @@ import { Pressable, StyleSheet } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { CheckboxRow } from '@/components/CheckboxRow';
+import { SettingsControls } from '@/components/SettingsControls';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { useFeelSettings } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { BORDER, FONT, FONT_SIZE, palette, RADIUS, space } from '@/theme';
 
 /**
- * Feedback and feel settings. Screen shake and haptics are independent: a player
- * can run with either, both, or neither. Reduce Motion is the in-app control for
- * the game's animations, since the app ignores the OS reduce-motion flag so the
- * juice plays by default. Changes persist via FeelSettings.
+ * Feedback and feel settings. The toggles live in the shared SettingsControls so
+ * the in-run settings modal renders the exact same rows. This route adds the
+ * save-reset DANGER ZONE, which is route-only (it bounces home, so it must never
+ * appear over a live run). Changes persist via FeelSettings.
  */
 export default function SettingsScreen() {
   const nav = useArcadeRouter();
-  const { shakeEnabled, hapticsEnabled, reducedMotion, update } = useFeelSettings();
   const { resetHomeRoster } = useHomeRoster();
   const [confirmingReset, setConfirmingReset] = useState(false);
 
   return (
-    <Screen style={styles.container} onBack={() => nav.back()}>
+    <Screen scroll contentContainerStyle={styles.container} onBack={() => nav.back()}>
       <Text style={styles.title}>SETTINGS</Text>
-      <Text style={styles.section}>FEEDBACK</Text>
 
-      <CheckboxRow
-        label="Screen Shake"
-        description="Rattle the court on dunks, threes, and big stops"
-        checked={shakeEnabled}
-        onToggle={(next) => update({ shakeEnabled: next })}
-      />
-      <CheckboxRow
-        label="Haptic Feedback"
-        description="Buzz the phone on big plays"
-        checked={hapticsEnabled}
-        onToggle={(next) => update({ hapticsEnabled: next })}
-      />
-
-      <Text style={styles.section}>MOTION</Text>
-
-      <CheckboxRow
-        label="Reduce Motion"
-        description="Calm the ball, particles, shake, and other animations"
-        checked={reducedMotion}
-        onToggle={(next) => update({ reducedMotion: next })}
-      />
+      <SettingsControls />
 
       <Text style={styles.dangerSection}>DANGER ZONE</Text>
       <Text style={styles.dangerDesc}>
@@ -83,13 +60,6 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.h3,
     color: palette.gold,
-  },
-  section: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    color: palette.gold,
-    marginTop: space(6),
-    marginBottom: space(2),
   },
   dangerSection: {
     fontFamily: FONT.display,

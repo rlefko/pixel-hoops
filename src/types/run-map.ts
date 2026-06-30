@@ -36,6 +36,9 @@ export interface MapNode {
   difficulty?: number;
   visited: boolean;
   cleared: boolean;
+  /** Set after this combat node's game resolves, so the map can stamp a W/L and the
+   * final score on the tile. `home` is the player's score, `away` the opponent's. */
+  result?: { won: boolean; home: number; away: number };
 }
 
 export interface RunMap {

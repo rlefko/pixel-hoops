@@ -16,6 +16,8 @@ import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/dif
 import { RosterStrip } from './RosterStrip';
 import { BoostRow } from './BoostRow';
 import { SetRow } from './SetRow';
+import { GearIcon } from './PixelIcons';
+import { RunSettingsModal } from './RunSettingsModal';
 import {
   BOARD_WIDTH,
   ROW_PITCH,
@@ -102,6 +104,8 @@ export function RunMapView({
   // Quitting banks progress but ends the run, so confirm before leaving. A
   // custom dialog (not Alert.alert, which has no working buttons on web).
   const [confirmingQuit, setConfirmingQuit] = useState(false);
+  // Settings open as an overlay here (not a route push) so the run survives.
+  const [showSettings, setShowSettings] = useState(false);
 
   // The current node's screen position, for the "you are here" marker.
   const currentMarker = useMemo(() => {
@@ -176,6 +180,15 @@ export function RunMapView({
         <Pressable style={styles.bagButton} onPress={onOpenBag} accessibilityRole="button">
           <Text style={styles.bagText}>BAG ({bagCount})</Text>
         </Pressable>
+        <Pressable
+          style={styles.gearButton}
+          onPress={() => setShowSettings(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+          hitSlop={space(2)}
+        >
+          <GearIcon size={18} color={palette.gold} />
+        </Pressable>
       </View>
 
       <RosterStrip roster={core.roster} onPress={onOpenLineup} />
@@ -194,6 +207,8 @@ export function RunMapView({
         }}
         onCancel={() => setConfirmingQuit(false)}
       />
+
+      <RunSettingsModal visible={showSettings} onClose={() => setShowSettings(false)} />
     </Screen>
   );
 }
@@ -210,7 +225,13 @@ const styles = StyleSheet.create({
     gap: space(2),
   },
   legendItem: { fontFamily: FONT.body, fontSize: FONT_SIZE.small },
-  actions: { alignItems: 'center', paddingBottom: space(1) },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space(3),
+    paddingBottom: space(1),
+  },
   bagButton: {
     paddingVertical: space(1.5),
     paddingHorizontal: space(5),
@@ -220,4 +241,14 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgPanel,
   },
   bagText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.gold },
+  gearButton: {
+    paddingVertical: space(1),
+    paddingHorizontal: space(3),
+    borderWidth: BORDER.thin,
+    borderColor: palette.gold + '88',
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.bgPanel,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

@@ -44,6 +44,8 @@ export interface FeelSettings {
   simSpeed: SimSpeed;
   /** Condensed watch: routine non-scoring plays whip by, big plays keep full juice. */
   highlightsOnly: boolean;
+  /** Skip the watched play-by-play and jump straight to the game result. */
+  autoSkipGames: boolean;
 }
 
 interface FeelSettingsContextValue extends FeelSettings {
@@ -57,6 +59,7 @@ const DEFAULTS: FeelSettings = {
   scanlinesEnabled: true,
   simSpeed: 'brisk',
   highlightsOnly: false,
+  autoSkipGames: false,
 };
 
 const STORAGE_KEY = 'pixelhoops.feel-settings.v1';
