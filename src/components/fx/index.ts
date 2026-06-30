@@ -1,5 +1,9 @@
 export { Counter } from './Counter';
 export { Pop } from './Pop';
+export { StaggerIn } from './StaggerIn';
+export { LiveChip } from './LiveChip';
+export { ArcadeBackdrop } from './ArcadeBackdrop';
+export { CrtVignette } from './CrtVignette';
 export { FlashOverlay, type FlashOverlayHandle } from './FlashOverlay';
 export { ShakeView, type ShakeViewHandle } from './ShakeView';
 export { Scanlines } from './Scanlines';

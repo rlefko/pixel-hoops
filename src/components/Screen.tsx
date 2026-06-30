@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/StyledText';
-import { Scanlines } from '@/components/fx';
+import { Scanlines, ArcadeBackdrop, CrtVignette } from '@/components/fx';
 import { palette, FONT, FONT_SIZE, space } from '@/theme';
 
 /**
@@ -38,6 +38,12 @@ interface BaseScreenProps {
   backLabel?: string;
   /** Render a full-bleed CRT scanline overlay across the whole screen. */
   scanlines?: boolean;
+  /** Render the drifting "Arcade Extras" court ambience behind the content. */
+  backdrop?: boolean;
+  /** Freeze the backdrop drift when the screen is idle (pass the screen's idle flag). */
+  backdropPaused?: boolean;
+  /** Render the static "Arcade Extras" CRT edge vignette above the content. */
+  vignette?: boolean;
   /** Fired when a touch begins anywhere on the screen (passive; does not capture the
    * touch, so Pressables and scrolling still work). Used to wake idle attract loops. */
   onTouchStart?: () => void;
@@ -64,6 +70,9 @@ export function Screen(props: ScreenProps) {
     onBack,
     backLabel = 'BACK',
     scanlines,
+    backdrop,
+    backdropPaused,
+    vignette,
     onTouchStart,
   } = props;
 
@@ -96,6 +105,7 @@ export function Screen(props: ScreenProps) {
   return (
     <View style={styles.fill} onTouchStart={onTouchStart}>
       <View style={[styles.fill, { paddingTop: insets.top }]}>
+        {backdrop ? <ArcadeBackdrop paused={backdropPaused} /> : null}
         {onBack ? (
           <View style={styles.topBar}>
             <Pressable onPress={onBack} hitSlop={space(3)}>
@@ -106,6 +116,7 @@ export function Screen(props: ScreenProps) {
         {body}
       </View>
       {scanlines ? <Scanlines /> : null}
+      {vignette ? <CrtVignette /> : null}
     </View>
   );
 }

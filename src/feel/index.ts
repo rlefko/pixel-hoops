@@ -11,6 +11,8 @@ export {
 export { useScreenShake } from './useScreenShake';
 export { usePop } from './usePop';
 export { useGlowPulse, useBobPulse, useScalePulse } from './usePulse';
+export { useStaggerIn } from './useStaggerIn';
+export { useLiveChip } from './useLiveChip';
 export { useIdle } from './useIdle';
 export { useFlash } from './useFlash';
 export { useCountUp } from './useCountUp';
