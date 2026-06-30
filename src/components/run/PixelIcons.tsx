@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import { View } from 'react-native';
-import Svg, { Circle, ClipPath, Defs, G, Line, Path } from 'react-native-svg';
+import Svg, { Circle, ClipPath, Defs, G, Line, Mask, Path, Rect } from 'react-native-svg';
 import { palette } from '@/theme';
 import type { MapNodeType } from '@/types/run-map';
 import type { VictoryTierKey } from '@/game/victory-tier';
@@ -461,30 +461,39 @@ export function JoystickIcon({ size, color }: IconProps) {
   );
 }
 
-/** settings: a gear (cog body, four teeth, hub hole). */
+/**
+ * settings: an eight-tooth cog. Drawn with react-native-svg (as the basketball is) so
+ * the teeth sit cleanly at 45-degree steps and the hub is a real transparent cutout
+ * (via a mask), reading as a gear on any background. The old four-axis-teeth View
+ * version read more like a plus.
+ */
+const GEAR_TEETH = [0, 45, 90, 135, 180, 225, 270, 315];
 export function GearIcon({ size, color }: IconProps) {
-  const body = size * 0.6;
-  const tooth = Math.max(2, Math.round(size * 0.16));
-  const hole = body * 0.4;
-  const mid = (size - tooth) / 2;
+  const maskId = useId();
   return (
     <View style={box(size)}>
-      <View style={{ position: 'absolute', top: 0, left: mid, width: tooth, height: tooth, backgroundColor: color }} />
-      <View style={{ position: 'absolute', bottom: 0, left: mid, width: tooth, height: tooth, backgroundColor: color }} />
-      <View style={{ position: 'absolute', left: 0, top: mid, width: tooth, height: tooth, backgroundColor: color }} />
-      <View style={{ position: 'absolute', right: 0, top: mid, width: tooth, height: tooth, backgroundColor: color }} />
-      <View
-        style={{
-          width: body,
-          height: body,
-          borderRadius: body / 2,
-          backgroundColor: color,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <View style={{ width: hole, height: hole, borderRadius: hole / 2, backgroundColor: palette.bgPanel }} />
-      </View>
+      <Svg width={size} height={size} viewBox="0 0 32 32">
+        <Defs>
+          <Mask id={maskId}>
+            {/* white keeps, black cuts: the hub circle punches a transparent hole */}
+            <Rect x={0} y={0} width={32} height={32} fill="white" />
+            <Circle cx={16} cy={16} r={3.4} fill="black" />
+          </Mask>
+        </Defs>
+        <G fill={color} mask={`url(#${maskId})`}>
+          {GEAR_TEETH.map((angle) => (
+            <Rect
+              key={angle}
+              x={13.5}
+              y={3.5}
+              width={5}
+              height={6}
+              transform={`rotate(${angle} 16 16)`}
+            />
+          ))}
+          <Circle cx={16} cy={16} r={8.5} />
+        </G>
+      </Svg>
     </View>
   );
 }
