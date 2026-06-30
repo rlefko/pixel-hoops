@@ -22,6 +22,7 @@ import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { CLASS_COLOR } from '@/components/run/class-ui';
 import { useGlowPulse, useBobPulse } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
+import { useActiveRun } from '@/context/ActiveRunContext';
 import {
   DIFFICULTIES,
   DIFFICULTY_LABELS,
@@ -40,6 +41,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const nav = useArcadeRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
+  const { savedRun } = useActiveRun();
   // One idle "breathe" loop drives the title: a glow behind the gold word and a
   // gentle bob on the pixel basketball. Slower than the default so it reads as a
   // title, not a flicker. Held steady under reduced motion (handled by the pulse hooks).
@@ -166,8 +168,20 @@ export default function HomeScreen() {
           color={palette.gold}
           icon={<BasketballIcon size={28} color={palette.gold} />}
           attract
-          onPress={() => nav.push('/run', 'run')}
+          onPress={() => nav.push({ pathname: '/run', params: { mode: 'new' } }, 'run')}
         />
+        {savedRun ? (
+          <MenuButton
+            variant="wide"
+            label="RESUME RUN"
+            sublabel={`${DIFFICULTY_LABELS[savedRun.difficulty].name} • ${savedRun.ladderClass}`}
+            color={palette.orange}
+            icon={<BasketballIcon size={22} color={palette.orange} />}
+            attract
+            attractDelayMs={200}
+            onPress={() => nav.push({ pathname: '/run', params: { mode: 'resume' } }, 'run')}
+          />
+        ) : null}
         <View style={styles.tileRow}>
           <MenuButton
             variant="tile"
