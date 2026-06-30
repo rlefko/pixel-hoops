@@ -2,7 +2,7 @@ import { createContext, useCallback, useMemo, useRef, type ReactNode } from 'rea
 import { View, StyleSheet } from 'react-native';
 import { useRouter, type Href } from 'expo-router';
 import { PixelWipeOverlay, type PixelWipeHandle } from '@/components/fx';
-import { type WipeConfig, type WipeVariant } from '@/feel';
+import { sfx, type WipeConfig, type WipeVariant } from '@/feel';
 import { palette } from '@/theme';
 
 /** Arcade-flavored navigation: a drop-in for expo-router's push/replace/back
@@ -79,6 +79,7 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
     }
     if (transitioning.current) return;
     transitioning.current = true;
+    sfx.whoosh(config.direction); // sweep matches the wipe direction (forward vs return)
     try {
       await wipe.cover(config); // screen now fully covered
       action(); // the real router nav, invisible behind the cover

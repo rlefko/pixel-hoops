@@ -4,6 +4,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { PixelButton } from '@/components/PixelButton';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { sfx } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { RosterPlayer } from '@/types/roster';
 
@@ -42,7 +43,12 @@ export function RecruitView({
       <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
         {offers.map((rp, i) => (
           <View key={i} style={styles.card}>
-            <Pressable onPress={() => onRecruit(rp)}>
+            <Pressable
+              onPress={() => {
+                sfx.recruit();
+                onRecruit(rp);
+              }}
+            >
               <PlayerCard
                 rp={rp}
                 showSpecialty

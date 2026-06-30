@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
-import { haptics } from '@/feel';
+import { haptics, sfx } from '@/feel';
 import { palette } from '@/theme';
 import type { ShakeViewHandle, FlashOverlayHandle } from '@/components/fx';
 import type { Rarity } from '@/game/rarity';
@@ -16,7 +16,9 @@ import { RARITY_COLOR } from './rarity-ui';
  *
  * Usage: hold the returned refs on a <ShakeView> wrapper and a <FlashOverlay>, call
  * fire(rarity) on a reward reveal, and (for legendary) render a <ParticleBurst
- * variant="confetti"> keyed on `confettiTrigger`.
+ * variant="confetti"> keyed on `confettiTrigger`. fire also plays a rarity-tiered
+ * reward sting; pass { silent: true } when the caller plays its own sound (e.g. the
+ * championship fanfare) so the two never stack.
  */
 interface BurstSpec {
   shake: 'none' | 'light' | 'medium' | 'heavy';
@@ -38,11 +40,12 @@ export function useRewardBurst() {
   const flashRef = useRef<FlashOverlayHandle>(null);
   const [confettiTrigger, setConfettiTrigger] = useState(0);
 
-  const fire = useCallback((rarity: Rarity) => {
+  const fire = useCallback((rarity: Rarity, opts?: { silent?: boolean }) => {
     const t = RARITY_BURST[rarity];
     if (t.shake !== 'none') shakeRef.current?.shake(t.shake);
     flashRef.current?.flash(t.color, { peak: t.peak });
     t.haptic();
+    if (!opts?.silent) sfx.reward(rarity);
     if (t.confetti) setConfettiTrigger((n) => n + 1);
   }, []);
 

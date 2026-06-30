@@ -16,6 +16,7 @@ import { eventGapMs } from '@/components/game/possession';
 import { computeHotState } from '@/game/streaks';
 import {
   haptics,
+  sfx,
   useFeelSettings,
   SIM_SPEED_FACTOR,
   SIM_SPEED_ORDER,
@@ -43,6 +44,19 @@ function colorForEvent(e: SimEvent): string {
 }
 
 const isWinner = (e: SimEvent): boolean => e.callout === 'BUZZER BEATER!';
+
+/**
+ * Playback-rate (and thus pitch) for a made-shot sound. A golden-ratio walk off the
+ * event seq nudges consecutive makes ~±0.7 semitone so back-to-back buckets never
+ * sound identical, and a hot streak audibly climbs (the NBA-Jam "heating up" fantasy).
+ */
+function pitchFor(e: SimEvent, hot: { heating: boolean; igniting: boolean } | undefined): number {
+  const frac = (e.seq * 0.618) % 1; // seq is a non-negative sequence index, so frac in [0, 1)
+  let rate = 0.96 + frac * 0.08;
+  if (hot?.igniting) rate *= 1.12;
+  else if (hot?.heating) rate *= 1.06;
+  return rate;
+}
 
 /**
  * A team's name on a chip filled with its own secondary color. The text color is
@@ -107,50 +121,69 @@ export function PlayByPlayFeed({
 
   // Outcome feedback, tiered so routine plays stay quiet and only special moments
   // pop. Fired when the ball reaches the rim (see CourtView onArrival).
-  const applyOutcomeJuice = useCallback((e: SimEvent) => {
-    if (e.result === 'block') {
-      shakeRef.current?.shake('medium');
-      haptics.medium();
-      return;
-    }
-    if (e.result === 'steal') {
-      shakeRef.current?.shake('light');
-      haptics.light();
-      return;
-    }
-    if (!isMadeShot(e)) return; // misses and turnovers: quiet
+  const applyOutcomeJuice = useCallback(
+    (e: SimEvent) => {
+      if (e.result === 'block') {
+        shakeRef.current?.shake('medium');
+        haptics.medium();
+        sfx.block();
+        return;
+      }
+      if (e.result === 'steal') {
+        shakeRef.current?.shake('light');
+        haptics.light();
+        sfx.steal();
+        return;
+      }
+      if (!isMadeShot(e)) {
+        // Misses/turnovers stay visually quiet; a soft rim clank only on a plain miss,
+        // and only outside highlights mode so the condensed watch keeps its punch.
+        if (e.result === 'miss' && !pacingRef.current.highlightsOnly) sfx.miss();
+        return;
+      }
 
-    if (isWinner(e)) {
-      shakeRef.current?.shake('heavy');
-      flashRef.current?.flash(palette.gold, { peak: 0.3 });
-      haptics.bigPlay();
-      return;
-    }
-    if (e.result === 'and-one') {
-      shakeRef.current?.shake('light');
-      flashRef.current?.flash(palette.gold, { peak: 0.22 });
-      haptics.success();
-      return;
-    }
-    if (e.action === 'three') {
-      shakeRef.current?.shake('light');
-      haptics.light();
-      return;
-    }
-    if (e.action === 'dunk') {
-      // The slam hits hard: heavy rattle and a triple-burst, below only the winner.
-      shakeRef.current?.shake('heavy');
-      haptics.bigPlay();
-      return;
-    }
-    if (e.isBigPlay) {
-      // A clutch bucket (the sim flags it) earns a small bump over a routine make.
-      shakeRef.current?.shake('light');
-      haptics.medium();
-      return;
-    }
-    haptics.selection(); // routine make: a clean tick, the net swish carries it
-  }, []);
+      const hot = hotState.get(e.seq);
+
+      if (isWinner(e)) {
+        shakeRef.current?.shake('heavy');
+        flashRef.current?.flash(palette.gold, { peak: 0.3 });
+        haptics.bigPlay();
+        sfx.buzzerBeater();
+        return;
+      }
+      if (e.result === 'and-one') {
+        shakeRef.current?.shake('light');
+        flashRef.current?.flash(palette.gold, { peak: 0.22 });
+        haptics.success();
+        sfx.andOne();
+        return;
+      }
+      if (e.action === 'three') {
+        shakeRef.current?.shake('light');
+        haptics.light();
+        sfx.three(pitchFor(e, hot));
+        return;
+      }
+      if (e.action === 'dunk') {
+        // The slam hits hard: heavy rattle and a triple-burst, below only the winner.
+        shakeRef.current?.shake('heavy');
+        haptics.bigPlay();
+        sfx.dunk();
+        return;
+      }
+      if (e.isBigPlay) {
+        // A clutch bucket (the sim flags it) earns a small bump over a routine make.
+        shakeRef.current?.shake('light');
+        haptics.medium();
+        sfx.make(pitchFor(e, hot));
+        return;
+      }
+      haptics.selection(); // routine make: a clean tick, the net swish carries it
+      // Routine makes whip by silently in highlights mode so big plays stand out.
+      if (!pacingRef.current.highlightsOnly) sfx.make(pitchFor(e, hot));
+    },
+    [hotState]
+  );
 
   const handleArrival = useCallback(
     (e: SimEvent) => {
