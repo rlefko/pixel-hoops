@@ -39,10 +39,10 @@ const ESPN_ABBR: Record<string, string> = {
   SAC: 'sac', SAS: 'sa', TOR: 'tor', UTA: 'utah', WAS: 'wsh',
 };
 
-const GRID = 36; // logical pixel grid the logo is reduced to
+const GRID = 24; // logical pixel grid the logo is reduced to (chunky 8-bit blocks)
 const SCALE = 8; // nearest-neighbor upscale so stored pixels are crisp blocks
-const OUT_PX = GRID * SCALE; // 288px stored PNG
-const POSTERIZE_LEVELS = 5; // color levels per channel: chunky 8-bit banding
+const OUT_PX = GRID * SCALE; // 192px stored PNG
+const POSTERIZE_LEVELS = 4; // color levels per channel: fewer bands reads more arcade
 const ALPHA_CUTOFF = 128; // alpha >= this becomes opaque, below becomes clear
 
 const here = dirname(fileURLToPath(import.meta.url));
