@@ -30,7 +30,7 @@ const OUTLINE: RGBA = hexToRgba(palette.shadow); // #000000 crisp silhouette edg
 const INK: RGBA = hexToRgba(palette.ink); // wordmark + monochrome silhouette
 // Net strands are translucent so the ball shows through where they cross it.
 // composite() blends them, so over the opaque master they still resolve opaque.
-const NET: RGBA = hexToRgba(palette.ink, 120);
+const NET: RGBA = hexToRgba(palette.ink, 105);
 const ARC: RGBA = mix(BG, hexToRgba(palette.courtLine), 0.22); // faint court line
 
 // Hoop rim: a shallow open ellipse near the top; the ball falls through it.
@@ -104,13 +104,12 @@ function netEdgeX(f: number, sign: number): number {
 
 /** Draw the net as a tapering lattice of diamonds between NET_TOP and NET_BOT:
  * each grid cell gets both diagonals, and shared cell edges weave continuous
- * strands. Rendered translucent (NET alpha) so the ball reads through it.
- * `rowStart` skips upper rows, used to drape only the lower mesh over the ball. */
-function drawNet(c: Canvas, rowStart = 0): void {
+ * strands. Rendered translucent (NET alpha) so the ball reads through it. */
+function drawNet(c: Canvas): void {
   const yAt = (f: number) => NET_TOP + (NET_BOT - NET_TOP) * f;
   const xAt = (f: number, col: number) =>
     netEdgeX(f, -1) + ((netEdgeX(f, 1) - netEdgeX(f, -1)) * col) / NET_COLS;
-  for (let r = rowStart; r < NET_ROWS; r++) {
+  for (let r = 0; r < NET_ROWS; r++) {
     const fTop = r / NET_ROWS;
     const fBot = (r + 1) / NET_ROWS;
     const yTop = yAt(fTop);
@@ -147,15 +146,13 @@ function compositeBand(
 function composeMark(c: Canvas): void {
   const rim = new Canvas(LOGICAL, LOGICAL);
   rim.ellipseRing(RIM_CX, RIM_CY, RIM_RX, RIM_RY, RIM_T, RIM);
-  const netBack = new Canvas(LOGICAL, LOGICAL);
-  drawNet(netBack); // full net, behind the ball
-  const netFront = new Canvas(LOGICAL, LOGICAL);
-  drawNet(netFront, 2); // only the lower mesh, to drape over the ball's front
+  const net = new Canvas(LOGICAL, LOGICAL);
+  drawNet(net);
 
   compositeBand(c, rim, 0, RIM_CY); // back of the rim, behind the ball
-  c.composite(netBack, 0, 0); // net behind the ball
+  c.composite(net, 0, 0); // net wrapping behind/around the ball
   drawBall(c);
-  c.composite(netFront, 0, 0); // lower net draping over the ball's front
+  c.composite(net, 0, 0); // same mesh continuing over the front: no gap, ball shows through
   compositeBand(c, rim, RIM_CY, LOGICAL); // front of the rim, over the ball
 }
 
