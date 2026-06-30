@@ -36,6 +36,27 @@ Run on device with the Expo Go app or build for iOS/Android.
 | Run on Android   | `npx expo start --android`         |
 | Lint             | `npx oxlint`                       |
 | Typecheck        | `npx tsgo --project tsconfig.json` |
+| Start (fresh cache) | `npm run start:clear`           |
+| Clean caches     | `npm run clean`                    |
+
+## Troubleshooting
+
+### "Unable to resolve ..." after an Expo SDK upgrade
+
+If `npx expo start` or `npx expo run:ios` fails to bundle with an error like `Unable to resolve "expo-router/react-navigation"` (or any other newly added module path) right after bumping the Expo SDK, it is almost always a stale Metro/Haste cache, not a missing dependency. The cached module map predates the new file, so Metro reports it as missing even though it is installed. Clear the cache and restart:
+
+```bash
+npm run start:clear   # expo start with a fresh Metro cache
+```
+
+For a deeper reset, also wipe project caches and reinstall:
+
+```bash
+npm run clean
+rm -rf node_modules
+npm install
+npx expo start --clear
+```
 
 ## Game Concept
 
