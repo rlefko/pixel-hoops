@@ -145,6 +145,48 @@ describe('recommendLineup', () => {
   });
 });
 
+describe('reorderForCoach position coherence', () => {
+  const isSorted = (five: RosterPlayer[]): boolean => {
+    const ranks = five.map((p) => POSITIONS.indexOf(p.position));
+    return ranks.every((r, i) => i === 0 || ranks[i - 1] <= r);
+  };
+
+  it('slots a swapped-in center into a big slot, never the PG spot', () => {
+    const roster: Roster = {
+      starters: fiveAt(8, 'weak'), // PG..C, all weak
+      bench: [flatPlayer('BigC', 'C', 18)], // a strong center off the bench
+    };
+    const { roster: out, changes } = reorderForCoach({
+      roster,
+      coach: getCoach('steve-kerr'),
+      opponent,
+      buildHome,
+    });
+    expect(changes).toBe(1); // the center is brought in
+    expect(out.starters.some((p) => p.player.name === 'BigC')).toBe(true);
+    // The five is in natural PG..C slot order, so the center never sits at the PG slot.
+    expect(isSorted(out.starters)).toBe(true);
+    expect(out.starters[0].position).not.toBe('C');
+    expect(out.starters.findIndex((p) => p.player.name === 'BigC')).toBeGreaterThanOrEqual(3);
+  });
+
+  it('re-slots the same five without counting it as a lineup change', () => {
+    // A position-scrambled but strong five (center first); the only bench body is weak,
+    // so the coach keeps the same players and simply slots them back into order.
+    const five = fiveAt(16, 'me');
+    const scrambled = [five[4], five[0], five[1], five[2], five[3]]; // C, PG, SG, SF, PF
+    const roster: Roster = { starters: scrambled, bench: [flatPlayer('Scrub', 'PG', 7)] };
+    const { roster: out, changes } = reorderForCoach({
+      roster,
+      coach: getCoach('steve-kerr'),
+      opponent,
+      buildHome,
+    });
+    expect(changes).toBe(0); // no player swapped in, so the banner stays quiet
+    expect(out.starters.map((p) => p.position)).toEqual([...POSITIONS]); // but slots are fixed
+  });
+});
+
 describe('recMinDelta', () => {
   it('demands a bigger edge on easy than on insane, and less on bosses', () => {
     expect(recMinDelta('easy', 'game')).toBeGreaterThan(recMinDelta('insane', 'game'));
