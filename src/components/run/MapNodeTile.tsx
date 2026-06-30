@@ -64,17 +64,14 @@ export function MapNodeTile({
   );
 
   const round = node.round ?? node.layer + 1;
-  // A played combat node stamps a W/L and its score in place of the abbreviation;
-  // everything else keeps the scouting label. result is only ever set on combat nodes.
+  // A played combat node stamps a W/L and its final score inside the tile; the label
+  // below keeps the opponent abbreviation so the map still reads as a history. result
+  // is only ever set on combat nodes.
   const result = isCombat ? node.result : undefined;
   const played = !!result;
   const resultColor = result && (result.won ? palette.makeGreen : palette.missRed);
-  const labelText = result
-    ? `${result.home}-${result.away}`
-    : preview
-      ? preview.abbreviation
-      : meta.label;
-  const labelColor = resultColor ?? (node.cleared ? palette.inkDim : meta.color);
+  const labelText = preview ? preview.abbreviation : meta.label;
+  const labelColor = node.cleared ? palette.inkDim : meta.color;
   const fill = preview ? mix(palette.bgPanel, preview.primaryHex, 0.22) : palette.bgPanel;
 
   const borderColor =
@@ -113,14 +110,22 @@ export function MapNodeTile({
           ]}
         >
           {isCombat && preview ? (
-            <View style={styles.logoBox}>
+            <>
               <TeamLogo abbr={preview.abbreviation} size={LOGO_SIZE} opacity={result ? 0.3 : 1} />
               {result ? (
-                <Text style={[styles.resultStamp, { color: resultColor }]}>
-                  {result.won ? 'W' : 'L'}
-                </Text>
+                <View style={styles.resultOverlay}>
+                  <Text style={[styles.resultStamp, { color: resultColor }]}>
+                    {result.won ? 'W' : 'L'}
+                  </Text>
+                  <Text
+                    style={[styles.resultScore, { color: resultColor }]}
+                    numberOfLines={1}
+                  >
+                    {result.home}-{result.away}
+                  </Text>
+                </View>
               ) : null}
-            </View>
+            </>
           ) : (
             <NodeIcon type={node.type} size={NODE_SIZE * 0.46} color={ICON_COLOR[node.type]} />
           )}
@@ -135,7 +140,7 @@ export function MapNodeTile({
               )}
             </View>
           ) : null}
-          {isCombat ? (
+          {isCombat && !played ? (
             <View style={styles.roundBadge}>
               <Text style={styles.roundText}>R{round}</Text>
             </View>
@@ -190,16 +195,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoBox: {
-    width: LOGO_SIZE,
-    height: LOGO_SIZE,
+  // The W/L + score stack, centered over the dimmed logo and filling the whole tile
+  // so a 3-3 digit score has the full tile width to fit on one line.
+  resultOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
   },
   resultStamp: {
-    position: 'absolute',
     fontFamily: FONT.display,
-    fontSize: FONT_SIZE.h2,
+    fontSize: FONT_SIZE.h3,
+    textShadowColor: palette.bgDeep,
+    textShadowRadius: 2,
+    textShadowOffset: { width: 0, height: 1 },
+  },
+  resultScore: {
+    fontFamily: FONT.body,
+    fontSize: 9,
+    marginTop: 1,
     textShadowColor: palette.bgDeep,
     textShadowRadius: 2,
     textShadowOffset: { width: 0, height: 1 },
