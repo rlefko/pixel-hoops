@@ -2,7 +2,8 @@ import { Fragment } from 'react';
 import { StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { CheckboxRow } from '@/components/CheckboxRow';
-import { useFeelSettings } from '@/feel';
+import { SliderRow } from '@/components/SliderRow';
+import { useFeelSettings, setSoundVolume, sfx } from '@/feel';
 import { FONT, FONT_SIZE, palette, space } from '@/theme';
 
 /**
@@ -15,6 +16,8 @@ export function SettingsControls() {
   const {
     shakeEnabled,
     hapticsEnabled,
+    soundEnabled,
+    sfxVolume,
     reducedMotionSetting,
     lowPowerMode,
     autoSkipGames,
@@ -27,6 +30,13 @@ export function SettingsControls() {
     lowPowerMode && !reducedMotionSetting
       ? 'On automatically while your device is in Low Power Mode'
       : 'Calm the ball, particles, shake, and other animations';
+
+  // Sound is auto-muted in low power mode (like reduce motion); say so when it's
+  // overriding a player who has sound on, instead of leaving the copy misleading.
+  const soundDescription =
+    lowPowerMode && soundEnabled
+      ? 'Off automatically while your device is in Low Power Mode'
+      : 'Arcade blips on makes, big plays, and rewards (off when phone is on silent)';
 
   return (
     <Fragment>
@@ -42,6 +52,25 @@ export function SettingsControls() {
         description="Buzz the phone on big plays"
         checked={hapticsEnabled}
         onToggle={(next) => update({ hapticsEnabled: next })}
+      />
+      <CheckboxRow
+        label="Sound Effects"
+        description={soundDescription}
+        checked={soundEnabled}
+        onToggle={(next) => update({ soundEnabled: next })}
+      />
+      <SliderRow
+        label="Sound Volume"
+        value={sfxVolume}
+        disabled={!soundEnabled || lowPowerMode}
+        // Live preview while dragging (module-only, so the global context never
+        // re-renders per drag step); persist once on release, then play a blip so the
+        // player hears the new level.
+        onPreview={setSoundVolume}
+        onCommit={(next) => {
+          update({ sfxVolume: next });
+          sfx.tap();
+        }}
       />
 
       <Text style={styles.section}>MOTION</Text>

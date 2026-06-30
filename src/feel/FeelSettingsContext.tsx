@@ -11,6 +11,8 @@ import {
 import { AppState } from 'react-native';
 import { useLowPowerMode } from 'expo-battery';
 import { setHapticsEnabled } from './haptics';
+import { setSoundEnabled, setSoundVolume, setAudioActive, initSfx } from './audio';
+import { isSoundEffective } from './soundPolicy';
 import { getJSON } from '@/storage/storage';
 import { createDebouncedWriter, type DebouncedWriter } from '@/storage/debouncedWriter';
 
@@ -37,6 +39,10 @@ export const SIM_SPEED_ORDER: SimSpeed[] = ['chill', 'brisk', 'blitz'];
 
 export interface FeelSettings {
   hapticsEnabled: boolean;
+  /** Arcade chiptune sound effects. Toggled independently of haptics. */
+  soundEnabled: boolean;
+  /** Master SFX volume, 0..1. No UI yet; the module applies it at player creation. */
+  sfxVolume: number;
   /** Screen shake on big plays. Toggled independently of haptics. */
   shakeEnabled: boolean;
   reducedMotion: boolean;
@@ -61,6 +67,8 @@ interface FeelSettingsContextValue extends FeelSettings {
 
 const DEFAULTS: FeelSettings = {
   hapticsEnabled: true,
+  soundEnabled: true,
+  sfxVolume: 0.8,
   shakeEnabled: true,
   reducedMotion: false,
   scanlinesEnabled: true,
@@ -80,9 +88,14 @@ const FeelSettingsContext = createContext<FeelSettingsContextValue>({
 
 export function FeelSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<FeelSettings>(DEFAULTS);
+  // Gates audio init: stays false until persisted settings load, so a player who turned
+  // sound off never pays to spin the audio engine up first (see the lazy-init effect).
+  const [hydrated, setHydrated] = useState(false);
 
   // iOS Low Power Mode / Android battery saver. expo-battery's hook is web-safe (it
   // resolves false and the listener never fires off-device), so this is a no-op there.
+  // It initializes false and resolves the real state a tick later, so a device that
+  // boots in Low Power Mode may briefly read false; the effects below self-correct.
   const lowPowerMode = useLowPowerMode();
 
   // Debounced persistence (mirrors HomeRosterContext): toggling speed/highlights mid
@@ -97,10 +110,16 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
     let active = true;
     void (async () => {
       const raw = await getJSON<Partial<FeelSettings>>(STORAGE_KEY);
-      if (!active || !raw) return;
-      const merged = { ...DEFAULTS, ...raw };
-      if (!(merged.simSpeed in SIM_SPEED_FACTOR)) merged.simSpeed = DEFAULTS.simSpeed;
-      setSettings(merged);
+      if (!active) return;
+      if (raw) {
+        const merged = { ...DEFAULTS, ...raw };
+        if (!(merged.simSpeed in SIM_SPEED_FACTOR)) merged.simSpeed = DEFAULTS.simSpeed;
+        merged.sfxVolume = Math.min(1, Math.max(0, merged.sfxVolume));
+        setSettings(merged);
+      }
+      // Mark hydrated on BOTH paths (stored or first-launch) so a fresh install,
+      // which has nothing to load, still initializes sound.
+      setHydrated(true);
     })();
     return () => {
       active = false;
@@ -112,10 +131,42 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
     setHapticsEnabled(settings.hapticsEnabled);
   }, [settings.hapticsEnabled]);
 
-  // Flush any pending write on app background / unmount so a toggle is never lost.
+  // Sound is effectively on only when the player has it on AND the device is not in
+  // Low Power Mode (mirrors the Reduce Motion behavior in #90, so the app quiets itself
+  // when the battery is low).
+  const soundEffective = isSoundEffective(hydrated, settings.soundEnabled, lowPowerMode);
+  // Keep this effect above the lazy-init effect: effects fire in source order, so the
+  // module's enabled flag is set in the same render pass before any sound can fire.
+  useEffect(() => {
+    setSoundEnabled(settings.soundEnabled && !lowPowerMode);
+  }, [settings.soundEnabled, lowPowerMode]);
+  // Master volume, applied live by the in-settings slider.
+  useEffect(() => {
+    setSoundVolume(settings.sfxVolume);
+  }, [settings.sfxVolume]);
+  // Build the audio engine lazily: only once settings have hydrated and sound is
+  // effectively on, so keeping sound off (or booting in Low Power Mode) never spins up
+  // the audio session or its ~30 players. Idempotent, so it also fires the first time
+  // Low Power Mode lifts on a device that booted into it.
+  useEffect(() => {
+    if (soundEffective) void initSfx();
+  }, [soundEffective]);
+
+  // Latest effective-sound, read by the AppState handler below without re-subscribing.
+  const soundEffectiveRef = useRef(soundEffective);
+  soundEffectiveRef.current = soundEffective;
+
+  // On background: flush the pending settings write so a toggle is never lost, and
+  // release the audio session so we don't hold the audio route warm while away. On
+  // return to the foreground: re-activate the session if sound is effectively on.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
-      if (state !== 'active') writer.flush();
+      if (state !== 'active') {
+        writer.flush();
+        setAudioActive(false);
+      } else if (soundEffectiveRef.current) {
+        setAudioActive(true);
+      }
     });
     return () => {
       writer.flush();

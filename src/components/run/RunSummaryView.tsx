@@ -1,6 +1,8 @@
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { sfx } from '@/feel';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -28,6 +30,16 @@ export function RunSummaryView({
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
+  // Champion fanfare for the rare flat-fallback championship (a clear without a final
+  // game, so ChampionView isn't shown). A loss already got its sting in Postgame, so
+  // this stays silent there to avoid a double.
+  const firedRef = useRef(false);
+  useEffect(() => {
+    if (firedRef.current || !champion) return;
+    firedRef.current = true;
+    sfx.champion();
+  }, [champion]);
+
   return (
     <Screen style={styles.container}>
       <Text

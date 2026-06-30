@@ -4,6 +4,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Counter, FlashOverlay, ParticleBurst, ShakeView } from '@/components/fx';
 import { LineupBoard } from '@/components/game/LineupBoard';
+import { sfx } from '@/feel';
 import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { CrownIcon, VictoryTierIcon } from './PixelIcons';
@@ -63,8 +64,12 @@ export function ChampionView({
   // a second confetti pop for legends so the rarest win lands twice.
   useEffect(() => {
     // Map the victory celebration tier onto the shared rarity-scaled burst (a
-    // championship always lands at least rare-level juice).
-    fire(tier.burst === 'big' ? 'legendary' : tier.burst === 'medium' ? 'epic' : 'rare');
+    // championship always lands at least rare-level juice). Silence the burst's own
+    // reward sting and play the grand championship fanfare instead.
+    fire(tier.burst === 'big' ? 'legendary' : tier.burst === 'medium' ? 'epic' : 'rare', {
+      silent: true,
+    });
+    sfx.champion();
     setBurst((n) => n + 1);
     const scoreTimer = setTimeout(() => setScoreShown(game.result.finalHome), SCORE_DELAY_MS);
     const legendTimer = tier.legend

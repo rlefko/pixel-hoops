@@ -1,6 +1,13 @@
 export { DUR, SHAKE_PX, scaled, type ShakeIntensity } from './timings';
 export { haptics, setHapticsEnabled } from './haptics';
 export {
+  sfx,
+  setSoundEnabled,
+  setSoundVolume,
+  type TapVariant,
+  type WhooshDirection,
+} from './audio';
+export {
   FeelSettingsProvider,
   useFeelSettings,
   SIM_SPEED_FACTOR,

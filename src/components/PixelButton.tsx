@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { sfx } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -35,7 +36,10 @@ export function PixelButton({
   const small = size === 'small';
   return (
     <Pressable
-      onPress={onPress}
+      onPress={() => {
+        sfx.tap(variant === 'primary' ? 'primary' : 'secondary');
+        onPress();
+      }}
       disabled={disabled}
       hitSlop={small ? space(1) : undefined}
       accessibilityRole="button"

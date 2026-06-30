@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
-import { useFeelSettings } from '@/feel';
+import { useFeelSettings, sfx } from '@/feel';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { useRun } from '@/hooks/useRun';
@@ -354,7 +354,10 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
       </Pressable>
       <Pressable
         style={[styles.button, styles.primary]}
-        onPress={actions.enterGame}
+        onPress={() => {
+          sfx.tipoff();
+          actions.enterGame();
+        }}
       >
         <Text style={styles.buttonText}>TIP OFF</Text>
       </Pressable>
@@ -396,6 +399,20 @@ function Postgame({
   // Default open so the box score is right there after a game; still collapsible
   // to put the win/loss headline and the retry one tap away.
   const [showBox, setShowBox] = useState(true);
+
+  // Result sting once on mount (Postgame remounts per postgame phase, so the ref resets
+  // between games; the guard only blocks a dev strict-mode double-invoke). A forgivable
+  // timeout invites a replay, so it gets no defeat tone.
+  const stingRef = useRef(false);
+  const phase = model.phase;
+  const chances = model.secondChancesRemaining;
+  useEffect(() => {
+    if (stingRef.current || phase.kind !== 'postgame') return;
+    stingRef.current = true;
+    if (phase.won) sfx.win();
+    else if (chances <= 0) sfx.loss();
+  }, [phase, chances]);
+
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
   // A loss with timeouts left isn't the end: the headline + CTA invite a replay,
