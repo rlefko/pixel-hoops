@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { AppState } from 'react-native';
+import { useLowPowerMode } from 'expo-battery';
 import { setHapticsEnabled } from './haptics';
 import { getJSON } from '@/storage/storage';
 import { createDebouncedWriter, type DebouncedWriter } from '@/storage/debouncedWriter';
@@ -50,6 +51,12 @@ export interface FeelSettings {
 
 interface FeelSettingsContextValue extends FeelSettings {
   update: (patch: Partial<FeelSettings>) => void;
+  /** The user's own Reduce Motion choice (what the settings toggle reflects), kept
+   *  separate from the effective `reducedMotion` above, which is ALSO forced on while
+   *  the device is in low power mode. */
+  reducedMotionSetting: boolean;
+  /** True while the device is in iOS Low Power Mode / Android battery saver. */
+  lowPowerMode: boolean;
 }
 
 const DEFAULTS: FeelSettings = {
@@ -67,10 +74,16 @@ const STORAGE_KEY = 'pixelhoops.feel-settings.v1';
 const FeelSettingsContext = createContext<FeelSettingsContextValue>({
   ...DEFAULTS,
   update: () => {},
+  reducedMotionSetting: DEFAULTS.reducedMotion,
+  lowPowerMode: false,
 });
 
 export function FeelSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<FeelSettings>(DEFAULTS);
+
+  // iOS Low Power Mode / Android battery saver. expo-battery's hook is web-safe (it
+  // resolves false and the listener never fires off-device), so this is a no-op there.
+  const lowPowerMode = useLowPowerMode();
 
   // Debounced persistence (mirrors HomeRosterContext): toggling speed/highlights mid
   // replay coalesces into one write instead of a write per tap.
@@ -121,9 +134,18 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
     [writer]
   );
 
+  // Low power mode forces the reduced-motion path on (the whole juice layer already
+  // honors `reducedMotion`), so the app calms itself exactly when the battery is low.
+  // The user's own setting is exposed separately so the toggle stays truthful.
   const value = useMemo<FeelSettingsContextValue>(
-    () => ({ ...settings, update }),
-    [settings, update]
+    () => ({
+      ...settings,
+      reducedMotion: settings.reducedMotion || lowPowerMode,
+      reducedMotionSetting: settings.reducedMotion,
+      lowPowerMode,
+      update,
+    }),
+    [settings, lowPowerMode, update]
   );
 
   return <FeelSettingsContext.Provider value={value}>{children}</FeelSettingsContext.Provider>;
