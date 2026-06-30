@@ -12,8 +12,21 @@ import { FONT, FONT_SIZE, palette, space } from '@/theme';
  * the save and bouncing home would kill an active run.
  */
 export function SettingsControls() {
-  const { shakeEnabled, hapticsEnabled, reducedMotion, autoSkipGames, update } =
-    useFeelSettings();
+  const {
+    shakeEnabled,
+    hapticsEnabled,
+    reducedMotionSetting,
+    lowPowerMode,
+    autoSkipGames,
+    update,
+  } = useFeelSettings();
+
+  // The toggle reflects the player's own choice; when low power mode forces motion down
+  // on its own, say so instead of silently flipping the box.
+  const reduceMotionDescription =
+    lowPowerMode && !reducedMotionSetting
+      ? 'On automatically while your device is in Low Power Mode'
+      : 'Calm the ball, particles, shake, and other animations';
 
   return (
     <Fragment>
@@ -34,8 +47,8 @@ export function SettingsControls() {
       <Text style={styles.section}>MOTION</Text>
       <CheckboxRow
         label="Reduce Motion"
-        description="Calm the ball, particles, shake, and other animations"
-        checked={reducedMotion}
+        description={reduceMotionDescription}
+        checked={reducedMotionSetting}
         onToggle={(next) => update({ reducedMotion: next })}
       />
 
