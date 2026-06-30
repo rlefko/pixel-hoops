@@ -26,6 +26,18 @@ function fiveAt(value: number, tag: string): RosterPlayer[] {
   return POSITIONS.map((p, i) => flatPlayer(`${tag}-${p}-${i}`, p, value));
 }
 
+/** A player at `base` with specific stats overridden, for shaping a stylistic profile
+ * (e.g. a defender vs a scorer) at a controlled overall/class. */
+function shaped(
+  name: string,
+  position: Position,
+  base: number,
+  over: Partial<PlayerStats>
+): RosterPlayer {
+  const rp = flatPlayer(name, position, base);
+  return { ...rp, player: { ...rp.player, stats: { ...rp.player.stats, ...over } } };
+}
+
 /** The injected team builder: a plain team from the candidate's starters + bench. */
 const buildHome = (r: Roster): Team =>
   buildTeam('You', r.starters, DEFAULT_GAME_PLAN, '#FFD54F', '#1D428A', r.bench);
@@ -85,46 +97,116 @@ describe('recommendLineup', () => {
     expect(rec!.summary).toContain('Star');
   });
 
-  it('a low-IQ coach ignores a subtle, non-obvious edge a smart coach would catch', () => {
-    const starters = fiveAt(12, 'me');
-    const bench = [flatPlayer('Slight', 'PG', 13)]; // +1 only: below the "obvious" gap of 2
-    const args = { roster: { starters, bench }, opponent, buildHome, minDelta: 0.05 };
-    const dumb = recommendLineup({ ...args, coach: getCoach('george-karl') }); // iq 8
-    const smart = recommendLineup({ ...args, coach: getCoach('steve-kerr') }); // iq 16
-    expect(dumb).toBeNull();
-    expect(smart).not.toBeNull();
-  });
-
-  it('reorders the WHOLE roster (multiple slots) for a smart coach', () => {
-    // A weak five with a strong, deep bench: a high-IQ coach pulls several upgrades
-    // into the lineup at once, not a single swap.
-    const roster: Roster = {
-      starters: fiveAt(8, 'weak'),
+  it('scales the number of moves with coach class (bigger coach, bigger reshape)', () => {
+    // A weak five (C class) with five strong, higher-class upgrades on the bench.
+    const deep = (tag: string): Roster => ({
+      starters: fiveAt(10, `${tag}-s`),
       bench: [
-        flatPlayer('S1', 'PG', 18),
-        flatPlayer('S2', 'SG', 18),
-        flatPlayer('S3', 'C', 18),
+        flatPlayer(`${tag}-b0`, 'PG', 16),
+        flatPlayer(`${tag}-b1`, 'SG', 16),
+        flatPlayer(`${tag}-b2`, 'SF', 16),
+        flatPlayer(`${tag}-b3`, 'PF', 16),
+        flatPlayer(`${tag}-b4`, 'C', 16),
       ],
-    };
-    const rec = recommendLineup({
-      roster,
-      coach: getCoach('gregg-popovich'), // iq 19 (deep search)
-      opponent,
-      buildHome,
-      minDelta: recMinDelta('hard', 'game'),
     });
-    expect(rec).not.toBeNull();
-    expect(rec!.changes).toBeGreaterThan(1);
+    const cCoach = reorderForCoach({ roster: deep('c'), coach: getCoach('george-karl'), buildHome }); // C, budget 1
+    const sPlus = reorderForCoach({ roster: deep('s'), coach: getCoach('gregg-popovich'), buildHome }); // S+, budget 5
+    expect(cCoach.changes).toBe(1);
+    expect(sPlus.changes).toBe(5);
   });
 
-  it('a low-IQ coach makes at most one blunt change', () => {
+  it('honors the class floor: never benches a higher-class player for a lower-class fit', () => {
+    // A high-class scorer starting; a low-class great defender on the bench. A lockdown
+    // coach loves the defender's style, but the class floor blocks the downgrade.
+    const roster: Roster = {
+      starters: [
+        flatPlayer('pg', 'PG', 13),
+        flatPlayer('sg', 'SG', 13),
+        flatPlayer('AceScorer', 'SF', 18), // S class
+        flatPlayer('pf', 'PF', 13),
+        flatPlayer('c', 'C', 13),
+      ],
+      bench: [shaped('LowDefender', 'SF', 9, { perimeterD: 14, interiorD: 14 })], // C class
+    };
+    const { roster: out, changes } = reorderForCoach({
+      roster,
+      coach: getCoach('erik-spoelstra'), // lockdown
+      buildHome,
+    });
+    expect(changes).toBe(0);
+    expect(out.starters.some((p) => p.player.name === 'AceScorer')).toBe(true);
+  });
+
+  it('picks the best stylistic fit among same-class players (lockdown -> defender)', () => {
+    // Mirror-symmetric defender vs scorer at the same slot/overall (so same class). A
+    // lockdown coach starts the defender; the choice is style, not raw overall.
+    const starterScorer = shaped('Scorer', 'SF', 13, {
+      perimeterD: 8,
+      interiorD: 8,
+      outside: 18,
+      inside: 18,
+    });
+    const benchDefender = shaped('Defender', 'SF', 13, {
+      perimeterD: 18,
+      interiorD: 18,
+      outside: 8,
+      inside: 8,
+    });
+    const roster: Roster = {
+      starters: [
+        flatPlayer('pg', 'PG', 13),
+        flatPlayer('sg', 'SG', 13),
+        starterScorer,
+        flatPlayer('pf', 'PF', 13),
+        flatPlayer('c', 'C', 13),
+      ],
+      bench: [benchDefender],
+    };
+    // Pure style (no opponent), so the choice is style, not the matchup.
+    const { roster: out } = reorderForCoach({
+      roster,
+      coach: getCoach('erik-spoelstra'), // lockdown, S
+      buildHome,
+    });
+    expect(out.starters.some((p) => p.player.name === 'Defender')).toBe(true);
+    expect(out.starters.some((p) => p.player.name === 'Scorer')).toBe(false);
+  });
+
+  it('a smart coach avoids a style move that tanks the matchup; a blunt one takes it', () => {
+    // Both coaches are fast/outside, so they both want this shooter's style. But
+    // starting it craters this matchup (the injected builder makes that five far
+    // weaker). A high-IQ coach threads the matchup and refuses; a low-IQ coach plays
+    // pure style. Same playstyle isolates the IQ-driven threading.
+    const styleFit = shaped('StyleFit', 'SG', 13, { outside: 18, athleticism: 18 });
+    const roster: Roster = {
+      starters: [
+        flatPlayer('pg', 'PG', 13),
+        flatPlayer('Starter', 'SG', 13),
+        flatPlayer('sf', 'SF', 13),
+        flatPlayer('pf', 'PF', 13),
+        flatPlayer('c', 'C', 13),
+      ],
+      bench: [styleFit],
+    };
+    // Control the matchup directly: a five with StyleFit starting scores far worse.
+    const tanking = (r: Roster): Team => {
+      const starting = r.starters.some((p) => p.player.name === 'StyleFit');
+      return buildTeam('You', fiveAt(starting ? 6 : 15, 'ctl'), DEFAULT_GAME_PLAN, '#FFD54F', '#1D428A', r.bench);
+    };
+    const dumb = reorderForCoach({ roster, coach: getCoach('george-karl'), opponent, buildHome: tanking }); // C, iq 8
+    const smart = reorderForCoach({ roster, coach: getCoach('steve-kerr'), opponent, buildHome: tanking }); // S, iq 16
+    expect(dumb.changes).toBe(1); // pure style: starts the stylistic fit despite the matchup
+    expect(smart.changes).toBe(0); // threads the matchup: refuses the tanking swap
+  });
+
+  it('a low-class coach makes at most one blunt change', () => {
     const roster: Roster = {
       starters: fiveAt(10, 'weak'),
       bench: [flatPlayer('S1', 'PG', 16), flatPlayer('S2', 'SG', 16)],
     };
     const rec = recommendLineup({
       roster,
-      coach: getCoach('george-karl'), // iq 8 (one move only)
+      coach: getCoach('george-karl'), // C class (one move only)
       opponent,
       buildHome,
       minDelta: 0.1,
