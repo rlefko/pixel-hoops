@@ -9,7 +9,7 @@ export {
 } from './audio';
 export {
   playMusicContext,
-  setMusicTempo,
+  setGameEnergy,
   setMusicVolume,
   type MusicContext,
 } from './music';

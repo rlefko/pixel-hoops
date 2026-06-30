@@ -81,7 +81,7 @@ interface FeelSettingsContextValue extends FeelSettings {
 const DEFAULTS: FeelSettings = {
   hapticsEnabled: true,
   soundEnabled: true,
-  sfxVolume: 0.8,
+  sfxVolume: 0.65,
   musicEnabled: true,
   musicVolume: 0.5,
   shakeEnabled: true,

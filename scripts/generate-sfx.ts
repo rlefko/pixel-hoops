@@ -14,7 +14,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { encodeWav } from '../src/audio/wav';
+import { encodeWav, encodeWavStereo, MUSIC_SAMPLE_RATE } from '../src/audio/wav';
 import { renderRecipe } from '../src/audio/synth';
 import { RECIPES } from '../src/audio/recipes';
 import { renderMusicLoop } from '../src/audio/sequencer';
@@ -66,10 +66,12 @@ function main(): void {
 
   const musicNames = Object.keys(MUSIC_TRACKS) as MusicName[];
   for (const name of musicNames) {
-    const samples = renderMusicLoop(MUSIC_TRACKS[name]);
-    writeFileSync(join(audioDir, `music_${name}.wav`), encodeWav(samples));
-    const seconds = (samples.length / 22050).toFixed(1);
-    console.log(`ok   music_${name}.wav  (${samples.length} samples, ${seconds}s)`);
+    const { left, right } = renderMusicLoop(MUSIC_TRACKS[name]);
+    const wav = encodeWavStereo(left, right, MUSIC_SAMPLE_RATE);
+    writeFileSync(join(audioDir, `music_${name}.wav`), wav);
+    const seconds = (left.length / MUSIC_SAMPLE_RATE).toFixed(1);
+    const mb = (wav.length / 1024 / 1024).toFixed(2);
+    console.log(`ok   music_${name}.wav  (${seconds}s stereo, ${mb} MB)`);
   }
   writeMusicManifest(musicNames);
 

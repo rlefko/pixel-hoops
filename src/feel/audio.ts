@@ -23,7 +23,7 @@ import { duck as duckMusic } from './music';
  */
 
 let enabled = true;
-let volume = 0.8;
+let volume = 0.65;
 let ready = false;
 let initStarted = false;
 
@@ -32,6 +32,13 @@ interface Pool {
   next: number;
 }
 const pools = new Map<SfxName, Pool>();
+
+// Rapid UI taps get a short cooldown so fast navigation never machine-guns, plus a small
+// pitch jitter so repeats never sound identical (anti-fatigue).
+const RAPID_TAPS = new Set<SfxName>(['tapPrimary', 'tapSecondary', 'toggle']);
+const TAP_COOLDOWN_MS = 45;
+const lastTapAt = new Map<SfxName, number>();
+let jitterTick = 0;
 
 /** Toggle all sound (wired to FeelSettings.soundEnabled). */
 export function setSoundEnabled(value: boolean): void {
@@ -108,6 +115,12 @@ export async function initSfx(): Promise<void> {
 /** Play one SFX from the start. `rate` (default 1) shifts pitch for variation. */
 function trigger(name: SfxName, rate: number = 1): void {
   if (!enabled || !ready || IS_WEB) return;
+  if (RAPID_TAPS.has(name)) {
+    const now = Date.now();
+    if (now - (lastTapAt.get(name) ?? 0) < TAP_COOLDOWN_MS) return;
+    lastTapAt.set(name, now);
+    rate *= 0.97 + (jitterTick++ % 4) * 0.02; // subtle pitch variation per tap
+  }
   const pool = pools.get(name);
   if (!pool) return;
   bestEffort(() => {

@@ -2,8 +2,10 @@
 // Static require() map of the baked chiptune music beds. Regenerate with: npm run gen:sfx
 
 export const MUSIC_SOURCES = {
-  menuLoop: require('../../assets/audio/music_menuLoop.wav'),
-  gameLoop: require('../../assets/audio/music_gameLoop.wav'),
+  menuTheme: require('../../assets/audio/music_menuTheme.wav'),
+  runThemeA: require('../../assets/audio/music_runThemeA.wav'),
+  runThemeB: require('../../assets/audio/music_runThemeB.wav'),
+  gameEnergy: require('../../assets/audio/music_gameEnergy.wav'),
 };
 
 export type MusicName = keyof typeof MUSIC_SOURCES;
