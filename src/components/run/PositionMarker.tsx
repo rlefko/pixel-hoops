@@ -15,8 +15,17 @@ import { nodeTop } from './map-geometry';
 const MARKER_W = 96;
 const MARKER_H = 26;
 
-export function PositionMarker({ centerX, layer }: { centerX: number; layer: number }) {
-  const bobStyle = useBobPulse(1100);
+export function PositionMarker({
+  centerX,
+  layer,
+  paused = false,
+}: {
+  centerX: number;
+  layer: number;
+  /** Hold the bob steady while the player is idle on the map. */
+  paused?: boolean;
+}) {
+  const bobStyle = useBobPulse(1100, { paused });
   return (
     <Animated.View
       pointerEvents="none"
@@ -34,8 +43,15 @@ export function PositionMarker({ centerX, layer }: { centerX: number; layer: num
   );
 }
 
-export function EntryBanner({ width }: { width: number }) {
-  const glowStyle = useGlowPulse(1100);
+export function EntryBanner({
+  width,
+  paused = false,
+}: {
+  width: number;
+  /** Hold the glow steady while the player is idle on the map. */
+  paused?: boolean;
+}) {
+  const glowStyle = useGlowPulse(1100, { paused });
   return (
     <Animated.View
       pointerEvents="none"

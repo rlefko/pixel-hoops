@@ -24,14 +24,16 @@ const PLANK_PITCH = 26;
 const PLANK = mix(palette.bgCourt, palette.courtLine, 0.1);
 const CROWD_COLORS = [palette.inkDim, palette.steelBlue, palette.orange];
 
-function CrowdBand({ width }: { width: number }) {
+function CrowdBand({ width, paused }: { width: number; paused: boolean }) {
   const seats = Math.max(0, Math.floor(width / 8));
-  const { reducedMotion } = useFeelSettings();
+  const { reducedMotion, arcadeExtras } = useFeelSettings();
   // A slow shimmer wave across the whole crowd band (one worklet, not per-seat), so
-  // the stands feel alive without thrashing. Holds steady under reduced motion.
+  // the stands feel alive without thrashing. Pure atmosphere, so it holds steady (no
+  // loop) under reduced motion, while the map is idle, or with Arcade Extras off, just
+  // like the hub backdrop/vignette. v=0.5 lands on the band's prior static opacity (~0.21).
   const v = useSharedValue(0);
   useEffect(() => {
-    if (reducedMotion) {
+    if (reducedMotion || !arcadeExtras || paused) {
       v.value = 0.5;
       return;
     }
@@ -41,7 +43,7 @@ function CrowdBand({ width }: { width: number }) {
       true
     );
     return () => cancelAnimation(v);
-  }, [reducedMotion, v]);
+  }, [reducedMotion, arcadeExtras, paused, v]);
   const shimmer = useAnimatedStyle(() => ({ opacity: 0.16 + 0.1 * v.value }));
   return (
     <Animated.View style={[styles.crowd, shimmer]} pointerEvents="none">
@@ -61,9 +63,12 @@ function CrowdBand({ width }: { width: number }) {
 export const ArenaBackdrop = memo(function ArenaBackdrop({
   width,
   height,
+  paused = false,
 }: {
   width: number;
   height: number;
+  /** Freeze the crowd shimmer when the player is idle on the map. */
+  paused?: boolean;
 }) {
   const plankCount = Math.ceil(height / PLANK_PITCH);
   return (
@@ -78,7 +83,7 @@ export const ArenaBackdrop = memo(function ArenaBackdrop({
         />
       ))}
       <View style={styles.frame} />
-      <CrowdBand width={width} />
+      <CrowdBand width={width} paused={paused} />
     </View>
   );
 });
