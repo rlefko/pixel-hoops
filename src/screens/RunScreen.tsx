@@ -164,7 +164,7 @@ export default function RunScreen() {
       if (!model.game) return null;
       // Auto-skip jumps past the watched play-by-play straight to the result.
       return autoSkipGames ? (
-        <AutoSkipGame onSkip={actions.finishReplay} />
+        <AutoAdvance onAdvance={actions.finishReplay} />
       ) : (
         <PlayByPlayFeed
           timeline={model.game.result.events}
@@ -174,15 +174,12 @@ export default function RunScreen() {
         />
       );
     case 'postgame':
-      // With auto-skip, dismiss the result on a win and head straight back to the map;
-      // a loss/timeout still pauses here so the "RUN IT BACK" decision is never skipped.
-      return (
-        <Postgame
-          model={model}
-          onContinue={actions.resolveGameResult}
-          autoContinue={autoSkipGames && model.phase.won}
-        />
-      );
+      // With auto-skip, a win heads straight back to the map (no box-score flash); a
+      // loss/timeout still shows the full result so the "RUN IT BACK" decision is kept.
+      if (autoSkipGames && model.phase.won) {
+        return <AutoAdvance onAdvance={actions.resolveGameResult} />;
+      }
+      return <Postgame model={model} onContinue={actions.resolveGameResult} />;
     case 'recruit':
       return (
         <RecruitView
@@ -361,16 +358,17 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   );
 }
 
-function AutoSkipGame({ onSkip }: { onSkip: () => void }) {
-  // Fire once on mount: advance game -> postgame without the watch. The reducer guard
-  // (phase must be 'game') and the once-ref keep a stray re-render from double-firing;
-  // the phase change then unmounts this component, so the effect can't run again.
+function AutoAdvance({ onAdvance }: { onAdvance: () => void }) {
+  // Fire the phase transition once on mount and show only a brief "FINAL..." beat, so
+  // auto-skip never paints the watched game or the full postgame (the box score would
+  // otherwise flash for a frame). The reducer's phase guard and the once-ref keep a
+  // stray re-render from double-firing; the phase change then unmounts this component.
   const firedRef = useRef(false);
   useEffect(() => {
     if (firedRef.current) return;
     firedRef.current = true;
-    onSkip();
-  }, [onSkip]);
+    onAdvance();
+  }, [onAdvance]);
   return (
     <View style={styles.center}>
       <Text style={styles.loading}>FINAL...</Text>
@@ -381,24 +379,13 @@ function AutoSkipGame({ onSkip }: { onSkip: () => void }) {
 function Postgame({
   model,
   onContinue,
-  autoContinue = false,
 }: {
   model: RunModel;
   onContinue: () => void;
-  /** Auto-skip: dismiss this screen on its own (used only on a win). */
-  autoContinue?: boolean;
 }) {
   // Default open so the box score is right there after a game; still collapsible
   // to put the win/loss headline and the retry one tap away.
   const [showBox, setShowBox] = useState(true);
-  // When auto-skip resolves a win, continue without a tap. Once-guarded + the
-  // reducer's postgame guard keep it from firing twice or skipping a loss.
-  const firedRef = useRef(false);
-  useEffect(() => {
-    if (!autoContinue || firedRef.current) return;
-    firedRef.current = true;
-    onContinue();
-  }, [autoContinue, onContinue]);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
   // A loss with timeouts left isn't the end: the headline + CTA invite a replay,
