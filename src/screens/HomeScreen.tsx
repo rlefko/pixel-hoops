@@ -66,7 +66,9 @@ export default function HomeScreen() {
     );
   }
 
-  const unlocked = homeRoster ? unlockedClasses(homeRoster.ladderProgress[homeRoster.selectedDifficulty]) : [];
+  const unlocked = homeRoster
+    ? unlockedClasses(homeRoster.ladderProgress[homeRoster.selectedDifficulty])
+    : [];
   const coach = homeRoster ? getCoach(homeRoster.selectedCoachId) : null;
 
   const setDifficulty = (d: Difficulty) => {
@@ -76,7 +78,11 @@ export default function HomeScreen() {
     const cls = nowUnlocked.includes(homeRoster.selectedLadderClass)
       ? homeRoster.selectedLadderClass
       : nowUnlocked[nowUnlocked.length - 1];
-    saveHomeRoster({ ...homeRoster, selectedDifficulty: d, selectedLadderClass: cls });
+    saveHomeRoster({
+      ...homeRoster,
+      selectedDifficulty: d,
+      selectedLadderClass: cls,
+    });
   };
 
   const setLadderClass = (cls: LadderClass) => {
@@ -85,14 +91,25 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen scroll scanlines contentContainerStyle={styles.container} onTouchStart={bump}>
+    <Screen
+      scroll
+      scanlines
+      backdrop
+      backdropPaused={idle}
+      vignette
+      contentContainerStyle={styles.container}
+      onTouchStart={bump}
+    >
       <View style={styles.titleBlock}>
         <Animated.View style={bobStyle}>
           <BasketballIcon size={22} color={palette.courtLine} />
         </Animated.View>
         <Text style={styles.title}>PIXEL</Text>
         <View style={styles.hoopsWrap}>
-          <Animated.View pointerEvents="none" style={[styles.hoopsGlow, glowStyle]} />
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.hoopsGlow, glowStyle]}
+          />
           <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
         </View>
         <Text style={styles.subtitle}>8-Bit Basketball Roguelike</Text>
@@ -117,7 +134,9 @@ export default function HomeScreen() {
                   onPress={() => setDifficulty(d)}
                   style={[styles.chip, active && styles.chipActive]}
                 >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  <Text
+                    style={[styles.chipText, active && styles.chipTextActive]}
+                  >
                     {DIFFICULTY_LABELS[d].name}
                   </Text>
                 </Pressable>
@@ -158,9 +177,15 @@ export default function HomeScreen() {
 
           <Text style={styles.selectLabel}>COACH</Text>
           {coach ? (
-            <Pressable style={styles.coachRow} onPress={() => nav.push('/coaches')}>
+            <Pressable
+              style={styles.coachRow}
+              onPress={() => nav.push('/coaches')}
+            >
               <WhistleIcon size={14} color={CLASS_COLOR[coach.class]} />
-              <Text style={[styles.coachName, { color: CLASS_COLOR[coach.class] }]} numberOfLines={1}>
+              <Text
+                style={[styles.coachName, { color: CLASS_COLOR[coach.class] }]}
+                numberOfLines={1}
+              >
                 {coach.name}
               </Text>
               <Text style={styles.coachChange}>CHANGE ›</Text>
@@ -176,7 +201,9 @@ export default function HomeScreen() {
           color={palette.gold}
           icon={<BasketballIcon size={28} color={palette.gold} />}
           attract={!idle}
-          onPress={() => nav.push({ pathname: '/run', params: { mode: 'new' } }, 'run')}
+          onPress={() =>
+            nav.push({ pathname: '/run', params: { mode: 'new' } }, 'run')
+          }
         />
         {savedRun ? (
           <MenuButton
@@ -187,7 +214,9 @@ export default function HomeScreen() {
             icon={<BasketballIcon size={22} color={palette.orange} />}
             attract={!idle}
             attractDelayMs={200}
-            onPress={() => nav.push({ pathname: '/run', params: { mode: 'resume' } }, 'run')}
+            onPress={() =>
+              nav.push({ pathname: '/run', params: { mode: 'resume' } }, 'run')
+            }
           />
         ) : null}
         <View style={styles.tileRow}>
@@ -340,8 +369,15 @@ const styles = StyleSheet.create({
     borderColor: palette.inkDim,
     borderRadius: RADIUS.chip,
   },
-  chipActive: { borderColor: palette.gold, backgroundColor: palette.gold + '1A' },
-  chipText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  chipActive: {
+    borderColor: palette.gold,
+    backgroundColor: palette.gold + '1A',
+  },
+  chipText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
   chipTextActive: { color: palette.gold },
   selectBlurb: {
     fontFamily: FONT.body,
@@ -373,8 +409,16 @@ const styles = StyleSheet.create({
     backgroundColor: palette.chrome + '12',
     maxWidth: 280,
   },
-  coachName: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, flexShrink: 1 },
-  coachChange: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  coachName: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    flexShrink: 1,
+  },
+  coachChange: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
   menu: {
     width: '100%',
     maxWidth: 360,
