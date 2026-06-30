@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
     padding: space(4),
     overflow: 'hidden',
   },
-  tint: { ...StyleSheet.absoluteFillObject, opacity: 0.06 },
+  tint: { ...StyleSheet.absoluteFill, opacity: 0.06 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',

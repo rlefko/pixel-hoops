@@ -232,7 +232,7 @@ PixelWipeOverlay.displayName = 'PixelWipeOverlay';
 const styles = StyleSheet.create({
   cell: { position: 'absolute' },
   center: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space(6),

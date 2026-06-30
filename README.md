@@ -21,7 +21,7 @@ Run on device with the Expo Go app or build for iOS/Android.
 
 ## Tech Stack
 
-- **Framework**: Expo (React Native) v54
+- **Framework**: Expo (React Native) v56
 - **Language**: TypeScript with strict mode
 - **Routing**: Expo Router
 - **Linting**: oxlint
