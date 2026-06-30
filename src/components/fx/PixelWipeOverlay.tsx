@@ -22,9 +22,14 @@ export interface PixelWipeHandle {
 }
 
 // Chunky target cell. Past the cap the grid grows the cell (never the count) so
-// big screens and web stay bounded, mirroring MAX_PARTICLES / MAX_LINES.
+// big screens and web stay bounded, mirroring MAX_PARTICLES / MAX_LINES. The cap is
+// deliberately low: every cell is an Animated.View running a worklet on each wipe, and
+// a wipe fires on every navigation and every run-map node tap, so fewer/chunkier cells
+// roughly halve the per-transition GPU cost while staying on the 8-bit dissolve look
+// (the dissolve reads from blockiness, not resolution). ~120 keeps a phone near ~56px
+// cells (~7x16) vs ~40px (~10x22) before.
 const TARGET_CELL = space(10); // 40px
-const MAX_CELLS = 240;
+const MAX_CELLS = 120;
 // A short ramp keeps each cell a hard-ish on/off (8-bit step) without tearing.
 const EDGE = 0.08;
 // Width of the traveling accent glow band on menu wipes (in progress units).

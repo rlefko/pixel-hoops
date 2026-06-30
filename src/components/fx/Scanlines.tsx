@@ -1,4 +1,4 @@
-import { useId, useState } from 'react';
+import { memo, useId, useState } from 'react';
 import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 import { palette } from '@/theme';
@@ -19,7 +19,7 @@ interface ScanlinesProps {
   enabled?: boolean;
 }
 
-export function Scanlines({ spacing = 3, color = palette.scanline, enabled }: ScanlinesProps) {
+function ScanlinesImpl({ spacing = 3, color = palette.scanline, enabled }: ScanlinesProps) {
   const settings = useFeelSettings();
   const on = enabled ?? settings.scanlinesEnabled;
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -54,3 +54,10 @@ export function Scanlines({ spacing = 3, color = palette.scanline, enabled }: Sc
     </View>
   );
 }
+
+/**
+ * Memoized so a busy parent (notably PlayByPlayFeed, which re-renders on every play-by-play
+ * event) does not reconcile this static SVG overlay each tick. Its own props are usually
+ * fixed at the call site, so it re-renders only when the scanlines toggle actually changes.
+ */
+export const Scanlines = memo(ScanlinesImpl);
