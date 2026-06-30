@@ -129,6 +129,28 @@ export class Canvas {
     }
   }
 
+  /**
+   * Trace a thin vertical half-ellipse: one pixel per row on the +x ('right') or
+   * -x ('left') flank of the ellipse. The basketball's curved side seams are each
+   * an arc like this, centered on a ball edge so only the inward-bulging half
+   * lands on the ball (matching BasketballIcon's `A 9 16` side-seam paths).
+   */
+  ellipseArc(
+    cx: number,
+    cy: number,
+    rx: number,
+    ry: number,
+    c: RGBA,
+    side: 'left' | 'right'
+  ): void {
+    const dir = side === 'right' ? 1 : -1;
+    for (let y = Math.ceil(cy - ry); y <= Math.floor(cy + ry); y++) {
+      const t = (y + 0.5 - cy) / ry;
+      if (t < -1 || t > 1) continue;
+      this.plot(cx + dir * rx * Math.sqrt(1 - t * t), y, c);
+    }
+  }
+
   /** Bresenham line from (x0, y0) to (x1, y1). Used for seams and net strands. */
   line(x0: number, y0: number, x1: number, y1: number, c: RGBA): void {
     let x = Math.round(x0);
@@ -156,8 +178,10 @@ export class Canvas {
   }
 
   /**
-   * Source-over composite of another canvas onto this one at (dx, dy). Pixels are
-   * alpha-blended, so a transparent-backed mark drops cleanly onto a layer below.
+   * Straight-alpha source-over composite of another canvas onto this one at
+   * (dx, dy). A translucent source reads correctly over both an opaque base (the
+   * result stays fully opaque, so the icon master keeps no transparency) and a
+   * transparent base (the source color is preserved at its own alpha).
    */
   composite(src: Canvas, dx: number, dy: number): void {
     for (let y = 0; y < src.h; y++) {
@@ -178,12 +202,16 @@ export class Canvas {
           continue;
         }
         const ti = (ty * this.w + tx) * 4;
-        const a = sa / 255;
-        const ia = 1 - a;
-        this.data[ti] = src.data[si] * a + this.data[ti] * ia;
-        this.data[ti + 1] = src.data[si + 1] * a + this.data[ti + 1] * ia;
-        this.data[ti + 2] = src.data[si + 2] * a + this.data[ti + 2] * ia;
-        this.data[ti + 3] = Math.max(this.data[ti + 3], sa);
+        const sA = sa / 255;
+        const dA = this.data[ti + 3] / 255;
+        const outA = sA + dA * (1 - sA);
+        if (outA <= 0) continue;
+        const inv = 1 / outA;
+        for (let k = 0; k < 3; k++) {
+          this.data[ti + k] =
+            (src.data[si + k] * sA + this.data[ti + k] * dA * (1 - sA)) * inv;
+        }
+        this.data[ti + 3] = Math.round(outA * 255);
       }
     }
   }

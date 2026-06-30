@@ -54,7 +54,7 @@ function hasTransparent(c: Canvas): boolean {
 
 const BG = hexToRgba(palette.bgDeep);
 const ORANGE = hexToRgba(palette.orange);
-const GOLD = hexToRgba(palette.gold);
+const RIM = hexToRgba(palette.epicRed);
 const INK = hexToRgba(palette.ink);
 
 describe('iconArt', () => {
@@ -76,7 +76,7 @@ describe('iconArt', () => {
     expect(isFullyOpaque(c)).toBe(true);
     expect(hasColor(c, BG)).toBe(true); // background shows
     expect(hasColor(c, ORANGE)).toBe(true); // the ball
-    expect(hasColor(c, GOLD)).toBe(true); // the hoop rim
+    expect(hasColor(c, RIM)).toBe(true); // the hoop rim
   });
 
   it('mark is transparent-backed with drawn pixels', () => {

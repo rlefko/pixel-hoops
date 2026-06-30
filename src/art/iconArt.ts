@@ -24,13 +24,13 @@ export const SPLASH_H = 64;
 const BG: RGBA = hexToRgba(palette.bgDeep); // #1A1A2E navy field
 const BALL: RGBA = hexToRgba(palette.orange); // #FF9800
 const BALL_SHADE: RGBA = hexToRgba(palette.courtLine); // #FF7A1A lower-right shade
-const RIM: RGBA = hexToRgba(palette.gold); // #FFD54F hoop, the brand accent
+const RIM: RGBA = hexToRgba(palette.epicRed); // #FF2D55 arcade-red hoop rim
 const SEAM: RGBA = hexToRgba(palette.bgPanel); // #0E0E1A ball seams
 const OUTLINE: RGBA = hexToRgba(palette.shadow); // #000000 crisp silhouette edge
 const INK: RGBA = hexToRgba(palette.ink); // wordmark + monochrome silhouette
-// Net strands sit on both opaque (master) and transparent (foreground) fields, so
-// they must be fully opaque; a touch of navy mixed in keeps them from glaring.
-const NET: RGBA = mix(BG, INK, 0.82);
+// Net strands are translucent so the ball shows through where they cross it.
+// composite() blends them, so over the opaque master they still resolve opaque.
+const NET: RGBA = hexToRgba(palette.ink, 120);
 const ARC: RGBA = mix(BG, hexToRgba(palette.courtLine), 0.22); // faint court line
 
 // Hoop rim: a shallow open ellipse near the top; the ball falls through it.
@@ -40,48 +40,84 @@ const RIM_RX = 11;
 const RIM_RY = 4;
 const RIM_T = 2;
 
-// Net: a tapering crosshatch hanging from the rim down past the ball.
+// Net: a tapering crosshatch that wraps the ball and billows below it. Wide
+// enough at the ball's middle to hug its sides, drawn both behind and in front.
 const NET_TOP = RIM_CY + 1;
-const NET_BOT = 25;
-const NET_TOP_HW = 9;
-const NET_BOT_HW = 4;
+const NET_BOT = 26;
+const NET_TOP_HW = 10;
+const NET_BOT_HW = 5;
 
 // Ball: the hero, mid-drop through the hoop.
 const BALL_CX = 16;
 const BALL_CY = 17;
 const BALL_R = 6.8;
 
-/** Draw the ball: black outline, orange disc, a warm shade, then the four seams. */
+/** Stamp the opaque pixels of `src` onto `dst`, but only where they fall inside
+ * the disc, so the seams land solely on the ball's orange face. */
+function stampWithinDisc(
+  dst: Canvas,
+  src: Canvas,
+  cx: number,
+  cy: number,
+  r: number
+): void {
+  for (let y = 0; y < src.h; y++) {
+    for (let x = 0; x < src.w; x++) {
+      const i = (y * src.w + x) * 4;
+      if (src.data[i + 3] === 0) continue;
+      const dx = x + 0.5 - cx;
+      const dy = y + 0.5 - cy;
+      if (dx * dx + dy * dy > r * r) continue;
+      dst.plot(x, y, [src.data[i], src.data[i + 1], src.data[i + 2], 255]);
+    }
+  }
+}
+
+/** Draw the ball: black outline, orange disc, a warm shade, then the four seams,
+ * a center cross plus two curved side seams that hug the left and right edges
+ * (each an arc centered on a ball edge, so only its inner half shows). */
 function drawBall(c: Canvas): void {
   c.disc(BALL_CX, BALL_CY, BALL_R + 1, OUTLINE);
   c.disc(BALL_CX, BALL_CY, BALL_R, BALL);
   // Soft lower-right shading for a touch of roundness.
   c.disc(BALL_CX + 1.4, BALL_CY + 1.4, BALL_R - 2.2, BALL_SHADE);
-  // Seams, clipped to the disc by construction. Center cross plus two curved
-  // side seams (a narrow vertical ellipse ring whose flanks hug the edges).
-  c.line(BALL_CX, BALL_CY - BALL_R, BALL_CX, BALL_CY + BALL_R, SEAM);
-  c.line(BALL_CX - BALL_R, BALL_CY, BALL_CX + BALL_R, BALL_CY, SEAM);
-  c.ellipseRing(BALL_CX, BALL_CY, BALL_R * 0.5, BALL_R * 0.96, 1, SEAM);
+
+  const seams = new Canvas(LOGICAL, LOGICAL);
+  seams.line(BALL_CX, BALL_CY - BALL_R, BALL_CX, BALL_CY + BALL_R, SEAM);
+  seams.line(BALL_CX - BALL_R, BALL_CY, BALL_CX + BALL_R, BALL_CY, SEAM);
+  const seamRx = BALL_R * 0.58;
+  seams.ellipseArc(BALL_CX - BALL_R, BALL_CY, seamRx, BALL_R, SEAM, 'right');
+  seams.ellipseArc(BALL_CX + BALL_R, BALL_CY, seamRx, BALL_R, SEAM, 'left');
+  stampWithinDisc(c, seams, BALL_CX, BALL_CY, BALL_R);
 }
 
-/** Draw the net as a tapering crosshatch between (NET_TOP) and (NET_BOT). */
-function drawNet(c: Canvas): void {
-  const strands = 4;
-  for (let k = 0; k <= strands; k++) {
-    const f = k / strands;
-    const topX = RIM_CX - NET_TOP_HW + 2 * NET_TOP_HW * f;
-    const botRight = RIM_CX - NET_BOT_HW + 2 * NET_BOT_HW * f;
-    const botLeft = RIM_CX - NET_BOT_HW + 2 * NET_BOT_HW * (1 - f);
-    c.line(topX, NET_TOP, botRight, NET_BOT, NET); // right-leaning strand
-    c.line(topX, NET_TOP, botLeft, NET_BOT, NET); // left-leaning strand
-  }
-  // Two dashed horizontal courses to read as woven mesh.
-  for (let row = 1; row <= 2; row++) {
-    const f = row / 3;
-    const y = Math.round(NET_TOP + (NET_BOT - NET_TOP) * f);
-    const hw = NET_TOP_HW + (NET_BOT_HW - NET_TOP_HW) * f;
-    for (let x = Math.round(RIM_CX - hw); x <= RIM_CX + hw; x++) {
-      if ((x + row) % 2 === 0) c.plot(x, y, NET);
+// Net mesh resolution: a grid of cells, each crossed by an X, so adjacent cells
+// share strands and the whole thing reads as woven diamonds that taper downward.
+const NET_ROWS = 4;
+const NET_COLS = 5;
+
+/** Edge x of the net at vertical fraction `f` (0 at the rim, 1 at the bottom). */
+function netEdgeX(f: number, sign: number): number {
+  const hw = NET_TOP_HW + (NET_BOT_HW - NET_TOP_HW) * f;
+  return RIM_CX + sign * hw;
+}
+
+/** Draw the net as a tapering lattice of diamonds between NET_TOP and NET_BOT:
+ * each grid cell gets both diagonals, and shared cell edges weave continuous
+ * strands. Rendered translucent (NET alpha) so the ball reads through it.
+ * `rowStart` skips upper rows, used to drape only the lower mesh over the ball. */
+function drawNet(c: Canvas, rowStart = 0): void {
+  const yAt = (f: number) => NET_TOP + (NET_BOT - NET_TOP) * f;
+  const xAt = (f: number, col: number) =>
+    netEdgeX(f, -1) + ((netEdgeX(f, 1) - netEdgeX(f, -1)) * col) / NET_COLS;
+  for (let r = rowStart; r < NET_ROWS; r++) {
+    const fTop = r / NET_ROWS;
+    const fBot = (r + 1) / NET_ROWS;
+    const yTop = yAt(fTop);
+    const yBot = yAt(fBot);
+    for (let col = 0; col < NET_COLS; col++) {
+      c.line(xAt(fTop, col), yTop, xAt(fBot, col + 1), yBot, NET); // down-right
+      c.line(xAt(fTop, col + 1), yTop, xAt(fBot, col), yBot, NET); // down-left
     }
   }
 }
@@ -104,15 +140,22 @@ function compositeBand(
   }
 }
 
-/** Compose the full mark into a 32x32 canvas: the rim's back arc, the net, the
- * ball, then the rim's front arc, so the ball reads as dropping through the hoop.
- * The ring is rendered once and composited in two y-bands around the ball. */
+/** Compose the full mark into a 32x32 canvas. Z-order, back to front: the rim's
+ * back arc, the net behind the ball, the ball, the net draping over the ball's
+ * front, then the rim's front arc, so the ball reads as dropping through a hoop
+ * and net. The rim ring and net are each rendered once and reused. */
 function composeMark(c: Canvas): void {
   const rim = new Canvas(LOGICAL, LOGICAL);
   rim.ellipseRing(RIM_CX, RIM_CY, RIM_RX, RIM_RY, RIM_T, RIM);
+  const netBack = new Canvas(LOGICAL, LOGICAL);
+  drawNet(netBack); // full net, behind the ball
+  const netFront = new Canvas(LOGICAL, LOGICAL);
+  drawNet(netFront, 2); // only the lower mesh, to drape over the ball's front
+
   compositeBand(c, rim, 0, RIM_CY); // back of the rim, behind the ball
-  drawNet(c);
+  c.composite(netBack, 0, 0); // net behind the ball
   drawBall(c);
+  c.composite(netFront, 0, 0); // lower net draping over the ball's front
   compositeBand(c, rim, RIM_CY, LOGICAL); // front of the rim, over the ball
 }
 
