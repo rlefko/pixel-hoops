@@ -6,9 +6,9 @@ import type { MapNodeType } from '@/types/run-map';
 import type { VictoryTierKey } from '@/game/victory-tier';
 
 /**
- * Tiny 8-bit icons drawn with plain Views (no assets), matching the procedural
- * style of PixelPlayer. One per run-map node type plus the two
- * resource glyphs (coin, star). Each takes a square `size` and a `color`.
+ * Tiny 8-bit icons drawn procedurally with plain Views and inline SVG (no assets),
+ * in the same procedural spirit as PixelPlayer. One per run-map node type plus the
+ * two resource glyphs (coin, star). Each takes a square `size` and a `color`.
  */
 
 interface IconProps {
