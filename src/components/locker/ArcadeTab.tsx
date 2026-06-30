@@ -3,7 +3,7 @@ import { View, StyleSheet, Pressable, FlatList, TextInput } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { Pop, ShakeView, FlashOverlay } from '@/components/fx';
-import { useGlowPulse } from '@/feel';
+import { useGlowPulse, sfx } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { LegendaryHalo, RewardConfetti } from '@/components/run/reward-fx';
 import { RARITY_COLOR, RARITY_LABEL } from '@/components/run/rarity-ui';
@@ -86,21 +86,30 @@ export function ArcadeTab() {
 
   const pull = (machineId: MachineId) => {
     const machine = GACHA_MACHINES[machineId];
-    if (coins < machine.cost) return;
+    if (coins < machine.cost) {
+      sfx.error();
+      return;
+    }
     pullCounter += 1;
     const result = pullMachine(machineId, createRNG(`pull-${machineId}-${coins}-${pullCounter}`));
     setLastPull(result);
-    fire(result.rarity); // reveal juice scales with the pulled rarity
+    fire(result.rarity); // reveal juice + rarity-tiered reward sting
     saveHomeRoster(addAbility({ ...homeRoster, coins: coins - machine.cost }, result.id));
   };
 
   const scout = (tier: PlayerGachaTier) => {
     const machine = PLAYER_MACHINES[tier];
     // Block when unaffordable or the tier is fully collected (a guaranteed repeat).
-    if (coins < machine.cost || tierCounts(tier, ownedKeys).complete) return;
+    if (coins < machine.cost || tierCounts(tier, ownedKeys).complete) {
+      sfx.error();
+      return;
+    }
     scoutCounter += 1;
     const { home, result } = applyPlayerPull(homeRoster, tier, createRNG(`scout-${tier}-${coins}-${scoutCounter}`));
     setLastScout(result);
+    // A fresh signing celebrates; a duplicate is the deflating "already got 'em" beat.
+    if (result.isDupe) sfx.dupe();
+    else sfx.recruit();
     saveHomeRoster(home);
   };
 

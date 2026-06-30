@@ -1,8 +1,9 @@
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop, LiveChip } from '@/components/fx';
-import { useIdle, HUB_IDLE_MS } from '@/feel';
+import { sfx, useIdle, HUB_IDLE_MS } from '@/feel';
 import {
   DIFFICULTY_LABELS,
   type Difficulty,
@@ -37,6 +38,17 @@ export function RunSummaryView({
   // Quiet the unlock banner's reward glow once the player settles on this terminal
   // screen; the next touch wakes it. Mirrors the hub/run-map idle-pause.
   const { idle, bump } = useIdle(HUB_IDLE_MS);
+
+  // Champion fanfare for the rare flat-fallback championship (a clear without a final
+  // game, so ChampionView isn't shown). A loss already got its sting in Postgame, so
+  // this stays silent there to avoid a double.
+  const firedRef = useRef(false);
+  useEffect(() => {
+    if (firedRef.current || !champion) return;
+    firedRef.current = true;
+    sfx.champion();
+  }, [champion]);
+
   return (
     <Screen style={styles.container} onTouchStart={bump}>
       <Pop popOnMount>

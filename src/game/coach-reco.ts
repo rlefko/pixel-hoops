@@ -1,32 +1,32 @@
-import type { PlayerStats } from '@/types/player';
 import { POSITIONS, nameKey, type Roster, type RosterPlayer } from '@/types/roster';
 import type { Team } from '@/types/team';
 import type { Difficulty } from './difficulty-mode';
-import type { CoachProfile } from './coaches';
-import { ovrRaw, offRaw, defRaw } from './ratings';
-import { clamp } from './stat-scaling';
+import type { CoachProfile, CoachClass } from './coaches';
+import { ovr, ovrRaw, offRaw, defRaw, classForOvr, CLASS_ORDER } from './ratings';
 import { deriveArchetype, counterEdge, archetypeLabel, Q_TO_RATING } from './team-archetype';
 
 /**
- * The coach's lineup advisor: an optional, one-click recommendation surfaced between
- * games (never mid-game). Accepting it reorders the WHOLE drafted run roster
- * (starters + bench), not just one swap, in the equipped coach's PLAYSTYLE: a
- * lockdown coach pushes stoppers into the five, an up-tempo coach favors athletic
- * shooters and a deeper bench, a star coach features a clear go-to scorer.
+ * The coach's lineup advisor: accepting it reshapes the WHOLE drafted run roster
+ * (starters + bench) toward the coach's PLAYSTYLE-optimal lineup, not just one swap.
+ * A lockdown coach pulls its best stoppers into the five, an up-tempo coach favors
+ * athletic shooters, a balanced coach just fields its best five.
  *
- * The reorder is opinionated but not a solve (the Soren-Johnson "don't optimize the
- * fun out" guardrail): the search is tilted toward the coach's identity (a clamped
- * style bonus) on top of a cheap, deterministic matchup proxy, and the coach's IQ
- * gates how deep it looks and how subtle an edge it speaks up on. A weak coach makes
- * one blunt fix; a smart coach threads the matchup over several moves. The banner
- * surfaces only when the reorder genuinely improves the matchup by the
- * difficulty-scaled bar, so accepting never hurts and the player still owns the
- * final, matchup-specific tweak (the lineup builder stays one tap away).
+ * The engine is PLAYSTYLE-PRIMARY, quality-anchored, and strength-scaled:
+ *  - Each player gets a coach-fit value (overall + a lean toward the coach's focus and
+ *    pace), so style decides among comparable players while overall still anchors it.
+ *  - A hard CLASS FLOOR keeps it fair: the coach never benches a higher-class player
+ *    for a lower-class one just to fit its style (it fully commits to style only up to
+ *    that line), so accepting never trades your roster's class away.
+ *  - The number of moves scales with the coach's CLASS (C makes one blunt fix; S+ can
+ *    restructure all five), so a better coach reshapes more toward its identity.
+ *  - A higher-IQ coach also threads the matchup: it avoids style moves that would walk
+ *    the team into a clearly bad archetype counter, without ever chasing the matchup
+ *    over its style.
  *
  * Pure: the team builder is INJECTED (so this never imports the run machine), and the
  * matchup proxy reuses the same off/def composites and archetype counter the sim
- * resolves against, so it tracks outcomes without running a single game. We surface a
- * qualitative edge (minor/solid/big), never a raw percentage.
+ * resolves against. We surface a qualitative edge (minor/solid/big), never a raw
+ * percentage; the banner only speaks up on a meaningful, difficulty-scaled reshape.
  */
 
 export interface CoachRec {
@@ -34,9 +34,9 @@ export interface CoachRec {
   starters: RosterPlayer[];
   /** Proposed bench, ordered by rotation priority (best/most-in-style first). */
   bench: RosterPlayer[];
-  /** Qualitative strength of the suggested change. */
+  /** Qualitative size of the reshape (minor = 1 move, solid = 2-3, big = 4+). */
   edge: 'minor' | 'solid' | 'big';
-  /** How many starter slots change vs the current five (1 = a single swap). */
+  /** How many players are brought into the starting five (1 = a single swap). */
   changes: number;
   /** One-line description of the move for the banner. */
   summary: string;
@@ -51,11 +51,11 @@ export interface RecommendArgs {
   /** Builds the player's home team for a candidate roster (injected by the run
    * machine so this stays a pure leaf). */
   buildHome: (roster: Roster) => Team;
-  /** The difficulty-scaled gain (in rating points) below which nothing surfaces. */
+  /** The difficulty-scaled style gain below which the banner stays quiet. */
   minDelta: number;
 }
 
-// --- Matchup + style scoring ------------------------------------------------
+// --- Matchup proxy ----------------------------------------------------------
 
 /** The matchup edge for the home side, in rating points (>0 favors home). Reuses the
  * sim's own off/def composites and the frozen archetype counter, so it correlates
@@ -74,85 +74,57 @@ function matchupScore(home: Team, away: Team): number {
   return ratingEdge + counter;
 }
 
-/** Raw team quality (off + def composites), the matchup-free fallback when there is
- * no specific opponent to score against (the lineup-builder button outside a game). */
-function rawQuality(home: Team): number {
-  return offRaw(home.teamStats) + defRaw(home.teamStats);
-}
+// --- Playstyle fit + coach strength -----------------------------------------
 
-/** A small nudge so a coach with a system prefers a five that commits to it
- * (unlocking the conditional system bonus), all else near equal. */
-const SYSTEM_FIT_NUDGE = 0.2;
 /** The 6-20 band midpoint; style leans measure distance from this. */
 const BAND_MID = 13;
-/** Style-tilt weights (rating points per stat-point of alignment), kept small and
- * clamped so the coach's identity tilts the choice without overriding a real matchup
- * edge: the reorder is opinionated, never self-sabotaging. */
-const W_FOCUS = 0.15;
-const W_PACE = 0.12;
-const W_USAGE = 0.12;
-const STYLE_CLAMP = 1.5;
-
-function statMean(five: RosterPlayer[], key: keyof PlayerStats): number {
-  if (five.length === 0) return 0;
-  return five.reduce((s, rp) => s + rp.player.stats[key], 0) / five.length;
-}
-
-function teamDefenseMean(five: RosterPlayer[]): number {
-  return (statMean(five, 'perimeterD') + statMean(five, 'interiorD')) / 2;
-}
-
-/** The top two position-weighted overalls in the five (for star vs egalitarian fit). */
-function topTwoOvr(five: RosterPlayer[]): [number, number] {
-  const vals = five.map((rp) => ovrRaw(rp.player.stats, rp.position)).sort((a, b) => b - a);
-  return [vals[0] ?? 0, vals[1] ?? vals[0] ?? 0];
-}
+/** Per-stat-point lean weights: how strongly the coach's focus / pace reshape who
+ * fits the style. Tuned so style decides among comparable players (overall still
+ * anchors, and the class floor is the hard line). */
+const FOCUS_LEAN = 0.6;
+const PACE_LEAN = 0.4;
 
 /**
- * How well a built five fits the coach's identity, in clamped rating points. Rewards
- * the coach's focus (lockdown -> team defense, inside/outside -> the matching
- * orientation), pace (fast -> athletic bodies, slow -> defense/grind), usage (star ->
- * a clear hierarchy, egalitarian -> parity), and a system match. Always on (the
- * coach's character), so the reorder leans toward its style regardless of IQ.
+ * A player's value to this coach: overall, plus a lean toward the coach's identity
+ * (focus: lockdown -> team defense, inside/outside -> that stat; pace: fast ->
+ * athleticism, slow -> defense). A balanced/auto coach has no lean, so it simply
+ * fields its best players. Used for both starter selection and bench ordering.
  */
-function styleBonus(home: Team, coach: CoachProfile): number {
-  const five = home.lineup.players;
-  let bonus = 0;
-
-  if (coach.prefFocus === 'lockdown') bonus += (teamDefenseMean(five) - BAND_MID) * W_FOCUS;
-  else if (coach.prefFocus === 'inside')
-    bonus += (statMean(five, 'inside') - statMean(five, 'outside')) * W_FOCUS;
-  else if (coach.prefFocus === 'outside')
-    bonus += (statMean(five, 'outside') - statMean(five, 'inside')) * W_FOCUS;
-
-  if (coach.prefPace === 'fast') bonus += (statMean(five, 'athleticism') - BAND_MID) * W_PACE;
-  else if (coach.prefPace === 'slow') bonus += (teamDefenseMean(five) - BAND_MID) * W_PACE;
-
-  const [top, second] = topTwoOvr(five);
-  if (coach.usage === 'star') bonus += (top - second) * W_USAGE;
-  else if (coach.usage === 'egalitarian') bonus += (second - top) * W_USAGE;
-
-  if (coach.system.length > 0 && coach.system.includes(deriveArchetype(home))) {
-    bonus += SYSTEM_FIT_NUDGE;
-  }
-  return clamp(bonus, -STYLE_CLAMP, STYLE_CLAMP);
-}
-
-/** A player's value to this coach, for ordering the bench by rotation priority:
- * overall plus the coach's focus lean (a lockdown coach trusts a stopper sooner). */
-function playerStyleValue(rp: RosterPlayer, coach: CoachProfile): number {
+function playerFit(rp: RosterPlayer, coach: CoachProfile): number {
   const s = rp.player.stats;
   let lean = 0;
-  if (coach.prefFocus === 'lockdown') lean = ((s.perimeterD + s.interiorD) / 2 - BAND_MID) * 0.3;
-  else if (coach.prefFocus === 'inside') lean = (s.inside - BAND_MID) * 0.3;
-  else if (coach.prefFocus === 'outside') lean = (s.outside - BAND_MID) * 0.3;
+  if (coach.prefFocus === 'lockdown') lean += ((s.perimeterD + s.interiorD) / 2 - BAND_MID) * FOCUS_LEAN;
+  else if (coach.prefFocus === 'inside') lean += (s.inside - BAND_MID) * FOCUS_LEAN;
+  else if (coach.prefFocus === 'outside') lean += (s.outside - BAND_MID) * FOCUS_LEAN;
+  if (coach.prefPace === 'fast') lean += (s.athleticism - BAND_MID) * PACE_LEAN;
+  else if (coach.prefPace === 'slow') lean += ((s.perimeterD + s.interiorD) / 2 - BAND_MID) * PACE_LEAN;
   return ovrRaw(s, rp.position) + lean;
 }
 
-// --- Search -----------------------------------------------------------------
+/** A player's effective class rank (0 = D ... up the ladder), from their displayed
+ * overall, for the class floor. */
+function classRank(rp: RosterPlayer): number {
+  return CLASS_ORDER.indexOf(classForOvr(ovr(rp.player.stats, rp.position)));
+}
 
-function edgeFor(delta: number): CoachRec['edge'] {
-  return delta >= 2 ? 'big' : delta >= 1 ? 'solid' : 'minor';
+/** How many starter changes a coach may make, by class: a top coach can restructure
+ * the whole five toward its ideal; the starter makes one blunt fix. */
+const BUDGET_BY_CLASS: Record<CoachClass, number> = { C: 1, B: 2, A: 3, S: 4, 'S+': 5 };
+function budgetForClass(cls: CoachClass): number {
+  return BUDGET_BY_CLASS[cls] ?? 1;
+}
+
+/** How much a coach lets the upcoming matchup veto a style move: a low-IQ coach plays
+ * pure style; a smarter one avoids walking into a clearly bad counter. */
+function matchupWeightForIq(iq: number): number {
+  return iq <= 10 ? 0 : iq <= 15 ? 0.5 : 1;
+}
+
+// --- Search helpers ---------------------------------------------------------
+
+/** Reshape size for the banner label. */
+function edgeForChanges(changes: number): CoachRec['edge'] {
+  return changes >= 4 ? 'big' : changes >= 2 ? 'solid' : 'minor';
 }
 
 function injured(rp: RosterPlayer): boolean {
@@ -183,28 +155,7 @@ function singleSwaps(roster: Roster): Swap[] {
   return swaps;
 }
 
-/** A weak coach only sees a glaring upgrade: a bench player who clearly out-rates the
- * starter they would replace. (Injuries need no recommendation: the sim already
- * benches a hurt starter for the best healthy body via dressedRoster.) */
-function isObvious(swap: Swap): boolean {
-  const inVal = ovrRaw(swap.in.player.stats, swap.in.position);
-  const outVal = ovrRaw(swap.out.player.stats, swap.out.position);
-  return inVal - outVal >= 2;
-}
-
-type Tier = 'low' | 'mid' | 'high';
-
-function tierFor(coach: CoachProfile): Tier {
-  return coach.iq <= 10 ? 'low' : coach.iq <= 15 ? 'mid' : 'high';
-}
-
-/** How many hill-climb moves a coach will make: a blunt single fix at low IQ, a
- * deeper full reorder as IQ rises. */
-function maxStepsFor(tier: Tier): number {
-  return tier === 'low' ? 1 : tier === 'mid' ? 4 : 6;
-}
-
-const IMPROVE_EPS = 1e-6;
+const GAIN_EPS = 1e-6;
 
 function key(rp: RosterPlayer): string {
   return nameKey(rp.player.name, rp.position);
@@ -234,12 +185,12 @@ function starterChanges(before: RosterPlayer[], after: RosterPlayer[]): number {
 export interface ReorderResult {
   /** The reordered roster (starters in slot order, bench by rotation priority). */
   roster: Roster;
-  /** The matchup-proxy gain over the input roster, in rating points (0 with no
-   * opponent or no change). */
-  matchupDelta: number;
   /** How many players were brought into the starting five (set-based, so a pure
    * re-slot of the same five is 0). */
   changes: number;
+  /** The total playstyle-fit improvement of the applied moves (rating points), for
+   * the difficulty-scaled banner gate. */
+  styleGain: number;
 }
 
 export interface ReorderArgs {
@@ -251,54 +202,54 @@ export interface ReorderArgs {
 }
 
 /**
- * The coach's preferred reordering of the whole roster: a style-tilted, IQ-gated
- * hill-climb over bench<->starter swaps that picks the five, then orders the bench by
- * rotation priority. Always returns a (possibly unchanged) roster, so the lineup
- * builder's "let the coach set it" button can apply it directly. {@link
- * recommendLineup} wraps this with the surfacing threshold for the pregame banner.
+ * The coach's reshape of the whole roster toward its playstyle ideal: a greedy,
+ * class-floored, budget-limited search that swaps the best-fitting bench players into
+ * the five (up to the coach's class budget), then slots the five by position and
+ * orders the bench by fit. Always returns a (possibly unchanged) roster, so the
+ * lineup builder's "let the coach set it" button can apply it directly. {@link
+ * recommendLineup} wraps this with the surfacing gate for the pregame banner.
  */
 export function reorderForCoach(args: ReorderArgs): ReorderResult {
   const { roster, coach, buildHome, opponent } = args;
-  const tier = tierFor(coach);
-
-  const objective = (r: Roster): number => {
-    const home = buildHome(r);
-    const base = opponent ? matchupScore(home, opponent) : rawQuality(home);
-    return base + styleBonus(home, coach);
-  };
-  const matchup = (r: Roster): number =>
-    opponent ? matchupScore(buildHome(r), opponent) : rawQuality(buildHome(r));
+  const budget = budgetForClass(coach.class);
+  const matchupW = matchupWeightForIq(coach.iq);
 
   let current = roster;
-  let currentScore = objective(current);
+  let styleGain = 0;
 
-  if (roster.bench.length > 0) {
-    const maxSteps = maxStepsFor(tier);
-    for (let step = 0; step < maxSteps; step++) {
-      let swaps = singleSwaps(current);
-      if (tier === 'low') swaps = swaps.filter(isObvious);
-      let best: { roster: Roster; score: number } | null = null;
-      for (const swap of swaps) {
-        const score = objective(swap.roster);
-        if (!best || score > best.score) best = { roster: swap.roster, score };
-      }
-      if (!best || best.score <= currentScore + IMPROVE_EPS) break;
-      current = best.roster;
-      currentScore = best.score;
+  for (let step = 0; step < budget; step++) {
+    if (current.bench.length === 0) break;
+    // Baseline matchup for this step (only a smart coach with an opponent threads it).
+    const baseMatchup =
+      matchupW > 0 && opponent ? matchupScore(buildHome(current), opponent) : 0;
+    let best: { swap: Swap; gain: number; styleGain: number } | null = null;
+    for (const swap of singleSwaps(current)) {
+      // Quality anchor: never trade a higher-class player out for a lower-class one
+      // just to fit the style.
+      if (classRank(swap.in) < classRank(swap.out)) continue;
+      const sGain = playerFit(swap.in, coach) - playerFit(swap.out, coach);
+      // A smarter coach is penalized for a style move that worsens the matchup (avoids
+      // a bad counter) but never chases the matchup over its style.
+      const mGain =
+        matchupW > 0 && opponent
+          ? matchupScore(buildHome(swap.roster), opponent) - baseMatchup
+          : 0;
+      const gain = sGain + matchupW * Math.min(0, mGain);
+      if (gain > GAIN_EPS && (!best || gain > best.gain)) best = { swap, gain, styleGain: sGain };
     }
+    if (!best) break;
+    current = best.swap.roster;
+    styleGain += Math.max(0, best.styleGain);
   }
 
-  // Slot the chosen five into natural PG..C order (so a swapped-in player never lands
-  // in the wrong court slot) and order the bench by rotation priority, so the WHOLE
+  // Slot the five into natural PG..C order and order the bench by fit, so the WHOLE
   // roster is set coherently, not just which five plays.
-  const bench = [...current.bench].sort(
-    (a, b) => playerStyleValue(b, coach) - playerStyleValue(a, coach)
-  );
+  const bench = [...current.bench].sort((a, b) => playerFit(b, coach) - playerFit(a, coach));
   const result: Roster = { starters: slotByPosition(current.starters), bench };
   return {
     roster: result,
-    matchupDelta: matchup(result) - matchup(roster),
     changes: starterChanges(roster.starters, result.starters),
+    styleGain,
   };
 }
 
@@ -322,46 +273,42 @@ function summarize(
       ? `Start ${incoming.player.name} over ${out.player.name} ${vs}`
       : `Start ${incoming.player.name} ${vs}`;
   }
-  return `Reset the rotation: start ${incoming.player.name} and ${changes - 1} more ${vs}`;
+  return `Reshape the rotation: start ${incoming.player.name} and ${changes - 1} more ${vs}`;
 }
 
 /**
- * Recommend the coach's full reorder for the pregame banner, or null when there is
- * nothing worth surfacing (no bench, no change, or a gain below the
- * difficulty-scaled bar). A high-IQ coach speaks up on a subtler edge (the bar drops
- * to 80%); a low-IQ coach only flags an obvious fix, so easy runs stay quiet and hard
- * runs get real adjustments often. The surfacing test is the MATCHUP gain (not the
- * style-tilted objective), so accepting the banner never worsens the matchup.
+ * Recommend the coach's playstyle reshape for the pregame banner, or null when there
+ * is nothing worth surfacing (no bench, no change, or a reshape below the
+ * difficulty-scaled bar). The bar is on the STYLE gain, so easy runs stay quiet and
+ * hard/boss nodes surface real reshapes often; the player still owns the final
+ * matchup-specific tweak (the lineup builder stays one tap away).
  */
 export function recommendLineup(args: RecommendArgs): CoachRec | null {
   const { roster, coach, opponent, buildHome, minDelta } = args;
   if (roster.bench.length === 0) return null;
 
-  const { roster: reordered, matchupDelta, changes } = reorderForCoach({
+  const { roster: reordered, changes, styleGain } = reorderForCoach({
     roster,
     coach,
     buildHome,
     opponent,
   });
   if (changes === 0) return null;
-
-  const threshold = tierFor(coach) === 'high' ? minDelta * 0.8 : minDelta;
-  if (matchupDelta < threshold) return null;
+  if (styleGain < minDelta) return null;
 
   return {
     starters: reordered.starters,
     bench: reordered.bench,
-    edge: edgeFor(matchupDelta),
+    edge: edgeForChanges(changes),
     changes,
     summary: summarize(roster.starters, reordered.starters, changes, opponent),
   };
 }
 
 /**
- * The gain (in rating points) a recommendation must clear to surface, scaled so the
- * coach stays quiet on easy (where matchups are usually favorable) and speaks up often
- * on hard/insane (where unfavorable matchups dominate). Lowered further on the
- * higher-stakes elite/boss nodes.
+ * The style gain (in rating points) a reshape must clear to surface, scaled so the
+ * coach stays quiet on easy and speaks up often on hard/insane. Lowered further on
+ * the higher-stakes elite/boss nodes.
  */
 export function recMinDelta(difficulty: Difficulty, nodeType: 'game' | 'elite' | 'boss'): number {
   const base =

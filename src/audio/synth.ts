@@ -1,0 +1,206 @@
+/**
+ * A tiny deterministic chiptune synth. It compiles a declarative `Recipe` (a stack of
+ * `Voice`s, each an oscillator + envelope + effects) into mono float samples in [-1, 1].
+ *
+ * Pure: no Node or React Native imports, no global randomness or clock, so the same
+ * recipe always renders byte-identical audio. Used by the generator script and the
+ * unit tests; the app itself only plays the committed .wav output.
+ *
+ * Design intent (see docs/game-concept.md): NES-flavored square/triangle/noise voices,
+ * fast percussive envelopes, optional bit-crush and sample-rate reduction for that
+ * "downsampled arcade" grit. Routine sounds stay quiet via a low recipe `gain`; the big
+ * stings push toward full scale.
+ */
+
+import { SAMPLE_RATE } from './wav';
+
+export type Osc = 'square' | 'triangle' | 'sawtooth' | 'noise';
+export type SweepShape = 'linear' | 'exp';
+
+export interface Envelope {
+  /** Fade-in time. Chiptune attacks are near-instant; default 0 (full from sample 0). */
+  attackMs?: number;
+  /** Fall from peak to the sustain level. */
+  decayMs?: number;
+  /** Held level after decay, 0..1. Percussive sounds use a low sustain + long decay. */
+  sustain?: number;
+  /** Fade-out at the tail, ending exactly at durMs. */
+  releaseMs?: number;
+}
+
+export interface Voice {
+  osc: Osc;
+  /** Pulse width for `square` (0..1). 0.5 = full, 0.25 / 0.125 = thinner NES timbres. */
+  duty?: number;
+  /** Start frequency in Hz. For `noise`, the LFSR clock rate (higher = hissier). */
+  freq: number;
+  /** End frequency for a pitch sweep / portamento across the voice. */
+  freqTo?: number;
+  /** Sweep curve from `freq` to `freqTo`. Default linear. */
+  sweep?: SweepShape;
+  durMs: number;
+  /** Start this voice late so voices can layer or sequence. Default 0. */
+  delayMs?: number;
+  env?: Envelope;
+  /** Arpeggio: cycle these semitone offsets (relative to `freq`) every `stepMs`. */
+  arp?: { steps: number[]; stepMs: number };
+  /** Pitch wobble: `semitones` of depth at `rateHz`. */
+  vibrato?: { semitones: number; rateHz: number };
+  /** Per-voice level before the recipe mix. Default 1. */
+  gain?: number;
+  /** Quantize amplitude to this many bits for lo-fi crunch (e.g. 4). */
+  crushBits?: number;
+  /** Sample-and-hold every N output samples to fake a lower sample rate. */
+  srReduce?: number;
+  /** Seed for the noise LFSR so a clip's noise is fixed but differs per voice. */
+  noiseSeed?: number;
+}
+
+export interface Recipe {
+  voices: Voice[];
+  /** Master level after mixing, 0..1. This is the loudness tier (routine vs sting). */
+  gain?: number;
+  /** Round-robin player-pool size the runtime should allocate (1 = one-shot). */
+  pool: number;
+}
+
+const TWO_PI = Math.PI * 2;
+const LFSR_MASK = 0x7fff; // 15-bit shift register, like the NES noise channel
+
+function msToSamples(ms: number): number {
+  return Math.round((ms / 1000) * SAMPLE_RATE);
+}
+
+function semitonesToRatio(semitones: number): number {
+  return 2 ** (semitones / 12);
+}
+
+/** ADSR amplitude at a point in time. Release is anchored to the end of the voice. */
+function envelopeAt(elapsedMs: number, durMs: number, env: Envelope | undefined): number {
+  if (!env) return 1;
+  const attack = env.attackMs ?? 0;
+  const decay = env.decayMs ?? 0;
+  const sustain = env.sustain ?? 1;
+  const release = env.releaseMs ?? 0;
+  const releaseStart = Math.max(attack + decay, durMs - release);
+
+  if (elapsedMs < attack) return attack > 0 ? elapsedMs / attack : 1;
+  if (elapsedMs < attack + decay) {
+    return decay > 0 ? 1 - (1 - sustain) * ((elapsedMs - attack) / decay) : sustain;
+  }
+  if (elapsedMs < releaseStart) return sustain;
+  if (elapsedMs < durMs) return release > 0 ? sustain * (1 - (elapsedMs - releaseStart) / release) : 0;
+  return 0;
+}
+
+/** Instantaneous frequency, folding in sweep, arpeggio, and vibrato. */
+function freqAt(voice: Voice, elapsedMs: number, progress: number): number {
+  let base = voice.freq;
+  if (voice.arp) {
+    const idx = Math.floor(elapsedMs / voice.arp.stepMs) % voice.arp.steps.length;
+    base = voice.freq * semitonesToRatio(voice.arp.steps[idx]);
+  } else if (voice.freqTo !== undefined) {
+    base =
+      voice.sweep === 'exp'
+        ? voice.freq * (voice.freqTo / voice.freq) ** progress
+        : voice.freq + (voice.freqTo - voice.freq) * progress;
+  }
+  if (voice.vibrato) {
+    const wobble = Math.sin(TWO_PI * voice.vibrato.rateHz * (elapsedMs / 1000));
+    base *= semitonesToRatio(voice.vibrato.semitones * wobble);
+  }
+  return base;
+}
+
+function oscillator(osc: Osc, phase: number, duty: number): number {
+  const t = phase - Math.floor(phase); // fractional phase in [0, 1)
+  switch (osc) {
+    case 'square':
+      return t < duty ? 1 : -1;
+    case 'triangle':
+      return 4 * Math.abs(t - 0.5) - 1;
+    case 'sawtooth':
+      return 2 * t - 1;
+    case 'noise':
+      return 0; // noise is generated by its own LFSR path, never this function
+  }
+}
+
+function crush(sample: number, bits: number): number {
+  const levels = 2 ** (bits - 1);
+  return Math.round(sample * levels) / levels;
+}
+
+/** Render a single voice to its own buffer (length = its duration in samples). */
+export function renderVoice(voice: Voice): Float32Array {
+  const total = msToSamples(voice.durMs);
+  const out = new Float32Array(total);
+  const duty = voice.duty ?? 0.5;
+  const gain = voice.gain ?? 1;
+  const isNoise = voice.osc === 'noise';
+
+  // NES-style 15-bit LFSR, clocked at the voice frequency, holding between clocks.
+  let lfsr = ((voice.noiseSeed ?? 1) & LFSR_MASK) || 1;
+  let noiseValue = (lfsr & 1) === 1 ? 1 : -1;
+
+  let phase = 0;
+  let held = 0;
+
+  for (let i = 0; i < total; i++) {
+    const elapsedMs = (i / SAMPLE_RATE) * 1000;
+    const progress = total > 1 ? i / (total - 1) : 1;
+    const freq = freqAt(voice, elapsedMs, progress);
+
+    let raw: number;
+    if (isNoise) {
+      phase += freq / SAMPLE_RATE;
+      while (phase >= 1) {
+        phase -= 1;
+        const feedback = (lfsr ^ (lfsr >> 1)) & 1;
+        lfsr = (lfsr >> 1) | (feedback << 14);
+        noiseValue = (lfsr & 1) === 1 ? 1 : -1;
+      }
+      raw = noiseValue;
+    } else {
+      phase += freq / SAMPLE_RATE;
+      raw = oscillator(voice.osc, phase, duty);
+    }
+
+    let sample = raw * envelopeAt(elapsedMs, voice.durMs, voice.env) * gain;
+    if (voice.crushBits) sample = crush(sample, voice.crushBits);
+
+    if (voice.srReduce && voice.srReduce > 1) {
+      if (i % voice.srReduce === 0) held = sample;
+      out[i] = held;
+    } else {
+      out[i] = sample;
+    }
+  }
+
+  return out;
+}
+
+/** Compile a recipe to mixed mono samples, peak-limited then scaled by the loudness tier. */
+export function renderRecipe(recipe: Recipe): Float32Array {
+  const lengths = recipe.voices.map((v) => msToSamples((v.delayMs ?? 0) + v.durMs));
+  const total = lengths.length ? Math.max(...lengths) : 0;
+  const mix = new Float32Array(total);
+
+  for (const voice of recipe.voices) {
+    const rendered = renderVoice(voice);
+    const start = msToSamples(voice.delayMs ?? 0);
+    for (let i = 0; i < rendered.length && start + i < total; i++) {
+      mix[start + i] += rendered[i];
+    }
+  }
+
+  // Limit only if stacked voices summed past full scale, so single-voice recipes keep
+  // their intended level. Then apply the recipe's loudness tier.
+  let peak = 0;
+  for (let i = 0; i < total; i++) peak = Math.max(peak, Math.abs(mix[i]));
+  const limit = peak > 1 ? 1 / peak : 1;
+  const master = (recipe.gain ?? 1) * limit;
+  for (let i = 0; i < total; i++) mix[i] *= master;
+
+  return mix;
+}

@@ -8,7 +8,7 @@ import {
   type FlashOverlayHandle,
   type ShakeViewHandle,
 } from '@/components/fx';
-import { haptics } from '@/feel';
+import { haptics, sfx } from '@/feel';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from './PlayerCard';
 import { LegendaryHalo } from './reward-fx';
@@ -47,8 +47,12 @@ export function LegendRevealView({ offer, onScout, onDecline }: LegendRevealView
     flashRef.current?.flash(palette.gold, { peak: 0.5 });
     shakeRef.current?.shake('medium');
     haptics.bigPlay();
+    sfx.gachaWindup(); // tension as the card flips
     setBurst((n) => n + 1);
-    timer.current = setTimeout(() => setRevealed(true), REVEAL_MS);
+    timer.current = setTimeout(() => {
+      setRevealed(true);
+      sfx.reward('legendary'); // the jackpot lands
+    }, REVEAL_MS);
   };
 
   return (

@@ -1,5 +1,6 @@
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
+import { sfx } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -17,7 +18,10 @@ export function CheckboxRow({ label, description, checked, onToggle }: CheckboxR
   return (
     <Pressable
       style={styles.row}
-      onPress={() => onToggle(!checked)}
+      onPress={() => {
+        sfx.toggle();
+        onToggle(!checked);
+      }}
       accessibilityRole="checkbox"
       accessibilityState={{ checked }}
     >

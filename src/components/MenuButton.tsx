@@ -12,7 +12,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
-import { DUR, haptics, useFeelSettings, useFlash, useGlowPulse } from '@/feel';
+import { DUR, haptics, sfx, useFeelSettings, useFlash, useGlowPulse } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -125,6 +125,7 @@ export function MenuButton({
   };
   const handlePress = () => {
     haptics[haptic ?? cfg.haptic]();
+    sfx.tap(variant === 'hero' || variant === 'wide' ? 'primary' : 'secondary');
     if (doFlash) flash(color);
     onPress();
   };

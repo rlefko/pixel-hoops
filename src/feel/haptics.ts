@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Platform } from 'react-native';
+import { IS_WEB, bestEffort } from './bestEffort';
 
 /**
  * Semantic haptics wrapper. Call sites use intent names (success, bigPlay, ...)
@@ -16,12 +16,8 @@ export function setHapticsEnabled(value: boolean): void {
 }
 
 function guard(fn: () => void): void {
-  if (!enabled || Platform.OS === 'web') return;
-  try {
-    fn();
-  } catch {
-    /* haptics are best-effort */
-  }
+  if (!enabled || IS_WEB) return;
+  bestEffort(fn);
 }
 
 export const haptics = {
