@@ -12,7 +12,14 @@ import { AppState } from 'react-native';
 import { useLowPowerMode } from 'expo-battery';
 import { setHapticsEnabled } from './haptics';
 import { setSoundEnabled, setSoundVolume, setAudioActive, initSfx } from './audio';
-import { isSoundEffective } from './soundPolicy';
+import {
+  setMusicEnabled,
+  setMusicVolume,
+  setMusicActive,
+  initMusic,
+  playMusicContext,
+} from './music';
+import { isSoundEffective, isMusicEffective } from './soundPolicy';
 import { getJSON } from '@/storage/storage';
 import { createDebouncedWriter, type DebouncedWriter } from '@/storage/debouncedWriter';
 
@@ -43,6 +50,10 @@ export interface FeelSettings {
   soundEnabled: boolean;
   /** Master SFX volume, 0..1. No UI yet; the module applies it at player creation. */
   sfxVolume: number;
+  /** Looping chiptune background music (menu + game beds). Defaults on. */
+  musicEnabled: boolean;
+  /** Master music volume, 0..1. Lower default than SFX so music sits under the blips. */
+  musicVolume: number;
   /** Screen shake on big plays. Toggled independently of haptics. */
   shakeEnabled: boolean;
   reducedMotion: boolean;
@@ -71,6 +82,8 @@ const DEFAULTS: FeelSettings = {
   hapticsEnabled: true,
   soundEnabled: true,
   sfxVolume: 0.8,
+  musicEnabled: true,
+  musicVolume: 0.5,
   shakeEnabled: true,
   reducedMotion: false,
   scanlinesEnabled: true,
@@ -118,6 +131,7 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
         const merged = { ...DEFAULTS, ...raw };
         if (!(merged.simSpeed in SIM_SPEED_FACTOR)) merged.simSpeed = DEFAULTS.simSpeed;
         merged.sfxVolume = Math.min(1, Math.max(0, merged.sfxVolume));
+        merged.musicVolume = Math.min(1, Math.max(0, merged.musicVolume));
         setSettings(merged);
       }
       // Mark hydrated on BOTH paths (stored or first-launch) so a fresh install,
@@ -155,9 +169,30 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
     if (soundEffective) void initSfx();
   }, [soundEffective]);
 
+  // Background music mirrors the SFX wiring exactly (enabled gate above lazy init, live
+  // volume, lazy build only once effective), with its own enabled/volume settings.
+  const musicEffective = isMusicEffective(hydrated, settings.musicEnabled, lowPowerMode);
+  useEffect(() => {
+    setMusicEnabled(settings.musicEnabled && !lowPowerMode);
+  }, [settings.musicEnabled, lowPowerMode]);
+  useEffect(() => {
+    setMusicVolume(settings.musicVolume);
+  }, [settings.musicVolume]);
+  useEffect(() => {
+    if (musicEffective) void initMusic();
+  }, [musicEffective]);
+  // Default to the calm menu/hub bed once music is effective. Screens override the context
+  // (RunScreen switches to the game bed during the watch); this is just the baseline so
+  // hubs and the run map play music without each screen having to ask.
+  useEffect(() => {
+    if (musicEffective) playMusicContext('menu');
+  }, [musicEffective]);
+
   // Latest effective-sound, read by the AppState handler below without re-subscribing.
   const soundEffectiveRef = useRef(soundEffective);
   soundEffectiveRef.current = soundEffective;
+  const musicEffectiveRef = useRef(musicEffective);
+  musicEffectiveRef.current = musicEffective;
 
   // On background: flush the pending settings write so a toggle is never lost, and
   // release the audio session so we don't hold the audio route warm while away. On
@@ -167,8 +202,10 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
       if (state !== 'active') {
         writer.flush();
         setAudioActive(false);
-      } else if (soundEffectiveRef.current) {
-        setAudioActive(true);
+        setMusicActive(false); // pause both beds while away
+      } else {
+        if (soundEffectiveRef.current) setAudioActive(true);
+        if (musicEffectiveRef.current) setMusicActive(true); // resume the active bed
       }
     });
     return () => {

@@ -16,3 +16,12 @@ export function isSoundEffective(
 ): boolean {
   return hydrated && soundEnabled && !lowPowerMode;
 }
+
+/** Same policy for background music: on only once hydrated, enabled, and not in Low Power. */
+export function isMusicEffective(
+  hydrated: boolean,
+  musicEnabled: boolean,
+  lowPowerMode: boolean
+): boolean {
+  return hydrated && musicEnabled && !lowPowerMode;
+}

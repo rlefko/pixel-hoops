@@ -3,7 +3,7 @@ import { StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { CheckboxRow } from '@/components/CheckboxRow';
 import { SliderRow } from '@/components/SliderRow';
-import { useFeelSettings, setSoundVolume, sfx } from '@/feel';
+import { useFeelSettings, setSoundVolume, setMusicVolume, sfx } from '@/feel';
 import { FONT, FONT_SIZE, palette, space } from '@/theme';
 
 /**
@@ -18,6 +18,8 @@ export function SettingsControls() {
     hapticsEnabled,
     soundEnabled,
     sfxVolume,
+    musicEnabled,
+    musicVolume,
     reducedMotionSetting,
     lowPowerMode,
     arcadeExtras,
@@ -38,6 +40,12 @@ export function SettingsControls() {
     lowPowerMode && soundEnabled
       ? 'Off automatically while your device is in Low Power Mode'
       : 'Arcade blips on makes, big plays, and rewards (off when phone is on silent)';
+
+  // Music is gated by Low Power Mode too; keep the copy honest when it overrides.
+  const musicDescription =
+    lowPowerMode && musicEnabled
+      ? 'Off automatically while your device is in Low Power Mode'
+      : 'Looping 8-bit chiptune in menus and games (off when phone is on silent)';
 
   return (
     <Fragment>
@@ -70,6 +78,24 @@ export function SettingsControls() {
         onPreview={setSoundVolume}
         onCommit={(next) => {
           update({ sfxVolume: next });
+          sfx.tap();
+        }}
+      />
+      <CheckboxRow
+        label="Background Music"
+        description={musicDescription}
+        checked={musicEnabled}
+        onToggle={(next) => update({ musicEnabled: next })}
+      />
+      <SliderRow
+        label="Music Volume"
+        value={musicVolume}
+        disabled={!musicEnabled || lowPowerMode}
+        // Live preview while dragging (module-only), persist on release. Music has no
+        // one-shot to audition, so a tap blip confirms the change.
+        onPreview={setMusicVolume}
+        onCommit={(next) => {
+          update({ musicVolume: next });
           sfx.tap();
         }}
       />

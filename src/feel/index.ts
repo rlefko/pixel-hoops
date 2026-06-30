@@ -8,6 +8,12 @@ export {
   type WhooshDirection,
 } from './audio';
 export {
+  playMusicContext,
+  setMusicTempo,
+  setMusicVolume,
+  type MusicContext,
+} from './music';
+export {
   FeelSettingsProvider,
   useFeelSettings,
   SIM_SPEED_FACTOR,
