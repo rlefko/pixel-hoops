@@ -8,6 +8,7 @@ import {
 import type { Rarity } from '@/game/rarity';
 import { SFX_SOURCES, SFX_POOL, type SfxName } from '@/audio/sfxManifest';
 import { IS_WEB, bestEffort } from './bestEffort';
+import { duck as duckMusic } from './music';
 
 /**
  * Semantic sound-effects wrapper, modeled on ./haptics. Call sites use intent names
@@ -113,7 +114,9 @@ function trigger(name: SfxName, rate: number = 1): void {
     const player = pool.players[pool.next];
     pool.next = (pool.next + 1) % pool.players.length;
     player.volume = volume; // master volume, read live so the slider applies instantly
-    player.playbackRate = rate;
+    // Use the method, not the `playbackRate` property: the property is getter-only in the
+    // native module (a no-op assignment on iOS), so the pitch variation needs setPlaybackRate.
+    player.setPlaybackRate(rate);
     player.seekTo(0);
     player.play();
   });
@@ -130,21 +133,39 @@ function rewardName(rarity: Rarity): SfxName {
 
 export const sfx = {
   // In-game outcomes. `make`/`three` take a pitch rate for streak climb + anti-fatigue.
+  // The big stings briefly duck the background music so they cut through (the duck is a
+  // no-op when music is off/inactive, so it is always safe to call). Hold scales with
+  // the sting length: a dunk dips briefly, a championship fanfare dips longer.
   make: (rate: number = 1) => trigger('make', rate),
   three: (rate: number = 1) => trigger('three', rate),
-  dunk: () => trigger('dunk'),
+  dunk: () => {
+    duckMusic();
+    trigger('dunk');
+  },
   andOne: () => trigger('andOne'),
   block: () => trigger('block'),
   steal: () => trigger('steal'),
   miss: () => trigger('miss'),
   // Run-flow beats.
   tipoff: () => trigger('tipoff'),
-  buzzerBeater: () => trigger('buzzerBeater'),
-  win: () => trigger('win'),
+  buzzerBeater: () => {
+    duckMusic(450);
+    trigger('buzzerBeater');
+  },
+  win: () => {
+    duckMusic(700);
+    trigger('win');
+  },
   loss: () => trigger('loss'),
-  champion: () => trigger('champion'),
+  champion: () => {
+    duckMusic(900);
+    trigger('champion');
+  },
   // Rewards (tiered by rarity), gacha, recruiting.
-  reward: (rarity: Rarity) => trigger(rewardName(rarity)),
+  reward: (rarity: Rarity) => {
+    duckMusic();
+    trigger(rewardName(rarity));
+  },
   gachaWindup: () => trigger('gachaWindup'),
   recruit: () => trigger('recruit'),
   dupe: () => trigger('dupe'),

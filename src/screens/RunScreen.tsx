@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
-import { useFeelSettings, sfx } from '@/feel';
+import { useFeelSettings, sfx, playMusicContext, setMusicTempo } from '@/feel';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop, Counter } from '@/components/fx';
@@ -69,6 +69,29 @@ export default function RunScreen() {
   useEffect(() => {
     if (phaseKind !== 'summary') setShowCoachReveal(false);
   }, [phaseKind]);
+
+  // Music context: the driving in-game bed during the watched game (and the pregame
+  // buildup before TIP OFF), the calm bed everywhere else. Driven by phase, not the
+  // play-by-play feed, so auto-skipped and watched games behave the same. The Q4 tempo
+  // ramp is reset whenever the game ends so a bed never crossfades back pitched-up.
+  useEffect(() => {
+    if (!phaseKind) return;
+    if (phaseKind === 'pregame' || phaseKind === 'game') {
+      playMusicContext('game');
+    } else {
+      playMusicContext('menu');
+      setMusicTempo(1);
+    }
+  }, [phaseKind]);
+
+  // Leaving the run entirely (including an abrupt exit from the game bed) returns to the
+  // calm bed and clears the tempo ramp.
+  useEffect(() => {
+    return () => {
+      playMusicContext('menu');
+      setMusicTempo(1);
+    };
+  }, []);
 
   if (!loaded || !model) {
     return (
