@@ -1,6 +1,7 @@
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { PixelButton } from '@/components/PixelButton';
+import { LiveChip } from '@/components/fx';
 import { WhistleIcon, LockIcon } from '@/components/run/PixelIcons';
 import { CLASS_COLOR } from '@/components/run/class-ui';
 import { coachUnlockLabel, coachTags, type CoachProfile } from '@/game/coaches';
@@ -19,6 +20,8 @@ interface CoachCardProps {
   owned: boolean;
   equipped: boolean;
   onEquip?: () => void;
+  /** Quiet the equipped-card glow when the screen is idle. */
+  paused?: boolean;
 }
 
 function systemLabel(coach: CoachProfile): string {
@@ -26,49 +29,83 @@ function systemLabel(coach: CoachProfile): string {
   return coach.system.map(archetypeLabel).join(' / ');
 }
 
-export function CoachCard({ coach, owned, equipped, onEquip }: CoachCardProps) {
+export function CoachCard({
+  coach,
+  owned,
+  equipped,
+  onEquip,
+  paused,
+}: CoachCardProps) {
   const accent = CLASS_COLOR[coach.class];
   const tags = coachTags(coach);
   return (
-    <View style={[styles.card, { borderColor: accent }, !owned && styles.locked]}>
-      <View style={styles.header}>
-        <WhistleIcon size={16} color={owned ? accent : palette.inkDim} />
-        <Text style={[styles.name, { color: owned ? palette.ink : palette.inkDim }]} numberOfLines={1}>
-          {coach.name}
-        </Text>
-        <View style={[styles.badge, { borderColor: accent }]}>
-          <Text style={[styles.badgeText, { color: accent }]}>{coach.class}</Text>
-        </View>
-      </View>
-
-      <Text style={[styles.system, { color: owned ? accent : palette.inkDim }]}>{systemLabel(coach)}</Text>
-      <Text style={styles.blurb}>{coach.blurb}</Text>
-
-      <View style={styles.tagRow}>
-        {tags.map((t) => (
-          <Text key={t.key} style={styles.tag}>
-            {t.label}
+    <LiveChip
+      active={equipped}
+      color={accent}
+      paused={paused}
+      style={styles.glowWrap}
+    >
+      <View
+        style={[styles.card, { borderColor: accent }, !owned && styles.locked]}
+      >
+        <View style={styles.header}>
+          <WhistleIcon size={16} color={owned ? accent : palette.inkDim} />
+          <Text
+            style={[
+              styles.name,
+              { color: owned ? palette.ink : palette.inkDim },
+            ]}
+            numberOfLines={1}
+          >
+            {coach.name}
           </Text>
-        ))}
-      </View>
-
-      {owned ? (
-        equipped ? (
-          <Text style={[styles.equipped, { color: accent }]}>EQUIPPED</Text>
-        ) : (
-          <PixelButton label="EQUIP" variant="secondary" size="small" style={styles.equip} onPress={onEquip ?? (() => {})} />
-        )
-      ) : (
-        <View style={styles.unlockRow}>
-          <LockIcon size={11} color={palette.inkDim} />
-          <Text style={styles.unlock}>{coachUnlockLabel(coach.unlock)}</Text>
+          <View style={[styles.badge, { borderColor: accent }]}>
+            <Text style={[styles.badgeText, { color: accent }]}>
+              {coach.class}
+            </Text>
+          </View>
         </View>
-      )}
-    </View>
+
+        <Text
+          style={[styles.system, { color: owned ? accent : palette.inkDim }]}
+        >
+          {systemLabel(coach)}
+        </Text>
+        <Text style={styles.blurb}>{coach.blurb}</Text>
+
+        <View style={styles.tagRow}>
+          {tags.map((t) => (
+            <Text key={t.key} style={styles.tag}>
+              {t.label}
+            </Text>
+          ))}
+        </View>
+
+        {owned ? (
+          equipped ? (
+            <Text style={[styles.equipped, { color: accent }]}>EQUIPPED</Text>
+          ) : (
+            <PixelButton
+              label="EQUIP"
+              variant="secondary"
+              size="small"
+              style={styles.equip}
+              onPress={onEquip ?? (() => {})}
+            />
+          )
+        ) : (
+          <View style={styles.unlockRow}>
+            <LockIcon size={11} color={palette.inkDim} />
+            <Text style={styles.unlock}>{coachUnlockLabel(coach.unlock)}</Text>
+          </View>
+        )}
+      </View>
+    </LiveChip>
   );
 }
 
 const styles = StyleSheet.create({
+  glowWrap: { alignSelf: 'stretch' },
   card: {
     alignSelf: 'stretch',
     padding: space(3),
@@ -87,9 +124,23 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.chip,
   },
   badgeText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  system: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, marginTop: space(1) },
-  blurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim, lineHeight: FONT_SIZE.small + 4 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space(1.5), marginTop: space(1) },
+  system: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    marginTop: space(1),
+  },
+  blurb: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+    lineHeight: FONT_SIZE.small + 4,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: space(1.5),
+    marginTop: space(1),
+  },
   tag: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.micro,
@@ -101,7 +152,20 @@ const styles = StyleSheet.create({
     paddingVertical: space(0.5),
   },
   equip: { alignSelf: 'flex-start', marginTop: space(2) },
-  equipped: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, marginTop: space(2) },
-  unlockRow: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), marginTop: space(2) },
-  unlock: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim },
+  equipped: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    marginTop: space(2),
+  },
+  unlockRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(1.5),
+    marginTop: space(2),
+  },
+  unlock: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+  },
 });

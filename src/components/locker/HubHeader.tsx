@@ -1,6 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
-import { Pop } from '@/components/fx';
+import { Pop, Counter } from '@/components/fx';
 import { CoinIcon } from '@/components/run/PixelIcons';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -17,17 +17,26 @@ export function HubHeader({ title }: { title: string }) {
   return (
     <View style={styles.headerRow}>
       <Text style={styles.title}>{title}</Text>
+      {/* The pill pops on a balance change while the number tweens up to it. */}
       <Pop trigger={coins} style={styles.coinPill}>
         <CoinIcon size={12} color={palette.gold} />
-        <Text style={styles.coinText}>{coins}</Text>
+        <Counter value={coins} style={styles.coinText} />
       </Pop>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  title: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: palette.gold },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  title: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.h3,
+    color: palette.gold,
+  },
   coinPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -39,5 +48,9 @@ const styles = StyleSheet.create({
     borderColor: palette.gold + '55',
     borderRadius: RADIUS.chip,
   },
-  coinText: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.gold },
+  coinText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.body,
+    color: palette.gold,
+  },
 });

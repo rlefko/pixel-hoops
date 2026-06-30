@@ -19,9 +19,24 @@ interface StaggerInProps {
   maxIndex?: number;
   /** Slide-up travel in px (default 6). */
   distancePx?: number;
+  /** When false, snap straight to shown (for recycled virtualized rows). Default true. */
+  enabled?: boolean;
 }
 
-export function StaggerIn({ index, children, style, stepMs, maxIndex, distancePx }: StaggerInProps) {
-  const enterStyle = useStaggerIn(index, { stepMs, maxIndex, distancePx });
+export function StaggerIn({
+  index,
+  children,
+  style,
+  stepMs,
+  maxIndex,
+  distancePx,
+  enabled,
+}: StaggerInProps) {
+  const enterStyle = useStaggerIn(index, {
+    stepMs,
+    maxIndex,
+    distancePx,
+    enabled,
+  });
   return <Animated.View style={[style, enterStyle]}>{children}</Animated.View>;
 }

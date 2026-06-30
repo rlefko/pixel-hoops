@@ -18,6 +18,12 @@ interface StaggerInOptions {
   distancePx?: number;
   /** Fade/slide duration. Default DUR.snap. */
   durationMs?: number;
+  /**
+   * When false, snap straight to shown with no entrance. Pass false to recycled
+   * rows in a virtualized list after the list's initial cascade, so scrolling never
+   * re-strobes rows mounting back into the window. Default true.
+   */
+  enabled?: boolean;
 }
 
 /**
@@ -29,13 +35,21 @@ interface StaggerInOptions {
  * in a virtualized list so recycled rows don't re-animate on scroll.
  */
 export function useStaggerIn(index: number, options: StaggerInOptions = {}) {
-  const { stepMs = 45, maxIndex = 8, distancePx = 6, durationMs = DUR.snap } = options;
+  const {
+    stepMs = 45,
+    maxIndex = 8,
+    distancePx = 6,
+    durationMs = DUR.snap,
+    enabled = true,
+  } = options;
   const { reducedMotion } = useFeelSettings();
-  const v = useSharedValue(0); // 0 hidden -> 1 shown
+  const animate = enabled && !reducedMotion;
+  // Start shown when not animating, so a recycled/reduced-motion row never flashes hidden.
+  const v = useSharedValue(animate ? 0 : 1); // 0 hidden -> 1 shown
 
   useEffect(() => {
-    if (reducedMotion) {
-      v.value = 1; // no entrance under reduced motion
+    if (!animate) {
+      v.value = 1; // snap straight to shown
       return;
     }
     const delay = Math.max(0, Math.min(index, maxIndex)) * stepMs;
@@ -43,7 +57,7 @@ export function useStaggerIn(index: number, options: StaggerInOptions = {}) {
       delay,
       withTiming(1, { duration: durationMs, easing: Easing.out(Easing.quad) })
     );
-  }, [reducedMotion, index, stepMs, maxIndex, durationMs, v]);
+  }, [animate, index, stepMs, maxIndex, durationMs, v]);
 
   return useAnimatedStyle(() => ({
     opacity: v.value,
