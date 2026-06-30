@@ -164,7 +164,9 @@ export default function RunScreen() {
       if (!model.game) return null;
       // Auto-skip jumps past the watched play-by-play straight to the result.
       return autoSkipGames ? (
-        <AutoAdvance onAdvance={actions.finishReplay} />
+        // Distinct key from the postgame AutoAdvance (see its definition): without it
+        // React reuses one instance across game -> postgame and the run freezes.
+        <AutoAdvance key="advance-from-game" onAdvance={actions.finishReplay} />
       ) : (
         <PlayByPlayFeed
           timeline={model.game.result.events}
@@ -177,7 +179,9 @@ export default function RunScreen() {
       // With auto-skip, a win heads straight back to the map (no box-score flash); a
       // loss/timeout still shows the full result so the "RUN IT BACK" decision is kept.
       if (autoSkipGames && model.phase.won) {
-        return <AutoAdvance onAdvance={actions.resolveGameResult} />;
+        return (
+          <AutoAdvance key="advance-from-postgame" onAdvance={actions.resolveGameResult} />
+        );
       }
       return <Postgame model={model} onContinue={actions.resolveGameResult} />;
     case 'recruit':
@@ -362,7 +366,13 @@ function AutoAdvance({ onAdvance }: { onAdvance: () => void }) {
   // Fire the phase transition once on mount and show only a brief "FINAL..." beat, so
   // auto-skip never paints the watched game or the full postgame (the box score would
   // otherwise flash for a frame). The reducer's phase guard and the once-ref keep a
-  // stray re-render from double-firing; the phase change then unmounts this component.
+  // stray re-render from double-firing.
+  //
+  // The two call sites (game -> finishReplay, postgame -> resolveGameResult) MUST pass
+  // distinct `key`s. Without them React reuses this one instance across the
+  // game -> postgame transition (same type, same position), so `firedRef` stays true and
+  // the postgame advance never fires, freezing the run on "FINAL...". Distinct keys force
+  // a fresh instance (and a fresh guard) per phase.
   const firedRef = useRef(false);
   useEffect(() => {
     if (firedRef.current) return;
