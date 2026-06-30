@@ -1,6 +1,7 @@
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { StaggerIn, Pop } from '@/components/fx';
 import { InjuryIcon } from '@/components/run/PixelIcons';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Roster } from '@/types/roster';
@@ -19,7 +20,9 @@ export function RestView({ roster, onRebuild, onContinue }: RestViewProps) {
   );
   return (
     <Screen style={styles.container}>
-      <Text style={styles.title}>REST</Text>
+      <Pop popOnMount>
+        <Text style={styles.title}>REST</Text>
+      </Pop>
       <Text style={styles.body}>
         Catch your breath. Resting fully heals every injury. Rework your
         starting five, or move on.
@@ -28,13 +31,13 @@ export function RestView({ roster, onRebuild, onContinue }: RestViewProps) {
         <View style={styles.injuredList}>
           <Text style={styles.injuredLabel}>RECOVERING</Text>
           {injured.map((rp, i) => (
-            <View key={i} style={styles.injuredRow}>
+            <StaggerIn key={i} index={i} style={styles.injuredRow}>
               <InjuryIcon size={12} />
               <Text style={styles.injuredName} numberOfLines={2}>
                 {rp.player.name}
               </Text>
               <Text style={styles.injuredOut}>OUT {rp.gamesOut}</Text>
-            </View>
+            </StaggerIn>
           ))}
         </View>
       ) : null}

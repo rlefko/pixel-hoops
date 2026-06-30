@@ -47,6 +47,8 @@ export interface FeelSettings {
   shakeEnabled: boolean;
   reducedMotion: boolean;
   scanlinesEnabled: boolean;
+  /** CRT vignette + drifting court ambience on hub screens (pure atmosphere). */
+  arcadeExtras: boolean;
   /** Playback speed for the watched sim. */
   simSpeed: SimSpeed;
   /** Condensed watch: routine non-scoring plays whip by, big plays keep full juice. */
@@ -72,6 +74,7 @@ const DEFAULTS: FeelSettings = {
   shakeEnabled: true,
   reducedMotion: false,
   scanlinesEnabled: true,
+  arcadeExtras: true,
   simSpeed: 'brisk',
   highlightsOnly: false,
   autoSkipGames: false,

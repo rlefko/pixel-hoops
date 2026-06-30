@@ -42,6 +42,7 @@ export function RosterStrip({ roster, onPress }: RosterStripProps) {
           return (
             <View key={i} style={[styles.member, out > 0 && styles.injured]}>
               <View style={styles.avatar}>
+                {/* Your Squad's house uniform (green + gold); see PlayerCard. */}
                 <PixelPlayer
                   color={palette.homeTeam}
                   accent={palette.homeTeamAccent}

@@ -2,6 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { useHubBackdrop } from '@/feel';
 import { HubHeader } from '@/components/locker/HubHeader';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { LockerRoomTab } from '@/components/locker/LockerRoomTab';
@@ -16,6 +17,7 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
 export default function LockerScreen() {
   const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
+  const { screenProps } = useHubBackdrop();
 
   if (!loaded || !homeRoster) {
     return (
@@ -26,7 +28,7 @@ export default function LockerScreen() {
   }
 
   return (
-    <Screen style={styles.container} onBack={() => nav.back()}>
+    <Screen style={styles.container} onBack={() => nav.back()} {...screenProps}>
       <HubHeader title="LOCKER ROOM" />
       <View style={styles.body}>
         <LockerRoomTab />
@@ -43,6 +45,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loading: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.inkDim },
+  loading: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.body,
+    color: palette.inkDim,
+  },
   body: { flex: 1, marginTop: space(2) },
 });

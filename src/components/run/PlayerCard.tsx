@@ -157,6 +157,9 @@ function PlayerCardImpl({
     >
       <View style={[styles.head, isTile && styles.headTile]}>
         <View style={styles.avatar}>
+          {/* Your Squad's house uniform (green + gold): a roster is one team in one
+              jersey, so every card shares it. Per-player skin tone and number keep
+              them distinct. The court uses each matchup's real team colors. */}
           <PixelPlayer
             color={palette.homeTeam}
             accent={palette.homeTeamAccent}

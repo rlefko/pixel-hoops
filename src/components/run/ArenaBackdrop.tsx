@@ -1,7 +1,16 @@
-import { memo } from 'react';
+import { memo, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  cancelAnimation,
+  Easing,
+} from 'react-native-reanimated';
 import { palette, BORDER, RADIUS, space } from '@/theme';
 import { mix } from '@/theme/color';
+import { useFeelSettings } from '@/feel';
 import { BOARD_HEADROOM } from './map-geometry';
 
 /**
@@ -15,10 +24,29 @@ const PLANK_PITCH = 26;
 const PLANK = mix(palette.bgCourt, palette.courtLine, 0.1);
 const CROWD_COLORS = [palette.inkDim, palette.steelBlue, palette.orange];
 
-function CrowdBand({ width }: { width: number }) {
+function CrowdBand({ width, paused }: { width: number; paused: boolean }) {
   const seats = Math.max(0, Math.floor(width / 8));
+  const { reducedMotion, arcadeExtras } = useFeelSettings();
+  // A slow shimmer wave across the whole crowd band (one worklet, not per-seat), so
+  // the stands feel alive without thrashing. Pure atmosphere, so it holds steady (no
+  // loop) under reduced motion, while the map is idle, or with Arcade Extras off, just
+  // like the hub backdrop/vignette. v=0.5 lands on the band's prior static opacity (~0.21).
+  const v = useSharedValue(0);
+  useEffect(() => {
+    if (reducedMotion || !arcadeExtras || paused) {
+      v.value = 0.5;
+      return;
+    }
+    v.value = withRepeat(
+      withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true
+    );
+    return () => cancelAnimation(v);
+  }, [reducedMotion, arcadeExtras, paused, v]);
+  const shimmer = useAnimatedStyle(() => ({ opacity: 0.16 + 0.1 * v.value }));
   return (
-    <View style={styles.crowd} pointerEvents="none">
+    <Animated.View style={[styles.crowd, shimmer]} pointerEvents="none">
       {Array.from({ length: seats }, (_, i) => (
         <View
           key={i}
@@ -28,31 +56,34 @@ function CrowdBand({ width }: { width: number }) {
           ]}
         />
       ))}
-    </View>
+    </Animated.View>
   );
 }
 
 export const ArenaBackdrop = memo(function ArenaBackdrop({
   width,
   height,
+  paused = false,
 }: {
   width: number;
   height: number;
+  /** Freeze the crowd shimmer when the player is idle on the map. */
+  paused?: boolean;
 }) {
   const plankCount = Math.ceil(height / PLANK_PITCH);
   return (
-    <View
-      pointerEvents="none"
-      style={[styles.floor, { width, height }]}
-    >
+    <View pointerEvents="none" style={[styles.floor, { width, height }]}>
       {Array.from({ length: plankCount }, (_, i) => (
         <View
           key={i}
-          style={[styles.plank, { top: i * PLANK_PITCH, backgroundColor: PLANK }]}
+          style={[
+            styles.plank,
+            { top: i * PLANK_PITCH, backgroundColor: PLANK },
+          ]}
         />
       ))}
       <View style={styles.frame} />
-      <CrowdBand width={width} />
+      <CrowdBand width={width} paused={paused} />
     </View>
   );
 });
@@ -90,7 +121,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignContent: 'flex-start',
-    opacity: 0.22,
+    // opacity is driven by the shimmer animation (see CrowdBand).
     paddingHorizontal: space(1),
     paddingTop: space(1),
   },

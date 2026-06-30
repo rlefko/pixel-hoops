@@ -20,7 +20,7 @@ import {
 } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { CLASS_COLOR } from '@/components/run/class-ui';
-import { useGlowPulse, useBobPulse, useIdle } from '@/feel';
+import { useGlowPulse, useBobPulse, useHubBackdrop } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import {
@@ -34,11 +34,6 @@ import {
 import { getCoach } from '@/game/coaches';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
-// Quiet the menu's attract loops after this long with no touch (a player lingering on
-// the menu). The screen is the app's busiest idle screen, so this is real foreground
-// savings; the loops resume on the next touch.
-const HOME_IDLE_MS = 30000;
-
 /** Main menu screen: the arcade lobby and entry point for the game. */
 export default function HomeScreen() {
   // Plain router for the How to Play modal so it keeps its native slide-up; the
@@ -47,9 +42,9 @@ export default function HomeScreen() {
   const nav = useArcadeRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const { savedRun } = useActiveRun();
-  // Pause every menu attract loop after a stretch of no touch; bump() (wired to the
-  // screen's onTouchStart below) wakes them on the next interaction.
-  const { idle, bump } = useIdle(HOME_IDLE_MS);
+  // Pause every menu attract loop after a stretch of no touch; the hub backdrop bundle
+  // wires the touch-wake (onTouchStart) for us, and `idle` also gates the title glow/bob.
+  const { idle, screenProps } = useHubBackdrop();
   // One idle "breathe" loop drives the title: a glow behind the gold word and a
   // gentle bob on the pixel basketball. Slower than the default so it reads as a
   // title, not a flicker. Held steady under reduced motion or while idle.
@@ -66,7 +61,9 @@ export default function HomeScreen() {
     );
   }
 
-  const unlocked = homeRoster ? unlockedClasses(homeRoster.ladderProgress[homeRoster.selectedDifficulty]) : [];
+  const unlocked = homeRoster
+    ? unlockedClasses(homeRoster.ladderProgress[homeRoster.selectedDifficulty])
+    : [];
   const coach = homeRoster ? getCoach(homeRoster.selectedCoachId) : null;
 
   const setDifficulty = (d: Difficulty) => {
@@ -76,7 +73,11 @@ export default function HomeScreen() {
     const cls = nowUnlocked.includes(homeRoster.selectedLadderClass)
       ? homeRoster.selectedLadderClass
       : nowUnlocked[nowUnlocked.length - 1];
-    saveHomeRoster({ ...homeRoster, selectedDifficulty: d, selectedLadderClass: cls });
+    saveHomeRoster({
+      ...homeRoster,
+      selectedDifficulty: d,
+      selectedLadderClass: cls,
+    });
   };
 
   const setLadderClass = (cls: LadderClass) => {
@@ -85,14 +86,22 @@ export default function HomeScreen() {
   };
 
   return (
-    <Screen scroll scanlines contentContainerStyle={styles.container} onTouchStart={bump}>
+    <Screen
+      scroll
+      scanlines
+      {...screenProps}
+      contentContainerStyle={styles.container}
+    >
       <View style={styles.titleBlock}>
         <Animated.View style={bobStyle}>
           <BasketballIcon size={22} color={palette.courtLine} />
         </Animated.View>
         <Text style={styles.title}>PIXEL</Text>
         <View style={styles.hoopsWrap}>
-          <Animated.View pointerEvents="none" style={[styles.hoopsGlow, glowStyle]} />
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.hoopsGlow, glowStyle]}
+          />
           <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
         </View>
         <Text style={styles.subtitle}>8-Bit Basketball Roguelike</Text>
@@ -117,7 +126,9 @@ export default function HomeScreen() {
                   onPress={() => setDifficulty(d)}
                   style={[styles.chip, active && styles.chipActive]}
                 >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>
+                  <Text
+                    style={[styles.chipText, active && styles.chipTextActive]}
+                  >
                     {DIFFICULTY_LABELS[d].name}
                   </Text>
                 </Pressable>
@@ -158,9 +169,15 @@ export default function HomeScreen() {
 
           <Text style={styles.selectLabel}>COACH</Text>
           {coach ? (
-            <Pressable style={styles.coachRow} onPress={() => nav.push('/coaches')}>
+            <Pressable
+              style={styles.coachRow}
+              onPress={() => nav.push('/coaches')}
+            >
               <WhistleIcon size={14} color={CLASS_COLOR[coach.class]} />
-              <Text style={[styles.coachName, { color: CLASS_COLOR[coach.class] }]} numberOfLines={1}>
+              <Text
+                style={[styles.coachName, { color: CLASS_COLOR[coach.class] }]}
+                numberOfLines={1}
+              >
                 {coach.name}
               </Text>
               <Text style={styles.coachChange}>CHANGE ›</Text>
@@ -176,7 +193,9 @@ export default function HomeScreen() {
           color={palette.gold}
           icon={<BasketballIcon size={28} color={palette.gold} />}
           attract={!idle}
-          onPress={() => nav.push({ pathname: '/run', params: { mode: 'new' } }, 'run')}
+          onPress={() =>
+            nav.push({ pathname: '/run', params: { mode: 'new' } }, 'run')
+          }
         />
         {savedRun ? (
           <MenuButton
@@ -187,7 +206,9 @@ export default function HomeScreen() {
             icon={<BasketballIcon size={22} color={palette.orange} />}
             attract={!idle}
             attractDelayMs={200}
-            onPress={() => nav.push({ pathname: '/run', params: { mode: 'resume' } }, 'run')}
+            onPress={() =>
+              nav.push({ pathname: '/run', params: { mode: 'resume' } }, 'run')
+            }
           />
         ) : null}
         <View style={styles.tileRow}>
@@ -340,8 +361,15 @@ const styles = StyleSheet.create({
     borderColor: palette.inkDim,
     borderRadius: RADIUS.chip,
   },
-  chipActive: { borderColor: palette.gold, backgroundColor: palette.gold + '1A' },
-  chipText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  chipActive: {
+    borderColor: palette.gold,
+    backgroundColor: palette.gold + '1A',
+  },
+  chipText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
   chipTextActive: { color: palette.gold },
   selectBlurb: {
     fontFamily: FONT.body,
@@ -373,8 +401,16 @@ const styles = StyleSheet.create({
     backgroundColor: palette.chrome + '12',
     maxWidth: 280,
   },
-  coachName: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, flexShrink: 1 },
-  coachChange: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  coachName: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    flexShrink: 1,
+  },
+  coachChange: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
   menu: {
     width: '100%',
     maxWidth: 360,

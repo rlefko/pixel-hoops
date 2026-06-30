@@ -2,6 +2,8 @@ import { View, StyleSheet } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { StaggerIn } from '@/components/fx';
+import { useHubBackdrop } from '@/feel';
 import { CoachCard } from '@/components/coach/CoachCard';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { selectCoach } from '@/game/home-roster';
@@ -18,6 +20,7 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
 export default function CoachesScreen() {
   const nav = useArcadeRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
+  const { idle, screenProps } = useHubBackdrop();
 
   if (!loaded || !homeRoster) {
     return (
@@ -30,26 +33,37 @@ export default function CoachesScreen() {
   const owned = new Set(homeRoster.ownedCoaches);
 
   return (
-    <Screen scroll onBack={() => nav.back()} contentContainerStyle={styles.content}>
+    <Screen
+      scroll
+      onBack={() => nav.back()}
+      contentContainerStyle={styles.content}
+      {...screenProps}
+    >
       <View style={styles.headerRow}>
         <Text style={styles.title}>COACHES</Text>
         <Text style={styles.count}>
           {owned.size} / {COACHES.length}
         </Text>
       </View>
-      <Text style={styles.intro}>Equip one to lead your run. Win more by clearing ladders.</Text>
+      <Text style={styles.intro}>
+        Equip one to lead your run. Win more by clearing ladders.
+      </Text>
 
       {LADDER_CLASSES.map((cls) => (
         <View key={cls} style={styles.group}>
           <Text style={styles.groupLabel}>{cls}-CLASS</Text>
-          {coachesByClass(cls).map((coach) => (
-            <CoachCard
-              key={coach.id}
-              coach={coach}
-              owned={owned.has(coach.id)}
-              equipped={homeRoster.selectedCoachId === coach.id}
-              onEquip={() => saveHomeRoster(selectCoach(homeRoster, coach.id))}
-            />
+          {coachesByClass(cls).map((coach, ci) => (
+            <StaggerIn key={coach.id} index={ci}>
+              <CoachCard
+                coach={coach}
+                owned={owned.has(coach.id)}
+                equipped={homeRoster.selectedCoachId === coach.id}
+                onEquip={() =>
+                  saveHomeRoster(selectCoach(homeRoster, coach.id))
+                }
+                paused={idle}
+              />
+            </StaggerIn>
           ))}
         </View>
       ))}
@@ -64,15 +78,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loading: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.inkDim },
+  loading: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.body,
+    color: palette.inkDim,
+  },
   content: { paddingHorizontal: space(4), gap: space(3) },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  title: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: palette.chrome },
-  count: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  title: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.h3,
+    color: palette.chrome,
+  },
+  count: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
   intro: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,

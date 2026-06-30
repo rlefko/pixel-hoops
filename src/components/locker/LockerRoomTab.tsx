@@ -1,7 +1,8 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { haptics } from '@/feel';
+import { StaggerIn } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
@@ -13,8 +14,17 @@ import {
   upgradeCount,
   type HomeRoster,
 } from '@/game/home-roster';
-import { canUpgrade, isPremiumStat, perStatMax, upgradeCost } from '@/game/upgrades';
-import { availableClasses, availablePositions, compareByRatingDesc } from '@/game/roster-filter';
+import {
+  canUpgrade,
+  isPremiumStat,
+  perStatMax,
+  upgradeCost,
+} from '@/game/upgrades';
+import {
+  availableClasses,
+  availablePositions,
+  compareByRatingDesc,
+} from '@/game/roster-filter';
 import type { PlayerClass } from '@/game/ratings';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { PlayerStats } from '@/types/player';
@@ -88,7 +98,11 @@ function StatUpgradeButton({
     <Pressable
       disabled={disabled}
       onPress={onPress}
-      style={[styles.statBtn, premium && styles.premium, disabled && styles.disabled]}
+      style={[
+        styles.statBtn,
+        premium && styles.premium,
+        disabled && styles.disabled,
+      ]}
     >
       <View style={styles.statBtnLine}>
         <Text style={styles.statBtnText}>{label}</Text>
@@ -107,18 +121,22 @@ function StatUpgradeButton({
 function LockerRow({
   rp,
   index,
+  listIndex,
+  entering,
   home,
   coins,
   onUpgrade,
 }: {
   rp: RosterPlayer;
   index: number;
+  listIndex: number;
+  entering: boolean;
   home: HomeRoster;
   coins: number;
   onUpgrade: (index: number, stat: keyof PlayerStats) => void;
 }) {
   return (
-    <View style={styles.row}>
+    <StaggerIn index={listIndex} enabled={entering} style={styles.row}>
       <PlayerCard rp={rp} showSpecialty />
       <View style={styles.groups}>
         {STAT_GROUPS.map((group) => (
@@ -129,7 +147,12 @@ function LockerRow({
                 const value = rp.player.stats[s.key];
                 const bought = upgradeCount(home, rp, s.key);
                 const cost = upgradeCost(s.key, bought);
-                const upgradable = canUpgrade(s.key, value, bought, perStatMax());
+                const upgradable = canUpgrade(
+                  s.key,
+                  value,
+                  bought,
+                  perStatMax()
+                );
                 return (
                   <StatUpgradeButton
                     key={s.key}
@@ -147,7 +170,7 @@ function LockerRow({
           </View>
         ))}
       </View>
-    </View>
+    </StaggerIn>
   );
 }
 
@@ -156,6 +179,12 @@ export function LockerRoomTab() {
   const [query, setQuery] = useState('');
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
   const [positions, setPositions] = useState<Set<Position>>(new Set());
+  // Cascade rows in once on first appearance, then snap recycled rows (no scroll strobe).
+  const [entering, setEntering] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setEntering(false), 800);
+    return () => clearTimeout(t);
+  }, []);
 
   const q = query.trim().toLowerCase();
   // Freeze the row order for this Locker visit. The order is memoized on the FILTER
@@ -178,12 +207,18 @@ export function LockerRoomTab() {
     for (const rp of homeRoster.players) {
       upgradesByKey.set(playerKey(rp), totalUpgrades(homeRoster, rp));
     }
-    const byRating = compareByRatingDesc((rp: RosterPlayer) => upgradesByKey.get(playerKey(rp)) ?? 0);
+    const byRating = compareByRatingDesc(
+      (rp: RosterPlayer) => upgradesByKey.get(playerKey(rp)) ?? 0
+    );
     return homeRoster.players
       .map((rp, i) => ({ rp, i }))
       .filter(({ rp }) => {
         if (q && !rp.player.name.toLowerCase().includes(q)) return false;
-        if (classes.size > 0 && (!rp.originalClass || !classes.has(rp.originalClass))) return false;
+        if (
+          classes.size > 0 &&
+          (!rp.originalClass || !classes.has(rp.originalClass))
+        )
+          return false;
         if (positions.size > 0 && !positions.has(rp.position)) return false;
         return true;
       })
@@ -229,7 +264,9 @@ export function LockerRoomTab() {
 
   return (
     <View style={styles.tab}>
-      <Text style={styles.subtitle}>Spend coins on permanent upgrades (+5 cap per stat)</Text>
+      <Text style={styles.subtitle}>
+        Spend coins on permanent upgrades (+5 cap per stat)
+      </Text>
       <RosterFilterBar
         query={query}
         onQuery={setQuery}
@@ -246,10 +283,12 @@ export function LockerRoomTab() {
         contentContainerStyle={styles.listContent}
         data={shown}
         keyExtractor={(row) => `${row.rp.player.name}-${row.i}`}
-        renderItem={({ item }) => (
+        renderItem={({ item, index }) => (
           <LockerRow
             rp={item.rp}
             index={item.i}
+            listIndex={index}
+            entering={entering}
             home={homeRoster}
             coins={coins}
             onUpgrade={onUpgrade}
@@ -283,7 +322,11 @@ const styles = StyleSheet.create({
   },
   groups: { marginTop: space(2), gap: space(2) },
   group: { gap: space(1) },
-  groupLabel: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  groupLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
   statButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: space(2) },
   statBtn: {
     alignItems: 'center',
@@ -296,8 +339,16 @@ const styles = StyleSheet.create({
   premium: { borderColor: palette.orange },
   disabled: { opacity: 0.3 },
   statBtnLine: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
-  statBtnText: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
-  statCost: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.gold },
+  statBtnText: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.ink,
+  },
+  statCost: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.gold,
+  },
   empty: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,

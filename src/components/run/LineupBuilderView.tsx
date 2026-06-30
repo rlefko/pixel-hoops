@@ -2,9 +2,15 @@ import { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { LiveChip } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { POSITIONS, type Position, type Roster, type RosterPlayer } from '@/types/roster';
+import {
+  POSITIONS,
+  type Position,
+  type Roster,
+  type RosterPlayer,
+} from '@/types/roster';
 
 /**
  * Set your starting five and assign each player to a court slot (PG/SG/SF/PF/C).
@@ -63,7 +69,9 @@ export function LineupBuilderView({
   const [starters, setStarters] = useState<RosterPlayer[]>(() =>
     pool.slice(0, LINEUP_SIZE)
   );
-  const [bench, setBench] = useState<RosterPlayer[]>(() => pool.slice(LINEUP_SIZE));
+  const [bench, setBench] = useState<RosterPlayer[]>(() =>
+    pool.slice(LINEUP_SIZE)
+  );
   const [picked, setPicked] = useState<Cell | null>(null);
   // Which row's full-ratings panel is open, keyed by its stable cell id so it
   // tracks the cell, not the player, as swaps reorder the pool.
@@ -120,22 +128,32 @@ export function LineupBuilderView({
   return (
     <Screen style={styles.container}>
       <Text style={styles.title}>{title ?? 'SET YOUR FIVE'}</Text>
-      <Text style={styles.subtitle}>{subtitle ?? 'Tap two players to swap their spots'}</Text>
+      <Text style={styles.subtitle}>
+        {subtitle ?? 'Tap two players to swap their spots'}
+      </Text>
       {hideBag ? null : (
-        <Pressable style={styles.bagButton} onPress={() => onOpenBag(starters, bench)}>
+        <Pressable
+          style={styles.bagButton}
+          onPress={() => onOpenBag(starters, bench)}
+        >
           <Text style={styles.bagText}>OPEN BAG ({bagCount})</Text>
         </Pressable>
       )}
       {onCoachSet ? (
         <Pressable style={styles.coachButton} onPress={coachSet}>
           <Text style={styles.coachText}>
-            {coachName ? `LET COACH ${coachName.toUpperCase()} SET IT` : 'LET COACH SET IT'}
+            {coachName
+              ? `LET COACH ${coachName.toUpperCase()} SET IT`
+              : 'LET COACH SET IT'}
           </Text>
         </Pressable>
       ) : null}
       {coachNote ? <Text style={styles.coachNote}>{coachNote}</Text> : null}
 
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+      >
         <Text style={styles.sectionLabel}>STARTERS</Text>
         {starters.map((rp, i) => {
           const key = `slot-${i}`;
@@ -174,7 +192,9 @@ export function LineupBuilderView({
         disabled={!canConfirm}
         style={[styles.confirm, !canConfirm && styles.confirmDisabled]}
       >
-        <Text style={styles.confirmText}>{canConfirm ? 'CONFIRM' : 'NEED FIVE'}</Text>
+        <Text style={styles.confirmText}>
+          {canConfirm ? 'CONFIRM' : 'NEED FIVE'}
+        </Text>
       </Pressable>
       {hideCancel ? null : (
         <Pressable onPress={onCancel}>
@@ -203,20 +223,26 @@ function PlayerRow({
   onToggleExpand: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={[styles.row, picked && styles.rowPicked]}>
-      <View style={styles.slotChip}>
-        {slot ? <Text style={styles.slot}>{slot}</Text> : null}
-      </View>
-      <View style={styles.cardWrap}>
-        <PlayerCard
-          rp={rp}
-          condition
-          showSpecialty
-          expanded={expanded}
-          onToggleExpand={onToggleExpand}
-        />
-      </View>
-    </Pressable>
+    // The held card breathes a gold glow while picked, so the swap target reads "live".
+    <LiveChip active={picked} color={palette.gold}>
+      <Pressable
+        onPress={onPress}
+        style={[styles.row, picked && styles.rowPicked]}
+      >
+        <View style={styles.slotChip}>
+          {slot ? <Text style={styles.slot}>{slot}</Text> : null}
+        </View>
+        <View style={styles.cardWrap}>
+          <PlayerCard
+            rp={rp}
+            condition
+            showSpecialty
+            expanded={expanded}
+            onToggleExpand={onToggleExpand}
+          />
+        </View>
+      </Pressable>
+    </LiveChip>
   );
 }
 
@@ -254,7 +280,10 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
     borderRadius: RADIUS.chip,
   },
-  rowPicked: { borderColor: palette.gold, backgroundColor: palette.gold + '14' },
+  rowPicked: {
+    borderColor: palette.gold,
+    backgroundColor: palette.gold + '14',
+  },
   slotChip: {
     width: 30,
     alignItems: 'center',
@@ -299,7 +328,11 @@ const styles = StyleSheet.create({
     borderColor: palette.gold + '88',
     borderRadius: RADIUS.chip,
   },
-  bagText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.gold },
+  bagText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
+  },
   coachButton: {
     alignSelf: 'center',
     marginTop: space(2),
@@ -310,7 +343,11 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.chip,
     backgroundColor: palette.steelBlue + '14',
   },
-  coachText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.steelBlue },
+  coachText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.steelBlue,
+  },
   coachNote: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,

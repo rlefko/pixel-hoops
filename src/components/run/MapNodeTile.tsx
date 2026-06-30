@@ -41,6 +41,8 @@ interface MapNodeTileProps {
   isReachable: boolean;
   isCurrent: boolean;
   onChoose: (nodeId: string) => void;
+  /** Hold the reachable-tile breathe steady while the player is idle on the map. */
+  paused?: boolean;
 }
 
 export function MapNodeTile({
@@ -51,12 +53,14 @@ export function MapNodeTile({
   isReachable,
   isCurrent,
   onChoose,
+  paused = false,
 }: MapNodeTileProps) {
   const meta = NODE_META[node.type];
   const isCombat = COMBAT.includes(node.type);
-  // Only reachable tiles breathe; the rest hold steady (no loop) so an idle map costs nothing.
-  const glowStyle = useGlowPulse(900, { paused: !isReachable });
-  const scaleStyle = useScalePulse(900, { paused: !isReachable });
+  // Only reachable tiles breathe, and even those hold steady while the map sits idle,
+  // so a still map costs zero loops.
+  const glowStyle = useGlowPulse(900, { paused: !isReachable || paused });
+  const scaleStyle = useScalePulse(900, { paused: !isReachable || paused });
 
   const preview = useMemo(
     () => (isCombat ? previewOpponent(seed, node.id) : null),
@@ -69,10 +73,13 @@ export function MapNodeTile({
   // is only ever set on combat nodes.
   const result = isCombat ? node.result : undefined;
   const played = !!result;
-  const resultColor = result && (result.won ? palette.makeGreen : palette.missRed);
+  const resultColor =
+    result && (result.won ? palette.makeGreen : palette.missRed);
   const labelText = preview ? preview.abbreviation : meta.label;
   const labelColor = node.cleared ? palette.inkDim : meta.color;
-  const fill = preview ? mix(palette.bgPanel, preview.primaryHex, 0.22) : palette.bgPanel;
+  const fill = preview
+    ? mix(palette.bgPanel, preview.primaryHex, 0.22)
+    : palette.bgPanel;
 
   const borderColor =
     isCurrent || isReachable
@@ -82,17 +89,23 @@ export function MapNodeTile({
         : meta.color;
 
   // Played tiles stay brighter than other cleared tiles so the W/L stamp reads.
-  const opacity = isCurrent || isReachable ? 1 : played ? 0.85 : node.cleared ? 0.5 : 0.35;
+  const opacity =
+    isCurrent || isReachable ? 1 : played ? 0.85 : node.cleared ? 0.5 : 0.35;
 
   return (
     <View
       style={[
         styles.cell,
-        { left: nodeCenterX(index, count) - NODE_SIZE / 2, top: nodeTop(node.layer) },
+        {
+          left: nodeCenterX(index, count) - NODE_SIZE / 2,
+          top: nodeTop(node.layer),
+        },
       ]}
     >
       <Animated.View style={[styles.tileWrap, isReachable && scaleStyle]}>
-        {isReachable ? <Animated.View style={[styles.glow, glowStyle]} /> : null}
+        {isReachable ? (
+          <Animated.View style={[styles.glow, glowStyle]} />
+        ) : null}
         <Pressable
           disabled={!isReachable}
           onPress={() => onChoose(node.id)}
@@ -111,7 +124,11 @@ export function MapNodeTile({
         >
           {isCombat && preview ? (
             <>
-              <TeamLogo abbr={preview.abbreviation} size={LOGO_SIZE} opacity={result ? 0.3 : 1} />
+              <TeamLogo
+                abbr={preview.abbreviation}
+                size={LOGO_SIZE}
+                opacity={result ? 0.3 : 1}
+              />
               {result ? (
                 <View style={styles.resultOverlay}>
                   <Text style={[styles.resultStamp, { color: resultColor }]}>
@@ -127,7 +144,11 @@ export function MapNodeTile({
               ) : null}
             </>
           ) : (
-            <NodeIcon type={node.type} size={NODE_SIZE * 0.46} color={ICON_COLOR[node.type]} />
+            <NodeIcon
+              type={node.type}
+              size={NODE_SIZE * 0.46}
+              color={ICON_COLOR[node.type]}
+            />
           )}
           {/* Elite/boss combat tiles keep a small tier mark so danger still reads
               now that the center is the opponent's logo. */}

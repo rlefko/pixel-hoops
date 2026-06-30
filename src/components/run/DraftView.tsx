@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { LiveChip, Counter } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
@@ -15,7 +16,11 @@ import {
   playerDraftClass,
   MAX_DRAFT_ROTATION,
 } from '@/game/draft';
-import { type Difficulty, type LadderClass, DIFFICULTY_LABELS } from '@/game/difficulty-mode';
+import {
+  type Difficulty,
+  type LadderClass,
+  DIFFICULTY_LABELS,
+} from '@/game/difficulty-mode';
 import { type PlayerClass } from '@/game/ratings';
 import {
   availableClasses,
@@ -74,7 +79,9 @@ export function DraftView({
   const [slots, setSlots] = useState<(RosterPlayer | null)[]>(() => {
     const s: (RosterPlayer | null)[] = Array(MAX_DRAFT_ROTATION).fill(null);
     defaultStarters.slice(0, STARTER_SLOTS).forEach((p, i) => (s[i] = p));
-    defaultBench.slice(0, BENCH_SLOTS).forEach((p, i) => (s[STARTER_SLOTS + i] = p));
+    defaultBench
+      .slice(0, BENCH_SLOTS)
+      .forEach((p, i) => (s[STARTER_SLOTS + i] = p));
     return s;
   });
   const [selected, setSelected] = useState<number>(() => firstEmpty(slots));
@@ -118,20 +125,35 @@ export function DraftView({
     const list = available.filter((rp) => {
       if (inLoadout.has(keyOf(rp))) return false;
       if (q && !rp.player.name.toLowerCase().includes(q)) return false;
-      if (classes.size > 0 && (!rp.originalClass || !classes.has(rp.originalClass))) return false;
+      if (
+        classes.size > 0 &&
+        (!rp.originalClass || !classes.has(rp.originalClass))
+      )
+        return false;
       if (positions.size > 0 && !positions.has(rp.position)) return false;
       return true;
     });
-    const upgradesOf = homeRoster ? (rp: RosterPlayer) => totalUpgrades(homeRoster, rp) : undefined;
+    const upgradesOf = homeRoster
+      ? (rp: RosterPlayer) => totalUpgrades(homeRoster, rp)
+      : undefined;
     return list.sort(compareByRatingDesc(upgradesOf));
   }, [available, inLoadout, query, classes, positions, homeRoster]);
 
-  const starters = slots.slice(0, STARTER_SLOTS).filter((s): s is RosterPlayer => !!s);
-  const bench = slots.slice(STARTER_SLOTS).filter((s): s is RosterPlayer => !!s);
+  const starters = slots
+    .slice(0, STARTER_SLOTS)
+    .filter((s): s is RosterPlayer => !!s);
+  const bench = slots
+    .slice(STARTER_SLOTS)
+    .filter((s): s is RosterPlayer => !!s);
   const picks = [...starters, ...bench];
   const spent = draftSpend(picks, ladderClass);
   const budget = draftPoints(difficulty);
-  const confirmable = canConfirmLoadout(starters, bench, ladderClass, difficulty);
+  const confirmable = canConfirmLoadout(
+    starters,
+    bench,
+    ladderClass,
+    difficulty
+  );
 
   const toggleClass = (cls: PlayerClass) =>
     setClasses((prev) => {
@@ -152,10 +174,13 @@ export function DraftView({
     <Screen style={styles.container} onBack={onCancel} backLabel="CANCEL">
       <Text style={styles.title}>DRAFT YOUR LINEUP</Text>
       <Text style={styles.subtitle}>
-        {DIFFICULTY_LABELS[difficulty].name} · {ladderClass} · POINTS {spent}/{budget}
+        {DIFFICULTY_LABELS[difficulty].name} · {ladderClass} · POINTS{' '}
+        <Counter value={spent} />/{budget}
       </Text>
       {replacesSavedRun ? (
-        <Text style={styles.replaceNote}>Starting this five replaces your saved run.</Text>
+        <Text style={styles.replaceNote}>
+          Starting this five replaces your saved run.
+        </Text>
       ) : null}
 
       <View style={styles.board}>
@@ -163,21 +188,29 @@ export function DraftView({
           const isStarter = i < STARTER_SLOTS;
           const label = isStarter ? POSITIONS[i] : 'B';
           return (
-            <Slot
+            <LiveChip
               key={i}
-              label={label}
-              rp={rp}
-              ladderClass={ladderClass}
-              selected={selected === i}
-              onSelect={() => setSelected(i)}
-              onClear={() => clearSlot(i)}
-            />
+              active={selected === i}
+              color={palette.gold}
+              style={styles.slotWrap}
+            >
+              <Slot
+                label={label}
+                rp={rp}
+                ladderClass={ladderClass}
+                selected={selected === i}
+                onSelect={() => setSelected(i)}
+                onClear={() => clearSlot(i)}
+              />
+            </LiveChip>
           );
         })}
       </View>
 
       <Text style={styles.sectionLabel}>
-        {slots[selected] ? 'TAP A PLAYER TO REPLACE THE SELECTED SLOT' : 'TAP A PLAYER FOR THE SELECTED SLOT'}
+        {slots[selected]
+          ? 'TAP A PLAYER TO REPLACE THE SELECTED SLOT'
+          : 'TAP A PLAYER FOR THE SELECTED SLOT'}
       </Text>
       <RosterFilterBar
         query={query}
@@ -226,7 +259,9 @@ export function DraftView({
         disabled={!confirmable.ok}
         style={[styles.confirm, !confirmable.ok && styles.confirmDisabled]}
       >
-        <Text style={styles.confirmText}>{confirmable.ok ? 'START RUN' : (confirmable.reason ?? 'INVALID')}</Text>
+        <Text style={styles.confirmText}>
+          {confirmable.ok ? 'START RUN' : (confirmable.reason ?? 'INVALID')}
+        </Text>
       </Pressable>
     </Screen>
   );
@@ -258,7 +293,10 @@ function Slot({
   // differ from this slot's label when slotted out of spot or onto the bench, so a
   // draftee's fit is legible at a glance.
   return (
-    <Pressable onPress={onSelect} style={[styles.slot, selected && styles.slotSelected]}>
+    <Pressable
+      onPress={onSelect}
+      style={[styles.slot, selected && styles.slotSelected]}
+    >
       <View style={styles.slotMain}>
         <Text style={styles.slotLabel}>{label}</Text>
         {rp ? (
@@ -266,7 +304,11 @@ function Slot({
             <Text style={styles.slotName} numberOfLines={1}>
               {rp.player.name}
             </Text>
-            <Pressable onPress={onClear} hitSlop={space(2)} style={styles.slotClear}>
+            <Pressable
+              onPress={onClear}
+              hitSlop={space(2)}
+              style={styles.slotClear}
+            >
               <Text style={styles.slotClearText}>x</Text>
             </Pressable>
           </>
@@ -276,14 +318,37 @@ function Slot({
       </View>
       {rp ? (
         <View style={styles.slotMeta}>
-          <View style={[styles.slotPos, { borderColor: POSITION_COLOR[rp.position] }]}>
-            <Text style={[styles.slotPosText, { color: POSITION_COLOR[rp.position] }]}>
+          <View
+            style={[
+              styles.slotPos,
+              { borderColor: POSITION_COLOR[rp.position] },
+            ]}
+          >
+            <Text
+              style={[
+                styles.slotPosText,
+                { color: POSITION_COLOR[rp.position] },
+              ]}
+            >
               {rp.position}
             </Text>
           </View>
-          <StatNumber value={effectiveOvr(rp)} style={styles.slotOvr} animate={false} />
-          {cls ? <Text style={[styles.slotClass, { color: CLASS_COLOR[cls] }]}>{cls}</Text> : null}
-          <Text style={[styles.slotCost, { color: cost != null ? DRAFT_COST_COLOR[cost] : palette.inkDim }]}>
+          <StatNumber
+            value={effectiveOvr(rp)}
+            style={styles.slotOvr}
+            animate={false}
+          />
+          {cls ? (
+            <Text style={[styles.slotClass, { color: CLASS_COLOR[cls] }]}>
+              {cls}
+            </Text>
+          ) : null}
+          <Text
+            style={[
+              styles.slotCost,
+              { color: cost != null ? DRAFT_COST_COLOR[cost] : palette.inkDim },
+            ]}
+          >
             {cost === 0 ? 'FREE' : `${cost}p`}
           </Text>
         </View>
@@ -303,14 +368,21 @@ function CostBadge({ cost }: { cost: number | null }) {
   const color = DRAFT_COST_COLOR[cost] ?? palette.inkDim;
   return (
     <View style={[styles.cost, { borderColor: color }]}>
-      <Text style={[styles.costText, { color }]}>{cost === 0 ? 'FREE' : `${cost}p`}</Text>
+      <Text style={[styles.costText, { color }]}>
+        {cost === 0 ? 'FREE' : `${cost}p`}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: space(4) },
-  title: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: palette.gold, textAlign: 'center' },
+  title: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.h3,
+    color: palette.gold,
+    textAlign: 'center',
+  },
   subtitle: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
@@ -327,10 +399,11 @@ const styles = StyleSheet.create({
     marginBottom: space(2),
   },
   board: { flexDirection: 'row', flexWrap: 'wrap', gap: space(1) },
+  slotWrap: { width: '48.5%' },
   slot: {
     flexDirection: 'column',
     gap: space(0.5),
-    width: '48.5%',
+    width: '100%',
     paddingVertical: space(1),
     paddingHorizontal: space(2),
     borderWidth: BORDER.chunk,
@@ -342,9 +415,24 @@ const styles = StyleSheet.create({
   slotMain: { flexDirection: 'row', alignItems: 'center', gap: space(1) },
   // The position chip + OVR + class + cost share a meta row, indented under the
   // name (past the fixed-width slot label) so the strength read lines up cleanly.
-  slotMeta: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), marginLeft: 22 + space(1) },
-  slotLabel: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim, width: 22 },
-  slotName: { flex: 1, fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.ink },
+  slotMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(1.5),
+    marginLeft: 22 + space(1),
+  },
+  slotLabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+    width: 22,
+  },
+  slotName: {
+    flex: 1,
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.ink,
+  },
   slotPos: {
     paddingHorizontal: space(1),
     borderWidth: BORDER.thin,
@@ -355,9 +443,19 @@ const styles = StyleSheet.create({
   slotOvr: { fontFamily: FONT.display, fontSize: FONT_SIZE.small },
   slotClass: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
   slotCost: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  slotEmpty: { flex: 1, fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim, fontStyle: 'italic' },
+  slotEmpty: {
+    flex: 1,
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+    fontStyle: 'italic',
+  },
   slotClear: { paddingHorizontal: space(0.5) },
-  slotClearText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.inkDim },
+  slotClearText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+  },
   sectionLabel: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
@@ -386,7 +484,13 @@ const styles = StyleSheet.create({
     marginLeft: space(1),
   },
   costText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
-  empty: { fontFamily: FONT.body, fontSize: FONT_SIZE.body, color: palette.inkDim, textAlign: 'center', marginTop: space(4) },
+  empty: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.body,
+    color: palette.inkDim,
+    textAlign: 'center',
+    marginTop: space(4),
+  },
   confirm: {
     marginTop: space(2),
     paddingVertical: space(2.5),
@@ -397,5 +501,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   confirmDisabled: { opacity: 0.4, borderColor: palette.inkDim },
-  confirmText: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.gold },
+  confirmText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.body,
+    color: palette.gold,
+  },
 });

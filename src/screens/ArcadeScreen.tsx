@@ -26,7 +26,7 @@ export default function ArcadeScreen() {
   }
 
   return (
-    <Screen style={styles.container} onBack={() => nav.back()}>
+    <Screen style={styles.container} onBack={() => nav.back()} vignette>
       <HubHeader title="ARCADE" />
       <View style={styles.body}>
         <ArcadeTab />
@@ -43,6 +43,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  loading: { fontFamily: FONT.display, fontSize: FONT_SIZE.body, color: palette.inkDim },
+  loading: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.body,
+    color: palette.inkDim,
+  },
   body: { flex: 1, marginTop: space(2) },
 });

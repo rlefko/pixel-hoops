@@ -20,6 +20,7 @@ export function SettingsControls() {
     sfxVolume,
     reducedMotionSetting,
     lowPowerMode,
+    arcadeExtras,
     autoSkipGames,
     update,
   } = useFeelSettings();
@@ -79,6 +80,14 @@ export function SettingsControls() {
         description={reduceMotionDescription}
         checked={reducedMotionSetting}
         onToggle={(next) => update({ reducedMotion: next })}
+      />
+
+      <Text style={styles.section}>ARCADE</Text>
+      <CheckboxRow
+        label="Arcade Extras"
+        description="CRT edge glow and drifting court ambience"
+        checked={arcadeExtras}
+        onToggle={(next) => update({ arcadeExtras: next })}
       />
 
       <Text style={styles.section}>GAMEPLAY</Text>

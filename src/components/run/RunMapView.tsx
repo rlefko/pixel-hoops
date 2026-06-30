@@ -12,8 +12,13 @@ import { DottedPath } from './DottedPath';
 import { MapNodeTile } from './MapNodeTile';
 import { PositionMarker, EntryBanner } from './PositionMarker';
 import { ResourceHeader } from './ResourceHeader';
-import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
+import {
+  DIFFICULTY_LABELS,
+  type Difficulty,
+  type LadderClass,
+} from '@/game/difficulty-mode';
 import { useHomeRoster } from '@/context/HomeRosterContext';
+import { useIdle, HUB_IDLE_MS } from '@/feel';
 import { RosterStrip } from './RosterStrip';
 import { BoostRow } from './BoostRow';
 import { SetRow } from './SetRow';
@@ -76,6 +81,10 @@ export function RunMapView({
 }: RunMapViewProps) {
   // Coins bank as-earned into the wallet, so the HUD shows the live home total.
   const { homeRoster } = useHomeRoster();
+  // Quiet the map's ambient loops (crowd shimmer, position bob, reachable-node breathe,
+  // entry-banner glow) after a stretch of no touch, like the hub screens; the next touch
+  // wakes them. The map is a screen the player stares at while choosing a node.
+  const { idle, bump } = useIdle(HUB_IDLE_MS);
   const reachable = useMemo(
     () =>
       new Set(getReachableNodes(core.map, core.currentNodeId).map((n) => n.id)),
@@ -94,14 +103,16 @@ export function RunMapView({
   const height = boardHeight(core.map.layers.length);
   const currentLayer =
     core.currentNodeId != null
-      ? core.map.nodes[core.currentNodeId]?.layer ?? null
+      ? (core.map.nodes[core.currentNodeId]?.layer ?? null)
       : null;
 
   const scrollRef = useRef<ScrollView>(null);
   // Keep the player's position in view as they advance (top while choosing entry).
   useEffect(() => {
     const y =
-      currentLayer == null ? 0 : Math.max(0, currentLayer * ROW_PITCH - ROW_PITCH);
+      currentLayer == null
+        ? 0
+        : Math.max(0, currentLayer * ROW_PITCH - ROW_PITCH);
     scrollRef.current?.scrollTo({ y, animated: true });
   }, [currentLayer]);
 
@@ -123,7 +134,11 @@ export function RunMapView({
   }, [core.map, core.currentNodeId]);
 
   return (
-    <Screen onBack={() => setConfirmingLeave(true)} backLabel="LEAVE">
+    <Screen
+      onBack={() => setConfirmingLeave(true)}
+      backLabel="LEAVE"
+      onTouchStart={bump}
+    >
       <ResourceHeader
         rewards={core.rewards}
         walletCoins={homeRoster?.coins ?? 0}
@@ -142,13 +157,15 @@ export function RunMapView({
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.board, { width: BOARD_WIDTH, height }]}>
-          <ArenaBackdrop width={BOARD_WIDTH} height={height} />
+          <ArenaBackdrop width={BOARD_WIDTH} height={height} paused={idle} />
 
           {edges.map((edge) => (
             <DottedPath key={edge.key} edge={edge} />
           ))}
 
-          {core.currentNodeId == null ? <EntryBanner width={BOARD_WIDTH} /> : null}
+          {core.currentNodeId == null ? (
+            <EntryBanner width={BOARD_WIDTH} paused={idle} />
+          ) : null}
 
           {core.map.layers.map((layer) =>
             layer.map((id, i) => {
@@ -163,27 +180,39 @@ export function RunMapView({
                   isReachable={reachable.has(id)}
                   isCurrent={core.currentNodeId === id}
                   onChoose={onChoose}
+                  paused={idle}
                 />
               );
             })
           )}
 
           {currentMarker ? (
-            <PositionMarker centerX={currentMarker.centerX} layer={currentMarker.layer} />
+            <PositionMarker
+              centerX={currentMarker.centerX}
+              layer={currentMarker.layer}
+              paused={idle}
+            />
           ) : null}
         </View>
       </ScrollView>
 
       <View style={styles.legend}>
         {LEGEND.map((t) => (
-          <Text key={t} style={[styles.legendItem, { color: NODE_META[t].color }]}>
+          <Text
+            key={t}
+            style={[styles.legendItem, { color: NODE_META[t].color }]}
+          >
             {NODE_META[t].label}
           </Text>
         ))}
       </View>
 
       <View style={styles.actions}>
-        <Pressable style={styles.bagButton} onPress={onOpenBag} accessibilityRole="button">
+        <Pressable
+          style={styles.bagButton}
+          onPress={onOpenBag}
+          accessibilityRole="button"
+        >
           <Text style={styles.bagText}>BAG ({bagCount})</Text>
         </Pressable>
         <Pressable
@@ -213,7 +242,10 @@ export function RunMapView({
         onCancel={() => setConfirmingLeave(false)}
       />
 
-      <RunSettingsModal visible={showSettings} onClose={() => setShowSettings(false)} />
+      <RunSettingsModal
+        visible={showSettings}
+        onClose={() => setShowSettings(false)}
+      />
     </Screen>
   );
 }
@@ -245,7 +277,11 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.chip,
     backgroundColor: palette.bgPanel,
   },
-  bagText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small, color: palette.gold },
+  bagText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
+  },
   gearButton: {
     paddingVertical: space(1),
     paddingHorizontal: space(3),
