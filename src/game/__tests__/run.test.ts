@@ -18,6 +18,7 @@ import {
   initRun,
   buildHomeTeam,
   buildOpponentTeam,
+  coachReorderRoster,
   steppingInSubs,
   TOTAL_MAPS,
   MAX_BANISHES,
@@ -1156,6 +1157,23 @@ describe('coaches in a run', () => {
     const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
     const after = runReducer(pregame, { type: 'acceptCoachRec' })!;
     expect(after.core.roster).toEqual(pregame.core.roster);
+  });
+
+  it('coachReorderRoster slots a position-scrambled lineup back into PG..C order', () => {
+    const m = atMap('coach-reslot');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    const five = pregame.core.roster.starters; // drafted in PG..C slot order
+    // Scramble the slots (center first); the coach button should re-slot it.
+    const scrambled = {
+      starters: [five[4], five[0], five[1], five[2], five[3]],
+      bench: pregame.core.roster.bench,
+    };
+    const out = coachReorderRoster(pregame, scrambled);
+    expect(out).not.toBeNull();
+    const ranks = out!.starters.map((p) => POSITIONS.indexOf(p.position));
+    expect(ranks).toEqual([...ranks].sort((a, b) => a - b)); // natural slot order
+    expect(out!.starters[0].position).not.toBe('C'); // never a center at the PG slot
   });
 
   it('keeps the snowball scaling on the coached home team (run counters threaded)', () => {

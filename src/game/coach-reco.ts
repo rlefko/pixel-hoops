@@ -1,5 +1,5 @@
 import type { PlayerStats } from '@/types/player';
-import type { Roster, RosterPlayer } from '@/types/roster';
+import { POSITIONS, nameKey, type Roster, type RosterPlayer } from '@/types/roster';
 import type { Team } from '@/types/team';
 import type { Difficulty } from './difficulty-mode';
 import type { CoachProfile } from './coaches';
@@ -207,16 +207,28 @@ function maxStepsFor(tier: Tier): number {
 const IMPROVE_EPS = 1e-6;
 
 function key(rp: RosterPlayer): string {
-  return `${rp.player.name}|${rp.position}`;
+  return nameKey(rp.player.name, rp.position);
 }
 
-/** How many starter slots hold a different player than `before`. */
+/**
+ * Arrange a chosen five into natural court-slot order (index 0 = PG ... 4 = C) by
+ * each player's intrinsic position. The five's array index IS the court slot (the
+ * scout/lineup UI labels slot i as POSITIONS[i], and the sim pairs defenders by
+ * slot index), so the coach must hand back a position-coherent five instead of a
+ * bench player landing in whatever slot it was swapped into (e.g. a Center in the
+ * PG slot). Stable, so same-position players keep their relative order. With no
+ * player of a slot's position the next-most-perimeter player fills it, so a big
+ * never sits ahead of a guard. Mirrors how defaultLoadout fills slots position-first.
+ */
+function slotByPosition(five: RosterPlayer[]): RosterPlayer[] {
+  return [...five].sort((a, b) => POSITIONS.indexOf(a.position) - POSITIONS.indexOf(b.position));
+}
+
+/** How many of the new starters were not starting before (set-based, so re-slotting
+ * the same players is not counted as a change). */
 function starterChanges(before: RosterPlayer[], after: RosterPlayer[]): number {
-  let n = 0;
-  for (let i = 0; i < after.length; i++) {
-    if (key(before[i]) !== key(after[i])) n += 1;
-  }
-  return n;
+  const beforeKeys = new Set(before.map(key));
+  return after.filter((rp) => !beforeKeys.has(key(rp))).length;
 }
 
 export interface ReorderResult {
@@ -225,7 +237,8 @@ export interface ReorderResult {
   /** The matchup-proxy gain over the input roster, in rating points (0 with no
    * opponent or no change). */
   matchupDelta: number;
-  /** How many starter slots changed. */
+  /** How many players were brought into the starting five (set-based, so a pure
+   * re-slot of the same five is 0). */
   changes: number;
 }
 
@@ -275,11 +288,13 @@ export function reorderForCoach(args: ReorderArgs): ReorderResult {
     }
   }
 
-  // Order the bench by rotation priority so the WHOLE roster is set, not just the five.
+  // Slot the chosen five into natural PG..C order (so a swapped-in player never lands
+  // in the wrong court slot) and order the bench by rotation priority, so the WHOLE
+  // roster is set coherently, not just which five plays.
   const bench = [...current.bench].sort(
     (a, b) => playerStyleValue(b, coach) - playerStyleValue(a, coach)
   );
-  const result: Roster = { starters: current.starters, bench };
+  const result: Roster = { starters: slotByPosition(current.starters), bench };
   return {
     roster: result,
     matchupDelta: matchup(result) - matchup(roster),

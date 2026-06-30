@@ -53,7 +53,7 @@ import { pityRarityOffset, PITY_MAX } from './rarity';
 import { ITEM_BY_ID, rollDrop, rollBoostStock, type ItemDef } from './items';
 import type { MapNode } from '@/types/run-map';
 import type { RunState } from '@/types/run-map';
-import type { RosterPlayer } from '@/types/roster';
+import { nameKey, type RosterPlayer } from '@/types/roster';
 import type { BoxLine, SimResult } from '@/types/sim';
 import type { Team } from '@/types/team';
 import type { PlayerStats } from '@/types/player';
@@ -499,13 +499,21 @@ function builderOpponent(model: RunModel): Team | undefined {
   return undefined;
 }
 
+/** The ordered identity of a roster (starters in slot order, then bench), so the
+ * button can tell whether the coach would change anything, including a pure re-slot. */
+function rosterOrder(roster: RunState['roster']): string {
+  const k = (rp: RosterPlayer): string => nameKey(rp.player.name, rp.position);
+  return [...roster.starters.map(k), '/', ...roster.bench.map(k)].join(',');
+}
+
 /**
  * The equipped coach's full reorder of a given roster, in the coach's playstyle, for
  * the lineup builder's "let the coach set it" button. Matchup-aware when an opponent
- * is in view (see {@link builderOpponent}), pure-style otherwise. Returns null when
- * the coach would not change the five, so the caller can leave the lineup untouched.
- * Pure (no dispatch): the builder applies the returned order locally, then the player
- * can still hand-tweak any slot before confirming.
+ * is in view (see {@link builderOpponent}), pure-style otherwise. Returns null only
+ * when the coach would not change anything (same five, same slots, same bench order),
+ * so the button also tidies an incoherent slot order, not just player swaps. Pure (no
+ * dispatch): the builder applies the returned order locally, then the player can still
+ * hand-tweak any slot before confirming.
  */
 export function coachReorderRoster(model: RunModel, roster: RunState['roster']): RunState['roster'] | null {
   const coach = getCoach(model.coachId);
@@ -514,13 +522,13 @@ export function coachReorderRoster(model: RunModel, roster: RunState['roster']):
     mapIndex: model.core.currentMapIndex,
     forgivenLosses: model.forgivenLosses,
   };
-  const { roster: reordered, changes } = reorderForCoach({
+  const { roster: reordered } = reorderForCoach({
     roster,
     coach,
     opponent: builderOpponent(model),
     buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts, counters),
   });
-  return changes > 0 ? reordered : null;
+  return rosterOrder(reordered) === rosterOrder(roster) ? null : reordered;
 }
 
 /**
