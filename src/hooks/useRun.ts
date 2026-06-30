@@ -1,33 +1,64 @@
 import { useReducer, useEffect, useMemo, useRef } from 'react';
+import { useLocalSearchParams } from 'expo-router';
 import { runReducer } from '@/game/run-machine';
 import { mergeRunGainsIntoHome, playerKey, rememberDraftRotation, selectCoach } from '@/game/home-roster';
 import { coachesWonByClear } from '@/game/coaches';
 import { buildHallOfFameEntry } from '@/game/hall-of-fame';
 import { useHomeRoster } from '@/context/HomeRosterContext';
+import { useActiveRun } from '@/context/ActiveRunContext';
 import type { RosterPlayer } from '@/types/roster';
 import type { PlayerStats } from '@/types/player';
 import type { BoostOffer } from '@/game/boosts';
 
 /**
- * React wrapper around the pure run machine (src/game/run-machine.ts). Starts a
- * run once the home roster has loaded, and on run end folds the run's gains
- * (recruits, training) back into the persistent home roster.
+ * React wrapper around the pure run machine (src/game/run-machine.ts). It:
+ *  - starts a run once both stores have loaded, NEW or RESUMED per the `?mode` param;
+ *  - auto-saves the run to the resumable slot so no exit can destroy it;
+ *  - banks the run into the home roster: coins AS THEY ARE EARNED (so the wallet always
+ *    reflects a run's gains, even after a suspend), and recruits/ladder/etc. once at the
+ *    end. The ledger (`lastBankedRunId`/`lastBankedCoins`/`settledRunId`) makes every
+ *    payout land exactly once across resumes and crashes (no double-gather).
  */
 export function useRun() {
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
+  const { savedRun, loaded: runLoaded, saveActiveRun, clearActiveRun } = useActiveRun();
+  const { mode } = useLocalSearchParams<{ mode?: string }>();
   const [model, dispatch] = useReducer(runReducer, null);
-  const savedRef = useRef(false);
+  const initRef = useRef(false);
   const draftRememberedRef = useRef(false);
   // The coach ids won by this run's championship (computed BEFORE the merge, which
   // then folds them into the owned collection), surfaced in the unlock reveal beat.
   const wonCoachRef = useRef<string[]>([]);
 
-  // Start a run once the home roster has loaded from storage.
+  // Start the run once, after both the home roster and the saved-run slot have hydrated.
+  // The home screen passes `mode` 'new' or 'resume'; only 'resume' (with a saved run)
+  // loads one, so a missing or unknown mode safely starts fresh. savedRun is read at init
+  // only; the auto-save below keeps updating it without re-triggering this (guarded by initRef).
   useEffect(() => {
-    if (loaded && homeRoster && model === null) {
+    if (initRef.current || model !== null) return;
+    if (!loaded || !homeRoster || !runLoaded) return;
+    initRef.current = true;
+    if (mode === 'resume' && savedRun) {
+      dispatch({ type: 'loadRun', model: savedRun });
+    } else {
       dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster });
     }
-  }, [loaded, homeRoster, model]);
+  }, [loaded, homeRoster, runLoaded, model, mode, savedRun]);
+
+  // Auto-save the run as the latest resumable snapshot. Skip phases that must not persist:
+  //  - summary: terminal; banking/clearing is handled below and a settled run is never resumable.
+  //  - game/postgame: transient game playback; a force-quit resumes at the prior pregame and
+  //    re-derives the identical (seeded) result, so closing the app can never dodge a loss.
+  //  - draft: the not-yet-confirmed opening five. A NEW RUN does not overwrite a saved run
+  //    until the draft is confirmed ("properly started"), so cancelling the draft keeps it.
+  useEffect(() => {
+    if (!model) return;
+    const phaseKind = model.phase.kind;
+    if (phaseKind === 'summary' || phaseKind === 'game' || phaseKind === 'postgame' || phaseKind === 'draft') {
+      return;
+    }
+    saveActiveRun(model);
+  }, [model, saveActiveRun]);
 
   // When the run leaves the draft (the player confirmed a five), remember that exact
   // drafted rotation for this run's (difficulty, ladder class), so re-entering the same
@@ -50,25 +81,47 @@ export function useRun() {
     );
   }, [model, homeRoster, saveHomeRoster]);
 
-  // When the run ends (win or loss), fold its gains back into the home roster.
+  // Bank the run into the home roster in a single write:
+  //  (a) coins as-earned: bank the delta since this run last banked. The delta self-corrects
+  //      (earned - already-banked), so it lands exactly once even across resumes/crashes.
+  //  (b) terminal settle at the summary: fold in recruits/ladder/coaches/Hall of Fame/
+  //      reputation once (guarded by settledRunId), then clear the saved slot.
   useEffect(() => {
-    if (!model) return;
-    if (model.phase.kind === 'summary' && !savedRef.current && homeRoster) {
-      savedRef.current = true;
+    if (!model || !homeRoster) return;
+    const runId = String(model.core.seed);
+    const isSummary = model.phase.kind === 'summary';
+    // Narrow on the discriminant directly: the compiler does not track `isSummary` back
+    // to model.phase here.
+    const champion = model.phase.kind === 'summary' ? model.phase.champion : false;
+    // Don't let a prior championship's won-coach reveal leak into a later run.
+    if (!isSummary) wonCoachRef.current = [];
+
+    const earned = model.core.rewards.coins;
+    const priorBanked =
+      homeRoster.lastBankedRunId === runId ? (homeRoster.lastBankedCoins ?? 0) : 0;
+    const coinDelta = Math.max(0, earned - priorBanked);
+    const needsSettle = isSummary && homeRoster.settledRunId !== runId;
+    if (coinDelta === 0 && !needsSettle) return;
+
+    let next = homeRoster;
+    if (coinDelta > 0) {
+      next = { ...next, coins: next.coins + coinDelta, lastBankedRunId: runId, lastBankedCoins: earned };
+    }
+    if (needsSettle) {
       // The coach(es) this championship wins, captured against the PRE-merge owned set
       // (the merge below grants them, so the diff would be empty afterward).
-      wonCoachRef.current = model.phase.champion
+      wonCoachRef.current = champion
         ? coachesWonByClear(
-            homeRoster.ladderProgress,
+            next.ladderProgress,
             model.difficulty,
             model.ladderClass,
-            new Set(homeRoster.ownedCoaches)
+            new Set(next.ownedCoaches)
           )
         : [];
-      // A championship banks a Hall of Fame snapshot of the final game. Date.now()
-      // lives here (the hook), keeping the merge and the entry builder clock-free.
+      // A championship banks a Hall of Fame snapshot of the final game. Date.now() lives
+      // here (the hook), keeping the merge and the entry builder clock-free.
       const championEntry =
-        model.phase.champion && model.game
+        champion && model.game
           ? buildHallOfFameEntry(
               model.game,
               model.difficulty,
@@ -77,24 +130,25 @@ export function useRun() {
               Date.now()
             )
           : undefined;
-      saveHomeRoster(
-        mergeRunGainsIntoHome(
-          homeRoster,
+      next = {
+        ...mergeRunGainsIntoHome(
+          next,
           model.core.roster,
           model.core.rewards,
           model.legend.offeredThisRun,
-          model.phase.champion,
+          champion,
           model.ladderClass,
           model.difficulty,
           championEntry
-        )
-      );
+        ),
+        settledRunId: runId,
+      };
     }
-    if (model.phase.kind !== 'summary') {
-      savedRef.current = false;
-      wonCoachRef.current = [];
-    }
-  }, [model, homeRoster, saveHomeRoster]);
+    saveHomeRoster(next);
+    // Best-effort: the saved slot is dropped on settle. Correctness does not depend on this
+    // landing (a resumed-then-resettled run is a no-op via settledRunId + the coin ledger).
+    if (isSummary) clearActiveRun();
+  }, [model, homeRoster, saveHomeRoster, clearActiveRun]);
 
   const actions = useMemo(
     () => ({
@@ -138,17 +192,20 @@ export function useRun() {
       declineLegend: () => dispatch({ type: 'declineLegend' }),
       skipNode: () => dispatch({ type: 'skipNode' }),
       backToMap: () => dispatch({ type: 'backToMap' }),
-      endRun: () => dispatch({ type: 'endRun' }),
-      newRun: () =>
-        homeRoster &&
-        dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster }),
+      // Start a fresh run from the summary. The finished run already settled, so drop its
+      // saved slot before the new run's first auto-save takes it over.
+      newRun: () => {
+        if (!homeRoster) return;
+        clearActiveRun();
+        dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster });
+      },
     }),
-    [homeRoster, saveHomeRoster]
+    [homeRoster, saveHomeRoster, clearActiveRun]
   );
 
   return {
     model,
-    loaded,
+    loaded: loaded && runLoaded,
     actions,
     wonCoachIds: wonCoachRef.current,
     equippedCoachId: homeRoster?.selectedCoachId,

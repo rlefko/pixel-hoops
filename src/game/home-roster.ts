@@ -66,8 +66,23 @@ export interface HomeRoster {
   ownedCoaches: string[];
   /** The coach equipped for the next run (must be owned; defaults to the starter). */
   selectedCoachId: string;
+  /** Coin-banking ledger. Coins bank into the wallet AS THEY ARE EARNED (not at run
+   * end), so the wallet always reflects a run's gains, even after a mid-run suspend.
+   * `lastBankedRunId` is the run currently banking (its `core.seed`); `lastBankedCoins`
+   * is how many of that run's coins are already in the wallet. The two make banking a
+   * self-correcting delta that can never double-count across resumes or crashes. */
+  lastBankedRunId?: string;
+  lastBankedCoins?: number;
+  /** The run whose TERMINAL rewards (recruits, ladder, coaches, Hall of Fame, reputation,
+   * legend pity) have been merged, so a run resumed past a crash can never grant them
+   * twice. Set in the same write as the merge. */
+  settledRunId?: string;
 }
 
+// v12 adds the coin-banking ledger (`lastBankedRunId`/`lastBankedCoins`/`settledRunId`)
+// for auto-saved runs: coins now bank as-earned and the merge no longer banks them. All
+// three are optional and default empty on older saves (no migration needed; a fresh run
+// banks normally since its seed matches no prior ledger).
 // v11 adds the Coach system (`ownedCoaches`/`selectedCoachId`). On load, owned coaches
 // are DERIVED from `ladderProgress` so veteran saves retroactively receive every coach
 // their progress has earned; the starter is always granted and the selection defaults to
@@ -83,7 +98,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 11;
+const HOME_ROSTER_VERSION = 12;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -458,7 +473,9 @@ export function mergeRunGainsIntoHome(
   return {
     ...home,
     players,
-    coins: home.coins + (rewards?.coins ?? 0),
+    // Coins are NOT banked here: they bank into the wallet as each game is won (the
+    // as-earned ledger in useRun), so `...home` already holds them. Reputation still
+    // banks at run end (a terminal reward, forfeited if the run is abandoned).
     reputation: home.reputation + (rewards?.reputation ?? 0),
     ladderProgress,
     selectedLadderClass,
@@ -647,5 +664,8 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     hallOfFame: sanitizeHallOfFame(data.hallOfFame),
     ownedCoaches,
     selectedCoachId,
+    lastBankedRunId: typeof data.lastBankedRunId === 'string' ? data.lastBankedRunId : undefined,
+    lastBankedCoins: typeof data.lastBankedCoins === 'number' ? data.lastBankedCoins : undefined,
+    settledRunId: typeof data.settledRunId === 'string' ? data.settledRunId : undefined,
   };
 }

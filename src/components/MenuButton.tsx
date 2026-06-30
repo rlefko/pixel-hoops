@@ -2,6 +2,7 @@ import { type ReactNode } from 'react';
 import {
   Pressable,
   StyleSheet,
+  View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -29,6 +30,9 @@ type MenuHaptic = 'selection' | 'success' | 'light';
 
 interface MenuButtonProps {
   label: string;
+  /** Optional smaller, dimmed second line under the label (e.g. a run's "EASY • C"),
+   * so a long caption never truncates the way a single one-line label would. */
+  sublabel?: string;
   onPress: () => void;
   /** Accent color for the border, raised edge, label, glow, and press flash. */
   color?: string;
@@ -87,6 +91,7 @@ const VARIANTS: Record<MenuButtonVariant, VariantConfig> = {
 
 export function MenuButton({
   label,
+  sublabel,
   onPress,
   color = palette.gold,
   variant = 'wide',
@@ -163,9 +168,20 @@ export function MenuButton({
         ]}
       >
         {icon}
-        <Text style={[styles.label, { color, fontSize: cfg.font }]} numberOfLines={1}>
-          {label}
-        </Text>
+        {sublabel ? (
+          <View style={styles.labelStack}>
+            <Text style={[styles.label, { color, fontSize: cfg.font }]} numberOfLines={1}>
+              {label}
+            </Text>
+            <Text style={[styles.sublabel, { color }]} numberOfLines={1}>
+              {sublabel}
+            </Text>
+          </View>
+        ) : (
+          <Text style={[styles.label, { color, fontSize: cfg.font }]} numberOfLines={1}>
+            {label}
+          </Text>
+        )}
         <Animated.View
           pointerEvents="none"
           style={[StyleSheet.absoluteFill, { backgroundColor: flashColor }, flashStyle]}
@@ -200,5 +216,16 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     textAlign: 'center',
     letterSpacing: 1,
+  },
+  labelStack: {
+    alignItems: 'center',
+    gap: space(1),
+  },
+  sublabel: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    textAlign: 'center',
+    letterSpacing: 1,
+    opacity: 0.7,
   },
 });

@@ -6,13 +6,17 @@ import { ClockIcon, CoinIcon, DumbbellIcon, StarIcon } from './PixelIcons';
 import type { RunRewards } from '@/types/run-map';
 
 /**
- * The run HUD: title, map progress, and clearly labeled resources. Coins are
- * spent in the Locker Room, training points at Training nodes, and reputation is
- * the run score. Values pop when they change after a win.
+ * The run HUD: title, map progress, and clearly labeled resources. The COINS pill
+ * shows the player's WALLET total (coins bank as they are earned, so they are already
+ * yours and survive any exit), spent in the Locker Room. Training points are spent at
+ * Training nodes and reputation is the run score. Values pop when they change.
  */
 
 interface ResourceHeaderProps {
   rewards: RunRewards;
+  /** The player's wallet total. Shown on the COINS pill: coins bank as-earned, so the
+   * HUD reflects banked coins, not a separate run tally. */
+  walletCoins: number;
   /** 1-based index of the map being climbed. */
   mapNumber: number;
   /** Total maps in the run. */
@@ -46,6 +50,7 @@ function Pill({
 
 export function ResourceHeader({
   rewards,
+  walletCoins,
   mapNumber,
   totalMaps,
   boostCount,
@@ -62,7 +67,7 @@ export function ResourceHeader({
         {modeLabel ? <Text style={styles.tier}>{modeLabel}</Text> : null}
       </View>
       <View style={styles.right}>
-        <Pill icon={<CoinIcon size={12} color={palette.gold} />} value={rewards.coins} label="COINS" />
+        <Pill icon={<CoinIcon size={12} color={palette.gold} />} value={walletCoins} label="COINS" />
         <Pill icon={<DumbbellIcon size={12} color={palette.makeGreen} />} value={rewards.trainingPoints} label="TRAIN" />
         <Pill icon={<StarIcon size={12} color={palette.gold} />} value={rewards.reputation} label="REP" />
         {typeof boostCount === 'number' ? (

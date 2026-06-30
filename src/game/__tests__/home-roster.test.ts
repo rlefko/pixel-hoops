@@ -54,12 +54,14 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     }
   });
 
-  it('banks coins and reputation on both a clear and a loss', () => {
+  it('banks reputation (not coins) on both a clear and a loss', () => {
     const { home, runRoster } = setup();
     const won = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
     const lost = mergeRunGainsIntoHome(home, runRoster, rewards, false, false, 'C', 'easy');
-    expect(won.coins).toBe(home.coins + rewards.coins);
-    expect(lost.coins).toBe(home.coins + rewards.coins);
+    // Coins bank as they are earned (the useRun ledger), so the merge never touches the
+    // wallet; only reputation banks at run end here.
+    expect(won.coins).toBe(home.coins);
+    expect(lost.coins).toBe(home.coins);
     expect(won.reputation).toBe(home.reputation + rewards.reputation);
     expect(lost.reputation).toBe(home.reputation + rewards.reputation);
   });
