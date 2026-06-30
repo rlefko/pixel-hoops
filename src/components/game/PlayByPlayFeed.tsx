@@ -17,7 +17,6 @@ import { computeHotState } from '@/game/streaks';
 import {
   haptics,
   sfx,
-  setMusicTempo,
   useFeelSettings,
   SIM_SPEED_FACTOR,
   SIM_SPEED_ORDER,
@@ -119,25 +118,6 @@ export function PlayByPlayFeed({
 
   // NBA-Jam hot hand, derived once from the timeline (presentation only).
   const hotState = useMemo(() => computeHotState(timeline), [timeline]);
-
-  // Q4 music ramp: the in-game bed climbs in tempo (and pitch) as the final quarter
-  // hits, then holds. Keyed on the landed quarter (a coarse value), so it re-targets only
-  // at quarter boundaries and never races the sim clock. The rate is reset to 1 by
-  // RunScreen when the game ends, so the bed never crossfades back pitched-up.
-  const rampRef = useRef(1);
-  useEffect(() => {
-    const target = (landed?.quarter ?? 1) >= 4 ? 1.12 : 1;
-    const id = setInterval(() => {
-      const next =
-        rampRef.current < target
-          ? Math.min(target, rampRef.current + 0.01)
-          : Math.max(target, rampRef.current - 0.01);
-      rampRef.current = next;
-      setMusicTempo(next);
-      if (next === target) clearInterval(id);
-    }, 80);
-    return () => clearInterval(id);
-  }, [landed?.quarter]);
 
   // Outcome feedback, tiered so routine plays stay quiet and only special moments
   // pop. Fired when the ball reaches the rim (see CourtView onArrival).
