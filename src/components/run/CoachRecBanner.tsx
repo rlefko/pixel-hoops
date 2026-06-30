@@ -8,19 +8,18 @@ import type { CoachRec } from '@/game/coach-reco';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
- * The equipped coach's optional, one-click lineup suggestion before a game. A quiet,
- * dismissible INLINE card (never a blocking modal): accepting it reorders the whole
- * roster (starters + bench) in the coach's playstyle in one tap; the player can also
- * ignore it or scroll past to tip off. It only renders when the coach found a
- * meaningful edge, so on easy it rarely appears and on hard it speaks up often. The
- * edge is qualitative (matching the game's telegraphed matchup verdict), never a raw
- * percentage.
+ * The equipped coach's optional, one-click lineup reshape before a game. A quiet,
+ * dismissible INLINE card (never a blocking modal): accepting it reshapes the whole
+ * roster (starters + bench) toward the coach's playstyle in one tap; the player can
+ * also ignore it or scroll past to tip off. It only renders on a meaningful reshape,
+ * so on easy it rarely appears and on hard/boss it speaks up often. The label is the
+ * qualitative SIZE of the reshape (how many moves), never a raw percentage.
  */
 
 const EDGE_LABEL: Record<CoachRec['edge'], string> = {
-  minor: 'MINOR EDGE',
-  solid: 'SOLID EDGE',
-  big: 'BIG EDGE',
+  minor: 'TWEAK',
+  solid: 'SHAKE-UP',
+  big: 'OVERHAUL',
 };
 
 interface CoachRecBannerProps {
