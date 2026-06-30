@@ -1,6 +1,6 @@
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
-import { StaggerIn, LiveChip } from '@/components/fx';
+import { StaggerIn } from '@/components/fx';
 import { CrownIcon, EnergyPips } from '@/components/run/PixelIcons';
 import { mvpIndex } from '@/game/box-score';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -71,30 +71,27 @@ function StatRow({ line, top }: { line: BoxLine; top: boolean }) {
   const benched = line.seconds === 0;
   const values = [minutes, line.pts, line.reb, line.ast, line.stl, line.blk];
   return (
-    // The team MVP's row breathes a gold glow; everyone else stays flat.
-    <LiveChip active={top} color={palette.gold}>
-      <View
-        style={[styles.row, benched && styles.benched, top && styles.topRow]}
-      >
-        <View style={styles.cellName}>
-          {top ? <CrownIcon size={12} color={palette.gold} /> : null}
-          <Text style={[styles.name, top && styles.topName]} numberOfLines={2}>
-            {line.name}
-          </Text>
-        </View>
-        {values.map((v, i) => (
-          <Text
-            key={i}
-            style={[styles.cell, styles.value, top && styles.topName]}
-          >
-            {v}
-          </Text>
-        ))}
-        <View style={styles.energyCell}>
-          {benched ? null : <EnergyPips energy={line.energy} size={7} />}
-        </View>
+    // The team MVP is a fixed designation, so it carries a static gold crown + tint
+    // (no breathing loop); everyone else stays flat.
+    <View style={[styles.row, benched && styles.benched, top && styles.topRow]}>
+      <View style={styles.cellName}>
+        {top ? <CrownIcon size={12} color={palette.gold} /> : null}
+        <Text style={[styles.name, top && styles.topName]} numberOfLines={2}>
+          {line.name}
+        </Text>
       </View>
-    </LiveChip>
+      {values.map((v, i) => (
+        <Text
+          key={i}
+          style={[styles.cell, styles.value, top && styles.topName]}
+        >
+          {v}
+        </Text>
+      ))}
+      <View style={styles.energyCell}>
+        {benched ? null : <EnergyPips energy={line.energy} size={7} />}
+      </View>
+    </View>
   );
 }
 

@@ -2,6 +2,7 @@ import { StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop, LiveChip } from '@/components/fx';
+import { useIdle, HUB_IDLE_MS } from '@/feel';
 import {
   DIFFICULTY_LABELS,
   type Difficulty,
@@ -33,8 +34,11 @@ export function RunSummaryView({
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
+  // Quiet the unlock banner's reward glow once the player settles on this terminal
+  // screen; the next touch wakes it. Mirrors the hub/run-map idle-pause.
+  const { idle, bump } = useIdle(HUB_IDLE_MS);
   return (
-    <Screen style={styles.container}>
+    <Screen style={styles.container} onTouchStart={bump}>
       <Pop popOnMount>
         <Text
           style={[
@@ -50,7 +54,12 @@ export function RunSummaryView({
         {wins === 1 ? 'win' : 'wins'}
       </Text>
       {unlockedClass ? (
-        <LiveChip active color={palette.orange} style={styles.unlockWrap}>
+        <LiveChip
+          active
+          color={palette.orange}
+          paused={idle}
+          style={styles.unlockWrap}
+        >
           <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
         </LiveChip>
       ) : null}
