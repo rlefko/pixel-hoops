@@ -14,7 +14,8 @@
     "test": "vitest run",
     "fetch:nba": "npx tsx scripts/fetch-nba.ts",
     "pixelate:logos": "npx tsx scripts/pixelate-logos.ts",
-    "gen:sfx": "npx tsx scripts/generate-sfx.ts"
+    "gen:sfx": "npx tsx scripts/generate-sfx.ts",
+    "gen:icon": "npx tsx scripts/generate-icon.ts"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
