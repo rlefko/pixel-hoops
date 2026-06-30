@@ -60,18 +60,16 @@ npx expo start --clear
 
 ### Native build errors after an Expo SDK upgrade
 
-If `npx expo run:ios` or `npx expo run:android` fails at the native build or CocoaPods step after bumping the Expo SDK, with errors like `[Expo] @expo/dom-webview was not linked: requires iOS 16.4 but app targets 15.1` or `Unable to find a specification for ExpoModulesCore`, your generated `ios/` and `android/` folders are stale. They were created by an older SDK (for example with the old iOS 15.1 deployment target) and are gitignored build artifacts, so regenerate them from scratch at the current SDK's defaults (SDK 56 targets iOS 16.4):
+If `npx expo run:ios` or `npx expo run:android` fails at the native build or CocoaPods step after bumping the Expo SDK, with errors like `[Expo] @expo/dom-webview was not linked: requires iOS 16.4 but app targets 15.1`, `Unable to find a specification for ExpoModulesCore`, or `no such module 'Expo'`, your local native build state is stale. The gitignored `ios/` and `android/` folders, the CocoaPods install, and Xcode's DerivedData were all produced by the old SDK. Regenerate everything from scratch at the current SDK's defaults (SDK 56 targets iOS 16.4 and ships Expo as precompiled XCFrameworks):
 
 ```bash
-npx expo prebuild --clean
+npx expo prebuild --clean                      # regenerate ios/ and android/
+rm -rf ~/Library/Developer/Xcode/DerivedData   # clear Xcode's stale build cache
+cd ios && pod install && cd ..                 # reinstall pods (fetches the precompiled frameworks)
 npx expo run:ios
 ```
 
-If CocoaPods still cannot find a pod spec such as `ExpoModulesCore`, refresh the local spec repo and reinstall:
-
-```bash
-cd ios && pod install --repo-update
-```
+If CocoaPods still cannot resolve a pod spec such as `ExpoModulesCore`, refresh the local spec repo first with `cd ios && pod install --repo-update`.
 
 ## Game Concept
 
