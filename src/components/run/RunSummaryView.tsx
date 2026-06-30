@@ -1,7 +1,12 @@
 import { StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
+import { Pop, LiveChip } from '@/components/fx';
+import {
+  DIFFICULTY_LABELS,
+  type Difficulty,
+  type LadderClass,
+} from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -30,20 +35,29 @@ export function RunSummaryView({
 }: RunSummaryViewProps) {
   return (
     <Screen style={styles.container}>
-      <Text
-        style={[styles.title, { color: champion ? palette.gold : palette.ink }]}
-      >
-        {champion ? 'CHAMPIONS!' : 'RUN OVER'}
-      </Text>
+      <Pop popOnMount>
+        <Text
+          style={[
+            styles.title,
+            { color: champion ? palette.gold : palette.ink },
+          ]}
+        >
+          {champion ? 'CHAMPIONS!' : 'RUN OVER'}
+        </Text>
+      </Pop>
       <Text style={styles.body}>
         {DIFFICULTY_LABELS[difficulty].name} · {ladderClass} ladder · {wins}{' '}
         {wins === 1 ? 'win' : 'wins'}
       </Text>
       {unlockedClass ? (
-        <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
+        <LiveChip active color={palette.orange} style={styles.unlockWrap}>
+          <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
+        </LiveChip>
       ) : null}
       <Text style={[styles.note, !champion && styles.noteLost]}>
-        {champion ? 'Recruits carried home.' : 'Run recruits lost. Your coins are safe.'}
+        {champion
+          ? 'Recruits carried home.'
+          : 'Run recruits lost. Your coins are safe.'}
       </Text>
       <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
         <Text style={styles.buttonText}>NEW RUN</Text>
@@ -72,12 +86,12 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     marginTop: space(4),
   },
+  unlockWrap: { marginTop: space(3) },
   unlock: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.body,
     color: palette.orange,
     textAlign: 'center',
-    marginTop: space(3),
   },
   note: {
     fontFamily: FONT.body,

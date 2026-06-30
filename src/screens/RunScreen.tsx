@@ -4,6 +4,7 @@ import { useArcadeRouter } from '@/navigation';
 import { useFeelSettings } from '@/feel';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { Pop, Counter } from '@/components/fx';
 import { useRun } from '@/hooks/useRun';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import {
@@ -19,7 +20,10 @@ import { getCoach } from '@/game/coaches';
 import { coachForTeamName } from '@/game/opponent-coach';
 import { CoachRecBanner } from '@/components/run/CoachRecBanner';
 import { LineupBoard } from '@/components/game/LineupBoard';
-import { TeamIdentityCard, MatchupHeadline } from '@/components/game/TeamIdentityCard';
+import {
+  TeamIdentityCard,
+  MatchupHeadline,
+} from '@/components/game/TeamIdentityCard';
 import { deriveTeamIdentity } from '@/game/team-identity';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
 import { RunMapView } from '@/components/run/RunMapView';
@@ -180,7 +184,10 @@ export default function RunScreen() {
       // loss/timeout still shows the full result so the "RUN IT BACK" decision is kept.
       if (autoSkipGames && model.phase.won) {
         return (
-          <AutoAdvance key="advance-from-postgame" onAdvance={actions.resolveGameResult} />
+          <AutoAdvance
+            key="advance-from-postgame"
+            onAdvance={actions.resolveGameResult}
+          />
         );
       }
       return <Postgame model={model} onContinue={actions.resolveGameResult} />;
@@ -295,7 +302,8 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const [recDismissed, setRecDismissed] = useState(false);
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
   const timeoutUsed = model.phase.kind === 'pregame' && model.phase.timeoutUsed;
-  const coachRec = model.phase.kind === 'pregame' ? model.phase.coachRec : undefined;
+  const coachRec =
+    model.phase.kind === 'pregame' ? model.phase.coachRec : undefined;
   // The away board scouts the opponent the run will field. The home board shows the
   // player's chosen five in their own slots, with an injured starter marked OUT in
   // place rather than silently swapped; the healthy sub who dresses for them in the
@@ -314,8 +322,7 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
             <Text style={styles.timeoutBannerTitle}>TIMEOUT</Text>
           </View>
           <Text style={styles.timeoutBannerBody}>
-            That one's forgiven. Reset your five and run it back.
-            {' '}
+            That one's forgiven. Reset your five and run it back.{' '}
             {model.secondChancesRemaining} left.
           </Text>
         </View>
@@ -340,7 +347,13 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
         accentHex={home.colorHex}
         coachName={getCoach(model.coachId).name}
       />
-      <LineupBoard team={home} players={chosen} condition steppingIn={steppingIn} dense />
+      <LineupBoard
+        team={home}
+        players={chosen}
+        condition
+        steppingIn={steppingIn}
+        dense
+      />
       {coachRec && !recDismissed ? (
         <CoachRecBanner
           coach={getCoach(model.coachId)}
@@ -396,6 +409,11 @@ function Postgame({
   // Default open so the box score is right there after a game; still collapsible
   // to put the win/loss headline and the retry one tap away.
   const [showBox, setShowBox] = useState(true);
+  // Count the final score up from zero once on mount (Counter only tweens on a change).
+  const [settled, setSettled] = useState(false);
+  useEffect(() => {
+    setSettled(true);
+  }, []);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
   // A loss with timeouts left isn't the end: the headline + CTA invite a replay,
@@ -412,9 +430,14 @@ function Postgame({
   return (
     <Screen style={styles.postgame} bottomGap={space(6)}>
       <View style={styles.postgameHeadline}>
-        <Text style={[styles.result, { color: headlineColor }]}>{headline}</Text>
+        <Pop popOnMount>
+          <Text style={[styles.result, { color: headlineColor }]}>
+            {headline}
+          </Text>
+        </Pop>
         <Text style={styles.score}>
-          {result.finalHome} - {result.finalAway}
+          <Counter value={settled ? result.finalHome : 0} /> -{' '}
+          <Counter value={settled ? result.finalAway : 0} />
         </Text>
         <Text style={styles.vs}>@ {model.game.opponentName}</Text>
         {canForgive ? (

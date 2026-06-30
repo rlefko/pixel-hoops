@@ -1,6 +1,7 @@
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { StaggerIn, Counter } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { haptics } from '@/feel';
@@ -59,19 +60,29 @@ interface TrainingViewProps {
   onDone: () => void;
 }
 
-export function TrainingView({ roster, trainingPoints, onTrain, onDone }: TrainingViewProps) {
+export function TrainingView({
+  roster,
+  trainingPoints,
+  onTrain,
+  onDone,
+}: TrainingViewProps) {
   const pool = [...roster.starters, ...roster.bench];
   const noPoints = trainingPoints <= 0;
   return (
     <Screen style={styles.container}>
       <Text style={styles.title}>TRAINING</Text>
       <Text style={styles.subtitle}>
-        {trainingPoints} point{trainingPoints === 1 ? '' : 's'} to spend (+1 each, up to {MAX_TRAINED_STAT})
+        <Counter value={trainingPoints} /> point
+        {trainingPoints === 1 ? '' : 's'} to spend (+1 each, up to{' '}
+        {MAX_TRAINED_STAT})
       </Text>
 
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+      >
         {pool.map((rp, i) => (
-          <View key={i} style={styles.row}>
+          <StaggerIn key={i} index={i} style={styles.row}>
             <PlayerCard rp={rp} condition />
             <View style={styles.groups}>
               {STAT_GROUPS.map((group) => (
@@ -93,7 +104,10 @@ export function TrainingView({ roster, trainingPoints, onTrain, onDone }: Traini
                         >
                           <View style={styles.statBtnLine}>
                             <Text style={styles.statBtnText}>{s.label}</Text>
-                            <StatNumber value={trained} style={styles.statBtnText} />
+                            <StatNumber
+                              value={trained}
+                              style={styles.statBtnText}
+                            />
                           </View>
                         </Pressable>
                       );
@@ -102,7 +116,7 @@ export function TrainingView({ roster, trainingPoints, onTrain, onDone }: Traini
                 </View>
               ))}
             </View>
-          </View>
+          </StaggerIn>
         ))}
       </ScrollView>
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { StaggerIn } from '@/components/fx';
 import { PixelButton } from '@/components/PixelButton';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -37,11 +38,13 @@ export function RecruitView({
       <Text style={styles.subtitle}>
         Add one to your bench ({benchCount} benched)
       </Text>
-      <Text style={styles.provisional}>Signed for this run. Clear the run to keep them.</Text>
+      <Text style={styles.provisional}>
+        Signed for this run. Clear the run to keep them.
+      </Text>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
         {offers.map((rp, i) => (
-          <View key={i} style={styles.card}>
+          <StaggerIn key={i} index={i} style={styles.card}>
             <Pressable onPress={() => onRecruit(rp)}>
               <PlayerCard
                 rp={rp}
@@ -52,12 +55,23 @@ export function RecruitView({
             </Pressable>
             <View style={styles.metaRow}>
               {rerolled[i] ? (
-                <PixelButton label="REROLLED" onPress={() => {}} size="small" disabled accessibilityLabel="Reroll used" />
+                <PixelButton
+                  label="REROLLED"
+                  onPress={() => {}}
+                  size="small"
+                  disabled
+                  accessibilityLabel="Reroll used"
+                />
               ) : (
-                <PixelButton label="↻ REROLL" onPress={() => onReroll(i)} size="small" accessibilityLabel="Reroll" />
+                <PixelButton
+                  label="↻ REROLL"
+                  onPress={() => onReroll(i)}
+                  size="small"
+                  accessibilityLabel="Reroll"
+                />
               )}
             </View>
-          </View>
+          </StaggerIn>
         ))}
       </ScrollView>
 

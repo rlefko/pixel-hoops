@@ -1,6 +1,7 @@
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { StaggerIn } from '@/components/fx';
 import { PlayerCard } from './PlayerCard';
 import { compareByRatingDesc } from '@/game/roster-filter';
 import type { RosterPlayer } from '@/types/roster';
@@ -17,7 +18,10 @@ interface FreeAgentRevealViewProps {
   onContinue: () => void;
 }
 
-export function FreeAgentRevealView({ players, onContinue }: FreeAgentRevealViewProps) {
+export function FreeAgentRevealView({
+  players,
+  onContinue,
+}: FreeAgentRevealViewProps) {
   // Reveal the strongest signings first (these starters carry no upgrades yet).
   const ordered = [...players].sort(compareByRatingDesc());
   return (
@@ -34,9 +38,13 @@ export function FreeAgentRevealView({ players, onContinue }: FreeAgentRevealView
         showsVerticalScrollIndicator={false}
       >
         {ordered.map((rp, i) => (
-          <View key={`${rp.player.name}-${i}`} style={styles.cardWrap}>
+          <StaggerIn
+            key={`${rp.player.name}-${i}`}
+            index={i}
+            style={styles.cardWrap}
+          >
             <PlayerCard rp={rp} />
-          </View>
+          </StaggerIn>
         ))}
       </ScrollView>
 

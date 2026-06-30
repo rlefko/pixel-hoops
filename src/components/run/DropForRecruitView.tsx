@@ -1,6 +1,7 @@
-import { View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { StyleSheet, Pressable, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
+import { StaggerIn, Pop } from '@/components/fx';
 import { PixelButton } from '@/components/PixelButton';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { MAX_RUN_ROSTER } from '@/game/draft';
@@ -20,23 +21,34 @@ interface DropForRecruitViewProps {
   onSkip: () => void;
 }
 
-export function DropForRecruitView({ incoming, roster, onDrop, onSkip }: DropForRecruitViewProps) {
+export function DropForRecruitView({
+  incoming,
+  roster,
+  onDrop,
+  onSkip,
+}: DropForRecruitViewProps) {
   const all = [...roster.starters, ...roster.bench];
   return (
     <Screen style={styles.container} bottomGap={space(5)}>
       <Text style={styles.title}>SQUAD FULL</Text>
       <Text style={styles.subtitle}>
-        Your rotation is at {MAX_RUN_ROSTER}. Drop a player to sign, or keep your squad:
+        Your rotation is at {MAX_RUN_ROSTER}. Drop a player to sign, or keep
+        your squad:
       </Text>
-      <View style={styles.incoming}>
+      <Pop popOnMount style={styles.incoming}>
         <PlayerCard rp={incoming} />
-      </View>
+      </Pop>
       <Text style={styles.sectionLabel}>TAP A PLAYER TO DROP</Text>
-      <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+      >
         {all.map((rp, i) => (
-          <Pressable key={`${rp.player.name}-${i}`} onPress={() => onDrop(i)} style={styles.row}>
-            <PlayerCard rp={rp} compact />
-          </Pressable>
+          <StaggerIn key={`${rp.player.name}-${i}`} index={i}>
+            <Pressable onPress={() => onDrop(i)} style={styles.row}>
+              <PlayerCard rp={rp} compact />
+            </Pressable>
+          </StaggerIn>
         ))}
       </ScrollView>
       <PixelButton label="Keep my squad" onPress={onSkip} style={styles.keep} />
@@ -46,7 +58,12 @@ export function DropForRecruitView({ incoming, roster, onDrop, onSkip }: DropFor
 
 const styles = StyleSheet.create({
   container: { paddingHorizontal: space(4) },
-  title: { fontFamily: FONT.display, fontSize: FONT_SIZE.h3, color: palette.gold, textAlign: 'center' },
+  title: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.h3,
+    color: palette.gold,
+    textAlign: 'center',
+  },
   subtitle: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,

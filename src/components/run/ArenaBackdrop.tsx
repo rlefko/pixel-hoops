@@ -1,7 +1,16 @@
-import { memo } from 'react';
+import { memo, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withTiming,
+  cancelAnimation,
+  Easing,
+} from 'react-native-reanimated';
 import { palette, BORDER, RADIUS, space } from '@/theme';
 import { mix } from '@/theme/color';
+import { useFeelSettings } from '@/feel';
 import { BOARD_HEADROOM } from './map-geometry';
 
 /**
@@ -17,8 +26,25 @@ const CROWD_COLORS = [palette.inkDim, palette.steelBlue, palette.orange];
 
 function CrowdBand({ width }: { width: number }) {
   const seats = Math.max(0, Math.floor(width / 8));
+  const { reducedMotion } = useFeelSettings();
+  // A slow shimmer wave across the whole crowd band (one worklet, not per-seat), so
+  // the stands feel alive without thrashing. Holds steady under reduced motion.
+  const v = useSharedValue(0);
+  useEffect(() => {
+    if (reducedMotion) {
+      v.value = 0.5;
+      return;
+    }
+    v.value = withRepeat(
+      withTiming(1, { duration: 2200, easing: Easing.inOut(Easing.quad) }),
+      -1,
+      true
+    );
+    return () => cancelAnimation(v);
+  }, [reducedMotion, v]);
+  const shimmer = useAnimatedStyle(() => ({ opacity: 0.16 + 0.1 * v.value }));
   return (
-    <View style={styles.crowd} pointerEvents="none">
+    <Animated.View style={[styles.crowd, shimmer]} pointerEvents="none">
       {Array.from({ length: seats }, (_, i) => (
         <View
           key={i}
@@ -28,7 +54,7 @@ function CrowdBand({ width }: { width: number }) {
           ]}
         />
       ))}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -41,14 +67,14 @@ export const ArenaBackdrop = memo(function ArenaBackdrop({
 }) {
   const plankCount = Math.ceil(height / PLANK_PITCH);
   return (
-    <View
-      pointerEvents="none"
-      style={[styles.floor, { width, height }]}
-    >
+    <View pointerEvents="none" style={[styles.floor, { width, height }]}>
       {Array.from({ length: plankCount }, (_, i) => (
         <View
           key={i}
-          style={[styles.plank, { top: i * PLANK_PITCH, backgroundColor: PLANK }]}
+          style={[
+            styles.plank,
+            { top: i * PLANK_PITCH, backgroundColor: PLANK },
+          ]}
         />
       ))}
       <View style={styles.frame} />
@@ -90,7 +116,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignContent: 'flex-start',
-    opacity: 0.22,
+    // opacity is driven by the shimmer animation (see CrowdBand).
     paddingHorizontal: space(1),
     paddingTop: space(1),
   },
