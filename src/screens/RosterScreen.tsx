@@ -4,7 +4,7 @@ import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { StaggerIn } from '@/components/fx';
-import { useIdle } from '@/feel';
+import { useHubBackdrop } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { useHomeRoster } from '@/context/HomeRosterContext';
@@ -32,9 +32,6 @@ const SORTS: { id: Sort; label: string }[] = [
   { id: 'class', label: 'CLASS' },
   { id: 'name', label: 'NAME' },
 ];
-
-// Quiet the drifting ambience after a stretch with no touch (mirrors the home menu).
-const HUB_IDLE_MS = 30000;
 
 /** One browse row: a (memoized) expandable player card. Memoized so toggling one
  * card's stat spread, or scrolling, only re-renders the cards that actually changed.
@@ -68,7 +65,7 @@ const RosterRow = memo(function RosterRow({
 export default function RosterScreen() {
   const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
-  const { idle, bump } = useIdle(HUB_IDLE_MS);
+  const { screenProps } = useHubBackdrop();
   // Cascade the cards in once on first appearance, then snap recycled rows (no scroll strobe).
   const [entering, setEntering] = useState(true);
   useEffect(() => {
@@ -154,14 +151,7 @@ export default function RosterScreen() {
     });
 
   return (
-    <Screen
-      style={styles.container}
-      onBack={() => nav.back()}
-      backdrop
-      backdropPaused={idle}
-      vignette
-      onTouchStart={bump}
-    >
+    <Screen style={styles.container} onBack={() => nav.back()} {...screenProps}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>ROSTER</Text>
         <Text style={styles.count}>{players.length} OWNED</Text>

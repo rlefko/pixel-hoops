@@ -3,7 +3,7 @@ import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { StaggerIn } from '@/components/fx';
-import { useIdle } from '@/feel';
+import { useHubBackdrop } from '@/feel';
 import { CoachCard } from '@/components/coach/CoachCard';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { selectCoach } from '@/game/home-roster';
@@ -17,13 +17,10 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
  * the run's strategic identity; picking one here is optional (a default is always set).
  * A standalone screen reached from the home menu, mirroring the Hall of Fame.
  */
-// Quiet the drifting ambience after a stretch with no touch (mirrors the home menu).
-const HUB_IDLE_MS = 30000;
-
 export default function CoachesScreen() {
   const nav = useArcadeRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
-  const { idle, bump } = useIdle(HUB_IDLE_MS);
+  const { idle, screenProps } = useHubBackdrop();
 
   if (!loaded || !homeRoster) {
     return (
@@ -40,10 +37,7 @@ export default function CoachesScreen() {
       scroll
       onBack={() => nav.back()}
       contentContainerStyle={styles.content}
-      backdrop
-      backdropPaused={idle}
-      vignette
-      onTouchStart={bump}
+      {...screenProps}
     >
       <View style={styles.headerRow}>
         <Text style={styles.title}>COACHES</Text>

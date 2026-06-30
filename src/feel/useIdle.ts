@@ -1,6 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 /**
+ * The shared "player is just looking at the screen" threshold. After this long with no
+ * touch, a hub/run-map screen quiets its attract loops (drift, glow, bob) to save
+ * battery; the next touch wakes them. One tuned value for every staring screen so it
+ * can't drift across copies.
+ */
+export const HUB_IDLE_MS = 30000;
+
+/**
  * Tracks foreground inactivity. Returns `idle` (true once no `bump()` has fired for
  * `ms`) and the `bump` to call on user activity (wire it to a screen's `onTouchStart`).
  * Used to quiet idle attract loops when the player is just looking at a screen, so the

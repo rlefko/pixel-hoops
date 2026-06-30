@@ -2,14 +2,11 @@ import { View, StyleSheet } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { useIdle } from '@/feel';
+import { useHubBackdrop } from '@/feel';
 import { HubHeader } from '@/components/locker/HubHeader';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { LockerRoomTab } from '@/components/locker/LockerRoomTab';
 import { palette, FONT, FONT_SIZE, space } from '@/theme';
-
-// Quiet the drifting ambience after a stretch with no touch (mirrors the home menu).
-const HUB_IDLE_MS = 30000;
 
 /**
  * The Locker Room: the between-runs hub for permanent stat upgrades. It pairs
@@ -20,7 +17,7 @@ const HUB_IDLE_MS = 30000;
 export default function LockerScreen() {
   const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
-  const { idle, bump } = useIdle(HUB_IDLE_MS);
+  const { screenProps } = useHubBackdrop();
 
   if (!loaded || !homeRoster) {
     return (
@@ -31,14 +28,7 @@ export default function LockerScreen() {
   }
 
   return (
-    <Screen
-      style={styles.container}
-      onBack={() => nav.back()}
-      backdrop
-      backdropPaused={idle}
-      vignette
-      onTouchStart={bump}
-    >
+    <Screen style={styles.container} onBack={() => nav.back()} {...screenProps}>
       <HubHeader title="LOCKER ROOM" />
       <View style={styles.body}>
         <LockerRoomTab />

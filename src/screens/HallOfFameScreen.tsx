@@ -3,13 +3,10 @@ import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { StaggerIn } from '@/components/fx';
-import { useIdle } from '@/feel';
+import { useHubBackdrop } from '@/feel';
 import { HallOfFameCard } from '@/components/locker/HallOfFameCard';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { palette, FONT, FONT_SIZE, space } from '@/theme';
-
-// Quiet the drifting ambience after a stretch with no touch (mirrors the home menu).
-const HUB_IDLE_MS = 30000;
 
 /**
  * The Hall of Fame: a scrollable trophy case of every roster that won a ladder,
@@ -19,7 +16,7 @@ const HUB_IDLE_MS = 30000;
 export default function HallOfFameScreen() {
   const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
-  const { idle, bump } = useIdle(HUB_IDLE_MS);
+  const { screenProps } = useHubBackdrop();
 
   if (!loaded || !homeRoster) {
     return (
@@ -36,10 +33,7 @@ export default function HallOfFameScreen() {
       scroll
       onBack={() => nav.back()}
       contentContainerStyle={styles.content}
-      backdrop
-      backdropPaused={idle}
-      vignette
-      onTouchStart={bump}
+      {...screenProps}
     >
       <View style={styles.headerRow}>
         <Text style={styles.title}>HALL OF FAME</Text>

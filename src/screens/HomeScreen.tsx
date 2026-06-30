@@ -20,7 +20,7 @@ import {
 } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { CLASS_COLOR } from '@/components/run/class-ui';
-import { useGlowPulse, useBobPulse, useIdle } from '@/feel';
+import { useGlowPulse, useBobPulse, useHubBackdrop } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import {
@@ -34,11 +34,6 @@ import {
 import { getCoach } from '@/game/coaches';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
-// Quiet the menu's attract loops after this long with no touch (a player lingering on
-// the menu). The screen is the app's busiest idle screen, so this is real foreground
-// savings; the loops resume on the next touch.
-const HOME_IDLE_MS = 30000;
-
 /** Main menu screen: the arcade lobby and entry point for the game. */
 export default function HomeScreen() {
   // Plain router for the How to Play modal so it keeps its native slide-up; the
@@ -47,9 +42,9 @@ export default function HomeScreen() {
   const nav = useArcadeRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const { savedRun } = useActiveRun();
-  // Pause every menu attract loop after a stretch of no touch; bump() (wired to the
-  // screen's onTouchStart below) wakes them on the next interaction.
-  const { idle, bump } = useIdle(HOME_IDLE_MS);
+  // Pause every menu attract loop after a stretch of no touch; the hub backdrop bundle
+  // wires the touch-wake (onTouchStart) for us, and `idle` also gates the title glow/bob.
+  const { idle, screenProps } = useHubBackdrop();
   // One idle "breathe" loop drives the title: a glow behind the gold word and a
   // gentle bob on the pixel basketball. Slower than the default so it reads as a
   // title, not a flicker. Held steady under reduced motion or while idle.
@@ -94,11 +89,8 @@ export default function HomeScreen() {
     <Screen
       scroll
       scanlines
-      backdrop
-      backdropPaused={idle}
-      vignette
+      {...screenProps}
       contentContainerStyle={styles.container}
-      onTouchStart={bump}
     >
       <View style={styles.titleBlock}>
         <Animated.View style={bobStyle}>
