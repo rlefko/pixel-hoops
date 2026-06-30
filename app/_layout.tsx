@@ -8,13 +8,32 @@ import {
   SafeAreaProvider,
   initialWindowMetrics,
 } from 'react-native-safe-area-context';
-import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
+import {
+  ReducedMotionConfig,
+  ReduceMotion,
+  configureReanimatedLogger,
+  ReanimatedLogLevel,
+} from 'react-native-reanimated';
+import { enableFreeze } from 'react-native-screens';
 
 import { FeelSettingsProvider } from '@/feel';
 import { HomeRosterProvider } from '@/context/HomeRosterContext';
 import { ActiveRunProvider } from '@/context/ActiveRunContext';
 import { TransitionProvider } from '@/navigation';
 import { FONT_ASSETS, palette } from '@/theme';
+
+// Freeze off-screen screens: when a screen is blurred (occluded by a pushed route,
+// e.g. the home menu behind a run), react-native-screens suspends its React tree, so
+// its idle attract/glow/bob loops and re-renders stop running on the UI thread until
+// it is focused again. The custom pixel-wipe paints over the instant native cut, and
+// freeze only engages after the reveal, so the transition itself is unaffected.
+enableFreeze(true);
+
+// In production, drop Reanimated's strict logger so worklet/shared-value access is not
+// validated every frame. Dev keeps the warnings.
+if (!__DEV__) {
+  configureReanimatedLogger({ level: ReanimatedLogLevel.error, strict: false });
+}
 
 /**
  * Pixel Hoops is a dark 8-bit game. We pin a single palette-matched dark theme
@@ -88,6 +107,9 @@ function RootLayoutNav() {
               // cuts instantly and the swipe-back gesture is off.
               animation: 'none',
               gestureEnabled: false,
+              // Suspend a screen's React tree while it is occluded by another route
+              // (e.g. the home menu behind a run), pausing its idle loops/renders.
+              freezeOnBlur: true,
             }}
           >
             <Stack.Screen name="(home)" />
@@ -97,9 +119,11 @@ function RootLayoutNav() {
               options={{
                 presentation: 'modal',
                 title: 'How to Play',
-                // The modal keeps its native slide-up; it is not wiped.
+                // The modal keeps its native slide-up; it is not wiped. Don't freeze it,
+                // so its dismiss animation is never interrupted mid-slide.
                 animation: 'default',
                 gestureEnabled: true,
+                freezeOnBlur: false,
               }}
             />
           </Stack>
