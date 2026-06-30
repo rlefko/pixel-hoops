@@ -1,0 +1,241 @@
+/**
+ * The chiptune SFX catalog: one declarative `Recipe` per sound. This is the single
+ * source of truth shared by the generator script (which bakes each recipe to a .wav)
+ * and the unit tests. The runtime reads only the generated manifest, never this file.
+ *
+ * Loudness is tiered through each recipe's `gain`: routine in-game blips stay quiet so
+ * the watch never fatigues, while the big stings (win, championship, legendary reward)
+ * push to full scale. `pool` is the round-robin player count the runtime allocates:
+ * 2 for sounds that can rapid-retrigger (makes, taps), 1 for one-shot stings.
+ */
+
+import type { Recipe } from './synth';
+
+// Equal-tempered reference pitches (Hz) used across the recipes, for readability.
+const C4 = 262;
+const E4 = 330;
+const G4 = 392;
+const A4 = 440;
+const C5 = 523;
+const E5 = 659;
+const G5 = 784;
+const A5 = 880;
+const B5 = 988;
+const C6 = 1046;
+const D6 = 1175;
+const E6 = 1318;
+const G6 = 1568;
+const C7 = 2093;
+
+export const RECIPES = {
+  // --- In-game outcomes (routine plays quiet, peaks loud) ---
+  make: {
+    pool: 2,
+    gain: 0.45,
+    voices: [
+      { osc: 'triangle', freq: A5, freqTo: E5, sweep: 'exp', durMs: 90, env: { decayMs: 72, sustain: 0, releaseMs: 18 } },
+      { osc: 'noise', freq: 6000, durMs: 70, gain: 0.22, crushBits: 4, env: { decayMs: 64, sustain: 0 }, noiseSeed: 11 },
+    ],
+  },
+  three: {
+    pool: 2,
+    gain: 0.6,
+    voices: [
+      { osc: 'triangle', freq: C6, freqTo: G5, sweep: 'exp', durMs: 120, env: { decayMs: 104, sustain: 0 } },
+      {
+        osc: 'square', duty: 0.125, freq: C6, durMs: 150, delayMs: 40, gain: 0.45,
+        arp: { steps: [0, 12], stepMs: 45 }, env: { decayMs: 118, sustain: 0.2, releaseMs: 28 },
+      },
+    ],
+  },
+  dunk: {
+    pool: 2,
+    gain: 0.95,
+    voices: [
+      { osc: 'square', duty: 0.5, freq: 180, freqTo: 70, sweep: 'exp', durMs: 160, crushBits: 5, env: { decayMs: 140, sustain: 0, releaseMs: 20 } },
+      { osc: 'noise', freq: 3500, durMs: 120, delayMs: 10, gain: 0.5, srReduce: 3, env: { decayMs: 112, sustain: 0 }, noiseSeed: 23 },
+    ],
+  },
+  andOne: {
+    pool: 1,
+    gain: 0.7,
+    voices: [
+      { osc: 'triangle', freq: B5, freqTo: 740, sweep: 'exp', durMs: 110, env: { decayMs: 96, sustain: 0 } },
+      {
+        osc: 'square', duty: 0.25, freq: 2200, freqTo: 2600, durMs: 90, delayMs: 70, gain: 0.4,
+        vibrato: { semitones: 0.5, rateHz: 30 }, env: { attackMs: 8, decayMs: 70, sustain: 0.3, releaseMs: 10 },
+      },
+    ],
+  },
+  block: {
+    pool: 1,
+    gain: 0.85,
+    voices: [
+      { osc: 'noise', freq: 1500, durMs: 90, gain: 0.7, srReduce: 2, env: { decayMs: 82, sustain: 0 }, noiseSeed: 7 },
+      { osc: 'square', duty: 0.5, freq: 120, freqTo: 60, sweep: 'exp', durMs: 170, delayMs: 20, crushBits: 4, env: { decayMs: 158, sustain: 0 } },
+    ],
+  },
+  steal: {
+    pool: 1,
+    gain: 0.6,
+    voices: [
+      { osc: 'square', duty: 0.25, freq: 700, freqTo: 1600, sweep: 'exp', durMs: 80, env: { attackMs: 5, decayMs: 72, sustain: 0 } },
+    ],
+  },
+  miss: {
+    pool: 1,
+    gain: 0.25,
+    voices: [
+      { osc: 'square', duty: 0.5, freq: 240, freqTo: 180, sweep: 'exp', durMs: 70, crushBits: 4, env: { decayMs: 62, sustain: 0 } },
+    ],
+  },
+
+  // --- Run-flow beats ---
+  tipoff: {
+    pool: 1,
+    gain: 0.8,
+    voices: [
+      { osc: 'square', duty: 0.25, freq: 2300, durMs: 240, vibrato: { semitones: 0.6, rateHz: 22 }, env: { attackMs: 15, sustain: 1, releaseMs: 70 } },
+      { osc: 'noise', freq: 900, durMs: 320, gain: 0.28, srReduce: 4, env: { attackMs: 220, sustain: 1, releaseMs: 100 }, noiseSeed: 31 },
+    ],
+  },
+  buzzerBeater: {
+    pool: 1,
+    gain: 0.95,
+    voices: [
+      { osc: 'sawtooth', freq: C5, durMs: 420, arp: { steps: [0, 4, 7, 12], stepMs: 55 }, gain: 0.55, env: { sustain: 1, releaseMs: 120 } },
+      { osc: 'triangle', freq: C4, freqTo: G4, sweep: 'linear', durMs: 420, gain: 0.7, env: { attackMs: 10, sustain: 1, releaseMs: 150 } },
+      { osc: 'square', duty: 0.5, freq: C6, durMs: 200, delayMs: 360, gain: 0.5, env: { decayMs: 180, sustain: 0 } },
+    ],
+  },
+  win: {
+    pool: 1,
+    gain: 0.9,
+    voices: [
+      { osc: 'square', duty: 0.25, freq: C5, durMs: 110, env: { decayMs: 90, sustain: 0.3, releaseMs: 18 } },
+      { osc: 'square', duty: 0.25, freq: E5, durMs: 110, delayMs: 110, env: { decayMs: 90, sustain: 0.3, releaseMs: 18 } },
+      { osc: 'square', duty: 0.25, freq: G5, durMs: 210, delayMs: 220, env: { decayMs: 178, sustain: 0.3, releaseMs: 30 } },
+      { osc: 'triangle', freq: C4, durMs: 430, gain: 0.5, env: { sustain: 0.8, releaseMs: 120 } },
+    ],
+  },
+  loss: {
+    pool: 1,
+    gain: 0.7,
+    voices: [
+      { osc: 'triangle', freq: A4, freqTo: 220, sweep: 'exp', durMs: 600, env: { attackMs: 10, sustain: 0.8, releaseMs: 250 } },
+      { osc: 'square', duty: 0.5, freq: 110, durMs: 600, gain: 0.3, crushBits: 4, env: { sustain: 0.6, releaseMs: 250 } },
+    ],
+  },
+  champion: {
+    pool: 1,
+    gain: 0.95,
+    voices: [
+      { osc: 'square', duty: 0.5, freq: C5, durMs: 720, arp: { steps: [0, 4, 7, 12, 7, 4], stepMs: 70 }, gain: 0.45, env: { sustain: 1, releaseMs: 150 } },
+      { osc: 'sawtooth', freq: G4, durMs: 720, arp: { steps: [0, 3, 7], stepMs: 140 }, gain: 0.32, env: { attackMs: 20, sustain: 1, releaseMs: 200 } },
+      { osc: 'triangle', freq: 131, freqTo: C4, sweep: 'linear', durMs: 720, gain: 0.6, env: { attackMs: 20, sustain: 1, releaseMs: 200 } },
+      { osc: 'square', duty: 0.125, freq: G6, durMs: 260, delayMs: 460, gain: 0.4, arp: { steps: [0, 12], stepMs: 50 }, env: { decayMs: 220, sustain: 0 } },
+    ],
+  },
+
+  // --- Reward stings, tiered by rarity (fired through useRewardBurst) ---
+  rewardRare: {
+    pool: 1,
+    gain: 0.7,
+    voices: [
+      { osc: 'square', duty: 0.25, freq: E5, durMs: 90, env: { decayMs: 70, sustain: 0.2, releaseMs: 18 } },
+      { osc: 'square', duty: 0.25, freq: B5, durMs: 160, delayMs: 80, env: { decayMs: 130, sustain: 0.2, releaseMs: 28 } },
+    ],
+  },
+  rewardEpic: {
+    pool: 1,
+    gain: 0.8,
+    voices: [
+      { osc: 'square', duty: 0.25, freq: E5, durMs: 80, env: { decayMs: 60, sustain: 0.2, releaseMs: 18 } },
+      { osc: 'square', duty: 0.25, freq: A5, durMs: 80, delayMs: 80, env: { decayMs: 60, sustain: 0.2, releaseMs: 18 } },
+      { osc: 'square', duty: 0.25, freq: E6, durMs: 180, delayMs: 160, env: { decayMs: 150, sustain: 0.2, releaseMs: 28 } },
+      { osc: 'triangle', freq: E4, durMs: 340, gain: 0.4, env: { sustain: 0.7, releaseMs: 120 } },
+    ],
+  },
+  rewardLegendary: {
+    pool: 1,
+    gain: 0.95,
+    voices: [
+      { osc: 'square', duty: 0.25, freq: C5, durMs: 80, env: { decayMs: 60, sustain: 0.3, releaseMs: 18 } },
+      { osc: 'square', duty: 0.25, freq: E5, durMs: 80, delayMs: 80, env: { decayMs: 60, sustain: 0.3, releaseMs: 18 } },
+      { osc: 'square', duty: 0.25, freq: G5, durMs: 80, delayMs: 160, env: { decayMs: 60, sustain: 0.3, releaseMs: 18 } },
+      { osc: 'square', duty: 0.25, freq: C6, durMs: 230, delayMs: 240, env: { decayMs: 196, sustain: 0.3, releaseMs: 30 } },
+      { osc: 'square', duty: 0.125, freq: C7, durMs: 220, delayMs: 360, gain: 0.4, arp: { steps: [0, 7, 12], stepMs: 40 }, env: { decayMs: 200, sustain: 0 } },
+      { osc: 'triangle', freq: C4, durMs: 600, gain: 0.5, env: { sustain: 0.8, releaseMs: 180 } },
+    ],
+  },
+
+  // --- Gacha / recruiting ---
+  gachaWindup: {
+    pool: 1,
+    gain: 0.6,
+    voices: [
+      {
+        osc: 'sawtooth', freq: 200, freqTo: 600, sweep: 'exp', durMs: 360, srReduce: 2,
+        vibrato: { semitones: 0.8, rateHz: 18 }, env: { attackMs: 30, sustain: 1, releaseMs: 60 },
+      },
+    ],
+  },
+  recruit: {
+    pool: 1,
+    gain: 0.7,
+    voices: [
+      { osc: 'square', duty: 0.25, freq: G5, durMs: 90, env: { decayMs: 70, sustain: 0.3, releaseMs: 18 } },
+      { osc: 'square', duty: 0.25, freq: D6, durMs: 150, delayMs: 80, env: { decayMs: 120, sustain: 0.3, releaseMs: 28 } },
+    ],
+  },
+  dupe: {
+    pool: 1,
+    gain: 0.45,
+    voices: [
+      { osc: 'triangle', freq: 600, freqTo: 400, sweep: 'exp', durMs: 140, crushBits: 4, env: { decayMs: 120, sustain: 0, releaseMs: 18 } },
+    ],
+  },
+
+  // --- UI ---
+  tapPrimary: {
+    pool: 2,
+    gain: 0.5,
+    voices: [{ osc: 'square', duty: 0.25, freq: A5, freqTo: B5, durMs: 50, env: { decayMs: 46, sustain: 0 } }],
+  },
+  tapSecondary: {
+    pool: 2,
+    gain: 0.4,
+    voices: [{ osc: 'square', duty: 0.125, freq: E5, durMs: 40, env: { decayMs: 36, sustain: 0 } }],
+  },
+  toggle: {
+    pool: 1,
+    gain: 0.45,
+    voices: [{ osc: 'square', duty: 0.5, freq: 1320, durMs: 36, env: { decayMs: 32, sustain: 0 } }],
+  },
+  whoosh: {
+    pool: 1,
+    gain: 0.55,
+    voices: [
+      { osc: 'noise', freq: 1200, freqTo: 5000, sweep: 'exp', durMs: 220, gain: 0.5, srReduce: 2, env: { attackMs: 40, sustain: 1, releaseMs: 120 }, noiseSeed: 41 },
+      { osc: 'triangle', freq: 300, freqTo: 700, sweep: 'exp', durMs: 220, gain: 0.5, env: { attackMs: 20, sustain: 1, releaseMs: 120 } },
+    ],
+  },
+  whooshBack: {
+    pool: 1,
+    gain: 0.5,
+    voices: [
+      { osc: 'noise', freq: 5000, freqTo: 1200, sweep: 'exp', durMs: 200, gain: 0.5, srReduce: 2, env: { attackMs: 20, sustain: 1, releaseMs: 120 }, noiseSeed: 43 },
+      { osc: 'triangle', freq: 700, freqTo: 300, sweep: 'exp', durMs: 200, gain: 0.5, env: { attackMs: 10, sustain: 1, releaseMs: 110 } },
+    ],
+  },
+  error: {
+    pool: 1,
+    gain: 0.6,
+    voices: [
+      { osc: 'square', duty: 0.5, freq: 160, durMs: 80, crushBits: 4, env: { decayMs: 72, sustain: 0 } },
+      { osc: 'square', duty: 0.5, freq: 160, durMs: 80, delayMs: 110, crushBits: 4, env: { decayMs: 72, sustain: 0 } },
+    ],
+  },
+} satisfies Record<string, Recipe>;
+
+export type SfxName = keyof typeof RECIPES;
