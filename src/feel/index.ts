@@ -4,7 +4,6 @@ export {
   sfx,
   setSoundEnabled,
   setSoundVolume,
-  initSfx,
   type TapVariant,
   type WhooshDirection,
 } from './audio';

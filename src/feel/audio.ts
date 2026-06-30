@@ -1,8 +1,13 @@
-import { Platform } from 'react-native';
 import { Asset } from 'expo-asset';
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
+import {
+  createAudioPlayer,
+  setAudioModeAsync,
+  setIsAudioActiveAsync,
+  type AudioPlayer,
+} from 'expo-audio';
 import type { Rarity } from '@/game/rarity';
 import { SFX_SOURCES, SFX_POOL, type SfxName } from '@/audio/sfxManifest';
+import { IS_WEB, bestEffort } from './bestEffort';
 
 /**
  * Semantic sound-effects wrapper, modeled on ./haptics. Call sites use intent names
@@ -32,19 +37,26 @@ export function setSoundEnabled(value: boolean): void {
   enabled = value;
 }
 
-/** Master SFX volume 0..1 (wired to FeelSettings.sfxVolume). Applies live. */
+/**
+ * Master SFX volume 0..1 (wired to FeelSettings.sfxVolume). Stored only; each player
+ * reads it at play time, so dragging the volume slider is O(1) and never loops every
+ * pooled player.
+ */
 export function setSoundVolume(value: number): void {
   volume = Math.min(1, Math.max(0, value));
-  if (!ready) return;
-  for (const pool of pools.values()) {
-    for (const player of pool.players) {
-      try {
-        player.volume = volume;
-      } catch {
-        /* sound is best-effort */
-      }
-    }
-  }
+}
+
+/**
+ * Activate or release the shared audio session (best-effort, no-op on web). Called on
+ * app background/foreground so we relinquish the session when the player is away,
+ * instead of holding the audio route warm. The pooled players stay resident (memory,
+ * not battery), so re-activating on return is instant.
+ */
+export function setAudioActive(active: boolean): void {
+  if (IS_WEB || !initStarted) return;
+  bestEffort(() => {
+    void setIsAudioActiveAsync(active);
+  });
 }
 
 /**
@@ -53,7 +65,7 @@ export function setSoundVolume(value: number): void {
  * not deactivate the user's music and Android does not grab exclusive focus.
  */
 export async function initSfx(): Promise<void> {
-  if (initStarted || Platform.OS === 'web') return;
+  if (initStarted || IS_WEB) return;
   initStarted = true;
 
   try {
@@ -79,7 +91,6 @@ export async function initSfx(): Promise<void> {
         const size = SFX_POOL[name] ?? 1;
         const players = Array.from({ length: size }, () => {
           const player = createAudioPlayer({ uri });
-          player.volume = volume;
           player.shouldCorrectPitch = false; // let playbackRate detune the pitch (chiptune jitter)
           return player;
         });
@@ -95,18 +106,17 @@ export async function initSfx(): Promise<void> {
 
 /** Play one SFX from the start. `rate` (default 1) shifts pitch for variation. */
 function trigger(name: SfxName, rate: number = 1): void {
-  if (!enabled || !ready || Platform.OS === 'web') return;
+  if (!enabled || !ready || IS_WEB) return;
   const pool = pools.get(name);
   if (!pool) return;
-  try {
+  bestEffort(() => {
     const player = pool.players[pool.next];
     pool.next = (pool.next + 1) % pool.players.length;
+    player.volume = volume; // master volume, read live so the slider applies instantly
     player.playbackRate = rate;
     player.seekTo(0);
     player.play();
-  } catch {
-    /* sound is best-effort */
-  }
+  });
 }
 
 export type TapVariant = 'primary' | 'secondary';
