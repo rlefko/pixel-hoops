@@ -15,6 +15,7 @@ export function SettingsControls() {
   const {
     shakeEnabled,
     hapticsEnabled,
+    soundEnabled,
     reducedMotionSetting,
     lowPowerMode,
     autoSkipGames,
@@ -42,6 +43,12 @@ export function SettingsControls() {
         description="Buzz the phone on big plays"
         checked={hapticsEnabled}
         onToggle={(next) => update({ hapticsEnabled: next })}
+      />
+      <CheckboxRow
+        label="Sound Effects"
+        description="Arcade blips on makes, big plays, and rewards (off when phone is on silent)"
+        checked={soundEnabled}
+        onToggle={(next) => update({ soundEnabled: next })}
       />
 
       <Text style={styles.section}>MOTION</Text>

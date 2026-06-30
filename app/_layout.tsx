@@ -16,7 +16,7 @@ import {
 } from 'react-native-reanimated';
 import { enableFreeze } from 'react-native-screens';
 
-import { FeelSettingsProvider } from '@/feel';
+import { FeelSettingsProvider, initSfx } from '@/feel';
 import { HomeRosterProvider } from '@/context/HomeRosterContext';
 import { ActiveRunProvider } from '@/context/ActiveRunContext';
 import { TransitionProvider } from '@/navigation';
@@ -74,6 +74,13 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
+
+  // Build the audio session and preload the chiptune SFX once, off the render path so a
+  // slow or failed audio init never holds up the splash. Enabled/volume then flow in
+  // from FeelSettings (which defaults sound on, matching the module default).
+  useEffect(() => {
+    void initSfx();
+  }, []);
 
   if (!loaded) {
     return null;

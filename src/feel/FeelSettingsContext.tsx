@@ -11,6 +11,7 @@ import {
 import { AppState } from 'react-native';
 import { useLowPowerMode } from 'expo-battery';
 import { setHapticsEnabled } from './haptics';
+import { setSoundEnabled, setSoundVolume } from './audio';
 import { getJSON } from '@/storage/storage';
 import { createDebouncedWriter, type DebouncedWriter } from '@/storage/debouncedWriter';
 
@@ -37,6 +38,10 @@ export const SIM_SPEED_ORDER: SimSpeed[] = ['chill', 'brisk', 'blitz'];
 
 export interface FeelSettings {
   hapticsEnabled: boolean;
+  /** Arcade chiptune sound effects. Toggled independently of haptics. */
+  soundEnabled: boolean;
+  /** Master SFX volume, 0..1. No UI yet; the module applies it at player creation. */
+  sfxVolume: number;
   /** Screen shake on big plays. Toggled independently of haptics. */
   shakeEnabled: boolean;
   reducedMotion: boolean;
@@ -61,6 +66,8 @@ interface FeelSettingsContextValue extends FeelSettings {
 
 const DEFAULTS: FeelSettings = {
   hapticsEnabled: true,
+  soundEnabled: true,
+  sfxVolume: 0.8,
   shakeEnabled: true,
   reducedMotion: false,
   scanlinesEnabled: true,
@@ -100,6 +107,7 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
       if (!active || !raw) return;
       const merged = { ...DEFAULTS, ...raw };
       if (!(merged.simSpeed in SIM_SPEED_FACTOR)) merged.simSpeed = DEFAULTS.simSpeed;
+      merged.sfxVolume = Math.min(1, Math.max(0, merged.sfxVolume));
       setSettings(merged);
     })();
     return () => {
@@ -111,6 +119,14 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setHapticsEnabled(settings.hapticsEnabled);
   }, [settings.hapticsEnabled]);
+
+  // Same for the sound module: mirror the enabled flag and master volume.
+  useEffect(() => {
+    setSoundEnabled(settings.soundEnabled);
+  }, [settings.soundEnabled]);
+  useEffect(() => {
+    setSoundVolume(settings.sfxVolume);
+  }, [settings.sfxVolume]);
 
   // Flush any pending write on app background / unmount so a toggle is never lost.
   useEffect(() => {
