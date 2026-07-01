@@ -69,6 +69,22 @@ Three coin machines (`src/game/abilities-gacha.ts`) dispense passive abilities e
 
 Recruits, coins, and ladder progress bank every run; the home roster is an uncapped, de-duplicated collection (searchable/filterable in the roster browser). But power and difficulty rise together rather than power outpacing the bracket.
 
+## Rewarding the climb: Championship Bounties and a steeper floor
+
+The ladder was fair-but-punishing but under-rewarded: the only thing that scaled with difficulty was a token coin bump, so there was little reason to play above easy. Two composing layers fix that (see [addictive-blueprint.md](addictive-blueprint.md), and the genre models: Hades Bounties, Balatro Stakes/stickers, Dead Cells Boss Cells).
+
+**Championship Bounties (one-time, front-loaded).** Every cell of the 4x5 (difficulty x ladder class) grid carries a one-time reward, granted the FIRST time it is cleared (`src/game/bounties.ts`, granted in `home-roster.claimRunBounty`, revealed by `BountyRewardView`). Rewards scale up-and-to-the-right, with the headline exclusives (a guaranteed legend, a legendary ability, S-tier stars, a big coin bundle) gated behind hard/insane and the high classes. Clearing S+ on insane earns the **Grandmaster** capstone. Because the reward is one-time per cell, this is inherently non-grindy: you get the full payout on the first clear and never by farming. The escalating track *ends* at the apex, handing off to the repeatable floor below (the anti-grind principle: an escalating schedule must terminate, then hand off to variable-ratio).
+
+- **Crests derive from ladder progress**, not the claimed-bounty set, so a veteran save shows every past-clear crest immediately (on the ladder selector and the Hall of Fame `BountyCrestShelf`) with no migration. The material reward, though, fires only on a genuine first clear (`ladderIndex(preClearFrontier) < ladderIndex(class)`), so a returning player is never handed a windfall for cells they conquered before the update.
+- **Guaranteed-legend cells sit behind the wall, not around it.** The legend/S grants live on cells whose ramp end (+1.5 hard, +4.0 insane) already demands a maxed roster, so the reward is *for* clearing the wall, not a shortcut through it. The guaranteed legend is a random legend, so it is a spice rather than a targeted meta-pick (protecting build variety, blueprint criterion 9).
+
+**A steeper repeatable floor (so the grid stays worth replaying).**
+
+- **Coin curve.** `coinMul` in `difficultyMods()` steepens from `1.0 / 1.1 / 1.25 / 1.5` to **`1.0 / 1.25 / 1.6 / 2.1`** (easy / medium / hard / insane), roughly doubling the top-end per-clear income (an insane clear now funds most of an S-scout) without a runaway. Easy stays the anchor.
+- **Recruit quality is a risk/reward.** Recruits are kept only on a clear, so `generateRecruitOffers` shifts the offer odds UP on harder difficulty (heavier reach-up on C/A ladders, a higher S share on the S ladder), which pays off only if you survive the brutal run. The S-leak bar is preserved, so no A-ladder ever sees an S, and S stays scarce because insane-S clears are rare.
+- **Reputation is a prestige score.** The earned-but-unspent `reputation` stat scales by a new `repMul` (`1.0 / 1.5 / 2.5 / 4.0`), so a veteran's lifetime total reflects how hard they play. It has no sink by design, so it can never become a grind loop.
+- **Near-miss framing.** A close loss (within six points) reads as "SO CLOSE: lost by 3 with 0:48 left," and a loss at the frontier shows the class one clear would have unlocked. Pure information, no reward attached, so it drives the retry without being gameable.
+
 ## How the curve is tuned
 
 The ramp endpoints, timeout counts, and reward multipliers are tuned against a deterministic Monte-Carlo harness (`src/game/__tests__/balance-sim.test.ts`). Because the RNG is seeded, the clear rates are reproducible, so the harness doubles as a regression guard. It plays representative full runs (real maps, a min-combat survival route, real-player rosters drafted under the difficulty budget, the live opponent curve, and the timeout pool) for four roster archetypes that stand in for investment level: **base** (no upgrades), **someUpgrades** (a few +2s), **maxed** (the +5 per-stat cap), and **maxed+abilities** (maxed plus a legendary ability). The target shape, on the C ladder, is:
