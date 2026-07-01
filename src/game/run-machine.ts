@@ -12,7 +12,7 @@ import { simulateGame } from './simulation';
 import { ownedRosterPlayers, resolveDraftRotation, type HomeRoster } from './home-roster';
 import {
   difficultyMods,
-  LADDER_CLASSES,
+  isClassConquered,
   type Difficulty,
   type DifficultyMods,
   type LadderClass,
@@ -229,12 +229,10 @@ export type RunAction =
   | { type: 'skipNode' }
   | { type: 'backToMap' };
 
-/** Whether the run's ladder class is at/above the cleared frontier, so a
+/** Whether the run's ladder class is beyond the cleared frontier (not yet conquered), so a
  * championship advances the ladder (drives the summary "unlocked" beat). */
 function isFrontierRun(home: HomeRoster, difficulty: Difficulty, ladderClass: LadderClass): boolean {
-  const cleared = home.ladderProgress[difficulty];
-  const clearedIdx = cleared == null ? -1 : LADDER_CLASSES.indexOf(cleared);
-  return LADDER_CLASSES.indexOf(ladderClass) > clearedIdx;
+  return !isClassConquered(ladderClass, home.ladderProgress[difficulty]);
 }
 
 /** Build a fresh run from a seed and the player's home roster. */
@@ -293,7 +291,8 @@ export const MAX_BANISHES = 6;
 // --- Coin payout ---
 
 /** Coins for a win: round-scaled, node-type multiplied, plus a dominance bonus.
- * A harder difficulty trims the payout (meta-progression slows as you climb). */
+ * A harder difficulty pays proportionally MORE (mods.coinMul rises steeply), so climbing
+ * a tougher ladder is worth the extra punishment. */
 function coinsForWin(node: MapNode, result: SimResult, mods: DifficultyMods): number {
   const round = node.round ?? node.layer + 1;
   let coins = COIN_BASE + COIN_PER_ROUND * (round - 1);
@@ -654,6 +653,7 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
       );
       const rolled = generateRecruitOffers(
         model.ladderClass,
+        model.difficulty,
         mapProgress(core.currentMapIndex),
         RECRUIT_OFFER_COUNT,
         createRNG(deriveSeed(core.seed, `recruit-${nodeId}`)),
@@ -893,7 +893,7 @@ export function runReducer(
       const rewards = {
         ...model.core.rewards,
         coins: model.core.rewards.coins + coins,
-        reputation: model.core.rewards.reputation + node.layer + 1,
+        reputation: model.core.rewards.reputation + Math.round((node.layer + 1) * model.mods.repMul),
         trainingPoints: model.core.rewards.trainingPoints + trainingPointsFor(node),
       };
       const roster = model.game
@@ -944,6 +944,7 @@ export function runReducer(
       offers.forEach((o) => exclude.add(o.player.name));
       const replacement = generateRecruitOffers(
         model.ladderClass,
+        model.difficulty,
         mapProgress(model.core.currentMapIndex),
         1,
         createRNG(deriveSeed(model.core.seed, `recruit-${nodeId}-reroll-${index}`)),
@@ -1001,7 +1002,7 @@ export function runReducer(
       if (model.phase.kind !== 'rest') return model;
       const rewards = {
         ...model.core.rewards,
-        reputation: model.core.rewards.reputation + REST_REPUTATION,
+        reputation: model.core.rewards.reputation + Math.round(REST_REPUTATION * model.mods.repMul),
       };
       const roster = mapRoster(model.core.roster, (p) =>
         p.gamesOut ? { ...p, gamesOut: 0 } : p
