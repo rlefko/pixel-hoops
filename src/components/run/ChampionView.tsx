@@ -4,7 +4,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Counter, FlashOverlay, ParticleBurst, ShakeView } from '@/components/fx';
 import { LineupBoard } from '@/components/game/LineupBoard';
-import { sfx } from '@/feel';
+import { sfx, useIdle, HUB_IDLE_MS } from '@/feel';
 import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
@@ -62,6 +62,8 @@ export function ChampionView({
   );
 
   const { shakeRef, flashRef, fire } = useRewardBurst();
+  // Pause the legend win's gold halo once the player settles here; a touch wakes it.
+  const { idle, bump } = useIdle(HUB_IDLE_MS);
   const [burst, setBurst] = useState(0);
   const [scoreShown, setScoreShown] = useState(0);
 
@@ -87,13 +89,13 @@ export function ChampionView({
   }, [fire, tier.burst, tier.legend, game.result.finalHome]);
 
   return (
-    <Screen style={styles.container} topGap={space(4)}>
+    <Screen style={styles.container} topGap={space(4)} onTouchStart={bump}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <ShakeView ref={shakeRef} style={styles.hero}>
           <CrownIcon size={48} color={palette.gold} />
           <Text style={styles.title}>CHAMPIONS!</Text>
           <View style={styles.stampWrap}>
-            <LegendaryHalo visible={tier.legend} />
+            <LegendaryHalo visible={tier.legend} paused={idle} />
             <View style={[styles.stamp, { borderColor: tier.color }]}>
               <VictoryTierIcon tier={tier.key} size={12} color={tier.color} />
               <Text style={[styles.stampText, { color: tier.color }]}>{tier.label}</Text>
