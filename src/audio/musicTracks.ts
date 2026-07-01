@@ -241,12 +241,60 @@ const menuGlock: Part = {
   ],
 };
 
+// A warm gospel/rock organ (softer than the run organ) gives the menu its NBA "arena
+// lobby" color: chord stabs on beats 1 & 3, low in the mix.
+const menuOrgan: Part = {
+  id: 'menuOrgan',
+  rootHz: D_COMP,
+  voice: {
+    osc: 'sawtooth',
+    unison: 3,
+    detuneCents: 5,
+    antialias: true,
+    drive: 1.25,
+    vibrato: { semitones: 0.07, rateHz: 6.2 },
+    filter: { baseHz: 300, peakHz: 1400, q: 0.9, attackMs: 22, decayMs: 600, sustain: 0.7, releaseMs: 220 },
+    env: { attackMs: 18, decayMs: 0, sustain: 0.8, releaseMs: 200 },
+  },
+  gain: 0.07,
+  pan: 0.18,
+  notes: [
+    ...comp(MENU_A, 0, 4, [0, 2], 1.6, 0.9),
+    ...comp(MENU_B, 8, 4, [0, 2], 1.6, 0.9),
+    ...comp(MENU_A, 16, 4, [0, 2], 1.6, 0.9),
+  ],
+};
+
+// A soft, laid-back backbeat (kick on 1 & 3, brushed snare on 2 & 4) gives a gentle
+// head-nod groove without turning the calm hub into a hype loop.
+const menuKick: Part = {
+  id: 'menuKick',
+  rootHz: 1400,
+  voice: { osc: 'noise', noiseSeed: 3, filter: { baseHz: 60, peakHz: 200, q: 0.9, decayMs: 110, sustain: 0 }, env: { attackMs: 1, decayMs: 110, sustain: 0 }, drive: 1.3 },
+  gain: 0.26,
+  notes: tile([
+    { beat: 0, durationBeats: 0.3, semitone: 0 },
+    { beat: 2, durationBeats: 0.3, semitone: 0, velocity: 0.85 },
+  ], 1, 0, 24, 4),
+};
+const menuBrush: Part = {
+  id: 'menuBrush',
+  rootHz: 1200,
+  voice: { osc: 'noise', noiseSeed: 7, filter: { baseHz: 700, peakHz: 2200, q: 0.8, decayMs: 130, sustain: 0 }, env: { attackMs: 2, decayMs: 130, sustain: 0 } },
+  gain: 0.1,
+  pan: 0.06,
+  notes: tile([
+    { beat: 1, durationBeats: 0.25, semitone: 0 },
+    { beat: 3, durationBeats: 0.25, semitone: 0 },
+  ], 1, 0, 24, 4),
+};
+
 export const menuTheme: MusicTrack = {
   bpm: 80,
   bars: 24,
   beatsPerBar: 4,
   gain: 0.82,
-  parts: [menuPad, menuEp, menuBass, menuLead, menuGlock],
+  parts: [menuPad, menuOrgan, menuBass, menuEp, menuKick, menuBrush, menuLead, menuGlock],
   fx: { reverb: { roomSize: 0.6, damping: 0.5, wet: 0.2, dry: 1 }, busDrive: 1.1 },
 };
 
