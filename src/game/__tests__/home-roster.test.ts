@@ -16,6 +16,7 @@ import {
 import { STARTER_COACH_ID, earnedCoachIds, coachesByClass } from '@/game/coaches';
 import { poolByClass, realPlayerToRosterPlayer } from '@/game/player-pool';
 import { tierPool } from '@/game/player-gacha';
+import { NBA_LEGENDS } from '@/data/nba';
 import { createRNG } from '@/game/rng';
 import type { Roster, RosterPlayer } from '@/types/roster';
 import type { RunRewards } from '@/types/run-map';
@@ -81,6 +82,24 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     for (const p of home.players) {
       expect(next.players.some((q) => playerKey(q) === playerKey(p))).toBe(true);
     }
+  });
+
+  it('owns a scouted legend you win a run with, and forfeits it on a loss', () => {
+    const home = createRookieRoster(createRNG('leg'));
+    // A mid-run legend is on-loan; winning with it must KEEP it (legends own at one copy).
+    const legend: RosterPlayer = { ...realPlayerToRosterPlayer(NBA_LEGENDS[0]), onLoan: true };
+    expect(legend.legendary).toBe(true);
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [legend] };
+
+    const won = mergeRunGainsIntoHome(home, runRoster, rewards, true, true, 'S', 'easy');
+    const kept = won.players.find((p) => playerKey(p) === playerKey(legend));
+    expect(kept).toBeDefined();
+    expect(kept!.legendary).toBe(true);
+    expect(kept!.onLoan).toBeUndefined(); // banked as a normal owned player (no on-loan buff)
+
+    const lost = mergeRunGainsIntoHome(home, runRoster, rewards, true, false, 'S', 'easy');
+    expect(lost.players.some((p) => playerKey(p) === playerKey(legend))).toBe(false);
+    expect(lost.collecting.some((c) => playerKey(c.player) === playerKey(legend))).toBe(false);
   });
 
   it('banks reputation (not coins) on both a clear and a loss', () => {
@@ -244,9 +263,10 @@ describe('applyPlayerPull', () => {
       ladderProgress: clearedThroughA(),
     };
     const before = home.players.length;
+    const S_COPIES = 6; // S owns at six copies
     let unlocks = 0;
     let targetKey = '';
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < S_COPIES; i++) {
       const { home: next, result } = applyPlayerPull(home, 'S', createRNG(`acc-${i}`));
       home = next;
       if (i === 0) targetKey = result.targetKey;
@@ -254,10 +274,10 @@ describe('applyPlayerPull', () => {
       expect(result.targetKey).toBe(targetKey);
       if (result.unlockedNow) unlocks += 1;
     }
-    expect(unlocks).toBe(1); // only the 4th copy (S owns at four) unlocks
+    expect(unlocks).toBe(1); // only the final (6th) copy unlocks
     expect(home.players.length).toBe(before + 1);
     expect(home.collecting.length).toBe(0);
-    expect(home.coins).toBe(100000 - 4 * 2500);
+    expect(home.coins).toBe(100000 - S_COPIES * 2500);
   });
 
   it('overflows into a coin bounty and adds no player once a tier is fully owned', () => {

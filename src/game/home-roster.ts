@@ -91,6 +91,10 @@ export interface HomeRoster {
   settledRunId?: string;
 }
 
+// v14 rebalances copies-to-own (B 2->1 so the huge B pool no longer orphans, S 4->6 so the
+// tiny S pool stays a chase) and lets a LEGEND you win a run with be kept (the copy deposit
+// no longer strips on-loan players). No shape change: on load, deserialize auto-promotes any
+// in-progress B (now owned at one copy) and never demotes an already-owned S.
 // v13 adds copies-to-own collection gating: `collecting` holds in-progress players
 // (copies below the class threshold), and owning a player now takes multiple copies
 // (see collection.ts). The field defaults to [] on older saves and, crucially, EVERY
@@ -118,7 +122,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 13;
+const HOME_ROSTER_VERSION = 14;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -471,13 +475,19 @@ export function mergeRunGainsIntoHome(
   // needs Date.now()). Prepended to the trophy case only on a win; ignored otherwise.
   championEntry?: HallOfFameEntry
 ): HomeRoster {
-  const fielded = [...runRoster.starters, ...runRoster.bench].filter((p) => !p.onLoan);
+  const rosterPlayers = [...runRoster.starters, ...runRoster.bench];
+  // Owned players fielded this run drive the recency reorder below. On-loan players (a
+  // scouted legend) are never in the owned collection, so they are excluded from this list.
+  const fielded = rosterPlayers.filter((p) => !p.onLoan);
   const ownedKeys = new Set(home.players.map(playerKey));
   // Recruits are kept only when the run is CLEARED. On a loss they evaporate: only
   // already-owned players come home (coins and reputation still bank below, and the
-  // permanent collection is never reduced).
+  // permanent collection is never reduced). A scouted LEGEND is on-loan DURING the run but,
+  // when you WIN with it, is kept like any recruit: its copy deposits below and, with
+  // copiesToOwn('S+') = 1, owns it. So the deposit source is the UNFILTERED roster, and the
+  // deposit strips `onLoan` (a kept legend is a normal owned player, not a run-scoped loan).
   const newRecruits = champion
-    ? fielded
+    ? rosterPlayers
         .filter((p) => !ownedKeys.has(playerKey(p)))
         .map((p) => {
           const copy = { ...p };
@@ -485,6 +495,7 @@ export function mergeRunGainsIntoHome(
           delete copy.trainingDelta; // run-scoped
           delete copy.gamesOut; // injuries heal at run end
           delete copy.equippedAbility; // the home equippedAbilities map is the source of truth
+          delete copy.onLoan; // a kept legend becomes owned (drops the on-loan team chemistry)
           return copy;
         })
     : [];

@@ -8,24 +8,27 @@ import type { PlayerClass } from './ratings';
  * a coin bounty, never power, so a duplicate is always progress or currency, never a
  * dead drop.
  *
- * Rarer classes need MORE copies: the C-tier floor stays a one-copy impulse buy while an
- * S-tier star is a multi-pull chase, so the weight lives at the top where the "one more
- * run" pull matters and commons never grind. Legends stay single-copy (they are already
- * 10k-gated and pity-protected).
+ * Rarer classes need MORE copies, tuned for pool size: the common C/B pools own on the
+ * first copy so they never grind, while an S-tier star is a multi-copy chase, so the weight
+ * lives at the top where the "one more run" pull matters. Legends stay single-copy (a rare
+ * on-loan reveal you win a run with, or the 10k scout).
  *
  * Pure and data-only (no RNG, no storage). home-roster.ts owns the persisted state and
  * player-gacha.ts owns the pull selection; this module is the single source of truth for
  * the numbers so a card badge, a scout reveal, and a merge all agree.
  */
 
-/** Copies required to OWN (unlock) a player of each class. Rarer = more. */
+/** Copies required to OWN (unlock) a player of each class. Rarer = more, tuned for pool
+ * size: the small S pool (35) completes fast at equal encounter rates, so S carries the
+ * biggest copy count; the huge B pool (243) already makes a specific B rare, so B owns on
+ * the first copy (a second would only orphan them). See docs/game-concept.md. */
 export const COPIES_TO_OWN: Record<PlayerClass, number> = {
   D: 1, // the rookie/streetball floor is always instantly owned
   C: 1,
-  B: 2,
+  B: 1, // the 243-deep B pool already makes a specific B rare; a 2nd copy only orphans them
   A: 3,
-  S: 4,
-  'S+': 1, // legends: already 10k-gated + pity-protected, so a single copy owns
+  S: 6, // the tiny 35-player pool completes fast, so the chase lives in the copy count
+  'S+': 1, // legends: a rare on-loan reveal you win with, or the 10k scout, so one copy owns
   'S++': 1, // emergent-only; never actually collected, kept for totality
 };
 

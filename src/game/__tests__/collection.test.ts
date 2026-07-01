@@ -10,10 +10,12 @@ import { CLASS_ORDER } from '@/game/ratings';
 
 describe('collection copies-to-own', () => {
   it('is rarity-proportional across the pool ladder (C<=B<=A<=S)', () => {
+    // Common C/B own on the first copy (their pools are large enough to be rare already);
+    // the chase lives at A and especially S (tiny pool, so the biggest copy count).
     expect(copiesToOwn('C')).toBe(1);
-    expect(copiesToOwn('B')).toBe(2);
+    expect(copiesToOwn('B')).toBe(1);
     expect(copiesToOwn('A')).toBe(3);
-    expect(copiesToOwn('S')).toBe(4);
+    expect(copiesToOwn('S')).toBe(6);
     const pool = ['C', 'B', 'A', 'S'] as const;
     for (let i = 1; i < pool.length; i++) {
       expect(copiesToOwn(pool[i])).toBeGreaterThanOrEqual(copiesToOwn(pool[i - 1]));
