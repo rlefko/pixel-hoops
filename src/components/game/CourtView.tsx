@@ -27,6 +27,7 @@ import { idleBobFor, moveOffsetFor, roleFor, MOVE, DUNK } from '@/components/gam
 import { useFeelSettings, useBobPulse, useGlowPulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
 import { palette, FONT, FONT_SIZE } from '@/theme';
 import { courtThemeFor } from '@/theme/courtTheme';
+import { useCourtTheme } from '@/hooks/useCourtTheme';
 import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
 import { isMadeShot, type SimEvent, type SimTeamSide } from '@/types/sim';
 import type { Team } from '@/types/team';
@@ -300,10 +301,12 @@ function CourtViewImpl({
   hotKeys = NO_HOT_KEYS,
   onArrival,
 }: CourtViewProps) {
-  // Every game is hosted in the opponent's arena, so the floor takes their colors.
+  // Every game is hosted in the opponent's arena, so the floor takes their colors,
+  // tinted over the player's unlocked home-court theme.
+  const courtBase = useCourtTheme();
   const theme = useMemo(
-    () => courtThemeFor(awayTeam.colorHex, awayTeam.accentHex),
-    [awayTeam.colorHex, awayTeam.accentHex]
+    () => courtThemeFor(awayTeam.colorHex, awayTeam.accentHex, courtBase),
+    [awayTeam.colorHex, awayTeam.accentHex, courtBase]
   );
 
   // Name -> player lookups, built once per team so each sprite resolves its

@@ -30,6 +30,7 @@ import { GACHA_MACHINES, getGachaAbility, pickAbilityOfRarity } from './abilitie
 import { BOUNTIES, GRANDMASTER_KEY, bountyFor, bountyKey, type Bounty } from './bounties';
 import { HALL_OF_FAME_CAP, sanitizeHallOfFame, type HallOfFameEntry } from './hall-of-fame';
 import { COACHES, STARTER_COACH_ID, earnedCoachIds, coachesWonByClear, isCoachId } from './coaches';
+import { COURT_THEMES, DEFAULT_COURT_THEME_ID, courtThemeUnlocked } from './court-themes';
 
 /**
  * The persistent "home roster" that compounds across runs. It is now an UNCAPPED,
@@ -97,6 +98,9 @@ export interface HomeRoster {
    * bounties.bountyKey (`difficulty:ladderClass`). An explicit record + idempotency guard;
    * crests derive from clearedCells, not this. See bounties.ts. */
   claimedBounties: string[];
+  /** The selected home-court theme (src/game/court-themes.ts); unlocks derive from
+   * clearedCells. Absent/invalid ids fall back to the classic court. */
+  courtTheme?: string;
   /** Every (difficulty x ladder class) cell ever CLEARED, keyed by cellKey
    * (`difficulty:class`). The source of truth for crests, the bounty first-clear guard,
    * court-theme unlocks, and (via the global max class) which ladder classes are
@@ -268,7 +272,16 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     selectedCoachId: STARTER_COACH_ID,
     claimedBounties: [],
     clearedCells: [],
+    courtTheme: DEFAULT_COURT_THEME_ID,
   };
+}
+
+/** Select a home-court theme; a no-op unless the theme exists and is unlocked by
+ * the cleared-cell set (mirrors selectCoach's owned-only rule). */
+export function selectCourtTheme(home: HomeRoster, id: string): HomeRoster {
+  const theme = COURT_THEMES.find((t) => t.id === id);
+  if (!theme || !courtThemeUnlocked(theme, home.clearedCells ?? [])) return home;
+  return { ...home, courtTheme: theme.id };
 }
 
 /** Stable per-player identity (survives merge reordering; keys the upgrade ledger
@@ -1081,5 +1094,11 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
       ? data.claimedBounties.filter((k): k is string => typeof k === 'string' && k in BOUNTIES)
       : [],
     clearedCells,
+    // Self-heal the theme selection: unknown ids and no-longer-unlocked themes (a
+    // reset save restored over old settings) fall back to the classic court.
+    courtTheme: (() => {
+      const saved = COURT_THEMES.find((t) => t.id === data.courtTheme);
+      return saved && courtThemeUnlocked(saved, clearedCells) ? saved.id : DEFAULT_COURT_THEME_ID;
+    })(),
   };
 }

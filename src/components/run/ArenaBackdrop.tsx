@@ -64,25 +64,36 @@ export const ArenaBackdrop = memo(function ArenaBackdrop({
   width,
   height,
   paused = false,
+  floorColor = palette.bgCourt,
+  plankColor = PLANK,
+  frameColor = palette.courtLine,
 }: {
   width: number;
   height: number;
   /** Freeze the crowd shimmer when the player is idle on the map. */
   paused?: boolean;
+  /** Home-court theme overrides (src/game/court-themes.ts); defaults reproduce the
+   * shipped arena exactly. */
+  floorColor?: string;
+  plankColor?: string;
+  frameColor?: string;
 }) {
   const plankCount = Math.ceil(height / PLANK_PITCH);
   return (
-    <View pointerEvents="none" style={[styles.floor, { width, height }]}>
+    <View
+      pointerEvents="none"
+      style={[styles.floor, { width, height, backgroundColor: floorColor }]}
+    >
       {Array.from({ length: plankCount }, (_, i) => (
         <View
           key={i}
           style={[
             styles.plank,
-            { top: i * PLANK_PITCH, backgroundColor: PLANK },
+            { top: i * PLANK_PITCH, backgroundColor: plankColor },
           ]}
         />
       ))}
-      <View style={styles.frame} />
+      <View style={[styles.frame, { borderColor: frameColor + 'AA' }]} />
       <CrowdBand width={width} paused={paused} />
     </View>
   );
@@ -93,7 +104,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
-    backgroundColor: palette.bgCourt,
     overflow: 'hidden',
   },
   plank: {
@@ -109,7 +119,7 @@ const styles = StyleSheet.create({
     right: space(1),
     bottom: space(1),
     borderWidth: BORDER.chunk,
-    borderColor: palette.courtLine + 'AA',
+    // borderColor comes from the theme (frameColor prop).
     borderRadius: RADIUS.chip,
   },
   crowd: {
