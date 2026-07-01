@@ -15,7 +15,14 @@ import {
   type Difficulty,
   type LadderClass,
 } from './difficulty-mode';
-import { pullPlayer, PLAYER_MACHINES, type PlayerGachaTier, type PlayerPullResult } from './player-gacha';
+import {
+  pullPlayer,
+  machineUnlocked,
+  type PlayerGachaTier,
+  type PlayerPullResult,
+} from './player-gacha';
+import { copiesToOwn, type CollectingPlayer } from './collection';
+import { playerDraftClass } from './draft';
 import { GACHA_MACHINES, getGachaAbility } from './abilities-gacha';
 import { HALL_OF_FAME_CAP, sanitizeHallOfFame, type HallOfFameEntry } from './hall-of-fame';
 import { COACHES, STARTER_COACH_ID, earnedCoachIds, coachesWonByClear, isCoachId } from './coaches';
@@ -33,8 +40,13 @@ import { COACHES, STARTER_COACH_ID, earnedCoachIds, coachesWonByClear, isCoachId
  * (difficulty x class) ladder lives in `ladderProgress`. See docs/difficulty-rebalance.md.
  */
 export interface HomeRoster {
-  /** Every owned player (uncapped, unique by playerKey). */
+  /** Every OWNED (unlocked) player: uncapped, unique by playerKey, draftable. A player
+   * lands here only once enough copies are collected (see `collecting` + collection.ts). */
   players: RosterPlayer[];
+  /** In-progress players: collected but not yet owned (copies below the class threshold).
+   * Shown as a progress meter in the roster browser; NOT draftable. Each graduates into
+   * `players` the instant its copy count reaches copiesToOwn(originalClass). */
+  collecting: CollectingPlayer[];
   coins: number;
   reputation: number;
   /** Paid +1 counts per player (`name|POS`) per stat. Drives cost tier + the +2 cap. */
@@ -79,6 +91,12 @@ export interface HomeRoster {
   settledRunId?: string;
 }
 
+// v13 adds copies-to-own collection gating: `collecting` holds in-progress players
+// (copies below the class threshold), and owning a player now takes multiple copies
+// (see collection.ts). The field defaults to [] on older saves and, crucially, EVERY
+// previously-owned player stays in `players` (already unlocked), so no migration can lock
+// a collection a veteran already earned. The scout gacha grants one copy per pull and
+// high tiers gate behind ladder progress (player-gacha.machineUnlocked).
 // v12 adds the coin-banking ledger (`lastBankedRunId`/`lastBankedCoins`/`settledRunId`)
 // for auto-saved runs: coins now bank as-earned and the merge no longer banks them. All
 // three are optional and default empty on older saves (no migration needed; a fresh run
@@ -87,6 +105,8 @@ export interface HomeRoster {
 // are DERIVED from `ladderProgress` so veteran saves retroactively receive every coach
 // their progress has earned; the starter is always granted and the selection defaults to
 // the starter when missing/invalid (so coaches need no separate persisted unlock state).
+// v10 rebuilt the gacha-ability pool; a pre-v10 save's now-dead ability ids are dropped and
+// refunded a coin floor per owned copy on load (see sanitizeAbilities).
 // v9 replaces the single `lastRotation` with `rosterMemory`, a per-(difficulty x class)
 // map of remembered draft rotations; on load an older save's `lastRotation` seeds the
 // currently selected cell (best-effort, since the cell it was drafted on was not stored).
@@ -98,7 +118,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 12;
+const HOME_ROSTER_VERSION = 13;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -198,6 +218,7 @@ export function resolveDraftRotation(
 export function createRookieRoster(rng: RNG): HomeRoster {
   return {
     players: buildStartingTwelve(rng),
+    collecting: [],
     coins: 0,
     reputation: 0,
     upgrades: {},
@@ -240,6 +261,23 @@ export function ownedRosterPlayers(home: HomeRoster): RosterPlayer[] {
 export function homeToRunRoster(home: HomeRoster): Roster {
   const all = ownedRosterPlayers(home);
   return { starters: all.slice(0, 5), bench: all.slice(5) };
+}
+
+/** An in-progress collection row: the (not-yet-draftable) card plus its copies-collected
+ * and the copies its class needs to unlock. Drives the roster browser progress meter. */
+export interface CollectingRow {
+  player: RosterPlayer;
+  copies: number;
+  threshold: number;
+}
+
+/** The in-progress players (collected but not yet owned), each with its unlock progress. */
+export function collectingRosterPlayers(home: HomeRoster): CollectingRow[] {
+  return (home.collecting ?? []).map((c) => ({
+    player: c.player,
+    copies: c.copies,
+    threshold: copiesToOwn(playerDraftClass(c.player)),
+  }));
 }
 
 /** How many paid +1s a player has bought for one stat. */
@@ -357,31 +395,64 @@ export function selectCoach(home: HomeRoster, id: string): HomeRoster {
 // --- Player scouting gacha ---
 
 /**
- * Pull a player from a scouting machine and fold it into the home collection. A new
- * signing prepends to the collection (recency-first, like a merge) and costs the
- * full price; a repeat (only possible once the tier is fully collected) refunds half
- * and adds no player. Unaffordable is a no-op: the home roster is returned unchanged,
- * alongside the (unbanked) result so a caller can decide what to show. See
- * src/game/player-gacha.ts for the pull odds and pricing.
+ * Pull a copy from a scouting machine and fold it into the home collection. A pull grants
+ * one copy toward the un-owned player closest to unlocking (see player-gacha.pullPlayer);
+ * the copy that reaches the threshold graduates the player into the owned collection
+ * (recency-first, like a merge). Copies short of the threshold live in `collecting` as
+ * visible progress. Once a tier is fully owned, a pull OVERFLOWS into a coin bounty and
+ * adds no player. A locked machine or an unaffordable pull is a no-op: the home roster is
+ * returned unchanged, alongside the (unbanked) result so a caller can decide what to show.
  */
 export function applyPlayerPull(
   home: HomeRoster,
   tier: PlayerGachaTier,
   rng: RNG
 ): { home: HomeRoster; result: PlayerPullResult } {
-  const ownedKeys = new Set(home.players.map(playerKey));
-  const result = pullPlayer(tier, ownedKeys, rng);
-  if (home.coins < PLAYER_MACHINES[tier].cost) return { home, result }; // unaffordable: no-op
-  const coins = home.coins - result.cost + result.refund;
-  const players = result.isDupe ? home.players : [result.player, ...home.players];
-  return { home: { ...home, coins, players }, result };
+  const unlockedKeys = new Set(home.players.map(playerKey));
+  const collectingCopies = collectingCopyMap(home);
+  const result = pullPlayer(tier, unlockedKeys, collectingCopies, rng);
+  // Locked behind ladder progress, or unaffordable: no-op (guarded here too, not just UI).
+  if (!machineUnlocked(tier, home.ladderProgress) || home.coins < result.cost) {
+    return { home, result };
+  }
+  const coins = home.coins - result.cost + result.overflowCoins;
+  if (result.isOverflow) return { home: { ...home, coins }, result }; // whole tier owned
+  if (result.unlockedNow) {
+    // Graduate into the owned collection (front = recency); drop the in-progress entry.
+    const collecting = home.collecting.filter((c) => playerKey(c.player) !== result.targetKey);
+    return { home: { ...home, coins, players: [result.player, ...home.players], collecting }, result };
+  }
+  // Still collecting: upsert the in-progress entry with the new copy count.
+  const collecting = upsertCollecting(home.collecting, result.player, result.newCopies);
+  return { home: { ...home, coins, collecting }, result };
+}
+
+/** A map of every in-progress player's key to its collected copies (for pull selection
+ * and the Arcade's "closest to unlock" readout). */
+export function collectingCopyMap(home: HomeRoster): Record<string, number> {
+  const map: Record<string, number> = {};
+  for (const c of home.collecting ?? []) map[playerKey(c.player)] = c.copies;
+  return map;
+}
+
+/** Set an in-progress player's copy count (replacing any prior entry, else prepending). */
+function upsertCollecting(
+  collecting: CollectingPlayer[],
+  player: RosterPlayer,
+  copies: number
+): CollectingPlayer[] {
+  const key = playerKey(player);
+  const idx = collecting.findIndex((c) => playerKey(c.player) === key);
+  if (idx < 0) return [{ player, copies }, ...collecting];
+  return collecting.map((c, i) => (i === idx ? { player, copies } : c));
 }
 
 /**
- * Fold a finished run's gains back into the home collection. The persistent
- * collection is preserved; only NEW recruits (players not already owned by key,
- * on-loan stripped) are appended, with run-scoped state removed. Rewards bank. On a
- * championship at the run's (difficulty, ladder class) frontier the ladder advances
+ * Fold a finished run's gains back into the home collection. The persistent collection
+ * is preserved; each NEW recruit (not already owned by key, on-loan stripped, run-scoped
+ * state removed) deposits ONE copy toward owning that player, unlocking it into the
+ * collection when its class threshold is met (else advancing `collecting`). Rewards bank.
+ * On a championship at the run's (difficulty, ladder class) frontier the ladder advances
  * and auto-selects the newly unlocked class. The legendary pity streak advances
  * unless a legendary was offered this run.
  */
@@ -441,7 +512,27 @@ export function mergeRunGainsIntoHome(
   const homeByKey = new Map(home.players.map((p) => [playerKey(p), p]));
   const fieldedOwned = fieldedOwnedKeys.map((k) => homeByKey.get(k)!);
   const restOwned = home.players.filter((p) => !seenF.has(playerKey(p)));
-  const players = [...fieldedOwned, ...deduped, ...restOwned];
+
+  // Each new recruit deposits ONE copy toward owning that player. A recruit that crosses
+  // its class threshold unlocks into the collection now (front = recency); the rest
+  // advance their in-progress copy count in `collecting`. `deduped` is empty on a loss, so
+  // a lost run deposits nothing and this run's recruits evaporate (prior in-progress copies,
+  // banked on earlier wins, are untouched).
+  let collecting = home.collecting ?? [];
+  const unlockedRecruits: RosterPlayer[] = [];
+  for (const rp of deduped) {
+    const key = playerKey(rp);
+    const cls = playerDraftClass(rp);
+    const have = collecting.find((c) => playerKey(c.player) === key)?.copies ?? 0;
+    const next = have + 1;
+    if (next >= copiesToOwn(cls)) {
+      unlockedRecruits.push(rp);
+      collecting = collecting.filter((c) => playerKey(c.player) !== key);
+    } else {
+      collecting = upsertCollecting(collecting, rp, next);
+    }
+  }
+  const players = [...fieldedOwned, ...unlockedRecruits, ...restOwned];
 
   // The draft rotation to restore next run is captured at draft-confirm time into
   // `rosterMemory` (per difficulty x ladder class); `...home` below preserves it.
@@ -473,6 +564,7 @@ export function mergeRunGainsIntoHome(
   return {
     ...home,
     players,
+    collecting,
     // Coins are NOT banked here: they bank into the wallet as each game is won (the
     // as-earned ledger in useRun), so `...home` already holds them. Reputation still
     // banks at run end (a terminal reward, forfeited if the run is abandoned).
@@ -559,7 +651,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     ? (raw as SerializedHomeRoster).version
     : 0;
   const needsScaleBump = version < 7;
-  const players = data.players.map((p): RosterPlayer => {
+  const migratePlayer = (p: RosterPlayer): RosterPlayer => {
     const expanded = isLegacyStats(p.player.stats)
       ? { ...p, player: { ...p.player, stats: expandStats(p.player.stats, p.position) } }
       : { ...p };
@@ -579,7 +671,39 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     delete migrated.gamesOut;
     delete migrated.equippedAbility; // sourced from equippedAbilities, not the player
     return withOriginalClass(migrated, savedUpgrades);
-  });
+  };
+  const players = data.players.map(migratePlayer);
+
+  // v13: in-progress collection entries. Validate + migrate each player like the owned
+  // set; an entry whose copies now meet its class threshold (or whose player is already
+  // owned) graduates into `players`, so nothing sticks below an updated bar. Pre-v13 saves
+  // have no `collecting` field and default to empty (every player they own is already in
+  // `players`, so nothing is lost).
+  const ownedNow = new Set(players.map(playerKey));
+  const collecting: CollectingPlayer[] = [];
+  const rawCollecting = Array.isArray(data.collecting) ? data.collecting : [];
+  for (const entry of rawCollecting) {
+    const rp = (entry as Partial<CollectingPlayer> | undefined)?.player;
+    const stats = rp?.player?.stats as unknown as Record<string, unknown> | undefined;
+    const validPlayer =
+      !!stats &&
+      typeof rp?.player?.name === 'string' &&
+      typeof rp?.position === 'string' &&
+      (typeof stats.outside === 'number' || isLegacyStats(stats));
+    if (!validPlayer) continue;
+    const migrated = migratePlayer(rp as RosterPlayer);
+    const key = playerKey(migrated);
+    if (ownedNow.has(key)) continue; // already owned: drop the stale in-progress entry
+    const rawCopies = (entry as Partial<CollectingPlayer>).copies;
+    const copies = Math.max(1, Math.floor(typeof rawCopies === 'number' ? rawCopies : 1));
+    const cls = playerDraftClass(migrated);
+    if (copies >= copiesToOwn(cls)) {
+      players.push(migrated); // meets the bar: promote to owned
+      ownedNow.add(key);
+    } else {
+      collecting.push({ player: migrated, copies });
+    }
+  }
 
   const ladderProgress = emptyLadderProgress();
   const savedProgress = (data.ladderProgress ?? {}) as Record<string, unknown>;
@@ -650,6 +774,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
 
   return {
     players,
+    collecting,
     coins: (typeof data.coins === 'number' ? data.coins : 0) + abilities.refund,
     reputation: typeof data.reputation === 'number' ? data.reputation : 0,
     upgrades: savedUpgrades,

@@ -187,12 +187,14 @@ describe('home roster persistence', () => {
       reputation: 3,
       trainingPoints: 0,
     }, false, true);
-    // Home's 12 are preserved; the new recruits (not already owned) are appended.
-    expect(merged.players.length).toBeGreaterThan(home.players.length);
+    // B/A recruits own at two-plus copies, so a single clear deposits the FIRST copy:
+    // the owned collection is unchanged and the new recruits are in progress, not owned.
+    expect(merged.players.length).toBe(home.players.length);
+    expect(merged.collecting.length).toBeGreaterThan(0);
     // Coins bank as-earned (the useRun ledger), so the merge leaves the wallet untouched.
     expect(merged.coins).toBe(home.coins);
     expect(merged.reputation).toBe(home.reputation + 3);
-    // Unique by name|position (no duplicates).
+    // Owned players stay unique by name|position (no duplicates).
     const keys = merged.players.map((p) => `${p.player.name}|${p.position}`);
     expect(new Set(keys).size).toBe(keys.length);
 

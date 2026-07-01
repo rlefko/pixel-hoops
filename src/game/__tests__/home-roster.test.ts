@@ -33,20 +33,49 @@ function setup(): { home: HomeRoster; runRoster: Roster; recruit: RosterPlayer }
 }
 
 describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
-  it('keeps new recruits when the run is cleared (champion)', () => {
+  it('deposits a copy toward a new recruit on a clear (A owns at three copies)', () => {
     const { home, runRoster, recruit } = setup();
     expect(home.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
 
     const next = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
-    expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(true);
-    expect(next.players.length).toBe(home.players.length + 1);
+    // An A-class recruit needs three copies, so one clear leaves it collecting (1/3), not
+    // yet owned or draftable.
+    expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
+    expect(next.players.length).toBe(home.players.length);
+    const entry = next.collecting.find((c) => playerKey(c.player) === playerKey(recruit));
+    expect(entry?.copies).toBe(1);
   });
 
-  it('drops new recruits on a loss but never loses owned players', () => {
+  it('unlocks a C recruit immediately on a clear (C owns at one copy)', () => {
+    const home = createRookieRoster(createRNG('crec'));
+    const ownedKeys = new Set(home.players.map(playerKey));
+    const recruit = poolByClass('C')
+      .map(realPlayerToRosterPlayer)
+      .find((rp) => !ownedKeys.has(playerKey(rp)))!;
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [recruit] };
+    const next = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
+    expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(true);
+    expect(next.players.length).toBe(home.players.length + 1);
+    expect(next.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
+  });
+
+  it('unlocks a recruit once enough clears deposit its copies (A at three)', () => {
+    const { home, recruit } = setup();
+    let cur = home;
+    for (let i = 0; i < 3; i++) {
+      const runRoster: Roster = { starters: cur.players.slice(0, 5), bench: [recruit] };
+      cur = mergeRunGainsIntoHome(cur, runRoster, rewards, false, true, 'C', 'easy');
+    }
+    expect(cur.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(true);
+    expect(cur.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
+  });
+
+  it('drops new recruits on a loss but never loses owned players or copies', () => {
     const { home, runRoster, recruit } = setup();
     const next = mergeRunGainsIntoHome(home, runRoster, rewards, false, false, 'C', 'easy');
 
     expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
+    expect(next.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
     expect(next.players.length).toBe(home.players.length);
     // Every previously owned player is still present.
     for (const p of home.players) {
@@ -174,14 +203,23 @@ describe('coaches', () => {
   });
 });
 
+const clearedThroughA = (): HomeRoster['ladderProgress'] => ({
+  easy: 'A',
+  medium: null,
+  hard: null,
+  insane: null,
+});
+
 describe('applyPlayerPull', () => {
-  it('signs a new player and deducts the full price', () => {
+  it('unlocks a C player on the first copy (C owns at one) and deducts the price', () => {
     const home = { ...createRookieRoster(createRNG('a')), coins: 1000 };
     const { home: next, result } = applyPlayerPull(home, 'C', createRNG('pull-1'));
-    expect(result.isDupe).toBe(false);
+    expect(result.isOverflow).toBe(false);
+    expect(result.unlockedNow).toBe(true); // C threshold is 1
     expect(next.coins).toBe(1000 - 250);
     expect(next.players.length).toBe(home.players.length + 1);
     expect(playerKey(next.players[0])).toBe(playerKey(result.player)); // recency-first
+    expect(next.collecting.length).toBe(0);
   });
 
   it('is a no-op when unaffordable', () => {
@@ -191,12 +229,84 @@ describe('applyPlayerPull', () => {
     expect(next.players.length).toBe(home.players.length);
   });
 
-  it('refunds half and adds no player on a fully-collected tier', () => {
-    const ownedS = tierPool('S').map(realPlayerToRosterPlayer);
-    const home = { ...createRookieRoster(createRNG('c')), players: ownedS, coins: 10000 };
-    const { home: next, result } = applyPlayerPull(home, 'S', createRNG('pull-3'));
-    expect(result.isDupe).toBe(true);
-    expect(next.coins).toBe(10000 - 2500 + 1250);
+  it('is a no-op when the machine is locked behind ladder progress', () => {
+    const home = { ...createRookieRoster(createRNG('lk')), coins: 10000 }; // no ladder cleared
+    const { home: next } = applyPlayerPull(home, 'S', createRNG('pull-lk'));
+    expect(next.coins).toBe(10000); // the S machine is locked until the A ladder is cleared
     expect(next.players.length).toBe(home.players.length);
+    expect(next.collecting.length).toBe(0);
+  });
+
+  it('accumulates copies and only unlocks a higher-tier player on the threshold copy', () => {
+    let home: HomeRoster = {
+      ...createRookieRoster(createRNG('acc')),
+      coins: 100000,
+      ladderProgress: clearedThroughA(),
+    };
+    const before = home.players.length;
+    let unlocks = 0;
+    let targetKey = '';
+    for (let i = 0; i < 4; i++) {
+      const { home: next, result } = applyPlayerPull(home, 'S', createRNG(`acc-${i}`));
+      home = next;
+      if (i === 0) targetKey = result.targetKey;
+      // Pulls concentrate on the same closest-to-unlock player until it unlocks.
+      expect(result.targetKey).toBe(targetKey);
+      if (result.unlockedNow) unlocks += 1;
+    }
+    expect(unlocks).toBe(1); // only the 4th copy (S owns at four) unlocks
+    expect(home.players.length).toBe(before + 1);
+    expect(home.collecting.length).toBe(0);
+    expect(home.coins).toBe(100000 - 4 * 2500);
+  });
+
+  it('overflows into a coin bounty and adds no player once a tier is fully owned', () => {
+    const ownedS = tierPool('S').map(realPlayerToRosterPlayer);
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('c')),
+      players: ownedS,
+      coins: 10000,
+      ladderProgress: clearedThroughA(),
+    };
+    const { home: next, result } = applyPlayerPull(home, 'S', createRNG('pull-3'));
+    expect(result.isOverflow).toBe(true);
+    expect(next.coins).toBe(10000 - 2500 + 1250); // overflow bounty = half the scout price
+    expect(next.players.length).toBe(home.players.length);
+  });
+});
+
+describe('v13 copies migration', () => {
+  it('keeps every previously-owned player unlocked and defaults collecting to []', () => {
+    const home = { ...createRookieRoster(createRNG('mig')), coins: 500 };
+    const serialized = serializeHomeRoster(home);
+    delete (serialized.data as Partial<HomeRoster>).collecting; // simulate a pre-v13 save
+    const restored = deserializeHomeRoster(serialized)!;
+    expect(restored.collecting).toEqual([]);
+    expect(restored.players.length).toBe(home.players.length);
+    for (const p of home.players) {
+      expect(restored.players.some((q) => playerKey(q) === playerKey(p))).toBe(true);
+    }
+  });
+
+  it('promotes a saved in-progress entry that already meets its threshold', () => {
+    const home = createRookieRoster(createRNG('mig2'));
+    const ownedKeys = new Set(home.players.map(playerKey));
+    const cPlayer = poolByClass('C')
+      .map(realPlayerToRosterPlayer)
+      .find((rp) => !ownedKeys.has(playerKey(rp)))!;
+    const withCollecting: HomeRoster = { ...home, collecting: [{ player: cPlayer, copies: 1 }] };
+    const restored = deserializeHomeRoster(serializeHomeRoster(withCollecting))!;
+    expect(restored.collecting.length).toBe(0); // C owns at one copy: promoted to owned
+    expect(restored.players.some((p) => playerKey(p) === playerKey(cPlayer))).toBe(true);
+  });
+
+  it('round-trips an in-progress entry that is below its threshold', () => {
+    const home = createRookieRoster(createRNG('mig3'));
+    const aPlayer = realPlayerToRosterPlayer(poolByClass('A')[0]);
+    const withCollecting: HomeRoster = { ...home, collecting: [{ player: aPlayer, copies: 2 }] };
+    const restored = deserializeHomeRoster(serializeHomeRoster(withCollecting))!;
+    const entry = restored.collecting.find((c) => playerKey(c.player) === playerKey(aPlayer));
+    expect(entry?.copies).toBe(2); // A needs three, so it stays collecting
+    expect(restored.players.some((p) => playerKey(p) === playerKey(aPlayer))).toBe(false);
   });
 });
