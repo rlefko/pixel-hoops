@@ -241,12 +241,60 @@ const menuGlock: Part = {
   ],
 };
 
+// A warm gospel/rock organ (softer than the run organ) gives the menu its NBA "arena
+// lobby" color: chord stabs on beats 1 & 3, low in the mix.
+const menuOrgan: Part = {
+  id: 'menuOrgan',
+  rootHz: D_COMP,
+  voice: {
+    osc: 'sawtooth',
+    unison: 3,
+    detuneCents: 5,
+    antialias: true,
+    drive: 1.25,
+    vibrato: { semitones: 0.07, rateHz: 6.2 },
+    filter: { baseHz: 300, peakHz: 1400, q: 0.9, attackMs: 22, decayMs: 600, sustain: 0.7, releaseMs: 220 },
+    env: { attackMs: 18, decayMs: 0, sustain: 0.8, releaseMs: 200 },
+  },
+  gain: 0.07,
+  pan: 0.18,
+  notes: [
+    ...comp(MENU_A, 0, 4, [0, 2], 1.6, 0.9),
+    ...comp(MENU_B, 8, 4, [0, 2], 1.6, 0.9),
+    ...comp(MENU_A, 16, 4, [0, 2], 1.6, 0.9),
+  ],
+};
+
+// A soft, laid-back backbeat (kick on 1 & 3, brushed snare on 2 & 4) gives a gentle
+// head-nod groove without turning the calm hub into a hype loop.
+const menuKick: Part = {
+  id: 'menuKick',
+  rootHz: 1400,
+  voice: { osc: 'noise', noiseSeed: 3, filter: { baseHz: 60, peakHz: 200, q: 0.9, decayMs: 110, sustain: 0 }, env: { attackMs: 1, decayMs: 110, sustain: 0 }, drive: 1.3 },
+  gain: 0.26,
+  notes: tile([
+    { beat: 0, durationBeats: 0.3, semitone: 0 },
+    { beat: 2, durationBeats: 0.3, semitone: 0, velocity: 0.85 },
+  ], 1, 0, 24, 4),
+};
+const menuBrush: Part = {
+  id: 'menuBrush',
+  rootHz: 1200,
+  voice: { osc: 'noise', noiseSeed: 7, filter: { baseHz: 700, peakHz: 2200, q: 0.8, decayMs: 130, sustain: 0 }, env: { attackMs: 2, decayMs: 130, sustain: 0 } },
+  gain: 0.1,
+  pan: 0.06,
+  notes: tile([
+    { beat: 1, durationBeats: 0.25, semitone: 0 },
+    { beat: 3, durationBeats: 0.25, semitone: 0 },
+  ], 1, 0, 24, 4),
+};
+
 export const menuTheme: MusicTrack = {
   bpm: 80,
   bars: 24,
   beatsPerBar: 4,
   gain: 0.82,
-  parts: [menuPad, menuEp, menuBass, menuLead, menuGlock],
+  parts: [menuPad, menuOrgan, menuBass, menuEp, menuKick, menuBrush, menuLead, menuGlock],
   fx: { reverb: { roomSize: 0.6, damping: 0.5, wet: 0.2, dry: 1 }, busDrive: 1.1 },
 };
 
@@ -272,25 +320,34 @@ function buildRunTheme(opts: {
   const bars = 64;
   const repeats = bars / 8;
 
-  // Bass: root on 1, root on 2.5, fifth on 4, tiled across the 8-bar progression.
+  // Funk bass: syncopated root/fifth/octave with a ghost note and a chromatic approach
+  // (root-1) pushing into each downbeat. A snappy filter env plucks each note.
   const bass: Part = {
     id: 'runBass',
     rootHz: midi(opts.keyMidiBass),
     voice: {
       osc: 'sine',
-      filter: { baseHz: 110, peakHz: 900, q: 0.9, attackMs: 4, decayMs: 140, sustain: 0.5, releaseMs: 80 },
-      env: { attackMs: 4, decayMs: 0, sustain: 0.8, releaseMs: 90 },
-      drive: 1.2,
+      filter: { baseHz: 110, peakHz: 1100, q: 1.1, attackMs: 3, decayMs: 110, sustain: 0.4, releaseMs: 70 },
+      env: { attackMs: 3, decayMs: 0, sustain: 0.8, releaseMs: 80 },
+      drive: 1.25,
     },
     gain: 0.55,
     notes: Array.from({ length: repeats }, (_, rep) =>
       opts.rootsA.flatMap((root, i) => {
         const bar = rep * 8 + i;
+        const at = (b: number, dur: number, semi: number, vel = 1): Note => ({
+          beat: bar * bpb + b,
+          durationBeats: dur,
+          semitone: semi,
+          velocity: vel,
+        });
         return [
-          { beat: bar * bpb + 0, durationBeats: 1, semitone: root } as Note,
-          { beat: bar * bpb + 1.5, durationBeats: 0.5, semitone: root } as Note,
-          { beat: bar * bpb + 2.5, durationBeats: 1, semitone: root + 7 } as Note,
-          { beat: bar * bpb + 3.5, durationBeats: 0.5, semitone: root + 12 } as Note,
+          at(0, 0.75, root),
+          at(1, 0.25, root, 0.4), // ghost
+          at(1.5, 0.5, root + 7), // pushed fifth
+          at(2.5, 0.5, root),
+          at(3, 0.5, root + 12), // octave pop
+          at(3.75, 0.25, root - 1, 0.7), // chromatic approach into the next downbeat
         ];
       })
     ).flat(),
@@ -308,7 +365,7 @@ function buildRunTheme(opts: {
       filter: { baseHz: 500, peakHz: 2600, q: 0.9, attackMs: 2, decayMs: 120, sustain: 0, releaseMs: 60 },
       env: { attackMs: 2, decayMs: 120, sustain: 0, releaseMs: 60 },
     },
-    gain: 0.16,
+    gain: 0.12, // pulled back to make room for the organ + brass
     pan: -0.3,
     notes: comp(compChords, 0, bpb, [1, 2.5, 3.5], 0.4, 0.8),
   };
@@ -326,7 +383,7 @@ function buildRunTheme(opts: {
       filter: { baseHz: 260, peakHz: 1700, q: 1, attackMs: 600, decayMs: 1200, sustain: 0.7, releaseMs: 500 },
       env: { attackMs: 80, decayMs: 0, sustain: 1, releaseMs: 400 },
     },
-    gain: 0.12,
+    gain: 0.08, // ambient wash under the new organ, pulled back to avoid mud
     notes: Array.from({ length: repeats }, (_, rep) =>
       opts.rootsA.flatMap((root, i) => {
         const bar = rep * 8 + i;
@@ -418,12 +475,80 @@ function buildRunTheme(opts: {
     ],
   };
 
+  // Rock/gospel organ: a filtered detuned-saw drawbar approximation with a Leslie-ish
+  // vibrato, chord stabs on beats 1 & 3 through the loop (the arena bed color).
+  const organ: Part = {
+    id: 'runOrgan',
+    rootHz: midi(opts.keyMidiComp),
+    voice: {
+      osc: 'sawtooth',
+      unison: 3,
+      detuneCents: 5,
+      antialias: true,
+      drive: 1.3,
+      vibrato: { semitones: 0.08, rateHz: 6.2 },
+      filter: { baseHz: 320, peakHz: 1500, q: 0.9, attackMs: 18, decayMs: 500, sustain: 0.7, releaseMs: 160 },
+      env: { attackMs: 16, decayMs: 0, sustain: 0.8, releaseMs: 150 },
+    },
+    gain: 0.09,
+    pan: 0.15,
+    notes: comp(compChords, 0, bpb, [0, 2], 1.5, 0.9),
+  };
+
+  // Brass call-and-response stabs (detuned saw + fast filter blip) on the 2.5 & 3.5
+  // offbeats, only in the lead blocks so the intro/breakdown stay open, and off the final
+  // bar so a release never overhangs the loop seam.
+  const brassNotes: Note[] = [];
+  for (const [from, to] of [[16, 31], [48, 63]]) {
+    for (let bar = from; bar < to; bar++) {
+      const tones = compChords[bar].slice(-2); // top two chord tones = a bright stab
+      for (const b of [2.5, 3.5]) {
+        for (const semitone of tones) {
+          brassNotes.push({ beat: bar * bpb + b, durationBeats: 0.4, semitone, velocity: 0.9 });
+        }
+      }
+    }
+  }
+  const brass: Part = {
+    id: 'runBrass',
+    rootHz: midi(opts.keyMidiComp + 12),
+    voice: {
+      osc: 'sawtooth',
+      unison: 3,
+      detuneCents: 7,
+      antialias: true,
+      drive: 1.25,
+      filter: { baseHz: 500, peakHz: 3200, q: 1.2, attackMs: 15, decayMs: 180, sustain: 0.15, releaseMs: 90 },
+      env: { attackMs: 12, decayMs: 160, sustain: 0.2, releaseMs: 80 },
+    },
+    gain: 0.11,
+    pan: -0.2,
+    notes: brassNotes,
+  };
+
+  // Handclaps on the 2 & 4 backbeat (a band-focused noise burst) reinforcing the snare in
+  // the lead blocks for the jock-jam lift.
+  const clapNotes: Note[] = [];
+  for (const [from, to] of [[16, 32], [48, 64]]) {
+    for (let bar = from; bar < to; bar++) {
+      for (const b of [1, 3]) clapNotes.push({ beat: bar * bpb + b, durationBeats: 0.2, semitone: 0 });
+    }
+  }
+  const clap: Part = {
+    id: 'runClap',
+    rootHz: 1000,
+    voice: { osc: 'noise', noiseSeed: 19, filter: { baseHz: 900, peakHz: 1500, q: 2.5, decayMs: 95, sustain: 0 }, env: { attackMs: 1, decayMs: 95, sustain: 0 } },
+    gain: 0.14,
+    pan: 0.1,
+    notes: clapNotes,
+  };
+
   return {
     bpm: 104,
     bars,
     beatsPerBar: bpb,
     gain: 0.8,
-    parts: [pad, bass, pulse, ...drums, lead, glock],
+    parts: [pad, organ, bass, pulse, ...drums, clap, brass, lead, glock],
     fx: {
       reverb: { roomSize: 0.5, damping: 0.55, wet: 0.16, dry: 1 },
       delay: { beats: 0.75, feedback: 0.3, mix: 0.12, damp: 0.4 },
@@ -453,19 +578,30 @@ export const runThemeA: MusicTrack = buildRunTheme({
   progA: RUN_A_PROG,
   rootsA: RUN_A_ROOTS,
   pan: 0.2,
+  // NBA fanfare hook (our own melody, not a copyrighted riff): a rising "da-da-da-DAAA"
+  // that overshoots the octave and lands high, a chantable repeated-note answer, then a
+  // descending balance. Bright A major with a passing blue b3 for attitude.
   leadA: [
-    { beat: 0, durationBeats: 1, semitone: 0 },
-    { beat: 1, durationBeats: 1, semitone: 4 },
-    { beat: 2, durationBeats: 2, semitone: 7 },
-    { beat: 5, durationBeats: 1, semitone: 9 },
-    { beat: 6.5, durationBeats: 1.5, semitone: 7 },
-    { beat: 8, durationBeats: 1, semitone: 4 },
-    { beat: 10, durationBeats: 2, semitone: 2 },
-    { beat: 13, durationBeats: 3, semitone: 0 },
+    { beat: 0, durationBeats: 0.5, semitone: 7 }, // 5
+    { beat: 0.5, durationBeats: 0.5, semitone: 12 }, // 1 (oct)
+    { beat: 1, durationBeats: 0.5, semitone: 15 }, // b3 (blue)
+    { beat: 1.5, durationBeats: 0.5, semitone: 16 }, // 3
+    { beat: 2, durationBeats: 2, semitone: 19 }, // 5 up - the long landing
+    { beat: 4.5, durationBeats: 0.5, semitone: 16 },
+    { beat: 5, durationBeats: 1, semitone: 14 }, // 2
+    { beat: 6, durationBeats: 2, semitone: 12 }, // settle on 1
+    { beat: 8, durationBeats: 0.5, semitone: 7 }, // chant: 5-5-5
+    { beat: 9, durationBeats: 0.5, semitone: 7 },
+    { beat: 10, durationBeats: 0.5, semitone: 7 },
+    { beat: 11, durationBeats: 0.5, semitone: 9 }, // 6
+    { beat: 11.5, durationBeats: 0.5, semitone: 11 }, // 7
+    { beat: 12, durationBeats: 2, semitone: 12 }, // turnaround top
+    { beat: 16, durationBeats: 1, semitone: 16 },
+    { beat: 17.5, durationBeats: 1, semitone: 12 },
+    { beat: 19, durationBeats: 2, semitone: 9 },
     { beat: 24, durationBeats: 1, semitone: 7 },
-    { beat: 25, durationBeats: 1, semitone: 9 },
-    { beat: 26, durationBeats: 2, semitone: 11 },
-    { beat: 29, durationBeats: 3, semitone: 7 },
+    { beat: 25.5, durationBeats: 1, semitone: 9 },
+    { beat: 27, durationBeats: 3, semitone: 12 },
   ],
   leadB: [
     { beat: 0, durationBeats: 1, semitone: 12 },
@@ -501,17 +637,28 @@ export const runThemeB: MusicTrack = buildRunTheme({
   progA: RUN_B_PROG,
   rootsA: RUN_B_ROOTS,
   pan: -0.2,
+  // Same fanfare shape, funkier/cooler in E Dorian: leans on the b3 and the bright Dorian 6.
   leadA: [
-    { beat: 0, durationBeats: 1.5, semitone: 7 },
-    { beat: 2, durationBeats: 1, semitone: 5 },
-    { beat: 3.5, durationBeats: 2, semitone: 3 },
-    { beat: 6, durationBeats: 2, semitone: 0 },
-    { beat: 9, durationBeats: 1, semitone: 3 },
-    { beat: 10.5, durationBeats: 1.5, semitone: 7 },
-    { beat: 12, durationBeats: 4, semitone: 5 },
-    { beat: 24, durationBeats: 2, semitone: 10 },
-    { beat: 27, durationBeats: 1, semitone: 7 },
-    { beat: 28, durationBeats: 3, semitone: 5 },
+    { beat: 0, durationBeats: 0.5, semitone: 7 }, // 5
+    { beat: 0.5, durationBeats: 0.5, semitone: 12 }, // 1 (oct)
+    { beat: 1, durationBeats: 0.5, semitone: 15 }, // b3
+    { beat: 1.5, durationBeats: 0.5, semitone: 19 }, // 5 up
+    { beat: 2, durationBeats: 2, semitone: 19 }, // landing
+    { beat: 4.5, durationBeats: 0.5, semitone: 21 }, // Dorian 6 (bright lean)
+    { beat: 5, durationBeats: 1, semitone: 19 },
+    { beat: 6, durationBeats: 2, semitone: 12 }, // settle on 1
+    { beat: 8, durationBeats: 0.5, semitone: 7 }, // chant: 5-5-5
+    { beat: 9, durationBeats: 0.5, semitone: 7 },
+    { beat: 10, durationBeats: 0.5, semitone: 7 },
+    { beat: 11, durationBeats: 0.5, semitone: 10 }, // b7
+    { beat: 11.5, durationBeats: 0.5, semitone: 12 },
+    { beat: 12, durationBeats: 2, semitone: 15 }, // turnaround on b3 (minor color)
+    { beat: 16, durationBeats: 1, semitone: 12 },
+    { beat: 17.5, durationBeats: 1, semitone: 10 },
+    { beat: 19, durationBeats: 2, semitone: 7 },
+    { beat: 24, durationBeats: 1, semitone: 9 }, // Dorian 6
+    { beat: 25.5, durationBeats: 1, semitone: 12 },
+    { beat: 27, durationBeats: 3, semitone: 7 },
   ],
   leadB: [
     { beat: 0, durationBeats: 1, semitone: 12 },
@@ -574,12 +721,27 @@ const energyRiser: Part = {
   notes: [{ beat: 24, durationBeats: 8, semitone: 0 }], // a 2-bar swell into the loop point
 };
 
+// Jock-jam handclap on the 2 & 4 backbeat, with a double-clap "and of 4" lift into the
+// loop, so the live game reads as an arena. Band-focused noise burst (many-hands feel).
+const energyClap: Part = {
+  id: 'energyClap',
+  rootHz: 1000,
+  voice: { osc: 'noise', noiseSeed: 29, filter: { baseHz: 900, peakHz: 1500, q: 2.5, decayMs: 100, sustain: 0 }, env: { attackMs: 1, decayMs: 100, sustain: 0 } },
+  gain: 0.2,
+  pan: -0.1,
+  notes: tile([
+    { beat: 1, durationBeats: 0.2, semitone: 0 },
+    { beat: 3, durationBeats: 0.2, semitone: 0 },
+    { beat: 3.5, durationBeats: 0.2, semitone: 0, velocity: 0.7 }, // "and of 4" lift
+  ], 1, 0, 8, 4),
+};
+
 export const gameEnergy: MusicTrack = {
   bpm: 104,
   bars: 8,
   beatsPerBar: 4,
   gain: 0.7,
-  parts: [energyHat, energyTom, energyRiser],
+  parts: [energyHat, energyTom, energyClap, energyRiser],
   fx: { reverb: { roomSize: 0.4, damping: 0.6, wet: 0.1, dry: 1 } },
 };
 

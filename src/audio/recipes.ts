@@ -116,21 +116,24 @@ export const RECIPES = {
     ],
   },
   win: {
+    // Fires after EVERY won game, so it is a SHORT, soft, warm two-note "advance" cue
+    // (a rising fifth on an FM electric piano), not a jingle. The grand celebration is
+    // reserved for the championship (sfx.champion). Pitch-jittered per win in audio.ts.
     pool: 1,
-    gain: 0.9,
+    gain: 0.42,
     voices: [
-      { osc: 'square', duty: 0.25, freq: C5, durMs: 110, env: { decayMs: 90, sustain: 0.3, releaseMs: 18 } },
-      { osc: 'square', duty: 0.25, freq: E5, durMs: 110, delayMs: 110, env: { decayMs: 90, sustain: 0.3, releaseMs: 18 } },
-      { osc: 'square', duty: 0.25, freq: G5, durMs: 210, delayMs: 220, env: { decayMs: 178, sustain: 0.3, releaseMs: 30 } },
-      { osc: 'triangle', freq: C4, durMs: 430, gain: 0.5, env: { sustain: 0.8, releaseMs: 120 } },
+      { osc: 'fm', fm: { ratio: 1, index: 2, indexDecayMs: 120, indexSustain: 0.05 }, freq: C5, durMs: 150, filter: { baseHz: 700, peakHz: 3200, q: 0.7, decayMs: 130, sustain: 0.2 }, env: { attackMs: 4, decayMs: 130, sustain: 0.2, releaseMs: 60 } },
+      { osc: 'fm', fm: { ratio: 1, index: 2, indexDecayMs: 120, indexSustain: 0.05 }, freq: G5, durMs: 220, delayMs: 120, filter: { baseHz: 800, peakHz: 3600, q: 0.7, decayMs: 190, sustain: 0.2 }, env: { attackMs: 4, decayMs: 190, sustain: 0.2, releaseMs: 80 } },
+      { osc: 'sine', freq: C4, durMs: 300, gain: 0.5, env: { attackMs: 6, decayMs: 240, sustain: 0.2, releaseMs: 60 } },
     ],
   },
   loss: {
+    // Run-ending only (rare): a gentle low-passed descending sigh, no crush/harshness.
     pool: 1,
-    gain: 0.7,
+    gain: 0.6,
     voices: [
-      { osc: 'triangle', freq: A4, freqTo: 220, sweep: 'exp', durMs: 600, env: { attackMs: 10, sustain: 0.8, releaseMs: 250 } },
-      { osc: 'square', duty: 0.5, freq: 110, durMs: 600, gain: 0.3, crushBits: 4, env: { sustain: 0.6, releaseMs: 250 } },
+      { osc: 'triangle', freq: A4, freqTo: 220, sweep: 'exp', durMs: 620, filter: { baseHz: 500, peakHz: 1600, q: 0.6, sustain: 1 }, env: { attackMs: 10, sustain: 0.8, releaseMs: 320 } },
+      { osc: 'sine', freq: 110, durMs: 620, gain: 0.4, env: { attackMs: 10, sustain: 0.6, releaseMs: 320 } },
     ],
   },
   champion: {
@@ -228,19 +231,21 @@ export const RECIPES = {
     ],
   },
   whoosh: {
+    // Fires on EVERY navigation, so it is a soft, dark, low-passed swish, not a bright
+    // noise sweep. Quiet and short so clicking into menus never grates.
     pool: 1,
-    gain: 0.55,
+    gain: 0.28,
     voices: [
-      { osc: 'noise', freq: 1200, freqTo: 5000, sweep: 'exp', durMs: 220, gain: 0.5, srReduce: 2, env: { attackMs: 40, sustain: 1, releaseMs: 120 }, noiseSeed: 41 },
-      { osc: 'triangle', freq: 300, freqTo: 700, sweep: 'exp', durMs: 220, gain: 0.5, env: { attackMs: 20, sustain: 1, releaseMs: 120 } },
+      { osc: 'noise', freq: 700, freqTo: 1400, sweep: 'exp', durMs: 150, gain: 0.45, filter: { baseHz: 400, peakHz: 1200, q: 0.6, sustain: 1 }, env: { attackMs: 30, sustain: 1, releaseMs: 90 }, noiseSeed: 41 },
+      { osc: 'triangle', freq: 260, freqTo: 480, sweep: 'exp', durMs: 150, gain: 0.5, env: { attackMs: 20, sustain: 1, releaseMs: 90 } },
     ],
   },
   whooshBack: {
     pool: 1,
-    gain: 0.5,
+    gain: 0.26,
     voices: [
-      { osc: 'noise', freq: 5000, freqTo: 1200, sweep: 'exp', durMs: 200, gain: 0.5, srReduce: 2, env: { attackMs: 20, sustain: 1, releaseMs: 120 }, noiseSeed: 43 },
-      { osc: 'triangle', freq: 700, freqTo: 300, sweep: 'exp', durMs: 200, gain: 0.5, env: { attackMs: 10, sustain: 1, releaseMs: 110 } },
+      { osc: 'noise', freq: 1400, freqTo: 700, sweep: 'exp', durMs: 140, gain: 0.45, filter: { baseHz: 400, peakHz: 1200, q: 0.6, sustain: 1 }, env: { attackMs: 20, sustain: 1, releaseMs: 90 }, noiseSeed: 43 },
+      { osc: 'triangle', freq: 480, freqTo: 260, sweep: 'exp', durMs: 140, gain: 0.5, env: { attackMs: 10, sustain: 1, releaseMs: 90 } },
     ],
   },
   error: {
