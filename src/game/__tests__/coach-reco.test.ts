@@ -172,6 +172,59 @@ describe('recommendLineup', () => {
     expect(out.starters.some((p) => p.player.name === 'Scorer')).toBe(false);
   });
 
+  it('values the effective line, not the base (respects in-run training)', () => {
+    // Prospect is weak on paper (base 10) but +8 in-run training on every stat makes
+    // it effectively elite (~18). The coach must value that, not the base 10.
+    const prospect: RosterPlayer = {
+      ...flatPlayer('Prospect', 'PG', 10),
+      trainingDelta: Object.fromEntries(STAT_KEYS.map((k) => [k, 8])) as Partial<PlayerStats>,
+    };
+    const roster: Roster = {
+      starters: [
+        flatPlayer('Vet', 'PG', 14),
+        flatPlayer('sg', 'SG', 13),
+        flatPlayer('sf', 'SF', 13),
+        flatPlayer('pf', 'PF', 13),
+        flatPlayer('c', 'C', 13),
+      ],
+      bench: [prospect],
+    };
+    const { roster: out, changes } = reorderForCoach({ roster, coach: getCoach('rick-carlisle'), buildHome });
+    // Valued at its effective ~18, Prospect starts; on its base 10 it would never be
+    // picked over the 13-14 starters.
+    expect(out.starters.some((p) => p.player.name === 'Prospect')).toBe(true);
+    expect(changes).toBe(1);
+  });
+
+  it('keeps the guard/big balance (never discards a ball handler for a center)', () => {
+    // A lead ball handler in the five and a strong defensive center on the bench. A
+    // lockdown coach loves the center, but it may only take a frontcourt slot, never a
+    // guard's, so the backcourt is preserved.
+    const pg = shaped('LeadGuard', 'PG', 13, { playmaking: 19, outside: 16, perimeterD: 12 });
+    const benchC = shaped('BenchBig', 'C', 13, {
+      interiorD: 18,
+      inside: 16,
+      rebounding: 18,
+      blocking: 16,
+      playmaking: 6,
+    });
+    const roster: Roster = {
+      starters: [
+        pg,
+        flatPlayer('sg', 'SG', 13),
+        flatPlayer('sf', 'SF', 13),
+        flatPlayer('pf', 'PF', 13),
+        flatPlayer('c', 'C', 13),
+      ],
+      bench: [benchC],
+    };
+    const { roster: out } = reorderForCoach({ roster, coach: getCoach('erik-spoelstra'), buildHome });
+    const bigs = out.starters.filter((p) => p.position === 'PF' || p.position === 'C').length;
+    expect(out.starters.some((p) => p.player.name === 'BenchBig')).toBe(true); // the center is used
+    expect(bigs).toBe(2); // ...but in a frontcourt slot, so the big count is unchanged
+    expect(out.starters.some((p) => p.player.name === 'LeadGuard')).toBe(true); // the ball handler stays
+  });
+
   it('a smart coach avoids a style move that tanks the matchup; a blunt one takes it', () => {
     // Both coaches are fast/outside, so they both want this shooter's style. But
     // starting it craters this matchup (the injected builder makes that five far
