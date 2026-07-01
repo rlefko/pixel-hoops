@@ -5,6 +5,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop } from '@/components/fx';
 import { SettingsControls } from '@/components/SettingsControls';
+import { CourtThemePicker } from '@/components/settings/CourtThemePicker';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { useActiveRun } from '@/context/ActiveRunContext';
@@ -35,6 +36,8 @@ export default function SettingsScreen() {
       </Pop>
 
       <SettingsControls />
+
+      <CourtThemePicker />
 
       <Text style={styles.dangerSection}>DANGER ZONE</Text>
       <Text style={styles.dangerDesc}>

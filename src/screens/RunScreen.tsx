@@ -15,7 +15,12 @@ import {
   MAX_BANISHES,
   type RunModel,
 } from '@/game/run-machine';
-import { classAboveLadder } from '@/game/difficulty-mode';
+import {
+  classAboveLadder,
+  DIFFICULTIES,
+  DIFFICULTY_LABELS,
+  difficultyPerks,
+} from '@/game/difficulty-mode';
 import { getCoach } from '@/game/coaches';
 import { coachForTeamName } from '@/game/opponent-coach';
 import { CoachRecBanner } from '@/components/run/CoachRecBanner';
@@ -192,6 +197,19 @@ export default function RunScreen() {
           onDecline={actions.declineLegend}
         />
       );
+    case 'legendSign':
+      // Boss Legend Signing: the beaten franchise's headliner wants in. Same jackpot
+      // reveal as the recruit-node legend, with the signing's own copy.
+      return (
+        <LegendRevealView
+          offer={model.phase.offer}
+          onScout={actions.acceptLegendSign}
+          onDecline={actions.declineLegendSign}
+          kicker="THE BEATEN LEGEND WANTS IN"
+          loanNote="Impressed by the win. On loan: keep them by clearing the run."
+          signLabel="SIGN THE LEGEND"
+        />
+      );
     case 'pregame':
       return <Pregame model={model} actions={actions} />;
     case 'game':
@@ -228,6 +246,7 @@ export default function RunScreen() {
           rerolled={model.phase.rerolled}
           benchCount={model.core.roster.bench.length}
           collectProgress={collectProgress}
+          copiesMul={model.mods.copiesMul}
           onRecruit={actions.recruit}
           onReroll={actions.rerollRecruit}
           onSkip={actions.skipNode}
@@ -284,7 +303,11 @@ export default function RunScreen() {
           : undefined;
       const wonCoaches = champion ? wonCoachIds.map(getCoach) : [];
       const unlockedPlayers = champion ? wonPlayers.unlocked : [];
-      const progressed = champion ? wonPlayers.progressed : [];
+      // On a loss these carry the milestone bank (empty on an ordinary loss): a banked
+      // copy that only progressed rides the strip; one that OWNED outright (C/B own at
+      // one copy) shows as the "stays in touch" recruit.
+      const progressed = wonPlayers.progressed;
+      const bankedRecruit = !champion ? wonPlayers.unlocked[0] : undefined;
       const bounty = champion ? bountyGrant : null;
       // Reveal order after the celebration: the headline BOUNTY first (the "harder difficulty
       // paid off" moment), then scouted (unlocked) players, then the climactic coach unlock,
@@ -338,6 +361,17 @@ export default function RunScreen() {
       // score and five). Losses, and the defensive champion-without-game case, fall
       // back to the flat summary.
       if (champion && model.game) {
+        // The victory step-up: pitch the next difficulty at the confidence peak, with
+        // its concrete perk delta. Reveals still run first on Home/New Run exits; the
+        // step-up is a direct "one more run, one rung up".
+        const nextDifficulty = DIFFICULTIES[DIFFICULTIES.indexOf(model.difficulty) + 1];
+        const stepUp = nextDifficulty
+          ? {
+              label: `RUN IT BACK ON ${DIFFICULTY_LABELS[nextDifficulty].name}`,
+              perks: difficultyPerks(nextDifficulty).slice(0, 3).join(' · '),
+              onPress: () => actions.stepUpRun(nextDifficulty),
+            }
+          : undefined;
         return (
           <ChampionView
             game={model.game}
@@ -346,6 +380,7 @@ export default function RunScreen() {
             wins={model.wins}
             unlockedClass={unlockedClass}
             progressed={progressed}
+            stepUp={stepUp}
             onNewRun={exitNewRun}
             onHome={exitHome}
           />
@@ -373,6 +408,7 @@ export default function RunScreen() {
           lossMargin={lossMargin}
           lossClock={lossClock}
           nextUnlockLabel={nextUnlockLabel}
+          bankedRecruit={bankedRecruit}
           onNewRun={exitNewRun}
           onMenu={exitHome}
         />

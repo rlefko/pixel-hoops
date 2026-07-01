@@ -131,7 +131,7 @@ Meta-progression compounds, but it is bounded so later runs stay challenging:
 
 - **Points draft.** Before each run you draft a rotation from your owned collection under a difficulty point budget, paying by each player's class relative to the run's ladder, so you cannot field a roster of nothing but above-class studs (`src/game/draft.ts`).
 - **Capped permanent upgrades.** Coins buy permanent +1s, but the per-stat cap is a flat +5 (with the absolute rating hard cap at 30), so permanent power specializes a player without ever reclassing them outright (`src/game/upgrades.ts`).
-- **The class ladder.** Clearing a run unlocks the next class on that difficulty (the Slay the Spire "Ascension" / Hades "Heat" pattern, reframed as a C -> S+ class climb), so winning makes the *next* run harder, not easier (`src/game/difficulty-mode.ts`).
+- **The class ladder.** Clearing a class on any difficulty unlocks the next class everywhere (the Slay the Spire "Ascension" / Hades "Heat" pattern, reframed as a C -> S+ class climb across a 20-cell bounty board), so winning makes the *next* run harder, not easier, and higher difficulties pay a repeatable premium (multiplied recruit copies, richer drops, legend signings, a clear bonus) so the punishing grid is also the rewarding one (`src/game/difficulty-mode.ts`, [difficulty-rebalance.md](difficulty-rebalance.md)).
 
 No run is wasted: recruits, coins, and ladder progress still bank every run. But power and difficulty rise together rather than power outpacing the bracket. Full detail in [difficulty-rebalance.md](difficulty-rebalance.md).
 

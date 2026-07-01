@@ -61,4 +61,38 @@ describe('rarity rolls', () => {
   it('orders the ladder ascending', () => {
     expect(RARITY_ORDER).toEqual(['common', 'rare', 'epic', 'legendary']);
   });
+
+  it('a difficulty rarityBonus shifts common into epic+legendary, monotonically', () => {
+    const epicPlus = (bonus: number) => {
+      const { counts, n } = distribution((rng) => rollRarity(rng, 0, bonus), `rb-${bonus}`);
+      return (counts.epic + counts.legendary) / n;
+    };
+    // The shipped difficulty bonuses (easy 0, medium 2, hard 4, insane 6).
+    const shares = [0, 2, 4, 6].map(epicPlus);
+    for (let i = 1; i < shares.length; i++) expect(shares[i]).toBeGreaterThan(shares[i - 1]);
+    // Insane roughly triples easy's epic+ share without becoming the norm.
+    expect(shares[3]).toBeGreaterThan(0.14);
+    expect(shares[3]).toBeLessThan(0.24);
+  });
+
+  it('rarityBonus composes with pity instead of eating it', () => {
+    const { counts, n } = distribution((rng) => rollRarity(rng, 4, 6), 'rbp');
+    // Max pity (+12) on top of insane's bonus (+6): epic+ climbs well past either alone.
+    expect((counts.epic + counts.legendary) / n).toBeGreaterThan(0.3);
+    expect(counts.common).toBeGreaterThan(0); // the common floor holds
+  });
+
+  it('a bossRarityBonus shifts rare into epic+legendary and still never drops common', () => {
+    const epicPlus = (bonus: number) => {
+      const { counts, n } = distribution((rng) => rollBossRarity(rng, bonus), `bb-${bonus}`);
+      expect(counts.common).toBe(0);
+      return (counts.epic + counts.legendary) / n;
+    };
+    // The shipped boss bonuses (easy 0, medium 4, hard 9, insane 15).
+    const shares = [0, 4, 9, 15].map(epicPlus);
+    for (let i = 1; i < shares.length; i++) expect(shares[i]).toBeGreaterThan(shares[i - 1]);
+    // Insane bosses drop epic+ a bit over half the time: the jackpot tier.
+    expect(shares[3]).toBeGreaterThan(0.5);
+    expect(shares[3]).toBeLessThan(0.62);
+  });
 });

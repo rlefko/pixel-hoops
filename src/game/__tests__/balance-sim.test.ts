@@ -60,8 +60,10 @@ const ARCHETYPE_KEYS = Object.keys(ARCHETYPES) as Archetype[];
 
 const MAPS = 7;
 const COMBAT = new Set<MapNode['type']>(['game', 'elite', 'boss']);
-/** Peak in-run team buff (offense + defense) by the final map. */
-const INRUN_MAX = 4;
+/** Peak in-run team buff (offense + defense) by the final map, per difficulty: the
+ * harder tiers run richer in-run texture (extra training points on elites/bosses and
+ * rarity-shifted drops), so their modeled in-run growth peaks higher. */
+const INRUN_MAX: Record<Difficulty, number> = { easy: 4, medium: 4, hard: 5, insane: 6 };
 const ENV = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process;
 const N = Number(ENV?.env?.BALANCE_N ?? 100);
 
@@ -133,8 +135,8 @@ function minCombatPath(map: ReturnType<typeof generateFixedMap>): MapNode[] {
 }
 
 /** In-run growth (training/boosts/recruits) as a team buff ramping 0 -> INRUN_MAX. */
-function homeTeam(roster: Roster, mapIndex: number): Team {
-  const b = Math.round((mapIndex / (MAPS - 1)) * INRUN_MAX);
+function homeTeam(roster: Roster, mapIndex: number, difficulty: Difficulty): Team {
+  const b = Math.round((mapIndex / (MAPS - 1)) * INRUN_MAX[difficulty]);
   const modifier = teamModifierFromPartial({ offenseBonus: b, defenseBonus: b });
   return buildTeam('You', roster.starters, planForRoster(roster), '#FFD54F', '#1D428A', roster.bench, modifier);
 }
@@ -150,7 +152,7 @@ function playRun(difficulty: Difficulty, ladder: LadderClass, delta: number, see
     difficulty
   );
   for (let map = 0; map < MAPS; map++) {
-    const home = homeTeam(roster, map);
+    const home = homeTeam(roster, map, difficulty);
     const fixed = generateFixedMap({ seed: deriveSeed(seed, `map-${map}`), mapIndex: map, difficulty, ladderLevel });
     for (const node of minCombatPath(fixed)) {
       const level = node.difficulty ?? ladderLevel;

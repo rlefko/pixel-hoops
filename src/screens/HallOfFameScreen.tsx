@@ -43,7 +43,7 @@ export default function HallOfFameScreen() {
         </Text>
       </View>
 
-      <BountyCrestShelf ladderProgress={homeRoster.ladderProgress} />
+      <BountyCrestShelf clearedCells={homeRoster.clearedCells} />
 
       {entries.length === 0 ? (
         <Text style={styles.empty}>

@@ -35,6 +35,9 @@ interface ChampionViewProps {
   unlockedClass?: PlayerClass;
   /** Players this run advanced a copy toward but did not unlock (compact progress strip). */
   progressed?: ProgressedCopy[];
+  /** The victory step-up: run it back one difficulty up, pitched at the confidence
+   * peak. Absent on insane (nothing above it). */
+  stepUp?: { label: string; perks: string; onPress: () => void };
   onNewRun: () => void;
   onHome: () => void;
 }
@@ -49,6 +52,7 @@ export function ChampionView({
   wins,
   unlockedClass,
   progressed = [],
+  stepUp,
   onNewRun,
   onHome,
 }: ChampionViewProps) {
@@ -129,6 +133,12 @@ export function ChampionView({
 
         <CollectionProgressStrip progressed={progressed} />
 
+        {stepUp ? (
+          <Pressable style={[styles.button, styles.stepUp]} onPress={stepUp.onPress}>
+            <Text style={styles.stepUpText}>{stepUp.label}</Text>
+            <Text style={styles.stepUpPerks}>{stepUp.perks}</Text>
+          </Pressable>
+        ) : null}
         <Pressable style={[styles.button, styles.primary]} onPress={() => void shareVictory(entry)}>
           <Text style={styles.primaryText}>SHARE</Text>
         </Pressable>
@@ -208,6 +218,25 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.chip,
   },
   primary: { backgroundColor: palette.gold + '1A', marginTop: space(6) },
+  stepUp: {
+    marginTop: space(6),
+    borderColor: palette.orange,
+    backgroundColor: palette.orange + '1A',
+    alignItems: 'center',
+    gap: space(1),
+  },
+  stepUpText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.label,
+    color: palette.orange,
+    textAlign: 'center',
+  },
+  stepUpPerks: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+    textAlign: 'center',
+  },
   primaryText: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.label,

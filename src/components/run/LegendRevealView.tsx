@@ -26,12 +26,24 @@ interface LegendRevealViewProps {
   offer: RosterPlayer;
   onScout: () => void;
   onDecline: () => void;
+  /** Reveal copy overrides. Defaults are the recruit-node scout beat; the Boss Legend
+   * Signing passes its own ("beat the legend, sign the legend"). */
+  kicker?: string;
+  loanNote?: string;
+  signLabel?: string;
 }
 
 const REVEAL_MS = 280;
 const CENTER_X = Dimensions.get('window').width / 2;
 
-export function LegendRevealView({ offer, onScout, onDecline }: LegendRevealViewProps) {
+export function LegendRevealView({
+  offer,
+  onScout,
+  onDecline,
+  kicker = 'A LEGEND APPEARS',
+  loanNote = 'ON LOAN: yours for this run only',
+  signLabel = 'SIGN (ON LOAN)',
+}: LegendRevealViewProps) {
   const [revealed, setRevealed] = useState(false);
   const [burst, setBurst] = useState(0);
   const flashRef = useRef<FlashOverlayHandle>(null);
@@ -57,7 +69,7 @@ export function LegendRevealView({ offer, onScout, onDecline }: LegendRevealView
 
   return (
     <Screen style={styles.container} topGap={space(4)}>
-      <Text style={styles.kicker}>A LEGEND APPEARS</Text>
+      <Text style={styles.kicker}>{kicker}</Text>
 
       <ShakeView ref={shakeRef} style={styles.stage}>
         {revealed ? (
@@ -65,7 +77,7 @@ export function LegendRevealView({ offer, onScout, onDecline }: LegendRevealView
             <LegendaryHalo visible />
             <View style={styles.card}>
               <PlayerCard rp={offer} expanded />
-              <Text style={styles.onLoan}>ON LOAN: yours for this run only</Text>
+              <Text style={styles.onLoan}>{loanNote}</Text>
             </View>
           </View>
         ) : (
@@ -85,7 +97,7 @@ export function LegendRevealView({ offer, onScout, onDecline }: LegendRevealView
             </Text>
           ) : null}
           <Pressable style={[styles.button, styles.primary]} onPress={onScout}>
-            <Text style={styles.primaryText}>SIGN (ON LOAN)</Text>
+            <Text style={styles.primaryText}>{signLabel}</Text>
           </Pressable>
           <Pressable onPress={onDecline}>
             <Text style={styles.pass}>Pass</Text>

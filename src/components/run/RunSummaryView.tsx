@@ -12,6 +12,7 @@ import {
   type LadderClass,
 } from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
+import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** End-of-run summary. Coins were banked into the wallet as they were earned; a clear
@@ -32,6 +33,10 @@ interface RunSummaryViewProps {
   lossClock?: string;
   /** On a loss at the frontier: the class one clear would have unlocked (a retry nudge). */
   nextUnlockLabel?: PlayerClass;
+  /** On a milestone-banked hard/insane loss: the recruit whose banked copy OWNED them
+   * outright (C/B own at one copy). A banked copy that only progressed shows through
+   * `progressed` instead. */
+  bankedRecruit?: RosterPlayer;
   onNewRun: () => void;
   onMenu: () => void;
 }
@@ -49,9 +54,12 @@ export function RunSummaryView({
   lossMargin,
   lossClock,
   nextUnlockLabel,
+  bankedRecruit,
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
+  // The milestone consolation: a deep hard/insane loss still banked one recruit copy.
+  const bankedName = bankedRecruit?.player.name ?? (!champion ? progressed[0]?.player.player.name : undefined);
   // Quiet the unlock banner's reward glow once the player settles on this terminal
   // screen; the next touch wakes it. Mirrors the hub/run-map idle-pause.
   const { idle, bump } = useIdle(HUB_IDLE_MS);
@@ -107,6 +115,14 @@ export function RunSummaryView({
       ) : null}
       {!champion && nextUnlockLabel ? (
         <Text style={styles.nudge}>One clear from the {nextUnlockLabel} ladder.</Text>
+      ) : null}
+      {!champion && bankedName ? (
+        <Pop popOnMount>
+          <Text style={styles.banked}>
+            HE STAYS IN TOUCH: {bankedName.toUpperCase()}
+            {bankedRecruit ? ' JOINS THE COLLECTION' : ' +1 COPY BANKED'}
+          </Text>
+        </Pop>
       ) : null}
       <CollectionProgressStrip progressed={progressed} />
       <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
@@ -165,6 +181,14 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     textAlign: 'center',
     marginTop: space(2),
+  },
+  banked: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
+    textAlign: 'center',
+    marginTop: space(3),
+    paddingHorizontal: space(4),
   },
   button: {
     marginTop: space(7),

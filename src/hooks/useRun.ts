@@ -13,6 +13,7 @@ import {
   type BountyGrant,
 } from '@/game/home-roster';
 import { createRNG, deriveSeed } from '@/game/rng';
+import type { Difficulty } from '@/game/difficulty-mode';
 import { copiesToOwn } from '@/game/collection';
 import { playerDraftClass } from '@/game/draft';
 import { coachesWonByClear } from '@/game/coaches';
@@ -148,9 +149,14 @@ export function useRun() {
             new Set(next.ownedCoaches)
           )
         : [];
-      // The players this championship unlocks/progresses, captured against the PRE-merge
-      // collection (the merge below deposits them), for the scouted-player reveal + strip.
-      wonPlayersRef.current = previewRunAcquisitions(next, model.core.roster, champion);
+      // The players this settle unlocks/progresses (a milestone-banked loss included),
+      // captured against the PRE-merge collection (the merge below deposits them), for
+      // the scouted-player reveal + the summary strips.
+      wonPlayersRef.current = previewRunAcquisitions(next, model.core.roster, {
+        champion,
+        playedDifficulty: model.difficulty,
+        bossWins: model.core.currentMapIndex,
+      });
       // A championship banks a Hall of Fame snapshot of the final game. Date.now() lives
       // here (the hook), keeping the merge and the entry builder clock-free.
       const championEntry =
@@ -163,9 +169,10 @@ export function useRun() {
               Date.now()
             )
           : undefined;
-      // Grant this cell's one-time bounty against the PRE-merge home (its ladderProgress is
-      // still the pre-clear frontier, which the first-clear test reads). Seeded off the run so
-      // a resumed settle reproduces the same grant; the merge below spreads the granted home.
+      // Grant this cell's one-time bounty against the PRE-merge home (its clearedCells set
+      // does not hold this cell yet, which the cell-exact first-clear test reads). Seeded off
+      // the run so a resumed settle reproduces the same grant; the merge spreads the granted
+      // home.
       const { home: withBounty, granted: bountyGrant } = claimRunBounty(
         next,
         model.difficulty,
@@ -175,16 +182,15 @@ export function useRun() {
       );
       bountyGrantRef.current = bountyGrant;
       next = {
-        ...mergeRunGainsIntoHome(
-          withBounty,
-          model.core.roster,
-          model.core.rewards,
-          model.legend.offeredThisRun,
+        ...mergeRunGainsIntoHome(withBounty, model.core.roster, {
+          rewards: model.core.rewards,
+          legendOffered: model.legend.offeredThisRun,
           champion,
-          model.ladderClass,
-          model.difficulty,
-          championEntry
-        ),
+          clearedClass: model.ladderClass,
+          playedDifficulty: model.difficulty,
+          championEntry,
+          bossWins: model.core.currentMapIndex,
+        }),
         settledRunId: runId,
       };
     }
@@ -234,6 +240,8 @@ export function useRun() {
       unequipToBag: (playerIndex: number) => dispatch({ type: 'unequipToBag', playerIndex }),
       scoutLegend: () => dispatch({ type: 'scoutLegend' }),
       declineLegend: () => dispatch({ type: 'declineLegend' }),
+      acceptLegendSign: () => dispatch({ type: 'acceptLegendSign' }),
+      declineLegendSign: () => dispatch({ type: 'declineLegendSign' }),
       skipNode: () => dispatch({ type: 'skipNode' }),
       backToMap: () => dispatch({ type: 'backToMap' }),
       // Start a fresh run from the summary. The finished run already settled, so drop its
@@ -242,6 +250,16 @@ export function useRun() {
         if (!homeRoster) return;
         clearActiveRun();
         dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster });
+      },
+      // The victory step-up: run it back one difficulty up, from the win screen (the
+      // confidence peak). Saves the selection AND starts the run from the same updated
+      // roster object, so the new run can never race the context write.
+      stepUpRun: (difficulty: Difficulty) => {
+        if (!homeRoster) return;
+        const next = { ...homeRoster, selectedDifficulty: difficulty };
+        saveHomeRoster(next);
+        clearActiveRun();
+        dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster: next });
       },
     }),
     [homeRoster, saveHomeRoster, clearActiveRun]

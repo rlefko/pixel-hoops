@@ -19,6 +19,7 @@ import {
 } from '@/game/difficulty-mode';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { useIdle, HUB_IDLE_MS } from '@/feel';
+import { useCourtTheme } from '@/hooks/useCourtTheme';
 import { RosterStrip } from './RosterStrip';
 import { BoostRow } from './BoostRow';
 import { SetRow } from './SetRow';
@@ -85,6 +86,7 @@ export function RunMapView({
   // entry-banner glow) after a stretch of no touch, like the hub screens; the next touch
   // wakes them. The map is a screen the player stares at while choosing a node.
   const { idle, bump } = useIdle(HUB_IDLE_MS);
+  const courtTheme = useCourtTheme();
   const reachable = useMemo(
     () =>
       new Set(getReachableNodes(core.map, core.currentNodeId).map((n) => n.id)),
@@ -157,7 +159,14 @@ export function RunMapView({
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.board, { width: BOARD_WIDTH, height }]}>
-          <ArenaBackdrop width={BOARD_WIDTH} height={height} paused={idle} />
+          <ArenaBackdrop
+            width={BOARD_WIDTH}
+            height={height}
+            paused={idle}
+            floorColor={courtTheme.floor}
+            plankColor={courtTheme.plank}
+            frameColor={courtTheme.line}
+          />
 
           {edges.map((edge) => (
             <DottedPath key={edge.key} edge={edge} />

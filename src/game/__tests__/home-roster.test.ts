@@ -42,7 +42,7 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     const { home, runRoster, recruit } = setup();
     expect(home.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
 
-    const next = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
+    const next = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
     // An A-class recruit needs three copies, so one clear leaves it collecting (1/3), not
     // yet owned or draftable.
     expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
@@ -58,7 +58,7 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
       .map(realPlayerToRosterPlayer)
       .find((rp) => !ownedKeys.has(playerKey(rp)))!;
     const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [recruit] };
-    const next = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
+    const next = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
     expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(true);
     expect(next.players.length).toBe(home.players.length + 1);
     expect(next.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
@@ -69,7 +69,7 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     let cur = home;
     for (let i = 0; i < 3; i++) {
       const runRoster: Roster = { starters: cur.players.slice(0, 5), bench: [recruit] };
-      cur = mergeRunGainsIntoHome(cur, runRoster, rewards, false, true, 'C', 'easy');
+      cur = mergeRunGainsIntoHome(cur, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
     }
     expect(cur.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(true);
     expect(cur.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
@@ -77,7 +77,7 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
 
   it('drops new recruits on a loss but never loses owned players or copies', () => {
     const { home, runRoster, recruit } = setup();
-    const next = mergeRunGainsIntoHome(home, runRoster, rewards, false, false, 'C', 'easy');
+    const next = mergeRunGainsIntoHome(home, runRoster, { rewards, clearedClass: 'C', playedDifficulty: 'easy' });
 
     expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
     expect(next.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
@@ -95,21 +95,21 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     expect(legend.legendary).toBe(true);
     const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [legend] };
 
-    const won = mergeRunGainsIntoHome(home, runRoster, rewards, true, true, 'S', 'easy');
+    const won = mergeRunGainsIntoHome(home, runRoster, { rewards, legendOffered: true, champion: true, clearedClass: 'S', playedDifficulty: 'easy' });
     const kept = won.players.find((p) => playerKey(p) === playerKey(legend));
     expect(kept).toBeDefined();
     expect(kept!.legendary).toBe(true);
     expect(kept!.onLoan).toBeUndefined(); // banked as a normal owned player (no on-loan buff)
 
-    const lost = mergeRunGainsIntoHome(home, runRoster, rewards, true, false, 'S', 'easy');
+    const lost = mergeRunGainsIntoHome(home, runRoster, { rewards, legendOffered: true, clearedClass: 'S', playedDifficulty: 'easy' });
     expect(lost.players.some((p) => playerKey(p) === playerKey(legend))).toBe(false);
     expect(lost.collecting.some((c) => playerKey(c.player) === playerKey(legend))).toBe(false);
   });
 
   it('banks reputation (not coins) on both a clear and a loss', () => {
     const { home, runRoster } = setup();
-    const won = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
-    const lost = mergeRunGainsIntoHome(home, runRoster, rewards, false, false, 'C', 'easy');
+    const won = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
+    const lost = mergeRunGainsIntoHome(home, runRoster, { rewards, clearedClass: 'C', playedDifficulty: 'easy' });
     // Coins bank as they are earned (the useRun ledger), so the merge never touches the
     // wallet; only reputation banks at run end here.
     expect(won.coins).toBe(home.coins);
@@ -121,8 +121,8 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
   it('advances the ladder only on a clear', () => {
     const { home, runRoster } = setup();
     expect(home.ladderProgress.easy).toBeNull();
-    const won = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
-    const lost = mergeRunGainsIntoHome(home, runRoster, rewards, false, false, 'C', 'easy');
+    const won = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
+    const lost = mergeRunGainsIntoHome(home, runRoster, { rewards, clearedClass: 'C', playedDifficulty: 'easy' });
     expect(won.ladderProgress.easy).toBe('C');
     expect(lost.ladderProgress.easy).toBeNull();
   });
@@ -181,11 +181,11 @@ describe('coaches', () => {
     const home = createRookieRoster(createRNG('coach2'));
     const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [] };
     // First clear of C on easy: grants C rank-1 AND opens B (the B opener): two coaches.
-    const next = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
+    const next = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
     expect(next.ownedCoaches.length).toBe(home.ownedCoaches.length + 2);
     expect(next.selectedCoachId).toBe(home.selectedCoachId); // a win never changes the equip
     // A loss wins nothing.
-    const lost = mergeRunGainsIntoHome(home, runRoster, rewards, false, false, 'C', 'easy');
+    const lost = mergeRunGainsIntoHome(home, runRoster, { rewards, clearedClass: 'C', playedDifficulty: 'easy' });
     expect(lost.ownedCoaches).toEqual(home.ownedCoaches);
   });
 
@@ -248,7 +248,7 @@ describe('previewRunAcquisitions', () => {
     const { cRecruit, aRecruit } = freshRecruits(home);
     const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [cRecruit, aRecruit] };
 
-    const won = previewRunAcquisitions(home, runRoster, true);
+    const won = previewRunAcquisitions(home, runRoster, { champion: true });
     // C owns at one copy -> unlocked; A owns at three -> progressed 0->1.
     expect(won.unlocked.some((p) => playerKey(p) === playerKey(cRecruit))).toBe(true);
     expect(won.unlocked.some((p) => playerKey(p) === playerKey(aRecruit))).toBe(false);
@@ -256,7 +256,7 @@ describe('previewRunAcquisitions', () => {
       expect.objectContaining({ before: 0, after: 1, threshold: 3 })
     );
 
-    const lost = previewRunAcquisitions(home, runRoster, false);
+    const lost = previewRunAcquisitions(home, runRoster, {});
     expect(lost.unlocked).toEqual([]);
     expect(lost.progressed).toEqual([]);
   });
@@ -265,8 +265,8 @@ describe('previewRunAcquisitions', () => {
     const home = createRookieRoster(createRNG('acq2'));
     const { cRecruit, aRecruit } = freshRecruits(home);
     const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [cRecruit, aRecruit] };
-    const preview = previewRunAcquisitions(home, runRoster, true);
-    const merged = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
+    const preview = previewRunAcquisitions(home, runRoster, { champion: true });
+    const merged = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
     for (const p of preview.unlocked) {
       expect(merged.players.some((q) => playerKey(q) === playerKey(p))).toBe(true);
     }
@@ -345,10 +345,24 @@ describe('applyPlayerPull', () => {
 });
 
 describe('claimRunBounty: one-time championship bounties', () => {
+  // Mirrors the load migration: a frontier implies every cell at-or-below it is cleared
+  // (an in-memory home can never legitimately hold a frontier without its cells).
+  const cellsForProgress = (progress: Partial<HomeRoster['ladderProgress']>): string[] => {
+    const cells: string[] = [];
+    for (const [d, frontier] of Object.entries(progress)) {
+      if (!frontier) continue;
+      for (const cls of ['C', 'B', 'A', 'S', 'S+'] as const) {
+        cells.push(bountyKey(d as keyof HomeRoster['ladderProgress'], cls));
+        if (cls === frontier) break;
+      }
+    }
+    return cells;
+  };
   const withProgress = (seed: string, progress: Partial<HomeRoster['ladderProgress']>): HomeRoster => ({
     ...createRookieRoster(createRNG(seed)),
     coins: 1000,
     ladderProgress: { easy: null, medium: null, hard: null, insane: null, ...progress },
+    clearedCells: cellsForProgress(progress),
   });
 
   it('grants a coins bounty on a first clear, then nothing on a replay (idempotent)', () => {
@@ -363,15 +377,30 @@ describe('claimRunBounty: one-time championship bounties', () => {
     expect(second.home.coins).toBe(first.home.coins);
   });
 
-  it('never materially grants a cell the ladder already covers (crests-only for veterans)', () => {
-    // A veteran who has cleared S on easy replays easy:C. claimedBounties is empty, but the
-    // pre-clear frontier (S) is at/above C, so no material is granted (their crest still shows,
-    // derived from ladderProgress).
+  it('never materially grants a cell already cleared (crests-only for veterans)', () => {
+    // A veteran who climbed easy to S replays easy:C. claimedBounties is empty, but the
+    // cell is in clearedCells (seeded from the frontier on load), so no material is
+    // granted (their crest still shows, derived from the cell set).
     const veteran = withProgress('b-vet', { easy: 'S' });
     const res = claimRunBounty(veteran, 'easy', 'C', true, createRNG('gv'));
     expect(res.granted).toBeNull();
     expect(res.home.coins).toBe(veteran.coins);
     expect(res.home.claimedBounties).toEqual([]);
+  });
+
+  it('a jumped-over cell still pays: bounty claims are cell-exact, not frontier-based', () => {
+    // Cross-difficulty unlocks let a player clear insane:S without ever touching
+    // insane:C. The frontier reads S, but insane:C was never CLEARED, so its bounty
+    // (an A-tier player grant) is still owed when they come back for it.
+    const jumper: HomeRoster = {
+      ...createRookieRoster(createRNG('b-jump')),
+      coins: 1000,
+      ladderProgress: { easy: null, medium: null, hard: null, insane: 'S' },
+      clearedCells: [bountyKey('insane', 'S')],
+    };
+    const res = claimRunBounty(jumper, 'insane', 'C', true, createRNG('gj'));
+    expect(res.granted).not.toBeNull();
+    expect(res.home.claimedBounties).toContain(bountyKey('insane', 'C'));
   });
 
   it('grants nothing on a loss', () => {
@@ -454,6 +483,215 @@ describe('v15 bounties migration', () => {
     };
     const restored = deserializeHomeRoster(dirty)!;
     expect(restored.claimedBounties).toEqual([bountyKey('hard', 'A')]);
+  });
+});
+
+describe('v16 cleared-cells migration', () => {
+  it('seeds clearedCells from each frontier on a pre-v16 save', () => {
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('c-mig')),
+      ladderProgress: { easy: 'A', medium: 'C', hard: null, insane: null },
+    };
+    const serialized = serializeHomeRoster(home);
+    delete (serialized.data as Partial<HomeRoster>).clearedCells; // simulate pre-v16
+    const restored = deserializeHomeRoster(serialized)!;
+    expect([...restored.clearedCells].sort()).toEqual(
+      [
+        bountyKey('easy', 'C'),
+        bountyKey('easy', 'B'),
+        bountyKey('easy', 'A'),
+        bountyKey('medium', 'C'),
+      ].sort()
+    );
+  });
+
+  it('a migrated veteran cannot re-farm a conquered cell bounty', () => {
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('c-farm')),
+      coins: 0,
+      ladderProgress: { easy: 'S', medium: null, hard: null, insane: null },
+      claimedBounties: [], // pre-v15 veteran: cleared long ago, nothing recorded
+    };
+    const serialized = serializeHomeRoster(home);
+    delete (serialized.data as Partial<HomeRoster>).clearedCells;
+    const restored = deserializeHomeRoster(serialized)!;
+    const res = claimRunBounty(restored, 'easy', 'C', true, createRNG('cf'));
+    expect(res.granted).toBeNull();
+    expect(res.home.coins).toBe(0);
+  });
+
+  it('keeps saved cells, drops garbage, and self-heals the frontier upward', () => {
+    const home = createRookieRoster(createRNG('c-heal'));
+    const dirty = {
+      version: 16,
+      data: {
+        ...home,
+        // Cells say insane:S was cleared, but the saved frontier lags at null.
+        clearedCells: [bountyKey('insane', 'S'), 'garbage', 7, null],
+        ladderProgress: { easy: null, medium: null, hard: null, insane: null },
+      },
+    };
+    const restored = deserializeHomeRoster(dirty)!;
+    expect(restored.clearedCells).toEqual([bountyKey('insane', 'S')]);
+    expect(restored.ladderProgress.insane).toBe('S'); // healed from the cell set
+  });
+
+  it('round-trips clearedCells and unions frontier-derived cells', () => {
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('c-rt')),
+      ladderProgress: { easy: 'C', medium: null, hard: null, insane: null },
+      clearedCells: [bountyKey('hard', 'B')], // a jumped cell, no easy cells recorded
+    };
+    const restored = deserializeHomeRoster(serializeHomeRoster(home))!;
+    expect(restored.clearedCells).toContain(bountyKey('hard', 'B'));
+    expect(restored.clearedCells).toContain(bountyKey('easy', 'C')); // seeded from frontier
+    expect(restored.ladderProgress.hard).toBe('B'); // healed upward
+  });
+});
+
+describe('the copies multiplier (harder clears bank more of every recruit)', () => {
+  it('a hard clear (x3) owns an A recruit in ONE championship', () => {
+    const { home, runRoster, recruit } = setup(); // recruit is A-class (threshold 3)
+    const next = mergeRunGainsIntoHome(home, runRoster, {
+      champion: true,
+      clearedClass: 'C',
+      playedDifficulty: 'hard',
+    });
+    expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(true);
+    expect(next.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
+  });
+
+  it('a medium clear (x2) leaves the same A recruit at 2/3', () => {
+    const { home, runRoster, recruit } = setup();
+    const next = mergeRunGainsIntoHome(home, runRoster, {
+      champion: true,
+      clearedClass: 'C',
+      playedDifficulty: 'medium',
+    });
+    const entry = next.collecting.find((c) => playerKey(c.player) === playerKey(recruit));
+    expect(entry?.copies).toBe(2);
+  });
+
+  it('an insane clear (x4) tops an S recruit up to 4/6, never past the threshold', () => {
+    const home = createRookieRoster(createRNG('mul-s'));
+    const sRecruit = realPlayerToRosterPlayer(poolByClass('S')[0]);
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [sRecruit] };
+    const next = mergeRunGainsIntoHome(home, runRoster, {
+      champion: true,
+      clearedClass: 'S',
+      playedDifficulty: 'insane',
+    });
+    const entry = next.collecting.find((c) => playerKey(c.player) === playerKey(sRecruit));
+    expect(entry?.copies).toBe(4);
+    // A follow-up insane clear deposits only the two copies still needed (capped), so
+    // the player unlocks exactly at 6 with nothing minted past the threshold.
+    const again = mergeRunGainsIntoHome(next, runRoster, {
+      champion: true,
+      clearedClass: 'S',
+      playedDifficulty: 'insane',
+    });
+    expect(again.players.some((p) => playerKey(p) === playerKey(sRecruit))).toBe(true);
+    expect(again.collecting.some((c) => playerKey(c.player) === playerKey(sRecruit))).toBe(false);
+  });
+
+  it('legends are exempt: exactly one copy regardless of difficulty', () => {
+    const home = createRookieRoster(createRNG('mul-leg'));
+    const legend: RosterPlayer = { ...realPlayerToRosterPlayer(NBA_LEGENDS[0]), onLoan: true };
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [legend] };
+    const next = mergeRunGainsIntoHome(home, runRoster, {
+      champion: true,
+      clearedClass: 'S+',
+      playedDifficulty: 'insane',
+    });
+    // S+ owns at one copy; the x4 multiplier must not apply (nothing to multiply into).
+    expect(next.players.filter((p) => playerKey(p) === playerKey(legend))).toHaveLength(1);
+  });
+
+  it('the preview mirrors the merge under the multiplier', () => {
+    const { home, runRoster, recruit } = setup();
+    const settle = { champion: true, playedDifficulty: 'hard' as const };
+    const preview = previewRunAcquisitions(home, runRoster, settle);
+    const merged = mergeRunGainsIntoHome(home, runRoster, {
+      ...settle,
+      clearedClass: 'C' as const,
+    });
+    expect(preview.unlocked.map(playerKey)).toContain(playerKey(recruit));
+    expect(merged.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(true);
+    expect(preview.progressed).toEqual([]);
+  });
+});
+
+describe('milestone banking (a deep hard/insane loss still pays one copy)', () => {
+  const lossAt = (bossWins: number, playedDifficulty: 'easy' | 'medium' | 'hard' | 'insane') => {
+    const { home, runRoster, recruit } = setup(); // one new A-class recruit
+    const next = mergeRunGainsIntoHome(home, runRoster, { playedDifficulty, bossWins });
+    return { next, recruit };
+  };
+
+  it('a hard loss after 4 boss wins banks one copy of the best recruit', () => {
+    const { next, recruit } = lossAt(4, 'hard');
+    const entry = next.collecting.find((c) => playerKey(c.player) === playerKey(recruit));
+    expect(entry?.copies).toBe(1); // exactly one copy, never multiplied
+  });
+
+  it('an insane loss short of the milestone banks nothing', () => {
+    const { next, recruit } = lossAt(3, 'insane');
+    expect(next.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
+  });
+
+  it('easy and medium losses never bank (their forgiveness is the timeout pool)', () => {
+    for (const d of ['easy', 'medium'] as const) {
+      const { next, recruit } = lossAt(6, d);
+      expect(next.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
+    }
+  });
+
+  it('banks only the single BEST non-legend recruit, and never a legend', () => {
+    const home = createRookieRoster(createRNG('bank-best'));
+    const legend: RosterPlayer = { ...realPlayerToRosterPlayer(NBA_LEGENDS[0]), onLoan: true };
+    const aRecruit = realPlayerToRosterPlayer(poolByClass('A')[0]);
+    const cRecruit = realPlayerToRosterPlayer(poolByClass('C')[0]);
+    const runRoster: Roster = {
+      starters: home.players.slice(0, 5),
+      bench: [legend, cRecruit, aRecruit],
+    };
+    const next = mergeRunGainsIntoHome(home, runRoster, {
+      playedDifficulty: 'insane',
+      bossWins: 5,
+    });
+    // The legend is barred (it would own at one copy from a LOSS); the A beats the C.
+    expect(next.players.some((p) => playerKey(p) === playerKey(legend))).toBe(false);
+    expect(next.collecting.some((c) => playerKey(c.player) === playerKey(legend))).toBe(false);
+    expect(next.collecting.some((c) => playerKey(c.player) === playerKey(aRecruit))).toBe(true);
+    expect(next.collecting.some((c) => playerKey(c.player) === playerKey(cRecruit))).toBe(false);
+  });
+
+  it('the preview mirrors a milestone-banked loss', () => {
+    const { home, runRoster, recruit } = setup();
+    const preview = previewRunAcquisitions(home, runRoster, {
+      playedDifficulty: 'hard',
+      bossWins: 4,
+    });
+    expect(preview.unlocked).toEqual([]);
+    expect(preview.progressed.map((p) => playerKey(p.player))).toEqual([playerKey(recruit)]);
+  });
+});
+
+describe('mergeRunGainsIntoHome: cleared cells', () => {
+  it('a championship stamps its exact cell; a loss stamps nothing', () => {
+    const { home, runRoster } = setup();
+    const won = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'hard' });
+    expect(won.clearedCells).toContain(bountyKey('hard', 'C'));
+    expect(won.ladderProgress.hard).toBe('C'); // the frontier stays in sync
+    const lost = mergeRunGainsIntoHome(home, runRoster, { rewards });
+    expect(lost.clearedCells).toEqual([]);
+  });
+
+  it('re-clearing a cell does not duplicate it', () => {
+    const { home, runRoster } = setup();
+    const once = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
+    const twice = mergeRunGainsIntoHome(once, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
+    expect(twice.clearedCells.filter((k) => k === bountyKey('easy', 'C'))).toHaveLength(1);
   });
 });
 

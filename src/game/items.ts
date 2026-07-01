@@ -128,15 +128,15 @@ const BOOST_STOCK_SIZE = 3;
 
 /**
  * Deterministic Boost-node stock: BOOST_STOCK_SIZE distinct items, each rolled on the
- * shared in-run rarity table (74 / 20 / 5 / 1). The rare-and-up roll is its own
- * jackpot. The player grabs one of these for free.
+ * shared in-run rarity table (74 / 20 / 5 / 1, shifted up by the difficulty's
+ * rarityBonus). The rare-and-up roll is its own jackpot. The player grabs one free.
  */
-export function rollBoostStock(rng: RNG): ItemDef[] {
+export function rollBoostStock(rng: RNG, rarityBonus = 0): ItemDef[] {
   const stock: ItemDef[] = [];
   const seen = new Set<string>();
   // Bounded attempts keep the RNG-draw count predictable while avoiding dupes.
   for (let attempt = 0; attempt < BOOST_STOCK_SIZE * 4 && stock.length < BOOST_STOCK_SIZE; attempt++) {
-    const item = pickFrom(rollRarity(rng), rng);
+    const item = pickFrom(rollRarity(rng, 0, rarityBonus), rng);
     if (seen.has(item.id)) continue;
     seen.add(item.id);
     stock.push(item);
@@ -146,10 +146,11 @@ export function rollBoostStock(rng: RNG): ItemDef[] {
 
 /**
  * Deterministic boss drop. A boss ALWAYS drops, on the boss table (75 rare / 20 epic
- * / 5 legendary, never common). Every other node type drops nothing (elites reward
- * coins/TP/reputation only).
+ * / 5 legendary, never common; the difficulty's bossRarityBonus shifts that toward
+ * epic/legendary). Every other node type drops nothing (elites reward coins/TP/
+ * reputation only).
  */
-export function rollDrop(nodeType: MapNodeType, rng: RNG): ItemDef | null {
-  if (nodeType === 'boss') return pickFrom(rollBossRarity(rng), rng);
+export function rollDrop(nodeType: MapNodeType, rng: RNG, bossRarityBonus = 0): ItemDef | null {
+  if (nodeType === 'boss') return pickFrom(rollBossRarity(rng, bossRarityBonus), rng);
   return null;
 }
