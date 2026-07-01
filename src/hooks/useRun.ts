@@ -9,9 +9,12 @@ import {
   playerKey,
   rememberDraftRotation,
   selectCoach,
+  settleDailyRewards,
   type AcquisitionDelta,
   type BountyGrant,
+  type DailyGrants,
 } from '@/game/home-roster';
+import { dayKey, weekKey } from '@/game/daily';
 import { createRNG, deriveSeed } from '@/game/rng';
 import type { Difficulty } from '@/game/difficulty-mode';
 import { copiesToOwn } from '@/game/collection';
@@ -56,6 +59,7 @@ export function useRun() {
   // The one-time Championship Bounty this run's first-clear granted (null otherwise),
   // surfaced as the headline "harder difficulty paid off" reveal beat.
   const bountyGrantRef = useRef<BountyGrant | null>(null);
+  const dailyGrantsRef = useRef<DailyGrants | null>(null);
 
   // Start the run once, after both the home roster and the saved-run slot have hydrated.
   // The home screen passes `mode` 'new' or 'resume'; only 'resume' (with a saved run)
@@ -125,6 +129,7 @@ export function useRun() {
       wonCoachRef.current = [];
       wonPlayersRef.current = { unlocked: [], progressed: [] };
       bountyGrantRef.current = null;
+      dailyGrantsRef.current = null;
     }
 
     const earned = model.core.rewards.coins;
@@ -159,15 +164,10 @@ export function useRun() {
       });
       // A championship banks a Hall of Fame snapshot of the final game. Date.now() lives
       // here (the hook), keeping the merge and the entry builder clock-free.
+      const now = Date.now();
       const championEntry =
         champion && model.game
-          ? buildHallOfFameEntry(
-              model.game,
-              model.difficulty,
-              model.ladderClass,
-              model.wins,
-              Date.now()
-            )
+          ? buildHallOfFameEntry(model.game, model.difficulty, model.ladderClass, model.wins, now)
           : undefined;
       // Grant this cell's one-time bounty against the PRE-merge home (its clearedCells set
       // does not hold this cell yet, which the cell-exact first-clear test reads). Seeded off
@@ -181,8 +181,22 @@ export function useRun() {
         createRNG(deriveSeed(model.core.seed, 'bounty'))
       );
       bountyGrantRef.current = bountyGrant;
+      // The Daily Layer settle: weekly wins bank on EVERY settle (losses included);
+      // the first-win purse and Spotlight bounty are champion-gated inside. Runs
+      // against the pre-merge home (its clearedCells derived the spotlight the hub
+      // showed) with its own rng label, so a crash-resumed settle reproduces the
+      // exact grants. The stamps land in the same atomic write as everything else.
+      const { home: withDaily, granted: dailyGrants } = settleDailyRewards(withBounty, {
+        runCell: { difficulty: model.difficulty, ladderClass: model.ladderClass },
+        today: dayKey(now),
+        week: weekKey(now),
+        champion,
+        wins: model.wins,
+        rng: createRNG(deriveSeed(model.core.seed, 'daily')),
+      });
+      dailyGrantsRef.current = dailyGrants;
       next = {
-        ...mergeRunGainsIntoHome(withBounty, model.core.roster, {
+        ...mergeRunGainsIntoHome(withDaily, model.core.roster, {
           rewards: model.core.rewards,
           legendOffered: model.legend.offeredThisRun,
           champion,
@@ -288,6 +302,7 @@ export function useRun() {
     wonCoachIds: wonCoachRef.current,
     wonPlayers: wonPlayersRef.current,
     bountyGrant: bountyGrantRef.current,
+    dailyGrants: dailyGrantsRef.current,
     collectProgress,
     equippedCoachId: homeRoster?.selectedCoachId,
   };
