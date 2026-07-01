@@ -890,12 +890,7 @@ export interface DailyGrants {
   /** The Spotlight bounty: today's featured cell, won. */
   spotlight?: { cell: DailyCell; coins: number };
   /** First championship of the day: purse + the free scout pull's outcome. */
-  firstWin?: {
-    coins: number;
-    player: RosterPlayer;
-    playerUnlocked: boolean;
-    overflowCoins: number;
-  };
+  firstWin?: { coins: number; player: RosterPlayer; overflowCoins: number };
   /** Weekly tiers crossed by this settle, in ascending order. */
   weeklyTiers: { tier: number; wins: number; coins: number; abilityId?: string }[];
   /** The post-settle weekly counters. */
@@ -958,7 +953,6 @@ export function settleDailyRewards(
     granted.firstWin = {
       coins: FIRST_WIN_COINS,
       player: result.player,
-      playerUnlocked: result.unlockedNow,
       overflowCoins: result.overflowCoins,
     };
   }
