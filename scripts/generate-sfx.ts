@@ -53,6 +53,22 @@ function writeMusicManifest(names: MusicName[]): void {
   writeFileSync(musicManifestPath, body);
 }
 
+/** Peak and RMS in dBFS, so loudness parity across bakes is a printed fact. */
+function levels(...channels: Float32Array[]): string {
+  let peak = 0;
+  let sumSquares = 0;
+  let count = 0;
+  for (const channel of channels) {
+    for (const sample of channel) {
+      peak = Math.max(peak, Math.abs(sample));
+      sumSquares += sample * sample;
+    }
+    count += channel.length;
+  }
+  const db = (v: number) => (v > 0 ? (20 * Math.log10(v)).toFixed(1) : '-inf');
+  return `peak ${db(peak)} dBFS, rms ${db(Math.sqrt(sumSquares / count))} dBFS`;
+}
+
 function main(): void {
   mkdirSync(audioDir, { recursive: true });
 
@@ -60,7 +76,7 @@ function main(): void {
   for (const name of names) {
     const samples = renderRecipe(RECIPES[name]);
     writeFileSync(join(audioDir, `${name}.wav`), encodeWav(samples));
-    console.log(`ok   ${name}.wav  (${samples.length} samples)`);
+    console.log(`ok   ${name}.wav  (${samples.length} samples, ${levels(samples)})`);
   }
   writeManifest(names);
 
@@ -71,7 +87,7 @@ function main(): void {
     writeFileSync(join(audioDir, `music_${name}.wav`), wav);
     const seconds = (left.length / MUSIC_SAMPLE_RATE).toFixed(1);
     const mb = (wav.length / 1024 / 1024).toFixed(2);
-    console.log(`ok   music_${name}.wav  (${seconds}s stereo, ${mb} MB)`);
+    console.log(`ok   music_${name}.wav  (${seconds}s stereo, ${mb} MB, ${levels(left, right)})`);
   }
   writeMusicManifest(musicNames);
 

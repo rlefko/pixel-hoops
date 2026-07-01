@@ -1,21 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { renderMusicLoop, loopSamples, noteHz, beatMs, type MusicTrack } from '@/audio/sequencer';
 import { MUSIC_TRACKS, type MusicName } from '@/audio/musicTracks';
+import { peak as peakOf, allFinite } from './helpers';
 
 // Render the catalog at a low rate in tests: structure (length/peak/seam/finite) is what we
 // can assert, and 8 kHz keeps the 2.5-minute beds fast. The real rate is set by the baker.
 const TEST_SR = 8000;
-
-function peakOf(a: Float32Array): number {
-  let p = 0;
-  for (const s of a) p = Math.max(p, Math.abs(s));
-  return p;
-}
-
-function allFinite(a: Float32Array): boolean {
-  for (const s of a) if (!Number.isFinite(s)) return false;
-  return true;
-}
 
 const tinyTrack: MusicTrack = {
   bpm: 120,
@@ -117,6 +107,24 @@ describe('MUSIC_TRACKS catalog', () => {
       expect(peakOf(right), `${name} R in range`).toBeLessThanOrEqual(1);
       expect(Math.abs(left[0] - left[len - 1]), `${name} seam L`).toBeLessThan(0.02);
       expect(Math.abs(right[0] - right[len - 1]), `${name} seam R`).toBeLessThan(0.02);
+    }
+  });
+
+  it('gameEnergy shares its BPM with both run themes (the layer must lock)', () => {
+    expect(MUSIC_TRACKS.gameEnergy.bpm).toBe(MUSIC_TRACKS.runThemeA.bpm);
+    expect(MUSIC_TRACKS.gameEnergy.bpm).toBe(MUSIC_TRACKS.runThemeB.bpm);
+  });
+
+  it('no note starts at or after its loop end (tails may wrap; starts may not)', () => {
+    for (const name of Object.keys(MUSIC_TRACKS) as MusicName[]) {
+      const track: MusicTrack = MUSIC_TRACKS[name];
+      const beats = track.bars * track.beatsPerBar;
+      for (const part of track.parts) {
+        for (const note of part.notes) {
+          expect(note.beat, `${name}/${part.id} note start`).toBeGreaterThanOrEqual(0);
+          expect(note.beat, `${name}/${part.id} note start`).toBeLessThan(beats);
+        }
+      }
     }
   });
 });
