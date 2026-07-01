@@ -1,8 +1,9 @@
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
-import { Pop } from '@/components/fx';
+import { Pop, TickCounter } from '@/components/fx';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import { ClockIcon, CoinIcon, DumbbellIcon, StarIcon } from './PixelIcons';
+import { StreakFlame } from './StreakFlame';
 import type { RunRewards } from '@/types/run-map';
 
 /**
@@ -28,21 +29,32 @@ interface ResourceHeaderProps {
   timeouts?: number;
   /** Short run label, e.g. "HARD · A". */
   modeLabel?: string;
+  /** The run's win streak: shows the run-heat flame chip from 2 wins up. */
+  wins?: number;
+  /** Screen idle flag, quieting the flame's glow loop. */
+  paused?: boolean;
 }
 
 function Pill({
   icon,
   value,
   label,
+  tick = false,
 }: {
   icon: React.ReactNode;
   value: number;
   label: string;
+  /** Count value changes up audibly (the wallet receiving a payout). */
+  tick?: boolean;
 }) {
   return (
     <Pop trigger={value} style={styles.pill}>
       {icon}
-      <Text style={styles.pillValue}>{value}</Text>
+      {tick ? (
+        <TickCounter value={value} style={styles.pillValue} />
+      ) : (
+        <Text style={styles.pillValue}>{value}</Text>
+      )}
       <Text style={styles.pillLabel}>{label}</Text>
     </Pop>
   );
@@ -56,6 +68,8 @@ export function ResourceHeader({
   boostCount,
   timeouts,
   modeLabel,
+  wins,
+  paused = false,
 }: ResourceHeaderProps) {
   return (
     <View style={styles.header}>
@@ -67,7 +81,8 @@ export function ResourceHeader({
         {modeLabel ? <Text style={styles.tier}>{modeLabel}</Text> : null}
       </View>
       <View style={styles.right}>
-        <Pill icon={<CoinIcon size={12} color={palette.gold} />} value={walletCoins} label="COINS" />
+        {typeof wins === 'number' ? <StreakFlame streak={wins} paused={paused} /> : null}
+        <Pill icon={<CoinIcon size={12} color={palette.gold} />} value={walletCoins} label="COINS" tick />
         <Pill icon={<DumbbellIcon size={12} color={palette.makeGreen} />} value={rewards.trainingPoints} label="TRAIN" />
         <Pill icon={<StarIcon size={12} color={palette.gold} />} value={rewards.reputation} label="REP" />
         {typeof boostCount === 'number' ? (

@@ -31,6 +31,7 @@ export { useHubBackdrop } from './useHubBackdrop';
 export { useFlash } from './useFlash';
 export { useCountUp } from './useCountUp';
 export { useBallFlight } from './useBallFlight';
+export { useStagedReveal } from './useStagedReveal';
 export {
   usePixelWipe,
   type WipeVariant,

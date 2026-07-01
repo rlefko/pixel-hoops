@@ -3,7 +3,7 @@ import { View, StyleSheet, Pressable, FlatList, TextInput } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { Pop, ShakeView, FlashOverlay } from '@/components/fx';
-import { useGlowPulse, sfx } from '@/feel';
+import { useGlowPulse, useStagedReveal, sfx } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { LegendaryHalo, RewardConfetti } from '@/components/run/reward-fx';
 import { RARITY_COLOR, RARITY_LABEL } from '@/components/run/rarity-ui';
@@ -61,6 +61,7 @@ export function ArcadeTab() {
   const [selected, setSelected] = useState<string | null>(null);
   const [lastPull, setLastPull] = useState<{ id: string; rarity: Rarity } | null>(null);
   const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
+  const { stage } = useStagedReveal();
   const [lastScout, setLastScout] = useState<PlayerPullResult | null>(null);
   const [scoutNonce, setScoutNonce] = useState(0); // re-triggers the reveal Pop each pull
   const [query, setQuery] = useState('');
@@ -101,9 +102,13 @@ export function ArcadeTab() {
     }
     pullCounter += 1;
     const result = pullMachine(machineId, createRNG(`pull-${machineId}-${coins}-${pullCounter}`));
-    setLastPull(result);
-    fire(result.rarity); // reveal juice + rarity-tiered reward sting
     saveHomeRoster(addAbility({ ...homeRoster, coins: coins - machine.cost }, result.id));
+    // Anticipation scales with the machine's stakes (the windup hold), the payoff
+    // with the actual result (the rarity-tiered burst).
+    stage(machine.topRarity, () => {
+      setLastPull(result);
+      fire(result.rarity); // reveal juice + rarity-tiered reward sting
+    });
   };
 
   const scout = (tier: PlayerGachaTier) => {
@@ -116,13 +121,18 @@ export function ArcadeTab() {
     }
     scoutCounter += 1;
     const { home, result } = applyPlayerPull(homeRoster, tier, createRNG(`scout-${tier}-${coins}-${scoutCounter}`));
-    setLastScout(result);
-    setScoutNonce((n) => n + 1);
-    // Unlocking a player celebrates; a plain copy is a lighter beat; an overflow (whole
-    // tier owned) is the deflating "already got 'em" coin bounty.
-    if (result.isOverflow) sfx.dupe();
-    else sfx.recruit();
     saveHomeRoster(home);
+    const stakes: Rarity =
+      machine.legendary || machine.cls === 'S' ? 'legendary' : machine.cls === 'A' ? 'epic' : 'rare';
+    stage(stakes, () => {
+      setLastScout(result);
+      setScoutNonce((n) => n + 1);
+      // Unlocking a player lands the stakes-tier burst; a plain copy lets its pip
+      // clink carry the beat (see CollectMeter); an overflow (whole tier owned) is
+      // the deflating "already got 'em" coin bounty.
+      if (result.unlockedNow) fire(stakes);
+      else if (result.isOverflow) sfx.dupe();
+    });
   };
 
   const onPlayer = (rp: RosterPlayer) => {
@@ -198,11 +208,16 @@ export function ArcadeTab() {
           </Text>
           <View style={styles.revealCardWrap}>
             <PlayerCard
+              key={scoutNonce}
               rp={lastScout.player}
               collect={
                 lastScout.isOverflow || lastScout.unlockedNow
                   ? undefined
-                  : { copies: lastScout.newCopies, threshold: lastScout.threshold }
+                  : {
+                      copies: lastScout.newCopies,
+                      threshold: lastScout.threshold,
+                      justGained: 1,
+                    }
               }
             />
           </View>

@@ -23,7 +23,15 @@ export function CollectionProgressStrip({ progressed }: { progressed: Progressed
           index={i}
           style={styles.row}
         >
-          <PlayerCard rp={p.player} compact collect={{ copies: p.after, threshold: p.threshold }} />
+          <PlayerCard
+            rp={p.player}
+            compact
+            collect={{
+              copies: p.after,
+              threshold: p.threshold,
+              justGained: p.after - p.before,
+            }}
+          />
         </StaggerIn>
       ))}
     </View>

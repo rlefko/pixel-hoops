@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { Text } from '@/components/StyledText';
-import { haptics } from '@/feel';
+import { haptics, sfx } from '@/feel';
 import { StaggerIn } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
@@ -231,6 +231,7 @@ export function LockerRoomTab() {
     (index: number, stat: keyof PlayerStats) => {
       if (!homeRoster) return;
       haptics.selection();
+      sfx.tick(0.9); // a notch below the in-run training tick: a spend, not a gain
       saveHomeRoster(applyUpgrade(homeRoster, index, stat));
     },
     [homeRoster, saveHomeRoster]

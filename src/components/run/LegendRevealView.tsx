@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { Text } from '@/components/StyledText';
 import {
@@ -8,7 +8,7 @@ import {
   type FlashOverlayHandle,
   type ShakeViewHandle,
 } from '@/components/fx';
-import { haptics, sfx } from '@/feel';
+import { haptics, sfx, useStagedReveal } from '@/feel';
 import { Screen } from '@/components/Screen';
 import { PlayerCard } from './PlayerCard';
 import { LegendaryHalo } from './reward-fx';
@@ -33,7 +33,6 @@ interface LegendRevealViewProps {
   signLabel?: string;
 }
 
-const REVEAL_MS = 280;
 const CENTER_X = Dimensions.get('window').width / 2;
 
 export function LegendRevealView({
@@ -48,23 +47,19 @@ export function LegendRevealView({
   const [burst, setBurst] = useState(0);
   const flashRef = useRef<FlashOverlayHandle>(null);
   const shakeRef = useRef<ShakeViewHandle>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { stage } = useStagedReveal();
   const ability = getAbility(offer.ability);
-
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
 
   const scout = () => {
     flashRef.current?.flash(palette.gold, { peak: 0.5 });
     shakeRef.current?.shake('medium');
     haptics.bigPlay();
-    sfx.gachaWindup(); // tension as the card flips
     setBurst((n) => n + 1);
-    timer.current = setTimeout(() => {
+    // The shared windup -> hold -> payoff choreography (tension as the card flips).
+    stage('legendary', () => {
       setRevealed(true);
       sfx.reward('legendary'); // the jackpot lands
-    }, REVEAL_MS);
+    });
   };
 
   return (

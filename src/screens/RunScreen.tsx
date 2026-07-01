@@ -4,15 +4,17 @@ import { useArcadeRouter } from '@/navigation';
 import { useFeelSettings, sfx, playMusicContext, setGameEnergy } from '@/feel';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { Pop, Counter } from '@/components/fx';
+import { Pop, Counter, TickCounter } from '@/components/fx';
 import { useRun } from '@/hooks/useRun';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import {
   buildHomeTeam,
   buildOpponentTeam,
   coachReorderRoster,
+  pendingWinRewards,
   steppingInSubs,
   MAX_BANISHES,
+  TOTAL_MAPS,
   type RunModel,
 } from '@/game/run-machine';
 import {
@@ -50,7 +52,8 @@ import { CoachUnlockView } from '@/components/run/CoachUnlockView';
 import { BountyRewardView } from '@/components/run/BountyRewardView';
 import type { SimResult } from '@/types/sim';
 import { BoxScoreView } from '@/components/run/BoxScoreView';
-import { ClockIcon } from '@/components/run/PixelIcons';
+import { ClockIcon, CoinIcon } from '@/components/run/PixelIcons';
+import { StreakFlame } from '@/components/run/StreakFlame';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -121,6 +124,7 @@ export default function RunScreen() {
           difficulty={model.difficulty}
           ladderClass={model.ladderClass}
           timeouts={model.secondChancesRemaining}
+          wins={model.wins}
           bagCount={model.bag.length}
           onChoose={actions.chooseNode}
           onLeave={goMenu}
@@ -380,6 +384,7 @@ export default function RunScreen() {
             wins={model.wins}
             unlockedClass={unlockedClass}
             progressed={progressed}
+            coinsBanked={model.core.rewards.coins}
             stepUp={stepUp}
             onNewRun={exitNewRun}
             onHome={exitHome}
@@ -403,6 +408,9 @@ export default function RunScreen() {
           wins={model.wins}
           difficulty={model.difficulty}
           ladderClass={model.ladderClass}
+          mapsCleared={model.core.currentMapIndex}
+          totalMaps={TOTAL_MAPS}
+          coinsBanked={model.core.rewards.coins}
           unlockedClass={unlockedClass}
           progressed={progressed}
           lossMargin={lossMargin}
@@ -427,6 +435,7 @@ function lastEventClock(result: SimResult): string {
 }
 
 function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
+  const nav = useArcadeRouter();
   const [recDismissed, setRecDismissed] = useState(false);
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
   const timeoutUsed = model.phase.kind === 'pregame' && model.phase.timeoutUsed;
@@ -441,6 +450,30 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const away = buildOpponentTeam(model.core, nodeId, model.mods);
   const chosen = model.core.roster.starters;
   const steppingIn = steppingInSubs(model.core.roster);
+  // Peak games tip off through a stake-themed ceremony wipe; routine games keep
+  // the instant cut. The contrast IS the escalation (3-4 wipes per run at most).
+  const node = model.core.map.nodes[nodeId];
+  const championship =
+    node?.type === 'boss' && model.core.currentMapIndex >= TOTAL_MAPS - 1;
+  const stakes =
+    node?.type === 'boss'
+      ? championship
+        ? { color: palette.gold, label: 'CHAMPIONSHIP' }
+        : { color: away.colorHex, label: 'BOSS GAME' }
+      : node?.type === 'elite'
+        ? { color: palette.flame, label: 'ELITE GAME' }
+        : null;
+  const tipOff = () => {
+    sfx.tipoff();
+    if (stakes) {
+      nav.ceremony(
+        { variant: 'run', color: stakes.color, label: stakes.label, direction: 'forward' },
+        actions.enterGame
+      );
+    } else {
+      actions.enterGame();
+    }
+  };
   return (
     <Screen scroll contentContainerStyle={styles.pregame}>
       {timeoutUsed ? (
@@ -493,13 +526,14 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
       <Pressable onPress={actions.openLineupBuilder}>
         <Text style={styles.link}>Change Lineup</Text>
       </Pressable>
-      <Pressable
-        style={[styles.button, styles.primary]}
-        onPress={() => {
-          sfx.tipoff();
-          actions.enterGame();
-        }}
-      >
+      {model.wins >= 2 ? (
+        <View style={styles.streakRow}>
+          {/* Static here by design (no idle hook on pregame); it breathes on the map. */}
+          <StreakFlame streak={model.wins} paused />
+          <Text style={styles.streakNote}>Protect the streak</Text>
+        </View>
+      ) : null}
+      <Pressable style={[styles.button, styles.primary]} onPress={tipOff}>
         <Text style={styles.buttonText}>TIP OFF</Text>
       </Pressable>
     </Screen>
@@ -545,6 +579,13 @@ function Postgame({
   useEffect(() => {
     setSettled(true);
   }, []);
+  // The win's payout lands as its own beat AFTER the score settles: the coin
+  // tally pops in and counts up with ticks, so every win visibly pays.
+  const [showEarned, setShowEarned] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setShowEarned(true), 700);
+    return () => clearTimeout(timer);
+  }, []);
 
   // Result sting once on mount (Postgame remounts per postgame phase, so the ref resets
   // between games; the guard only blocks a dev strict-mode double-invoke). A forgivable
@@ -560,6 +601,11 @@ function Postgame({
   }, [phase, chances]);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
+  const earned = pendingWinRewards(model);
+  // Celebration scales with the haul: a boss payout lands the full beat (coin
+  // settle + pop + success haptic), an elite the medium one, a routine win ticks.
+  const earnedTier =
+    earned?.nodeType === 'boss' ? 'large' : earned?.nodeType === 'elite' ? 'medium' : 'small';
   // A loss with timeouts left isn't the end: the headline + CTA invite a replay,
   // and onContinue (resolveGameResult) spends the timeout and returns to pregame.
   const canForgive = !won && model.secondChancesRemaining > 0;
@@ -584,6 +630,25 @@ function Postgame({
           <Counter value={settled ? result.finalAway : 0} />
         </Text>
         <Text style={styles.vs}>@ {model.game.opponentName}</Text>
+        {earned ? (
+          <View style={styles.earnedRow}>
+            {showEarned ? (
+              <>
+                <CoinIcon size={12} color={palette.gold} />
+                <TickCounter
+                  value={earned.coins}
+                  from={0}
+                  prefix="+"
+                  tier={earnedTier}
+                  style={styles.earnedCoins}
+                />
+                <Text style={styles.earnedExtra}>
+                  +{earned.trainingPoints} TP · +{earned.reputation} REP
+                </Text>
+              </>
+            ) : null}
+          </View>
+        ) : null}
         {canForgive ? (
           <Text style={styles.forgiveNote}>
             Dropped it, but you've got a timeout. Replay this game.{' '}
@@ -628,6 +693,18 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
   },
   pregame: { paddingHorizontal: space(5) },
+  streakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space(2),
+    marginTop: space(4),
+  },
+  streakNote: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+  },
   timeoutBanner: {
     marginTop: space(3),
     paddingVertical: space(2),
@@ -732,5 +809,24 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.label,
     color: palette.inkDim,
     marginTop: space(3),
+  },
+  // Fixed height whether or not the tally has popped in yet, so the payout beat
+  // never shifts the layout under the player's thumb.
+  earnedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
+    marginTop: space(3),
+    height: space(5),
+  },
+  earnedCoins: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.body,
+    color: palette.gold,
+  },
+  earnedExtra: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
   },
 });

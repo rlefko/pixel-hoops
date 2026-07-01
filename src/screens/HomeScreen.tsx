@@ -10,6 +10,7 @@ import {
   BasketballIcon,
   CoinIcon,
   CrownIcon,
+  FlameIcon,
   GearIcon,
   HelpIcon,
   JoystickIcon,
@@ -243,9 +244,19 @@ export default function HomeScreen() {
           <MenuButton
             variant="wide"
             label="RESUME RUN"
-            sublabel={`${DIFFICULTY_LABELS[savedRun.difficulty].name} • ${savedRun.ladderClass}`}
+            // A hot suspended run wears its streak on the card: the flame and the
+            // "3W hot" read are the pull back in ("that run is still burning").
+            sublabel={`${DIFFICULTY_LABELS[savedRun.difficulty].name} • ${savedRun.ladderClass}${
+              savedRun.wins >= 2 ? ` • ${savedRun.wins}W hot` : ''
+            }`}
             color={palette.orange}
-            icon={<BasketballIcon size={22} color={palette.orange} />}
+            icon={
+              savedRun.wins >= 2 ? (
+                <FlameIcon size={22} color={palette.orange} />
+              ) : (
+                <BasketballIcon size={22} color={palette.orange} />
+              )
+            }
             attract={!idle}
             attractDelayMs={200}
             onPress={() =>

@@ -208,6 +208,26 @@ export const RECIPES = {
     ],
   },
 
+  // --- Economy (the audible "numbers go up": count ticks and the coin settle) ---
+  tick: {
+    // Fires per increment while a tally counts up, so it is a tiny low-passed blip
+    // (quieter than the taps); the caller walks the rate upward so a climb sings.
+    pool: 2,
+    gain: 0.22,
+    voices: [
+      { osc: 'triangle', freq: C6, durMs: 40, filter: { baseHz: 1600, peakHz: 2600, q: 0.7, decayMs: 36, sustain: 0 }, env: { attackMs: 1, decayMs: 34, sustain: 0, releaseMs: 5 } },
+    ],
+  },
+  coin: {
+    // The settle clink when a coin tally lands: a quick bright two-note rise.
+    pool: 1,
+    gain: 0.5,
+    voices: [
+      { osc: 'square', duty: 0.25, freq: B5, durMs: 45, env: { decayMs: 38, sustain: 0.2, releaseMs: 8 } },
+      { osc: 'square', duty: 0.25, freq: E6, durMs: 140, delayMs: 45, env: { decayMs: 110, sustain: 0.2, releaseMs: 22 } },
+    ],
+  },
+
   // --- UI (gentle, low-passed sine/triangle ticks: these fire on every tap) ---
   tapPrimary: {
     pool: 2,

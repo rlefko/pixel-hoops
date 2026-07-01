@@ -6,11 +6,14 @@ import { sfx, type WipeConfig, type WipeVariant } from '@/feel';
 import { palette } from '@/theme';
 
 /** Arcade-flavored navigation: a drop-in for expo-router's push/replace/back
- *  that plays a pixel-dissolve wipe around each route change. */
+ *  that plays a pixel-dissolve wipe around each route change. `ceremony` runs the
+ *  same wipe around an in-screen action (no route change): the stake-themed
+ *  tip-off into a boss or championship game. */
 export interface ArcadeRouter {
   push: (href: Href, variant?: WipeVariant) => void;
   replace: (href: Href, variant?: WipeVariant) => void;
   back: (variant?: WipeVariant) => void;
+  ceremony: (config: WipeConfig, action: () => void) => void;
 }
 
 export const TransitionContext = createContext<ArcadeRouter | null>(null);
@@ -95,6 +98,7 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
       replace: (href, variant = 'menu') =>
         run(() => router.replace(href), buildConfig(variant, href)),
       back: (variant = 'menu') => run(() => router.back(), buildConfig(variant, null)),
+      ceremony: (config, action) => run(action, config),
     }),
     [run, router]
   );
