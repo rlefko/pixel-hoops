@@ -116,15 +116,16 @@ export const RECIPES = {
     ],
   },
   win: {
-    // Fires after EVERY won game, so it is a SHORT, soft, warm two-note "advance" cue
-    // (a rising fifth on an FM electric piano), not a jingle. The grand celebration is
-    // reserved for the championship (sfx.champion). Pitch-jittered per win in audio.ts.
+    // Fires after EVERY won game, so it is a barely-there grace-note cue: a 50ms C5
+    // pickup into a soft G5 on the FM piano, done in 200ms, no music duck needed. The
+    // grand celebration is reserved for the championship (sfx.champion). Pitch-jittered
+    // per win in audio.ts.
     pool: 1,
-    gain: 0.42,
+    gain: 0.28,
     voices: [
-      { osc: 'fm', fm: { ratio: 1, index: 2, indexDecayMs: 120, indexSustain: 0.05 }, freq: C5, durMs: 150, filter: { baseHz: 700, peakHz: 3200, q: 0.7, decayMs: 130, sustain: 0.2 }, env: { attackMs: 4, decayMs: 130, sustain: 0.2, releaseMs: 60 } },
-      { osc: 'fm', fm: { ratio: 1, index: 2, indexDecayMs: 120, indexSustain: 0.05 }, freq: G5, durMs: 220, delayMs: 120, filter: { baseHz: 800, peakHz: 3600, q: 0.7, decayMs: 190, sustain: 0.2 }, env: { attackMs: 4, decayMs: 190, sustain: 0.2, releaseMs: 80 } },
-      { osc: 'sine', freq: C4, durMs: 300, gain: 0.5, env: { attackMs: 6, decayMs: 240, sustain: 0.2, releaseMs: 60 } },
+      { osc: 'fm', fm: { ratio: 1, index: 1.6, indexDecayMs: 80, indexSustain: 0.04 }, freq: C5, durMs: 70, filter: { baseHz: 700, peakHz: 2800, q: 0.7, decayMs: 60, sustain: 0.2 }, env: { attackMs: 3, decayMs: 60, sustain: 0, releaseMs: 10 } },
+      { osc: 'fm', fm: { ratio: 1, index: 1.6, indexDecayMs: 100, indexSustain: 0.04 }, freq: G5, durMs: 150, delayMs: 50, filter: { baseHz: 800, peakHz: 3000, q: 0.7, decayMs: 130, sustain: 0.15 }, env: { attackMs: 3, decayMs: 110, sustain: 0.1, releaseMs: 40 } },
+      { osc: 'sine', freq: C4, durMs: 180, gain: 0.35, env: { attackMs: 5, decayMs: 150, sustain: 0.1, releaseMs: 30 } },
     ],
   },
   loss: {
@@ -251,21 +252,30 @@ export const RECIPES = {
     ],
   },
   whoosh: {
-    // Fires on EVERY navigation, so it is a soft, dark, low-passed swish, not a bright
-    // noise sweep. Quiet and short so clicking into menus never grates.
+    // Fires on EVERY navigation, stacked on the button's own tap, so it is a near-silent
+    // FELT puff of low-passed air: no pitch sweep, no tone layer. Direction reads from
+    // the filter alone (forward opens, back closes), never from pitch.
     pool: 1,
-    gain: 0.28,
+    gain: 0.12,
     voices: [
-      { osc: 'noise', freq: 700, freqTo: 1400, sweep: 'exp', durMs: 150, gain: 0.45, filter: { baseHz: 400, peakHz: 1200, q: 0.6, sustain: 1 }, env: { attackMs: 30, sustain: 1, releaseMs: 90 }, noiseSeed: 41 },
-      { osc: 'triangle', freq: 260, freqTo: 480, sweep: 'exp', durMs: 150, gain: 0.5, env: { attackMs: 20, sustain: 1, releaseMs: 90 } },
+      {
+        osc: 'noise', freq: 900, durMs: 220, gain: 0.9, noiseSeed: 41,
+        filter: { baseHz: 240, peakHz: 700, q: 0.7, attackMs: 90, decayMs: 100, sustain: 0.35, releaseMs: 80 },
+        env: { attackMs: 70, decayMs: 100, sustain: 0.5, releaseMs: 90 },
+      },
     ],
   },
   whooshBack: {
     pool: 1,
-    gain: 0.26,
+    gain: 0.11,
     voices: [
-      { osc: 'noise', freq: 1400, freqTo: 700, sweep: 'exp', durMs: 140, gain: 0.45, filter: { baseHz: 400, peakHz: 1200, q: 0.6, sustain: 1 }, env: { attackMs: 20, sustain: 1, releaseMs: 90 }, noiseSeed: 43 },
-      { osc: 'triangle', freq: 480, freqTo: 260, sweep: 'exp', durMs: 140, gain: 0.5, env: { attackMs: 10, sustain: 1, releaseMs: 90 } },
+      {
+        osc: 'noise', freq: 900, durMs: 200, gain: 0.9, noiseSeed: 43,
+        // The cutoff env starts at peakHz and decays to baseHz, so this closes 600 -> 220
+        // over the puff: the darkening is what reads as "return".
+        filter: { baseHz: 220, peakHz: 600, q: 0.7, decayMs: 140, sustain: 0, releaseMs: 60 },
+        env: { attackMs: 50, decayMs: 100, sustain: 0.45, releaseMs: 80 },
+      },
     ],
   },
   error: {

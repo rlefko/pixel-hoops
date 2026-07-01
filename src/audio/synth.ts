@@ -8,14 +8,15 @@
  *
  * The original chiptune core (square/triangle/saw/LFSR-noise + ADSR + sweep/arp/vibrato/
  * bit-crush/sample-rate-reduction) is unchanged. Everything richer (sine, 2-op FM, a
- * resonant low-pass filter, unison/detune, soft-clip, anti-aliasing) is OPT-IN via new
- * optional `Voice` fields: a voice that sets none of them renders exactly as before, so
- * the committed SFX are untouched. Music opts into the warmth (see musicTracks.ts).
+ * Karplus-Strong pluck, a resonant low-pass filter, unison/detune, soft-clip,
+ * anti-aliasing) is OPT-IN via new optional `Voice` fields: a voice that sets none of
+ * them renders exactly as before, so the committed SFX are untouched. Music opts into
+ * the warmth (see musicTracks.ts).
  */
 
 import { SAMPLE_RATE } from './wav';
 
-export type Osc = 'square' | 'triangle' | 'sawtooth' | 'noise' | 'sine' | 'fm';
+export type Osc = 'square' | 'triangle' | 'sawtooth' | 'noise' | 'sine' | 'fm' | 'pluck';
 export type SweepShape = 'linear' | 'exp';
 
 export interface Envelope {
@@ -42,6 +43,20 @@ export interface FilterEnvelope {
   decayMs?: number;
   sustain?: number;
   releaseMs?: number;
+}
+
+/**
+ * Karplus-Strong plucked string; only read when osc==='pluck'. A seeded noise burst
+ * circulates a one-period delay line, so each pass rounds off the top: the classic
+ * pizzicato/plucked-string decay. Pitch is fixed per voice (freqTo/arp/vibrato/unison
+ * are ignored), and the integer delay line quantizes pitch slightly at high notes, so
+ * keep pluck parts at roughly C5 and below.
+ */
+export interface PluckSpec {
+  /** Delay-line feedback 0..1: higher rings longer. Default 0.996 (clamped to 0.9995). */
+  damp?: number;
+  /** Excitation brightness 0..1: 1 = raw noise burst, lower = a darker, softer pluck. Default 1. */
+  brightness?: number;
 }
 
 /** 2-op FM parameters; only read when osc==='fm'. The carrier is a sine. */
@@ -88,6 +103,8 @@ export interface Voice {
   filter?: FilterEnvelope;
   /** 2-op FM params; only used when osc==='fm'. */
   fm?: FmSpec;
+  /** Karplus-Strong params; only used when osc==='pluck'. */
+  pluck?: PluckSpec;
   /** Unison voices: N detuned copies summed for a fat pad / supersaw. Default 1 (off). */
   unison?: number;
   /** Symmetric detune spread (cents) across the unison stack. Default 0. */
@@ -169,7 +186,8 @@ function oscillator(osc: Osc, phase: number, duty: number): number {
       return Math.sin(TWO_PI * t);
     case 'noise':
     case 'fm':
-      return 0; // noise (LFSR) and fm have their own paths in renderVoice
+    case 'pluck':
+      return 0; // noise (LFSR), fm, and pluck have their own paths in renderVoice
   }
 }
 
@@ -240,6 +258,7 @@ export function renderVoice(voice: Voice, sampleRate: number = SAMPLE_RATE): Flo
   const gain = voice.gain ?? 1;
   const isNoise = voice.osc === 'noise';
   const isFm = voice.osc === 'fm';
+  const isPluck = voice.osc === 'pluck';
   const unison = voice.unison && voice.unison > 1 ? voice.unison : 1;
   const ratios = unison > 1 ? detuneRatios(unison, voice.detuneCents ?? 0) : null;
   const antialias = voice.antialias === true;
@@ -257,6 +276,25 @@ export function renderVoice(voice: Voice, sampleRate: number = SAMPLE_RATE): Flo
   let held = 0;
   const svf: SvfState = { lp: 0, bp: 0 };
 
+  // Karplus-Strong: a one-period delay line seeded from the same LFSR as the noise osc
+  // (deterministic per noiseSeed), with `brightness` one-pole-lowpassing the burst.
+  let ksBuf: Float32Array | null = null;
+  let ksIdx = 0;
+  let ksFeedback = 0;
+  if (isPluck) {
+    const cells = Math.max(2, Math.round(sampleRate / voice.freq));
+    ksBuf = new Float32Array(cells);
+    ksFeedback = Math.min(voice.pluck?.damp ?? 0.996, 0.9995);
+    const brightness = Math.min(Math.max(voice.pluck?.brightness ?? 1, 0), 1);
+    let smoothed = 0;
+    for (let k = 0; k < cells; k++) {
+      const feedback = (lfsr ^ (lfsr >> 1)) & 1;
+      lfsr = (lfsr >> 1) | (feedback << 14);
+      smoothed += brightness * (((lfsr & 1) === 1 ? 1 : -1) - smoothed);
+      ksBuf[k] = smoothed;
+    }
+  }
+
   for (let i = 0; i < total; i++) {
     const elapsedMs = (i / sampleRate) * 1000;
     const progress = total > 1 ? i / (total - 1) : 1;
@@ -272,6 +310,13 @@ export function renderVoice(voice: Voice, sampleRate: number = SAMPLE_RATE): Flo
         noiseValue = (lfsr & 1) === 1 ? 1 : -1;
       }
       raw = noiseValue;
+    } else if (ksBuf) {
+      // Karplus-Strong tick: read the current cell, then feed back the damped average
+      // of it and its neighbor (the averaging is what rounds the string's tone off).
+      raw = ksBuf[ksIdx];
+      const next = ksBuf[(ksIdx + 1) % ksBuf.length];
+      ksBuf[ksIdx] = ksFeedback * 0.5 * (raw + next);
+      ksIdx = (ksIdx + 1) % ksBuf.length;
     } else if (isFm && voice.fm) {
       const fm = voice.fm;
       const idxEnv = fm.indexDecayMs
