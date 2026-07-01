@@ -166,9 +166,10 @@ export const sfx = {
     trigger('buzzerBeater');
   },
   win: () => {
-    // Soft, brief cue after every won game: a light duck and a small per-win pitch jitter
-    // so back-to-back wins never sound identical.
-    duckMusic(300);
+    // Barely-there cue after every won game, with a small per-win pitch jitter so
+    // back-to-back wins never sound identical. No music duck: at this size the cue
+    // sits on top of the bed, and dipping the music 10-20 times a run pumps more
+    // than the cue itself would.
     trigger('win', 0.99 + (jitterTick++ % 3) * 0.01);
   },
   loss: () => trigger('loss'),
