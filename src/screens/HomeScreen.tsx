@@ -88,18 +88,10 @@ export default function HomeScreen() {
     ? COURT_THEMES.find((t) => !courtThemeUnlocked(t, clearedCells))
     : undefined;
 
+  // Unlocks are global, so the ladder selection stays valid across difficulties.
   const setDifficulty = (d: Difficulty) => {
     if (!homeRoster) return;
-    // Unlocks are global, so the selection stays valid across difficulties; the clamp
-    // is a defensive no-op kept for safety.
-    const cls = unlocked.includes(homeRoster.selectedLadderClass)
-      ? homeRoster.selectedLadderClass
-      : unlocked[unlocked.length - 1];
-    saveHomeRoster({
-      ...homeRoster,
-      selectedDifficulty: d,
-      selectedLadderClass: cls,
-    });
+    saveHomeRoster({ ...homeRoster, selectedDifficulty: d });
   };
 
   const setLadderClass = (cls: LadderClass) => {

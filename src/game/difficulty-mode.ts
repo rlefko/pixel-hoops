@@ -8,9 +8,10 @@ import { CLASS_ORDER, type PlayerClass } from './ratings';
  *    old League-Tier opponent modifiers (early elites, leaner boost drafts, glass
  *    bones, lean payouts, no pre-boss rest). All four are selectable from the
  *    start.
- *  - LadderClass (C/B/A/S/S+) sets the opponent CLASS the run centers on. Within a
- *    difficulty you climb C -> B -> A -> S -> S+, unlocking the next rung only by
- *    clearing the current one (per difficulty).
+ *  - LadderClass (C/B/A/S/S+) sets the opponent CLASS the run centers on. You climb
+ *    C -> B -> A -> S -> S+, and clearing a class on ANY difficulty opens it on ALL
+ *    of them (the cleared-cell set below), so the 4x5 grid is a 20-cell bounty
+ *    board rather than four ladders to re-climb.
  *
  * Pure and dependency-free (apart from the class order), applied at consumption
  * time in the run machine, so the map generator stays config-light and the run
