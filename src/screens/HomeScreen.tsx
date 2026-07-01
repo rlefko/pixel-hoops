@@ -38,6 +38,9 @@ import {
 import { bountyFor } from '@/game/bounties';
 import { getCoach, nextCoachNudge } from '@/game/coaches';
 import { COURT_THEMES, courtThemeUnlocked, courtThemeUnlockHint } from '@/game/court-themes';
+import { DAILY_BOUNTY_COINS, spotlightCell, weeklyProgress } from '@/game/daily';
+import { DailyPanel } from '@/components/home/DailyPanel';
+import { useDayKey } from '@/hooks/useDayKey';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** Main menu screen: the arcade lobby and entry point for the game. */
@@ -56,6 +59,9 @@ export default function HomeScreen() {
   // title, not a flicker. Held steady under reduced motion or while idle.
   const glowStyle = useGlowPulse(1300, { paused: idle });
   const bobStyle = useBobPulse(1300, { bobAmplitude: 4, paused: idle });
+  // The Daily Layer's calendar keys (recomputed on foreground/focus, never in render).
+  // Called before the welcome early-return so the hook order is stable.
+  const { day, week } = useDayKey();
 
   // First launch: welcome the player with their starting free agents, once.
   if (loaded && homeRoster && !homeRoster.seenWelcome) {
@@ -79,8 +85,9 @@ export default function HomeScreen() {
     homeRoster != null && isCellCleared(clearedCells, homeRoster.selectedDifficulty, cls);
   const coach = homeRoster ? getCoach(homeRoster.selectedCoachId) : null;
   // The selected difficulty's repeatable perks (derived from the mods, so the pitch
-  // can never drift from the tuning), the closest locked coach, and the next court
-  // theme still to earn: the anticipation layer for climbing.
+  // can never drift from the tuning), plus ONE rotating goal nudge (coach or court
+  // theme, alternating by day so the hub never stacks nudges) and the Daily Layer
+  // card: the anticipation layer for climbing.
   const perks = homeRoster ? difficultyPerks(homeRoster.selectedDifficulty).slice(0, 3) : [];
   const coachNudge = homeRoster
     ? nextCoachNudge(homeRoster.ladderProgress, new Set(homeRoster.ownedCoaches))
@@ -88,6 +95,24 @@ export default function HomeScreen() {
   const nextTheme = homeRoster
     ? COURT_THEMES.find((t) => !courtThemeUnlocked(t, clearedCells))
     : undefined;
+  const nudges = [
+    coachNudge ? `${coachNudge.hint}.` : null,
+    nextTheme ? `${courtThemeUnlockHint(nextTheme)} to unlock the ${nextTheme.name} court.` : null,
+  ].filter((n): n is string => n != null);
+
+  const goalNudge = nudges.length ? nudges[day.charCodeAt(day.length - 1) % nudges.length] : null;
+  const spotlight = homeRoster ? spotlightCell(day, clearedCells) : null;
+  const spotlightClaimed = homeRoster?.daily?.spotlightClaimedDay === day;
+  const weekly = weeklyProgress(homeRoster?.weekly, week);
+  const playSpotlight = () => {
+    if (!homeRoster || !spotlight) return;
+    saveHomeRoster({
+      ...homeRoster,
+      selectedDifficulty: spotlight.difficulty,
+      selectedLadderClass: spotlight.ladderClass,
+    });
+    nav.push({ pathname: '/run', params: { mode: 'new' } }, 'run');
+  };
 
   // Unlocks are global, so the ladder selection stays valid across difficulties.
   const setDifficulty = (d: Difficulty) => {
@@ -203,12 +228,6 @@ export default function HomeScreen() {
               ? `${homeRoster.selectedLadderClass} BOUNTY CLAIMED`
               : `BOUNTY: ${bountyFor(homeRoster.selectedDifficulty, homeRoster.selectedLadderClass).label}`}
           </Text>
-          {nextTheme ? (
-            <Text style={styles.goalNudge}>
-              {courtThemeUnlockHint(nextTheme)} to unlock the {nextTheme.name} court.
-            </Text>
-          ) : null}
-
           <Text style={styles.selectLabel}>COACH</Text>
           {coach ? (
             <Pressable
@@ -225,8 +244,20 @@ export default function HomeScreen() {
               <Text style={styles.coachChange}>CHANGE ›</Text>
             </Pressable>
           ) : null}
-          {coachNudge ? <Text style={styles.goalNudge}>{coachNudge.hint}.</Text> : null}
+          {goalNudge ? <Text style={styles.goalNudge}>{goalNudge}</Text> : null}
         </View>
+      ) : null}
+
+      {loaded && homeRoster && spotlight ? (
+        <DailyPanel
+          cell={spotlight}
+          bountyCoins={DAILY_BOUNTY_COINS[spotlight.difficulty]}
+          claimedToday={spotlightClaimed}
+          weeklyWins={weekly.gameWins}
+          claimedTiers={weekly.claimedTiers}
+          attract={!idle}
+          onPlaySpotlight={playSpotlight}
+        />
       ) : null}
 
       <View style={styles.menu}>

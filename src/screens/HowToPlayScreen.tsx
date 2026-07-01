@@ -10,6 +10,7 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import {
   BasketballIcon,
   BoostIcon,
+  ClockIcon,
   CoinIcon,
   CrownIcon,
   DumbbellIcon,
@@ -347,6 +348,44 @@ export default function HowToPlayScreen() {
         </View>
         <MonoText style={styles.note}>
           Harder difficulty, bigger bounty. Every clear stamps a crest: 20 to collect.
+        </MonoText>
+      </InfoPanel>
+
+      {/* The Daily Layer: win-gated, streak-free */}
+      <InfoPanel
+        icon={<ClockIcon size={16} color={palette.makeGreen} />}
+        title="SHOW UP DAILY"
+        accent={palette.makeGreen}
+        body="One cell of the grid is spotlighted each day: win it for a bonus purse, up to 600 coins on insane. Your first championship of the day also pays coins plus a free scout. Weekly goals count every game you win, even in runs you lose. No streaks and no timers: miss a day and you lose nothing."
+      >
+        <View style={styles.ladderRow}>
+          <TagChip
+            label="SPOTLIGHT"
+            color={palette.gold}
+            size="micro"
+            sub="1 A DAY"
+            icon={<ClockIcon size={12} color={palette.gold} />}
+            glowDelayMs={0}
+          />
+          <TagChip
+            label="FIRST WIN"
+            color={palette.makeGreen}
+            size="micro"
+            sub="+SCOUT"
+            icon={<CoinIcon size={12} color={palette.makeGreen} />}
+            glowDelayMs={150}
+          />
+          <TagChip
+            label="WEEKLY"
+            color={palette.orange}
+            size="micro"
+            sub="10/35/100"
+            icon={<StarIcon size={12} color={palette.orange} />}
+            glowDelayMs={300}
+          />
+        </View>
+        <MonoText style={styles.note}>
+          Everything is won by playing. Nothing is ever lost by resting.
         </MonoText>
       </InfoPanel>
 

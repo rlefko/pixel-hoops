@@ -13,6 +13,8 @@ import {
   grantCoach,
   selectCoach,
   ownsCoach,
+  settleDailyRewards,
+  type DailySettleInput,
   type HomeRoster,
 } from '@/game/home-roster';
 import { STARTER_COACH_ID, earnedCoachIds, coachesByClass } from '@/game/coaches';
@@ -20,6 +22,7 @@ import { poolByClass, realPlayerToRosterPlayer } from '@/game/player-pool';
 import { tierPool } from '@/game/player-gacha';
 import { overflowBounty } from '@/game/collection';
 import { GRANDMASTER_KEY, bountyKey } from '@/game/bounties';
+import { DAILY_BOUNTY_COINS, FIRST_WIN_COINS, WEEKLY_TIERS, spotlightCell } from '@/game/daily';
 import { NBA_LEGENDS } from '@/data/nba';
 import { createRNG } from '@/game/rng';
 import type { Roster, RosterPlayer } from '@/types/roster';
@@ -728,5 +731,143 @@ describe('v13 copies migration', () => {
     const entry = restored.collecting.find((c) => playerKey(c.player) === playerKey(aPlayer));
     expect(entry?.copies).toBe(2); // A needs three, so it stays collecting
     expect(restored.players.some((p) => playerKey(p) === playerKey(aPlayer))).toBe(false);
+  });
+});
+
+describe('settleDailyRewards: the Daily Layer settle', () => {
+  const CELL = { difficulty: 'easy', ladderClass: 'C' } as const;
+  const base = (over: Partial<HomeRoster> = {}): HomeRoster => ({
+    ...createRookieRoster(createRNG('daily-home')),
+    coins: 0,
+    ...over,
+  });
+  const input = (over: Partial<DailySettleInput> = {}): DailySettleInput => ({
+    runCell: { ...CELL },
+    today: '2026-07-01',
+    week: '2026-06-29',
+    champion: true,
+    wins: 12,
+    rng: createRNG('daily-rng'),
+    ...over,
+  });
+  /** A rookie's spotlight for a day (rookies always spotlight class C). */
+  const rookieSpot = (day: string) => spotlightCell(day, []);
+
+  it('pays the spotlight bounty once per day, only on the featured cell', () => {
+    const day = '2026-07-01';
+    const spot = rookieSpot(day);
+    const hit = settleDailyRewards(base(), input({ runCell: spot, today: day }));
+    expect(hit.granted.spotlight).toEqual({ cell: spot, coins: DAILY_BOUNTY_COINS[spot.difficulty] });
+    expect(hit.home.daily?.spotlightClaimedDay).toBe(day);
+    // A second championship on the same cell the same day pays no spotlight.
+    const again = settleDailyRewards(hit.home, input({ runCell: spot, today: day }));
+    expect(again.granted.spotlight).toBeUndefined();
+    // A different cell never pays the spotlight.
+    const offCell = { difficulty: spot.difficulty === 'easy' ? 'hard' : 'easy', ladderClass: spot.ladderClass } as const;
+    const miss = settleDailyRewards(base(), input({ runCell: offCell, today: day }));
+    expect(miss.granted.spotlight).toBeUndefined();
+    expect(miss.home.daily?.spotlightClaimedDay).toBeUndefined();
+  });
+
+  it('pays the first-win purse + a C scout pull once per day, championships only', () => {
+    const res = settleDailyRewards(base(), input());
+    expect(res.granted.firstWin?.coins).toBe(FIRST_WIN_COINS);
+    expect(res.granted.firstWin?.player).toBeDefined();
+    expect(res.home.daily?.firstWinClaimedDay).toBe('2026-07-01');
+    // The pull deposited exactly like a paid one: owned (C owns at 1) or overflow.
+    const gained = res.home.players.length - base().players.length;
+    expect(gained === 1 || (res.granted.firstWin?.overflowCoins ?? 0) > 0).toBe(true);
+    // Second championship the same day: no first-win.
+    const again = settleDailyRewards(res.home, input());
+    expect(again.granted.firstWin).toBeUndefined();
+    // A loss never pays it.
+    const loss = settleDailyRewards(base(), input({ champion: false }));
+    expect(loss.granted.firstWin).toBeUndefined();
+    expect(loss.home.daily).toBeUndefined();
+  });
+
+  it('banks wins into the weekly ledger even on a loss, and rolls the week', () => {
+    const loss = settleDailyRewards(base(), input({ champion: false, wins: 7 }));
+    expect(loss.home.weekly).toEqual({ week: '2026-06-29', gameWins: 7, claimedTiers: [] });
+    // A settle in a NEW week replaces the ledger wholesale.
+    const rolled = settleDailyRewards(loss.home, input({ champion: false, wins: 4, week: '2026-07-06' }));
+    expect(rolled.home.weekly).toEqual({ week: '2026-07-06', gameWins: 4, claimedTiers: [] });
+  });
+
+  it('auto-grants crossed weekly tiers exactly once, several in one settle', () => {
+    const t1 = settleDailyRewards(base(), input({ champion: false, wins: 12 }));
+    expect(t1.granted.weeklyTiers.map((t) => t.tier)).toEqual([0]);
+    expect(t1.home.coins).toBe(WEEKLY_TIERS[0].coins);
+    // 12 -> 112 wins crosses tiers 2 and 3 together; tier 1 never re-pays.
+    const t23 = settleDailyRewards(t1.home, input({ champion: false, wins: 100 }));
+    expect(t23.granted.weeklyTiers.map((t) => t.tier)).toEqual([1, 2]);
+    expect(t23.home.weekly?.claimedTiers).toEqual([0, 1, 2]);
+    // The top tier also granted one rare ability into the inventory.
+    const abilityId = t23.granted.weeklyTiers[1].abilityId!;
+    expect(t23.home.abilityInventory[abilityId]).toBe(1);
+    // Nothing further to pay this week.
+    const done = settleDailyRewards(t23.home, input({ champion: false, wins: 50 }));
+    expect(done.granted.weeklyTiers).toEqual([]);
+  });
+
+  it('is deterministic: a crash-resumed settle reproduces identical grants', () => {
+    const home = base();
+    const a = settleDailyRewards(home, input({ rng: createRNG('resume') }));
+    const b = settleDailyRewards(home, input({ rng: createRNG('resume') }));
+    expect(a.granted).toEqual(b.granted);
+    expect(a.home).toEqual(b.home);
+  });
+
+  it('never reduces anything: a mismatched day or week only re-arms grants', () => {
+    const claimed = base({
+      daily: { spotlightClaimedDay: '2026-07-01', firstWinClaimedDay: '2026-07-01' },
+      weekly: { week: '2026-06-29', gameWins: 40, claimedTiers: [0, 1] },
+    });
+    const nextDay = settleDailyRewards(claimed, input({ today: '2026-07-02', wins: 0 }));
+    // Yesterday's stamps are overwritten only by new grants, never blanked.
+    expect(nextDay.home.daily?.firstWinClaimedDay).toBe('2026-07-02');
+    expect(nextDay.home.weekly?.gameWins).toBe(40); // same week: counters kept
+  });
+});
+
+describe('v17 daily/weekly migration', () => {
+  it('defaults both ledgers to undefined on a pre-v17 save', () => {
+    const home = createRookieRoster(createRNG('d-mig'));
+    const serialized = serializeHomeRoster(home);
+    delete (serialized.data as Partial<HomeRoster>).daily;
+    delete (serialized.data as Partial<HomeRoster>).weekly;
+    const restored = deserializeHomeRoster(serialized)!;
+    expect(restored.daily).toBeUndefined();
+    expect(restored.weekly).toBeUndefined();
+  });
+
+  it('round-trips stamps and counters, drops garbage shapes', () => {
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('d-rt')),
+      daily: { spotlightClaimedDay: '2026-07-01' },
+      weekly: { week: '2026-06-29', gameWins: 42, claimedTiers: [0, 1] },
+    };
+    const restored = deserializeHomeRoster(serializeHomeRoster(home))!;
+    expect(restored.daily).toEqual({ spotlightClaimedDay: '2026-07-01' });
+    expect(restored.weekly).toEqual({ week: '2026-06-29', gameWins: 42, claimedTiers: [0, 1] });
+
+    const dirty = {
+      version: 17,
+      data: {
+        ...home,
+        daily: 42,
+        weekly: { week: 7, gameWins: 'lots', claimedTiers: [0, 'x', -1, 99, 0] },
+      },
+    };
+    const cleaned = deserializeHomeRoster(dirty)!;
+    expect(cleaned.daily).toBeUndefined();
+    expect(cleaned.weekly).toBeUndefined(); // week key is not a string: ledger dropped
+
+    const partial = {
+      version: 17,
+      data: { ...home, weekly: { week: '2026-06-29', gameWins: -3, claimedTiers: [0, 'x', 99, 0] } },
+    };
+    const healed = deserializeHomeRoster(partial)!;
+    expect(healed.weekly).toEqual({ week: '2026-06-29', gameWins: 0, claimedTiers: [0] });
   });
 });

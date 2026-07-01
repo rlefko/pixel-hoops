@@ -8,13 +8,14 @@ import { haptics, sfx, useIdle, HUB_IDLE_MS } from '@/feel';
 import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
+import { DailyRewardStrip } from './DailyRewardStrip';
 import { CoinIcon, CrownIcon, VictoryTierIcon } from './PixelIcons';
 import { buildHallOfFameEntry, type ChampionGame } from '@/game/hall-of-fame';
 import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
-import type { ProgressedCopy } from '@/game/home-roster';
+import type { DailyGrants, ProgressedCopy } from '@/game/home-roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -40,6 +41,8 @@ interface ChampionViewProps {
   /** The victory step-up: run it back one difficulty up, pitched at the confidence
    * peak. Absent on insane (nothing above it). */
   stepUp?: { label: string; perks: string; onPress: () => void };
+  /** Daily Layer grants this settle paid (ledger lines, never a reveal screen). */
+  dailyGrants?: DailyGrants | null;
   onNewRun: () => void;
   onHome: () => void;
 }
@@ -60,6 +63,7 @@ export function ChampionView({
   progressed = [],
   coinsBanked,
   stepUp,
+  dailyGrants = null,
   onNewRun,
   onHome,
 }: ChampionViewProps) {
@@ -176,6 +180,7 @@ export function ChampionView({
         <LineupBoard team={game.home} players={entry.starters} compact />
 
         <CollectionProgressStrip progressed={progressed} />
+        <DailyRewardStrip grants={dailyGrants} />
 
         {stepUp ? (
           <Pressable style={[styles.button, styles.stepUp]} onPress={stepUp.onPress}>

@@ -5,9 +5,10 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop, LiveChip, StaggerIn, TickCounter } from '@/components/fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
+import { DailyRewardStrip } from './DailyRewardStrip';
 import { CoinIcon } from './PixelIcons';
 import { sfx, useIdle, useGlowPulse, HUB_IDLE_MS } from '@/feel';
-import type { ProgressedCopy } from '@/game/home-roster';
+import type { DailyGrants, ProgressedCopy } from '@/game/home-roster';
 import {
   DIFFICULTY_LABELS,
   type Difficulty,
@@ -44,6 +45,8 @@ interface RunSummaryViewProps {
    * outright (C/B own at one copy). A banked copy that only progressed shows through
    * `progressed` instead. */
   bankedRecruit?: RosterPlayer;
+  /** Daily Layer grants this settle paid (on a loss, at most weekly-tier lines). */
+  dailyGrants?: DailyGrants | null;
   onNewRun: () => void;
   onMenu: () => void;
 }
@@ -102,6 +105,7 @@ export function RunSummaryView({
   lossClock,
   nextUnlockLabel,
   bankedRecruit,
+  dailyGrants = null,
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
@@ -210,6 +214,7 @@ export function RunSummaryView({
         </Pop>
       ) : null}
       <CollectionProgressStrip progressed={progressed} />
+      <DailyRewardStrip grants={dailyGrants} />
       <LiveChip active={glowNewRun} color={palette.gold} paused={idle} style={styles.newRunWrap}>
         <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
           <Text style={styles.buttonText}>NEW RUN</Text>
