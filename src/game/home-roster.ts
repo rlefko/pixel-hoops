@@ -31,6 +31,16 @@ import { BOUNTIES, GRANDMASTER_KEY, bountyFor, bountyKey, type Bounty } from './
 import { HALL_OF_FAME_CAP, sanitizeHallOfFame, type HallOfFameEntry } from './hall-of-fame';
 import { COACHES, STARTER_COACH_ID, earnedCoachIds, coachesWonByClear, isCoachId } from './coaches';
 import { COURT_THEMES, DEFAULT_COURT_THEME_ID, courtThemeUnlocked } from './court-themes';
+import {
+  DAILY_BOUNTY_COINS,
+  FIRST_WIN_COINS,
+  FIRST_WIN_SCOUT_TIER,
+  WEEKLY_TIERS,
+  spotlightCell,
+  weeklyProgress,
+  type DailyCell,
+  type WeeklyLedger,
+} from './daily';
 
 /**
  * The persistent "home roster" that compounds across runs. It is now an UNCAPPED,
@@ -109,8 +119,24 @@ export interface HomeRoster {
    * with the per-difficulty `ladderProgress` frontier (which coach ranks and scout
    * gates still read). */
   clearedCells: string[];
+  /** Daily Layer claim stamps: each stores the LOCAL dayKey (src/game/daily.ts; the
+   * hook owns the clock, never this module) whose reward was granted, so "claimed
+   * today" is a string comparison and there is no lazy-reset write to miss. A clock
+   * change can re-open a day for a solitaire cheater but can never void a grant. */
+  daily?: { spotlightClaimedDay?: string; firstWinClaimedDay?: string };
+  /** Weekly-goal ledger for ONE weekKey (the local Monday's dayKey). Rolls lazily: a
+   * settle in a different week starts fresh counters. gameWins counts wins EVEN from
+   * lost runs (weekly progress is anti-frustration by design); claimedTiers records
+   * paid tier indexes so a resumed settle or a rolled-back clock can never re-pay. */
+  weekly?: WeeklyLedger;
 }
 
+// v17 adds the Daily Layer ledgers (`daily`/`weekly`): per-day claim stamps for the
+// Spotlight bounty and the first-win bonus (each records the dayKey it paid, so a
+// claim is a comparison rather than a reset), plus the weekly-goal counters (week
+// key, gameWins, claimed tier indexes). Both are optional and default to undefined on
+// older saves (no value migration): a veteran's first settle after the update simply
+// opens today's and this week's ledgers fresh.
 // v16 adds the cleared-cell set (`clearedCells`): every (difficulty x class) cell ever
 // cleared, making ladder-class unlocks GLOBAL (a class cleared on any difficulty is
 // selectable on all of them) and bounty claims CELL-EXACT (a jumped-over cell's bounty
@@ -155,7 +181,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 16;
+const HOME_ROSTER_VERSION = 17;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -844,6 +870,118 @@ export function claimRunBounty(
   return { home: next, granted: grant };
 }
 
+/** Inputs for the Daily Layer settle; the hook owns the clock and passes keys. */
+export interface DailySettleInput {
+  /** The cell the run was played on (model.difficulty / model.ladderClass). */
+  runCell: DailyCell;
+  /** Local dayKey / weekKey at settle time. */
+  today: string;
+  week: string;
+  champion: boolean;
+  /** Game wins this run (model.wins); a lost run's wins still feed the weekly ledger. */
+  wins: number;
+  /** Seeded off the run (deriveSeed(seed, 'daily')), so a crash-resumed settle
+   * reproduces byte-identical grants. */
+  rng: RNG;
+}
+
+/** What the Daily Layer paid this settle, for the summary strip and hub meter. */
+export interface DailyGrants {
+  /** The Spotlight bounty: today's featured cell, won. */
+  spotlight?: { cell: DailyCell; coins: number };
+  /** First championship of the day: purse + the free scout pull's outcome. */
+  firstWin?: {
+    coins: number;
+    player: RosterPlayer;
+    playerUnlocked: boolean;
+    overflowCoins: number;
+  };
+  /** Weekly tiers crossed by this settle, in ascending order. */
+  weeklyTiers: { tier: number; wins: number; coins: number; abilityId?: string }[];
+  /** The post-settle weekly counters. */
+  weekly: { week: string; gameWins: number };
+}
+
+/**
+ * The Daily Layer settle: bank this run's wins into the weekly ledger (losses
+ * included), auto-grant any weekly tiers crossed, then the champion-gated pieces:
+ * the first-win-of-the-day purse + free scout pull, and the Spotlight bounty when
+ * the run's cell is today's featured cell. Pure and deterministic from (home,
+ * input): the hook's settledRunId guard runs it at most once per run, the per-day
+ * stamps and week-keyed claimedTiers make a re-execution against an already-written
+ * home a no-op, and the derived rng label reproduces identical grants if a crash
+ * forces the settle to re-run before the write landed. Call against the PRE-merge
+ * home (its clearedCells are what the player's spotlight was derived from), inside
+ * the settle write. Every transition here is grant-or-noop: a missed day or a
+ * clock change can never take anything away.
+ */
+export function settleDailyRewards(
+  home: HomeRoster,
+  input: DailySettleInput
+): { home: HomeRoster; granted: DailyGrants } {
+  const { runCell, today, week, champion, wins, rng } = input;
+  let next = home;
+  let coins = 0;
+
+  // Weekly ledger: roll on a week change (weeklyProgress zeroes a stale ledger),
+  // bank this run's wins, then pay any tier the new total crosses exactly once.
+  const prior = weeklyProgress(home.weekly, week);
+  const gameWins = prior.gameWins + Math.max(0, wins);
+  const claimedTiers = [...prior.claimedTiers];
+  const weeklyTiers: DailyGrants['weeklyTiers'] = [];
+  WEEKLY_TIERS.forEach((tier, i) => {
+    if (claimedTiers.includes(i) || gameWins < tier.wins) return;
+    claimedTiers.push(i);
+    coins += tier.coins;
+    let abilityId: string | undefined;
+    if (tier.abilityRarity) {
+      abilityId = pickAbilityOfRarity(tier.abilityRarity, rng);
+      next = addAbility(next, abilityId);
+    }
+    weeklyTiers.push({ tier: i, wins: tier.wins, coins: tier.coins, abilityId });
+  });
+  next = { ...next, weekly: { week, gameWins, claimedTiers } };
+  const granted: DailyGrants = { weeklyTiers, weekly: { week, gameWins } };
+
+  // First win of the day: a purse plus one free scout pull, folded exactly like a
+  // paid pull (overflow self-converts to coins for a completed tier).
+  if (champion && next.daily?.firstWinClaimedDay !== today) {
+    const result = pullPlayer(
+      FIRST_WIN_SCOUT_TIER,
+      new Set(next.players.map(playerKey)),
+      collectingCopyMap(next),
+      rng
+    );
+    next = foldPull(next, result);
+    coins += FIRST_WIN_COINS;
+    next = { ...next, daily: { ...next.daily, firstWinClaimedDay: today } };
+    granted.firstWin = {
+      coins: FIRST_WIN_COINS,
+      player: result.player,
+      playerUnlocked: result.unlockedNow,
+      overflowCoins: result.overflowCoins,
+    };
+  }
+
+  // Spotlight bounty: the run's cell must BE today's featured cell (derived from
+  // the pre-merge cleared set, i.e. what the hub showed when the run started).
+  const spot = spotlightCell(today, home.clearedCells ?? []);
+  if (
+    champion &&
+    next.daily?.spotlightClaimedDay !== today &&
+    spot.difficulty === runCell.difficulty &&
+    spot.ladderClass === runCell.ladderClass
+  ) {
+    const amount = DAILY_BOUNTY_COINS[spot.difficulty];
+    coins += amount;
+    next = { ...next, daily: { ...next.daily, spotlightClaimedDay: today } };
+    granted.spotlight = { cell: spot, coins: amount };
+  }
+
+  if (coins > 0) next = { ...next, coins: next.coins + coins };
+  return { home: next, granted };
+}
+
 export function serializeHomeRoster(home: HomeRoster): SerializedHomeRoster {
   return { version: HOME_ROSTER_VERSION, data: home };
 }
@@ -1100,5 +1238,36 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
       const saved = COURT_THEMES.find((t) => t.id === data.courtTheme);
       return saved && courtThemeUnlocked(saved, clearedCells) ? saved.id : DEFAULT_COURT_THEME_ID;
     })(),
+    // v17: Daily Layer ledgers. Garbage degrades to undefined = "nothing claimed",
+    // the safe default (a bad stamp can only re-open a day, never void a grant).
+    daily: sanitizeDaily(data.daily),
+    weekly: sanitizeWeekly(data.weekly),
   };
+}
+
+/** Keep only well-formed day stamps; undefined when nothing valid remains. */
+function sanitizeDaily(raw: unknown): HomeRoster['daily'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const { spotlightClaimedDay, firstWinClaimedDay } = raw as Record<string, unknown>;
+  const daily: NonNullable<HomeRoster['daily']> = {};
+  if (typeof spotlightClaimedDay === 'string') daily.spotlightClaimedDay = spotlightClaimedDay;
+  if (typeof firstWinClaimedDay === 'string') daily.firstWinClaimedDay = firstWinClaimedDay;
+  return Object.keys(daily).length ? daily : undefined;
+}
+
+/** A valid weekly ledger needs its week key; counters clamp to sane ints and
+ * claimed tiers to known indexes. Malformed input drops the whole ledger. */
+function sanitizeWeekly(raw: unknown): WeeklyLedger | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const { week, gameWins, claimedTiers } = raw as Record<string, unknown>;
+  if (typeof week !== 'string') return undefined;
+  const wins = typeof gameWins === 'number' && Number.isFinite(gameWins)
+    ? Math.max(0, Math.floor(gameWins))
+    : 0;
+  const tiers = Array.isArray(claimedTiers)
+    ? [...new Set(claimedTiers.filter(
+        (t): t is number => typeof t === 'number' && Number.isInteger(t) && t >= 0 && t < WEEKLY_TIERS.length
+      ))]
+    : [];
+  return { week, gameWins: wins, claimedTiers: tiers };
 }
