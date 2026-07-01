@@ -11,8 +11,8 @@ import {
   deserializeHomeRoster,
   type HomeRoster,
 } from '@/game/home-roster';
-import { legendRecruit } from '@/game/player-pool';
-import { NBA_POOL } from '@/data/nba';
+import { legendRecruit, realPlayerToRosterPlayer } from '@/game/player-pool';
+import { NBA_LEGENDS, NBA_POOL } from '@/data/nba';
 import {
   runReducer,
   initRun,
@@ -1222,5 +1222,129 @@ describe('coaches in a run', () => {
     const early = buildHomeTeam({ ...withBoost, wins: 0 });
     const late = buildHomeTeam({ ...withBoost, wins: 4 }); // floor(4 / 2) = 2 stacks
     expect(late.teamStats.outside).toBeGreaterThan(early.teamStats.outside);
+  });
+});
+
+describe('boss legend signings (hard/insane, S and S+ ladders)', () => {
+  /** A home tuned for a signing run; ladder selection is not gated inside initRun. */
+  const signHome = (
+    difficulty: HomeRoster['selectedDifficulty'],
+    ladderClass: HomeRoster['selectedLadderClass']
+  ): HomeRoster => ({
+    ...rookie('sign-home'),
+    selectedDifficulty: difficulty,
+    selectedLadderClass: ladderClass,
+  });
+
+  /** Drive a run to a NON-FINAL boss win on an injected boss node and resolve it. */
+  const bossWin = (
+    seed: string,
+    difficulty: HomeRoster['selectedDifficulty'],
+    ladderClass: HomeRoster['selectedLadderClass'],
+    over: Partial<RunModel> = {}
+  ): RunModel => {
+    let m = initRun(seed, signHome(difficulty, ladderClass));
+    if (m.phase.kind === 'draft') {
+      m = runReducer(m, {
+        type: 'confirmDraft',
+        starters: m.phase.defaultStarters,
+        bench: m.phase.defaultBench,
+      })!;
+    }
+    const boss: MapNode = {
+      id: 'bx',
+      type: 'boss',
+      layer: 5,
+      next: [],
+      round: 6,
+      visited: true,
+      cleared: false,
+    };
+    m = {
+      ...m,
+      ...over,
+      core: {
+        ...m.core,
+        currentMapIndex: 5, // the 6th map: non-final, near the top of the chance ramp
+        map: { ...m.core.map, nodes: { ...m.core.map.nodes, bx: boss } },
+      },
+      phase: { kind: 'postgame', nodeId: 'bx', won: true },
+      game: null,
+    };
+    return runReducer(m, { type: 'resolveGameResult' })!;
+  };
+
+  /** The signing offer chained behind the boss item drop, if this seed rolled one. */
+  const signPhaseOf = (m: RunModel) => {
+    if (m.phase.kind === 'legendSign') return m.phase;
+    if (m.phase.kind === 'itemDrop' && m.phase.returnTo.kind === 'legendSign') {
+      return m.phase.returnTo;
+    }
+    return null;
+  };
+
+  const SEEDS = Array.from({ length: 80 }, (_, i) => `sign-${i}`);
+
+  it('never fires on easy/medium, nor below the S ladder', () => {
+    for (const seed of SEEDS.slice(0, 30)) {
+      expect(signPhaseOf(bossWin(seed, 'easy', 'S'))).toBeNull();
+      expect(signPhaseOf(bossWin(seed, 'medium', 'S+'))).toBeNull();
+      expect(signPhaseOf(bossWin(seed, 'insane', 'A'))).toBeNull();
+    }
+  });
+
+  it('fires on insane S with an on-loan natural legend and consumes the run legend offer', () => {
+    const hit = SEEDS.map((s) => bossWin(s, 'insane', 'S')).find((m) => signPhaseOf(m));
+    expect(hit).toBeDefined();
+    const phase = signPhaseOf(hit!)!;
+    expect(phase.offer.legendary).toBe(true);
+    expect(phase.offer.onLoan).toBe(true);
+    expect(phase.returnTo.kind).toBe('boostDraft'); // resolves into the next map's draft
+    expect(hit!.legend.offeredThisRun).toBe(true); // shared with the recruit-node gate
+  });
+
+  it('is deterministic: the same seed produces the same offer', () => {
+    const seed = SEEDS.find((s) => signPhaseOf(bossWin(s, 'insane', 'S')))!;
+    const a = signPhaseOf(bossWin(seed, 'insane', 'S'))!;
+    const b = signPhaseOf(bossWin(seed, 'insane', 'S'))!;
+    expect(a.offer).toEqual(b.offer);
+  });
+
+  it('stays silent when the run already saw its legend offer', () => {
+    const seed = SEEDS.find((s) => signPhaseOf(bossWin(s, 'insane', 'S')))!;
+    const m = bossWin(seed, 'insane', 'S', {
+      legend: { dryStreak: 0, offeredThisRun: true },
+    });
+    expect(signPhaseOf(m)).toBeNull();
+  });
+
+  it('accepting signs the legend to the bench and lands on the boost draft', () => {
+    const seed = SEEDS.find((s) => signPhaseOf(bossWin(s, 'insane', 'S')))!;
+    let m = bossWin(seed, 'insane', 'S');
+    if (m.phase.kind === 'itemDrop') m = runReducer(m, { type: 'skipDrop' })!;
+    expect(m.phase.kind).toBe('legendSign');
+    const before = m.core.roster.bench.length;
+    const accepted = runReducer(m, { type: 'acceptLegendSign' })!;
+    expect(accepted.core.roster.bench.length).toBe(before + 1);
+    expect(accepted.core.roster.bench.at(-1)!.onLoan).toBe(true);
+    expect(accepted.phase.kind).toBe('boostDraft');
+    const declined = runReducer(m, { type: 'declineLegendSign' })!;
+    expect(declined.core.roster.bench.length).toBe(before);
+    expect(declined.phase.kind).toBe('boostDraft');
+  });
+
+  it('never offers a legend already in the owned collection', () => {
+    // Claim every legend as owned: the eligibility check must veto every roll.
+    const allLegendKeys = NBA_LEGENDS.map((l) => {
+      const rp = realPlayerToRosterPlayer(l);
+      return `${rp.player.name}|${rp.position}`;
+    });
+    for (const seed of SEEDS) {
+      const m = bossWin(seed, 'insane', 'S', { ownedLegendKeys: allLegendKeys });
+      const phase = signPhaseOf(m);
+      if (phase) {
+        throw new Error(`offered ${phase.offer.player.name} despite full ownership`);
+      }
+    }
   });
 });

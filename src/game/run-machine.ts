@@ -123,7 +123,9 @@ export type RunPhase =
   | { kind: 'postgame'; nodeId: string; won: boolean }
   | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[]; rerolled: boolean[] }
   // Recruiting past the 12-man run cap: pick a player to drop for the incoming one.
-  | { kind: 'dropForRecruit'; nodeId: string; incoming: RosterPlayer }
+  // `returnTo` is where the drop resolves to (a boss signing must land back on the
+  // next map's boost draft, not the map); absent = the map, as before.
+  | { kind: 'dropForRecruit'; nodeId: string; incoming: RosterPlayer; returnTo?: RunPhase }
   | { kind: 'training'; nodeId: string }
   | { kind: 'rest'; nodeId: string }
   // A 1-of-N passive-boost draft, opened once before each map. `forced` is set
@@ -142,6 +144,10 @@ export type RunPhase =
   | { kind: 'boost'; nodeId: string; stock: ItemDef[] }
   | { kind: 'itemDrop'; nodeId: string; drop: ItemDef; returnTo: RunPhase }
   | { kind: 'legendReveal'; nodeId: string; offer: RosterPlayer; fallback: RosterPlayer[] }
+  // Boss Legend Signing (hard/insane, S/S+ ladders): after a boss win, the beaten
+  // franchise's legend offers to join on-loan. Chained after the boss item drop;
+  // `returnTo` is the next map's boost draft.
+  | { kind: 'legendSign'; nodeId: string; offer: RosterPlayer; returnTo: RunPhase }
   | { kind: 'lineup'; returnTo: RunPhase }
   // The item bag: equip stored items onto players or unequip held ones back.
   | { kind: 'bag'; returnTo: RunPhase }
@@ -168,8 +174,13 @@ export interface RunModel {
   boosts: PassiveBoost[];
   /** Run-scoped item bag: defIds of unequipped items kept for later. */
   bag: string[];
-  /** Legendary on-loan offer tracking (once per run + soft pity). */
+  /** Legendary on-loan offer tracking (once per run + soft pity). Shared by the
+   * recruit-node legend gate AND the boss-signing gate, so a run never sees two
+   * legend offers across the two channels. */
   legend: { dryStreak: number; offeredThisRun: boolean };
+  /** Owned S+ player keys snapshotted at initRun, so a boss signing never offers a
+   * legend already in the collection. Optional: old suspended runs default to []. */
+  ownedLegendKeys?: string[];
   /** Recruit nodes in a row without a specialist offered; pity forces one in once
    * it reaches RECRUIT_PITY_THRESHOLD so a specialist build is always reachable. */
   recruitDryStreak: number;
@@ -227,6 +238,8 @@ export type RunAction =
   | { type: 'unequipToBag'; playerIndex: number }
   | { type: 'scoutLegend' }
   | { type: 'declineLegend' }
+  | { type: 'acceptLegendSign' }
+  | { type: 'declineLegendSign' }
   | { type: 'skipNode' }
   | { type: 'backToMap' };
 
@@ -278,6 +291,9 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     boosts: [],
     bag: [],
     legend: { dryStreak: homeRoster.legendDryStreak ?? 0, offeredThisRun: false },
+    ownedLegendKeys: homeRoster.players
+      .filter((p) => (p.legendary ?? false) || p.originalClass === 'S+')
+      .map((p) => nameKey(p.player.name, p.position)),
     recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
     forgivenLosses: 0,
@@ -760,16 +776,57 @@ function advanceToNextMap(model: RunModel): RunModel {
   };
 }
 
-/** Add a recruit to the bench, enforcing the 12-man run cap (else ask for a drop). */
-function recruitOrDrop(model: RunModel, nodeId: string, player: RosterPlayer): RunModel {
+/** Add a recruit to the bench, enforcing the 12-man run cap (else ask for a drop).
+ * `returnTo` is where the flow resolves (default: the map); a boss signing passes the
+ * next map's boost draft so accepting never eats that beat. */
+function recruitOrDrop(
+  model: RunModel,
+  nodeId: string,
+  player: RosterPlayer,
+  returnTo: RunPhase = { kind: 'map' }
+): RunModel {
   if (rosterSize(model.core.roster) >= MAX_RUN_ROSTER) {
-    return { ...model, phase: { kind: 'dropForRecruit', nodeId, incoming: player } };
+    return { ...model, phase: { kind: 'dropForRecruit', nodeId, incoming: player, returnTo } };
   }
   const roster = {
     ...model.core.roster,
     bench: [...model.core.roster.bench, player],
   };
-  return { ...model, core: { ...model.core, roster }, phase: { kind: 'map' } };
+  return { ...model, core: { ...model.core, roster }, phase: returnTo };
+}
+
+/**
+ * Boss Legend Signings: after a non-final boss win on hard/insane S / S+ ladders, a
+ * seeded roll may have the beaten franchise's legend offer to sign ("beat the legend,
+ * sign the legend"). The offer is the NATURAL-stat legend (not the level-scaled boss
+ * copy), re-derived by re-calling generateOpponentTeam with the node's exact seed (the
+ * franchise is the first draw, so this reproduces the boss byte-for-byte). One legend
+ * offer per run across BOTH channels (shared offeredThisRun flag), never a legend
+ * already owned or already on the squad. The roll rides its own child seed, so replays
+ * and resumes are stable and the drop roll is untouched.
+ */
+function rollBossSigning(model: RunModel, nodeId: string): RosterPlayer | null {
+  const { mods, ladderClass } = model;
+  if (mods.legendSign.base <= 0) return null;
+  if (ladderClass !== 'S' && ladderClass !== 'S+') return null;
+  if (model.legend.offeredThisRun) return null;
+  const chance = mods.legendSign.base + mods.legendSign.perMap * model.core.currentMapIndex;
+  if (!createRNG(deriveSeed(model.core.seed, `sign-${nodeId}`)).chance(chance)) return null;
+  const node = model.core.map.nodes[nodeId];
+  const level = node.difficulty ?? node.round ?? node.layer + 1;
+  const headliner = generateOpponentTeam(
+    level,
+    createRNG(deriveSeed(model.core.seed, `opp-${nodeId}`)),
+    { isBoss: true, extraLegend: mods.bossExtraLegend }
+  ).headliner;
+  if (!headliner) return null;
+  const key = nameKey(headliner.player.name, headliner.position);
+  if ((model.ownedLegendKeys ?? []).includes(key)) return null;
+  const onSquad = [...model.core.roster.starters, ...model.core.roster.bench].some(
+    (p) => p.player.name === headliner.player.name
+  );
+  if (onSquad) return null;
+  return { ...headliner, onLoan: true };
 }
 
 export function runReducer(
@@ -930,16 +987,30 @@ export function runReducer(
           };
           return { ...model, core: crowned, wins, phase: { kind: 'summary', champion: true } };
         }
-        const advanced = advanceToNextMap({ ...model, core, wins });
-        // A boss always drops gear (rare / epic / legendary, never common).
+        // Boss Legend Signings roll BEFORE the map advances (the chance ramps on the
+        // map index just beaten); an offered signing counts as the run's one legend
+        // offer, shared with the recruit-node gate.
+        const signOffer = rollBossSigning({ ...model, core, wins }, nodeId);
+        const advanced = advanceToNextMap({
+          ...model,
+          core,
+          wins,
+          legend: signOffer ? { ...model.legend, offeredThisRun: true } : model.legend,
+        });
+        // A boss always drops gear (rare / epic / legendary, never common). Beat order:
+        // the drop lands first, then the signing offer closes the show, then the next
+        // map's boost draft.
+        const afterDrop: RunPhase = signOffer
+          ? { kind: 'legendSign', nodeId, offer: signOffer, returnTo: advanced.phase }
+          : advanced.phase;
         const drop = rollDrop(
           'boss',
           createRNG(deriveSeed(model.core.seed, `drop-${nodeId}`)),
           model.mods.bossRarityBonus
         );
         return drop
-          ? { ...advanced, phase: { kind: 'itemDrop', nodeId, drop, returnTo: advanced.phase } }
-          : advanced;
+          ? { ...advanced, phase: { kind: 'itemDrop', nodeId, drop, returnTo: afterDrop } }
+          : { ...advanced, phase: afterDrop };
       }
       // Elites no longer drop gear (coins / TP / reputation only). Stamp the node with
       // the win + score so the map tile shows a green W and the final (boss wins replace
@@ -993,7 +1064,7 @@ export function runReducer(
 
     case 'dropForRecruit': {
       if (model.phase.kind !== 'dropForRecruit') return model;
-      const incoming = model.phase.incoming;
+      const { incoming, returnTo } = model.phase;
       const all = [...model.core.roster.starters, ...model.core.roster.bench];
       const dropped = all[action.index];
       if (!dropped) return model;
@@ -1002,7 +1073,12 @@ export function runReducer(
       const kept = all.filter((_, i) => i !== action.index);
       kept.push(incoming);
       const roster = { starters: kept.slice(0, 5), bench: kept.slice(5) };
-      return { ...model, core: { ...model.core, roster }, bag, phase: { kind: 'map' } };
+      return {
+        ...model,
+        core: { ...model.core, roster },
+        bag,
+        phase: returnTo ?? { kind: 'map' },
+      };
     }
 
     case 'trainPlayer': {
@@ -1172,6 +1248,17 @@ export function runReducer(
         ...model,
         phase: { kind: 'recruit', nodeId, offers: fallback, rerolled: fallback.map(() => false) },
       };
+    }
+
+    case 'acceptLegendSign': {
+      if (model.phase.kind !== 'legendSign') return model;
+      const { nodeId, offer, returnTo } = model.phase;
+      return recruitOrDrop(model, nodeId, offer, returnTo);
+    }
+
+    case 'declineLegendSign': {
+      if (model.phase.kind !== 'legendSign') return model;
+      return { ...model, phase: model.phase.returnTo };
     }
 
     case 'skipNode':

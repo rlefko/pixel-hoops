@@ -239,6 +239,8 @@ export function useRun() {
       unequipToBag: (playerIndex: number) => dispatch({ type: 'unequipToBag', playerIndex }),
       scoutLegend: () => dispatch({ type: 'scoutLegend' }),
       declineLegend: () => dispatch({ type: 'declineLegend' }),
+      acceptLegendSign: () => dispatch({ type: 'acceptLegendSign' }),
+      declineLegendSign: () => dispatch({ type: 'declineLegendSign' }),
       skipNode: () => dispatch({ type: 'skipNode' }),
       backToMap: () => dispatch({ type: 'backToMap' }),
       // Start a fresh run from the summary. The finished run already settled, so drop its

@@ -266,7 +266,15 @@ export function generateOpponentTeam(
   level: number,
   rng: RNG,
   opts?: { isBoss?: boolean; extraLegend?: boolean }
-): { name: string; roster: Roster; colorHex: string; accentHex: string } {
+): {
+  name: string;
+  roster: Roster;
+  colorHex: string;
+  accentHex: string;
+  /** A boss's franchise legend at NATURAL (unscaled) stats, for the Boss Legend
+   * Signing offer. The fielded copy stays scaled toward the node level. */
+  headliner?: RosterPlayer;
+} {
   const team = pickRealTeam(rng); // MUST remain the first draw
   const isBoss = opts?.isBoss ?? false;
   const pool = modernStartersForTeam(team.abbreviation);
@@ -315,6 +323,7 @@ export function generateOpponentTeam(
     roster: { starters, bench },
     colorHex: team.primaryHex,
     accentHex: team.secondaryHex,
+    headliner: legend ?? undefined,
   };
 }
 

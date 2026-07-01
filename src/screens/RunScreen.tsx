@@ -192,6 +192,19 @@ export default function RunScreen() {
           onDecline={actions.declineLegend}
         />
       );
+    case 'legendSign':
+      // Boss Legend Signing: the beaten franchise's headliner wants in. Same jackpot
+      // reveal as the recruit-node legend, with the signing's own copy.
+      return (
+        <LegendRevealView
+          offer={model.phase.offer}
+          onScout={actions.acceptLegendSign}
+          onDecline={actions.declineLegendSign}
+          kicker="THE BEATEN LEGEND WANTS IN"
+          loanNote="Impressed by the win. On loan: keep them by clearing the run."
+          signLabel="SIGN THE LEGEND"
+        />
+      );
     case 'pregame':
       return <Pregame model={model} actions={actions} />;
     case 'game':
