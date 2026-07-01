@@ -5,6 +5,7 @@ import { Screen } from '@/components/Screen';
 import { StaggerIn } from '@/components/fx';
 import { useHubBackdrop } from '@/feel';
 import { HallOfFameCard } from '@/components/locker/HallOfFameCard';
+import { BountyCrestShelf } from '@/components/locker/BountyCrestShelf';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { palette, FONT, FONT_SIZE, space } from '@/theme';
 
@@ -41,6 +42,8 @@ export default function HallOfFameScreen() {
           {entries.length} {entries.length === 1 ? 'banner' : 'banners'}
         </Text>
       </View>
+
+      <BountyCrestShelf ladderProgress={homeRoster.ladderProgress} />
 
       {entries.length === 0 ? (
         <Text style={styles.empty}>

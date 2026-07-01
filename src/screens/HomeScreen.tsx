@@ -16,6 +16,7 @@ import {
   LockIcon,
   LockerIcon,
   RecruitIcon,
+  StarIcon,
   WhistleIcon,
 } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
@@ -27,10 +28,12 @@ import {
   DIFFICULTIES,
   DIFFICULTY_LABELS,
   LADDER_CLASSES,
+  isClassConquered,
   unlockedClasses,
   type Difficulty,
   type LadderClass,
 } from '@/game/difficulty-mode';
+import { bountyFor } from '@/game/bounties';
 import { getCoach } from '@/game/coaches';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -64,6 +67,13 @@ export default function HomeScreen() {
   const unlocked = homeRoster
     ? unlockedClasses(homeRoster.ladderProgress[homeRoster.selectedDifficulty])
     : [];
+  // A cell's crest derives from ladder progress (not claimedBounties), so past clears show
+  // their crests immediately. Drives the crest badges on the ladder chips + the reward teaser
+  // below, both for the currently selected difficulty.
+  const clearedThrough = homeRoster
+    ? homeRoster.ladderProgress[homeRoster.selectedDifficulty]
+    : null;
+  const isConquered = (cls: LadderClass) => isClassConquered(cls, clearedThrough);
   const coach = homeRoster ? getCoach(homeRoster.selectedCoachId) : null;
 
   const setDifficulty = (d: Difficulty) => {
@@ -162,10 +172,23 @@ export default function HomeScreen() {
                   ) : (
                     <LockIcon size={14} color={palette.inkDim} />
                   )}
+                  {/* A uniform gold-star "conquered" stamp on the tiny chip corner, distinct
+                      from the Hall of Fame shelf's tier-specific crests (a coin/flame/crown at
+                      chip scale would read as clutter, not a trophy). */}
+                  {isConquered(cls) ? (
+                    <View style={styles.crestBadge}>
+                      <StarIcon size={10} color={palette.gold} />
+                    </View>
+                  ) : null}
                 </Pressable>
               );
             })}
           </View>
+          <Text style={styles.bountyTeaser}>
+            {isConquered(homeRoster.selectedLadderClass)
+              ? `${homeRoster.selectedLadderClass} BOUNTY CLAIMED`
+              : `BOUNTY: ${bountyFor(homeRoster.selectedDifficulty, homeRoster.selectedLadderClass).label}`}
+          </Text>
 
           <Text style={styles.selectLabel}>COACH</Text>
           {coach ? (
@@ -380,6 +403,7 @@ const styles = StyleSheet.create({
     maxWidth: 260,
   },
   classChip: {
+    position: 'relative',
     minWidth: 40,
     alignItems: 'center',
     paddingHorizontal: space(2.5),
@@ -389,6 +413,22 @@ const styles = StyleSheet.create({
   },
   classChipText: { fontFamily: FONT.display, fontSize: FONT_SIZE.small },
   chipLocked: { opacity: 0.4, borderColor: palette.inkDim },
+  crestBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: palette.bgDeep,
+    borderRadius: RADIUS.chip,
+    padding: 1,
+  },
+  bountyTeaser: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.gold,
+    textAlign: 'center',
+    marginTop: space(2),
+    maxWidth: 280,
+  },
   coachRow: {
     flexDirection: 'row',
     alignItems: 'center',

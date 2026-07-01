@@ -20,7 +20,8 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
  * gold burst, A is epic, C/B is rare. Unlocked cards stagger in (no per-card step-through, since
  * a run can sign several at once). All juice no-ops under reduced motion. Runs that only
  * PROGRESSED shards (no unlock) skip this and show a compact strip on the win screen instead.
- * Sequenced by RunScreen after the champion celebration and before the coach unlock.
+ * Sequenced by RunScreen after the champion celebration and the bounty reveal, before the
+ * coach unlock.
  */
 
 const CENTER_X = Dimensions.get('window').width / 2;
