@@ -34,8 +34,9 @@ interface Pool {
 const pools = new Map<SfxName, Pool>();
 
 // Rapid UI taps get a short cooldown so fast navigation never machine-guns, plus a small
-// pitch jitter so repeats never sound identical (anti-fatigue).
-const RAPID_TAPS = new Set<SfxName>(['tapPrimary', 'tapSecondary', 'toggle']);
+// pitch jitter so repeats never sound identical (anti-fatigue). Count ticks share the
+// gate so a fast tally plays a musical stream instead of a machine gun.
+const RAPID_TAPS = new Set<SfxName>(['tapPrimary', 'tapSecondary', 'toggle', 'tick']);
 const TAP_COOLDOWN_MS = 45;
 const lastTapAt = new Map<SfxName, number>();
 let jitterTick = 0;
@@ -166,9 +167,10 @@ export const sfx = {
     trigger('buzzerBeater');
   },
   win: () => {
-    // Soft, brief cue after every won game: a light duck and a small per-win pitch jitter
-    // so back-to-back wins never sound identical.
-    duckMusic(300);
+    // Barely-there cue after every won game, with a small per-win pitch jitter so
+    // back-to-back wins never sound identical. No music duck: at this size the cue
+    // sits on top of the bed, and dipping the music 10-20 times a run pumps more
+    // than the cue itself would.
     trigger('win', 0.99 + (jitterTick++ % 3) * 0.01);
   },
   loss: () => trigger('loss'),
@@ -183,7 +185,11 @@ export const sfx = {
   },
   gachaWindup: () => trigger('gachaWindup'),
   recruit: () => trigger('recruit'),
-  dupe: () => trigger('dupe'),
+  // `rate` lets a multi-copy bank step its clinks upward (the collection pip beat).
+  dupe: (rate: number = 1) => trigger('dupe', rate),
+  // Economy: count-up ticks (rate walks upward as a tally climbs) + coin settle.
+  tick: (rate: number = 1) => trigger('tick', rate),
+  coin: () => trigger('coin'),
   // UI.
   tap: (variant: TapVariant = 'primary') =>
     trigger(variant === 'secondary' ? 'tapSecondary' : 'tapPrimary'),

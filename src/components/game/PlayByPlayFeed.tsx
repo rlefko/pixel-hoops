@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from '@/components/StyledText';
 import {
@@ -10,14 +11,18 @@ import {
   Scanlines,
   Counter,
   Callout,
+  CrunchVignette,
+  Pop,
 } from '@/components/fx';
 import { CourtView } from '@/components/game/CourtView';
 import { eventGapMs } from '@/components/game/possession';
+import { computeMomentum } from '@/game/momentum';
 import { computeHotState } from '@/game/streaks';
 import {
   haptics,
   sfx,
   useFeelSettings,
+  useGlowPulse,
   SIM_SPEED_FACTOR,
   SIM_SPEED_ORDER,
 } from '@/feel';
@@ -34,6 +39,8 @@ import type { Team } from '@/types/team';
  */
 
 const VISIBLE_ROWS = 3;
+/** A quarter's chapter marker stays up for this many events of the new quarter. */
+const QUARTER_NOTE_EVENTS = 3;
 
 function colorForEvent(e: SimEvent): string {
   if (e.result === 'and-one') return palette.gold;
@@ -93,11 +100,13 @@ export function PlayByPlayFeed({
   awayTeam,
   onComplete,
 }: PlayByPlayFeedProps) {
-  const { reducedMotion, simSpeed, highlightsOnly, update } = useFeelSettings();
+  const { reducedMotion, simSpeed, highlightsOnly, arcadeExtras, update } = useFeelSettings();
   const insets = useSafeAreaInsets();
   const speed = SIM_SPEED_FACTOR[simSpeed];
   const [cursor, setCursor] = useState(-1);
   const [skipped, setSkipped] = useState(false);
+  // Pops the score bug when the lead flips (seq of the flipping event).
+  const [leadPopSeq, setLeadPopSeq] = useState(0);
   // The most recently landed event drives the HUD score, callout, and feedback,
   // so the bucket counts and the celebration land *with* the ball, not when the
   // play is first revealed.
@@ -118,6 +127,35 @@ export function PlayByPlayFeed({
 
   // NBA-Jam hot hand, derived once from the timeline (presentation only).
   const hotState = useMemo(() => computeHotState(timeline), [timeline]);
+
+  // The game's narrative, derived once from the timeline beside the hot hand
+  // (presentation only, no sim changes): per-event momentum (runs, lead changes,
+  // crunch, the clincher), the one beat where crunch begins ("CRUNCH TIME!"),
+  // the events that get game-winner cinema (the buzzer-beater or the clincher;
+  // at most one per game), and the quarter chapter markers ("END Q1 · 18-12",
+  // riding the first QUARTER_NOTE_EVENTS events of the new quarter). Purely
+  // derived, so there are no timers to clean up.
+  const { momentum, crunchStartSeq, cinemaSeqs, quarterNotes } = useMemo(() => {
+    const momentum = computeMomentum(timeline);
+    let crunchStartSeq = -1;
+    const cinemaSeqs = new Set<number>();
+    const quarterNotes = new Map<number, { text: string; first: boolean }>();
+    for (let i = 0; i < timeline.length; i++) {
+      const e = timeline[i];
+      const m = momentum.get(e.seq);
+      if (crunchStartSeq < 0 && m?.crunch) crunchStartSeq = e.seq;
+      if (isWinner(e) || m?.clincher) cinemaSeqs.add(e.seq);
+      const prev = i > 0 ? timeline[i - 1] : undefined;
+      if (prev && e.quarter > prev.quarter) {
+        const text = `END Q${prev.quarter} · ${prev.homeScore}-${prev.awayScore}`;
+        for (let j = i; j < Math.min(i + QUARTER_NOTE_EVENTS, timeline.length); j++) {
+          if (timeline[j].quarter !== e.quarter) break;
+          quarterNotes.set(timeline[j].seq, { text, first: j === i });
+        }
+      }
+    }
+    return { momentum, crunchStartSeq, cinemaSeqs, quarterNotes };
+  }, [timeline]);
 
   // Outcome feedback, tiered so routine plays stay quiet and only special moments
   // pop. Fired when the ball reaches the rim (see CourtView onArrival).
@@ -160,7 +198,10 @@ export function PlayByPlayFeed({
       }
       if (e.action === 'three') {
         shakeRef.current?.shake('light');
-        haptics.light();
+        // The ignite make (third straight) lands a heavier pulse: the milestone
+        // is felt, not just read off the callout.
+        if (hot?.igniting) haptics.medium();
+        else haptics.light();
         sfx.three(pitchFor(e, hot));
         return;
       }
@@ -178,19 +219,61 @@ export function PlayByPlayFeed({
         sfx.make(pitchFor(e, hot));
         return;
       }
-      haptics.selection(); // routine make: a clean tick, the net swish carries it
+      if (hot?.igniting) haptics.medium(); // the ignite make lands heavier
+      else haptics.selection(); // routine make: a clean tick, the net swish carries it
       // Routine makes whip by silently in highlights mode so big plays stand out.
       if (!pacingRef.current.highlightsOnly) sfx.make(pitchFor(e, hot));
     },
     [hotState]
   );
 
+  // Narrative feedback layered after the play's own outcome juice: the clincher,
+  // crunch time opening, lead changes, run milestones, quarter breaks. All ride
+  // the landed event's existing gap; none of them add a millisecond to the watch.
+  const applyNarrativeJuice = useCallback(
+    (e: SimEvent) => {
+      if (isWinner(e)) return; // the buzzer-beater stack owns the whole beat
+      const m = momentum.get(e.seq);
+      const qn = quarterNotes.get(e.seq);
+      if (qn?.first && !pacingRef.current.highlightsOnly) {
+        haptics.selection();
+        sfx.tap('secondary');
+      }
+      if (!m) return;
+      if (m.clincher) {
+        // The game-sealing bucket: a medium beat one rung under the buzzer-beater.
+        shakeRef.current?.shake('medium');
+        flashRef.current?.flash(palette.gold, { peak: 0.2 });
+        haptics.success();
+        return;
+      }
+      if (e.seq === crunchStartSeq) haptics.medium();
+      if (m.leadChange) {
+        setLeadPopSeq(e.seq);
+        const leaderColor = m.margin > 0 ? homeTeam.colorHex : awayTeam.colorHex;
+        // Broadcast score-bug behavior: the frame tints toward the new leader,
+        // a touch brighter in crunch. Well under the 0.3 buzzer-beater peak.
+        flashRef.current?.flash(leaderColor, { peak: m.crunch ? 0.16 : 0.1 });
+        haptics.light();
+      } else if (m.crunch && isMadeShot(e)) {
+        const scorerColor = e.team === 'home' ? homeTeam.colorHex : awayTeam.colorHex;
+        flashRef.current?.flash(scorerColor, { peak: 0.1 });
+      }
+      if (m.runMilestone != null && !hotState.get(e.seq)?.igniting) {
+        haptics.light();
+        sfx.whoosh('forward');
+      }
+    },
+    [momentum, quarterNotes, crunchStartSeq, hotState, homeTeam, awayTeam]
+  );
+
   const handleArrival = useCallback(
     (e: SimEvent) => {
       setLanded(e);
       applyOutcomeJuice(e);
+      applyNarrativeJuice(e);
     },
-    [applyOutcomeJuice]
+    [applyOutcomeJuice, applyNarrativeJuice]
   );
 
   // Scheduler: reveal the next event after a possession-length delay so the ball
@@ -205,10 +288,16 @@ export function PlayByPlayFeed({
     const gap =
       cursor < 0
         ? 0
-        : eventGapMs(timeline[cursor], reducedMotion, speed, highlightsOnly);
+        : eventGapMs(
+            timeline[cursor],
+            reducedMotion,
+            speed,
+            highlightsOnly,
+            cinemaSeqs.has(timeline[cursor].seq)
+          );
     const timer = setTimeout(() => setCursor(nextIdx), gap);
     return () => clearTimeout(timer);
-  }, [cursor, timeline, skipped, reducedMotion, speed, highlightsOnly]);
+  }, [cursor, timeline, skipped, reducedMotion, speed, highlightsOnly, cinemaSeqs]);
 
   // Fire onComplete once the timeline finishes, after the final ball has had time
   // to land and celebrate (so the game-winner isn't cut off by the transition).
@@ -222,10 +311,10 @@ export function PlayByPlayFeed({
     const p = pacingRef.current;
     const timer = setTimeout(
       () => onCompleteRef.current(),
-      eventGapMs(last, p.reducedMotion, p.speed, p.highlightsOnly)
+      eventGapMs(last, p.reducedMotion, p.speed, p.highlightsOnly, cinemaSeqs.has(last.seq))
     );
     return () => clearTimeout(timer);
-  }, [cursor, timeline]);
+  }, [cursor, timeline, cinemaSeqs]);
 
   const skip = useCallback(() => {
     // Jump to the final beat; its ball still arcs and lands the payoff via
@@ -246,28 +335,41 @@ export function PlayByPlayFeed({
   const start = Math.max(0, cursor - VISIBLE_ROWS + 1);
   const rows = cursor >= 0 ? timeline.slice(start, cursor + 1) : [];
 
-  // The callout: a streak milestone takes precedence over the play's own
-  // callout, which in turn outranks a routine substitution. Subs are derived
+  // The callout slot speaks with one voice at a time, loudest story first:
+  // clincher > streak milestone > the play's own big-play callout > crunch time
+  // opening > scoring-run banner > a routine substitution. Subs are derived
   // purely from the landed event (no timers touched), so a fresh body checking
   // in gets a quiet steel-blue "SUB: X IN" only when nothing louder is happening.
   const landedHot = landed ? hotState.get(landed.seq) : undefined;
-  const streakCallout = landedHot?.igniting
-    ? 'ON FIRE!'
-    : landedHot?.heating
-      ? 'HEATING UP!'
-      : undefined;
-  const bigPlayCallout = landed?.isBigPlay ? landed.callout : undefined;
-  const sub = landed?.subs?.[0];
-  const subCallout = sub ? `SUB: ${sub.inName} IN` : undefined;
-  const isSubCallout = !streakCallout && !bigPlayCallout && subCallout != null;
-  const calloutText = streakCallout ?? bigPlayCallout ?? subCallout;
-  const calloutColor = streakCallout
-    ? palette.flame
-    : isSubCallout
-      ? palette.steelBlue
-      : landed
-        ? colorForEvent(landed)
-        : palette.gold;
+  const landedMomentum = landed ? momentum.get(landed.seq) : undefined;
+  const callout = (() => {
+    if (landedMomentum?.clincher) return { text: 'CLINCHER!', color: palette.gold };
+    if (landedHot?.igniting) return { text: 'ON FIRE!', color: palette.flame };
+    if (landedHot?.heating) return { text: 'HEATING UP!', color: palette.flame };
+    if (landed?.isBigPlay && landed.callout)
+      return { text: landed.callout, color: colorForEvent(landed) };
+    if (landed && landed.seq === crunchStartSeq)
+      return { text: 'CRUNCH TIME!', color: palette.gold };
+    if (landedMomentum?.runMilestone != null && landedMomentum.runTeam)
+      return {
+        text: `${landedMomentum.runPts}-0 RUN`,
+        color:
+          landedMomentum.runTeam === 'home' ? palette.makeGreenLt : palette.missRedLt,
+      };
+    const sub = landed?.subs?.[0];
+    if (sub) return { text: `SUB: ${sub.inName} IN`, color: palette.steelBlue };
+    return null;
+  })();
+
+  // The chapter marker riding the first events of a new quarter.
+  const quarterNote =
+    landed && !highlightsOnly ? quarterNotes.get(landed.seq) : undefined;
+
+  // Crunch-time dressing: while the finish is live, the score bug wears a gold
+  // breathing underline and the court a faint gold frame. Both unmount outside
+  // crunch, so blowouts never pay for them.
+  const crunchLive = landedMomentum?.crunch === true;
+  const crunchGlow = useGlowPulse(900, { paused: !crunchLive });
 
   return (
     <View style={styles.wrap}>
@@ -275,7 +377,8 @@ export function PlayByPlayFeed({
         {/* The player's squad is billed first (left) even though they're the
             visitor; the opponent second. Each name rides a chip in its own
             secondary color, and each chip stays matched to that team's score. */}
-        <View style={styles.scoreRow}>
+        {/* The score bug pops when the lead flips (leadPopSeq advances). */}
+        <Pop trigger={leadPopSeq} style={styles.scoreRow}>
           <View style={styles.teamCol}>
             <TeamChip team={homeTeam} />
           </View>
@@ -285,7 +388,8 @@ export function PlayByPlayFeed({
           <View style={styles.teamCol}>
             <TeamChip team={awayTeam} />
           </View>
-        </View>
+        </Pop>
+        {crunchLive ? <Animated.View style={[styles.crunchBar, crunchGlow]} /> : null}
       </View>
 
       <ShakeView ref={shakeRef} style={styles.courtWrap}>
@@ -294,6 +398,9 @@ export function PlayByPlayFeed({
           awayTeam={awayTeam}
           current={current}
           hotKeys={landedHot?.hotKeys}
+          warmKeys={landedHot?.warmKeys}
+          ignite={landedHot?.igniting ?? false}
+          cinema={current != null && cinemaSeqs.has(current.seq)}
           onArrival={handleArrival}
         />
         <View style={styles.feed}>
@@ -314,9 +421,18 @@ export function PlayByPlayFeed({
             </Text>
           ))}
         </View>
-        {calloutText ? (
-          <Callout text={calloutText} color={calloutColor} style={styles.callout} />
+        {callout ? (
+          <Callout text={callout.text} color={callout.color} style={styles.callout} />
         ) : null}
+        {quarterNote ? (
+          <Callout
+            text={quarterNote.text}
+            color={palette.steelBlue}
+            style={styles.quarterNote}
+            textStyle={styles.quarterNoteText}
+          />
+        ) : null}
+        {crunchLive && arcadeExtras ? <CrunchVignette /> : null}
         <Scanlines />
         <FlashOverlay ref={flashRef} />
       </ShakeView>
@@ -403,6 +519,21 @@ const styles = StyleSheet.create({
     top: '38%',
     left: 0,
     right: 0,
+  },
+  quarterNote: {
+    position: 'absolute',
+    top: '10%',
+    left: 0,
+    right: 0,
+  },
+  quarterNoteText: {
+    fontSize: FONT_SIZE.small,
+  },
+  crunchBar: {
+    marginTop: space(1),
+    width: 96,
+    height: 3,
+    backgroundColor: palette.gold,
   },
   controls: {
     flexDirection: 'row',

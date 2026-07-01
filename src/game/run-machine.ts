@@ -52,7 +52,7 @@ import {
 } from './boosts';
 import { pityRarityOffset, PITY_MAX } from './rarity';
 import { ITEM_BY_ID, rollDrop, rollBoostStock, type ItemDef } from './items';
-import type { MapNode } from '@/types/run-map';
+import type { MapNode, MapNodeType } from '@/types/run-map';
 import type { RunState } from '@/types/run-map';
 import { nameKey, type RosterPlayer } from '@/types/roster';
 import type { BoxLine, SimResult } from '@/types/sim';
@@ -331,6 +331,23 @@ function trainingPointsFor(node: MapNode, mods: DifficultyMods): number {
   if (node.type === 'boss') return TP_BOSS + mods.trainingBonus.boss;
   if (node.type === 'elite') return TP_ELITE + mods.trainingBonus.elite;
   return TP_GAME;
+}
+
+/** What the postgame win on screen will bank when the player continues, computed
+ * from the same payout functions resolveGameResult uses, so the tally the UI
+ * celebrates is exactly the amount that lands. Null off the winning postgame. */
+export function pendingWinRewards(
+  model: RunModel
+): { coins: number; trainingPoints: number; reputation: number; nodeType: MapNodeType } | null {
+  if (model.phase.kind !== 'postgame' || !model.phase.won || !model.game) return null;
+  const node = model.core.map.nodes[model.phase.nodeId];
+  if (!node) return null;
+  return {
+    coins: coinsForWin(node, model.game.result, model.mods),
+    trainingPoints: trainingPointsFor(node, model.mods),
+    reputation: Math.round((node.layer + 1) * model.mods.repMul),
+    nodeType: node.type,
+  };
 }
 
 // --- Legendary recruit gate (S / S+ ladders only) ---

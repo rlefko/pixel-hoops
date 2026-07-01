@@ -23,8 +23,16 @@ import {
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { COURT } from '@/components/game/courtDimensions';
-import { idleBobFor, moveOffsetFor, roleFor, MOVE, DUNK } from '@/components/game/possession';
+import {
+  idleBobFor,
+  moveOffsetFor,
+  roleFor,
+  MOVE,
+  DUNK,
+  WINNER_TIME_SCALE,
+} from '@/components/game/possession';
 import { useFeelSettings, useBobPulse, useGlowPulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
+import { FLIGHT_DURATION_MAX } from '@/feel/useBallFlight';
 import { palette, FONT, FONT_SIZE } from '@/theme';
 import { courtThemeFor } from '@/theme/courtTheme';
 import { useCourtTheme } from '@/hooks/useCourtTheme';
@@ -47,6 +55,12 @@ interface CourtViewProps {
   current: SimEvent | null;
   /** `${side}-${position}` keys of players who are currently on fire. */
   hotKeys?: string[];
+  /** `${side}-${position}` keys of players heating up (the warm tease tier). */
+  warmKeys?: string[];
+  /** The landed scorer just hit three straight: fire the ignite burst. */
+  ignite?: boolean;
+  /** The current play is the game-deciding shot: slow-mo flight + court zoom. */
+  cinema?: boolean;
   /** Fired when the ball reaches the rim (synced make/miss feedback). */
   onArrival?: (e: SimEvent) => void;
 }
@@ -137,6 +151,12 @@ function burstFor(
   };
 }
 
+// Game-winner cinema: the court leans in this much while the deciding ball hangs,
+// holds through the impact, then snaps back.
+const CINEMA_ZOOM = 1.05;
+const CINEMA_HOLD_MS = 300;
+const CINEMA_SNAP_BACK_MS = 120;
+
 /** Cumulative time fractions of the dunk beats, for interpolating the sequence. */
 const DUNK_TOTAL = DUNK.gather + DUNK.leap + DUNK.slam + DUNK.hang + DUNK.recover;
 const DUNK_KF = [
@@ -148,6 +168,9 @@ const DUNK_KF = [
   1,
 ];
 
+/** A sprite's hot-hand tier: on fire pulses, warm is the steady half-lit tease. */
+type HeatTier = 'none' | 'warm' | 'fire';
+
 const SpriteAt = memo(function SpriteAt({
   side,
   position,
@@ -156,7 +179,7 @@ const SpriteAt = memo(function SpriteAt({
   current,
   width,
   height,
-  hot,
+  heat,
 }: {
   side: SimTeamSide;
   position: Position;
@@ -165,7 +188,7 @@ const SpriteAt = memo(function SpriteAt({
   current: SimEvent | null;
   width: number;
   height: number;
-  hot: boolean;
+  heat: HeatTier;
 }) {
   const { reducedMotion, simSpeed } = useFeelSettings();
   const speed = SIM_SPEED_FACTOR[simSpeed];
@@ -249,15 +272,20 @@ const SpriteAt = memo(function SpriteAt({
   });
 
   // On-fire aura: a flame glow behind a hot scorer (NBA Jam). Steady under reduced
-  // motion. Paused (no loop) unless this sprite is actually hot, so the other nine
-  // sprites don't run an unread shared-value loop every frame of the whole watch.
-  const glowStyle = useGlowPulse(560, { paused: !hot });
+  // motion. Paused (no loop) unless this sprite is actually on fire, so the other
+  // nine sprites don't run an unread shared-value loop every frame of the watch.
+  // A warm (two straight) sprite wears a steady half-lit aura instead: the tease
+  // that the next make ignites, with no loop at all.
+  const glowStyle = useGlowPulse(560, { paused: heat !== 'fire' });
 
   if (!rp) return null;
   const inner = (
     <>
-      {hot ? (
-        <Animated.View pointerEvents="none" style={[styles.aura, glowStyle]} />
+      {heat !== 'none' ? (
+        <Animated.View
+          pointerEvents="none"
+          style={heat === 'fire' ? [styles.aura, glowStyle] : [styles.aura, styles.auraWarm]}
+        />
       ) : null}
       <PixelPlayer
         color={team.colorHex}
@@ -299,8 +327,12 @@ function CourtViewImpl({
   awayTeam,
   current,
   hotKeys = NO_HOT_KEYS,
+  warmKeys = NO_HOT_KEYS,
+  ignite = false,
+  cinema = false,
   onArrival,
 }: CourtViewProps) {
+  const { reducedMotion, simSpeed } = useFeelSettings();
   // Every game is hosted in the opponent's arena, so the floor takes their colors,
   // tinted over the player's unlocked home-court theme.
   const courtBase = useCourtTheme();
@@ -343,9 +375,53 @@ function CourtViewImpl({
     [arrival, homeTeam, awayTeam, size.width, size.height]
   );
 
+  // The ignite moment (a scorer's third straight make) fires a flame spark at the
+  // shooter, layered over the rim burst so the milestone is felt, not just read.
+  const igniteOrigin = useMemo(
+    () =>
+      ignite && arrival && size.width > 0
+        ? spotPx(arrival.team, arrival.scorerPosition, size.width, size.height, null)
+        : null,
+    [ignite, arrival, size.width, size.height]
+  );
+
+  // The shooter entered this possession already on fire: the ball flies flaming.
+  const ballHot =
+    current != null && hotKeys.includes(`${current.team}-${current.scorerPosition}`);
+
+  // Game-winner cinema: the court leans in 5% while the deciding ball hangs in
+  // slow motion, holds through the impact, then snaps back. Transform-only, and
+  // only ever on this one event per game.
+  const currentSeq = current?.seq ?? -1;
+  const zoom = useSharedValue(1);
+  useEffect(() => {
+    if (!cinema || reducedMotion || currentSeq < 0) {
+      zoom.value = 1;
+      return;
+    }
+    const speed = SIM_SPEED_FACTOR[simSpeed];
+    zoom.value = withSequence(
+      withTiming(CINEMA_ZOOM, {
+        duration: scaled(FLIGHT_DURATION_MAX * WINNER_TIME_SCALE, speed),
+        easing: Easing.out(Easing.quad),
+      }),
+      withDelay(
+        scaled(CINEMA_HOLD_MS, speed),
+        withTiming(1, {
+          duration: scaled(CINEMA_SNAP_BACK_MS, speed),
+          easing: Easing.out(Easing.quad),
+        })
+      )
+    );
+    return () => cancelAnimation(zoom);
+  }, [cinema, currentSeq, reducedMotion, simSpeed, zoom]);
+  const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
+
   return (
     <View style={styles.wrap} onLayout={onLayout}>
-      <View style={[styles.courtBox, { width: size.width, height: size.height }]}>
+      <Animated.View
+        style={[styles.courtBox, { width: size.width, height: size.height }, zoomStyle]}
+      >
         <SvgCourt
           floorColor={theme.floorColor}
           lineColor={theme.lineColor}
@@ -378,7 +454,13 @@ function CourtViewImpl({
               current={current}
               width={size.width}
               height={size.height}
-              hot={hotKeys.includes(`${side}-${position}`)}
+              heat={
+                hotKeys.includes(`${side}-${position}`)
+                  ? 'fire'
+                  : warmKeys.includes(`${side}-${position}`)
+                    ? 'warm'
+                    : 'none'
+              }
             />
           ))
         )}
@@ -386,6 +468,8 @@ function CourtViewImpl({
           event={current}
           width={size.width}
           height={size.height}
+          hot={ballHot}
+          cinema={cinema}
           onArrival={handleArrival}
         />
         <RimRipple
@@ -401,7 +485,14 @@ function CourtViewImpl({
           color={burst?.color}
           trigger={burst ? arrival?.seq : null}
         />
-      </View>
+        <ParticleBurst
+          origin={igniteOrigin}
+          variant="spark"
+          count={8}
+          color={palette.flame}
+          trigger={igniteOrigin ? arrival?.seq : null}
+        />
+      </Animated.View>
     </View>
   );
 }
@@ -458,6 +549,9 @@ const styles = StyleSheet.create({
     height: SPRITE_W * 1.5 + 8,
     borderRadius: 4,
     backgroundColor: palette.flame,
+  },
+  auraWarm: {
+    opacity: 0.5,
   },
   ball: {
     position: 'absolute',

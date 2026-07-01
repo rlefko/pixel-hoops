@@ -4,8 +4,9 @@ import { Screen } from '@/components/Screen';
 import { StaggerIn, Counter } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
-import { haptics } from '@/feel';
+import { haptics, sfx } from '@/feel';
 import { MAX_TRAINED_STAT, trainedStat } from '@/game/effects';
+import { classForOvr } from '@/game/ratings';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Roster } from '@/types/roster';
 import type { PlayerStats } from '@/types/player';
@@ -97,7 +98,15 @@ export function TrainingView({
                           key={s.key}
                           disabled={disabled}
                           onPress={() => {
-                            haptics.selection();
+                            // A +1 that climbs the stat into a new class band gets
+                            // the bigger beat (StatNumber pops the promotion too).
+                            if (classForOvr(trained + 1) !== classForOvr(trained)) {
+                              haptics.success();
+                              sfx.tick(1.5);
+                            } else {
+                              haptics.selection();
+                              sfx.tick();
+                            }
                             onTrain(i, s.key);
                           }}
                           style={[styles.statBtn, disabled && styles.maxed]}

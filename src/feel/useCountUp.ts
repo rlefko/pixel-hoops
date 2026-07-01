@@ -6,11 +6,15 @@ import { useFeelSettings } from './FeelSettingsContext';
  * Tweens a displayed integer toward its target ("numbers go up"). Runs on the JS
  * thread with requestAnimationFrame and rounds to whole numbers, which both
  * suits rendering text and gives the stepped 8-bit feel. Snaps instantly when
- * reduced motion is on. Returns the value to render.
+ * reduced motion is on. Returns the value to render. Pass `from` to anchor the
+ * FIRST render below the target, so a freshly mounted tally visibly climbs.
  */
-export function useCountUp(target: number, opts?: { durationPerUnit?: number }): number {
-  const [display, setDisplay] = useState(target);
-  const displayRef = useRef(target);
+export function useCountUp(
+  target: number,
+  opts?: { durationPerUnit?: number; from?: number }
+): number {
+  const [display, setDisplay] = useState(opts?.from ?? target);
+  const displayRef = useRef(opts?.from ?? target);
   const rafRef = useRef<number | null>(null);
   const { reducedMotion } = useFeelSettings();
   const durationPerUnit = opts?.durationPerUnit ?? 40;

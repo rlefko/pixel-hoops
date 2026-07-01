@@ -115,6 +115,11 @@ interface FireConfig {
   /** Leg-2 endpoint: drop-through, carom-out, or deflection. */
   resolve: Pt;
   shape: ShotShape;
+  /**
+   * Stretches both flight legs (slow motion for the game-winner). The scheduler
+   * must stretch its gap by the same factor (see eventGapMs) so sync holds.
+   */
+  timeScale?: number;
   /** Fired the instant the ball reaches `target`, on the JS thread. */
   onArrival?: () => void;
 }
@@ -173,14 +178,14 @@ export function useBallFlight() {
         cb?.();
         return;
       }
-      const { origin, target, resolve, shape } = cfg;
+      const { origin, target, resolve, shape, timeScale = 1 } = cfg;
       const speed = SIM_SPEED_FACTOR[simSpeed];
       const dist = Math.hypot(target.x - origin.x, target.y - origin.y);
       const peak = arcPeakFor(dist, shape);
       // Scale durations by playback speed; the scheduler's eventGapMs scales by
       // the same factor, so the ball still lands before the next event.
-      const dur = scaled(flightDurationFor(dist, shape), speed);
-      const resolveDur = scaled(RESOLVE_MS[shape], speed);
+      const dur = scaled(flightDurationFor(dist, shape) * timeScale, speed);
+      const resolveDur = scaled(RESOLVE_MS[shape] * timeScale, speed);
       const shotEase =
         shape === 'dunk' ? Easing.in(Easing.cubic) : Easing.out(Easing.quad);
       // A dunk punches down harder than a jumper's tidy drop.

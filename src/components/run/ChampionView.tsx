@@ -2,21 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { Counter, FlashOverlay, ParticleBurst, ShakeView } from '@/components/fx';
+import { Counter, FlashOverlay, ParticleBurst, Pop, ShakeView, TickCounter } from '@/components/fx';
 import { LineupBoard } from '@/components/game/LineupBoard';
-import { sfx, useIdle, HUB_IDLE_MS } from '@/feel';
+import { haptics, sfx, useIdle, HUB_IDLE_MS } from '@/feel';
 import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
 import { DailyRewardStrip } from './DailyRewardStrip';
-import type { DailyGrants } from '@/game/home-roster';
-import { CrownIcon, VictoryTierIcon } from './PixelIcons';
+import { CoinIcon, CrownIcon, VictoryTierIcon } from './PixelIcons';
 import { buildHallOfFameEntry, type ChampionGame } from '@/game/hall-of-fame';
 import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
-import type { ProgressedCopy } from '@/game/home-roster';
+import type { DailyGrants, ProgressedCopy } from '@/game/home-roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -37,6 +36,8 @@ interface ChampionViewProps {
   unlockedClass?: PlayerClass;
   /** Players this run advanced a copy toward but did not unlock (compact progress strip). */
   progressed?: ProgressedCopy[];
+  /** Coins the run banked (including the clear bonus): the haul tally beat. */
+  coinsBanked?: number;
   /** The victory step-up: run it back one difficulty up, pitched at the confidence
    * peak. Absent on insane (nothing above it). */
   stepUp?: { label: string; perks: string; onPress: () => void };
@@ -47,7 +48,11 @@ interface ChampionViewProps {
 }
 
 const CENTER_X = Dimensions.get('window').width / 2;
+// The celebration cascade: burst on mount, then each beat lands on its own.
 const SCORE_DELAY_MS = 260; // a short anticipation hold before the score climbs
+const LEGEND_BURST_DELAY_MS = 420; // the second confetti pop on a legend win
+const HAUL_DELAY_MS = 700; // the coin haul counts in after the score settles
+const UNLOCK_DELAY_MS = 1200; // a new ladder lands last, as its own beat
 
 export function ChampionView({
   game,
@@ -56,6 +61,7 @@ export function ChampionView({
   wins,
   unlockedClass,
   progressed = [],
+  coinsBanked,
   stepUp,
   dailyGrants = null,
   onNewRun,
@@ -75,9 +81,13 @@ export function ChampionView({
   const { idle, bump } = useIdle(HUB_IDLE_MS);
   const [burst, setBurst] = useState(0);
   const [scoreShown, setScoreShown] = useState(0);
+  const [haulShown, setHaulShown] = useState(false);
+  const [unlockShown, setUnlockShown] = useState(false);
 
-  // Mount celebration: the tier-scaled burst now, the score climb after a beat, and
-  // a second confetti pop for legends so the rarest win lands twice.
+  // Mount celebration: the tier-scaled burst now, the score climb after a beat, a
+  // second confetti pop for legends so the rarest win lands twice, then the coin
+  // haul counts in, and a newly unlocked ladder lands last as its own rite-of-passage
+  // beat (whoosh + orange flash + pop) instead of a buried text line.
   useEffect(() => {
     // Map the victory celebration tier onto the shared rarity-scaled burst (a
     // championship always lands at least rare-level juice). Silence the burst's own
@@ -89,13 +99,23 @@ export function ChampionView({
     setBurst((n) => n + 1);
     const scoreTimer = setTimeout(() => setScoreShown(game.result.finalHome), SCORE_DELAY_MS);
     const legendTimer = tier.legend
-      ? setTimeout(() => setBurst((n) => n + 1), 420)
+      ? setTimeout(() => setBurst((n) => n + 1), LEGEND_BURST_DELAY_MS)
       : undefined;
+    const haulTimer = setTimeout(() => setHaulShown(true), HAUL_DELAY_MS);
+    const unlockTimer = setTimeout(() => {
+      setUnlockShown(true);
+      if (!unlockedClass) return;
+      sfx.whoosh('forward');
+      flashRef.current?.flash(palette.orange, { peak: 0.2 });
+      haptics.success();
+    }, UNLOCK_DELAY_MS);
     return () => {
       clearTimeout(scoreTimer);
       clearTimeout(legendTimer);
+      clearTimeout(haulTimer);
+      clearTimeout(unlockTimer);
     };
-  }, [fire, tier.burst, tier.legend, game.result.finalHome]);
+  }, [fire, flashRef, tier.burst, tier.legend, game.result.finalHome, unlockedClass]);
 
   return (
     <Screen style={styles.container} topGap={space(4)} onTouchStart={bump}>
@@ -121,8 +141,31 @@ export function ChampionView({
           <Text style={styles.matchup} numberOfLines={1}>
             {game.home.name} def. {game.opponentName}
           </Text>
+          {coinsBanked != null && coinsBanked > 0 ? (
+            <View style={styles.haulRow}>
+              {haulShown ? (
+                <>
+                  <CoinIcon size={12} color={palette.gold} />
+                  <TickCounter
+                    value={coinsBanked}
+                    from={0}
+                    prefix="+"
+                    tier="large"
+                    style={styles.haulValue}
+                  />
+                  <Text style={styles.haulLabel}>COINS BANKED</Text>
+                </>
+              ) : null}
+            </View>
+          ) : null}
           {unlockedClass ? (
-            <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
+            <View style={styles.unlockSlot}>
+              {unlockShown ? (
+                <Pop popOnMount>
+                  <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
+                </Pop>
+              ) : null}
+            </View>
           ) : null}
           <ParticleBurst
             origin={{ x: CENTER_X, y: 70 }}
@@ -200,12 +243,35 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: space(2),
   },
+  // Fixed heights whether or not their beat has landed, so the staged reveals
+  // never shift the layout under the player's thumb.
+  haulRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
+    marginTop: space(3),
+    height: space(5),
+  },
+  haulValue: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.body,
+    color: palette.gold,
+  },
+  haulLabel: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+  },
+  unlockSlot: {
+    marginTop: space(3),
+    height: space(6),
+    justifyContent: 'center',
+  },
   unlock: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.body,
     color: palette.orange,
     textAlign: 'center',
-    marginTop: space(3),
   },
   section: {
     fontFamily: FONT.display,

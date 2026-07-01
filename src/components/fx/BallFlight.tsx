@@ -4,7 +4,7 @@ import Animated from 'react-native-reanimated';
 import { useBallFlight, type Pt } from '@/feel/useBallFlight';
 import { useFeelSettings } from '@/feel';
 import { spotPx, rimCenterPx } from '@/components/game/courtGeometry';
-import { shotShapeFor, isNoteworthy } from '@/components/game/possession';
+import { shotShapeFor, isNoteworthy, WINNER_TIME_SCALE } from '@/components/game/possession';
 import { palette } from '@/theme';
 import { type SimEvent } from '@/types/sim';
 
@@ -23,6 +23,10 @@ interface BallFlightProps {
   /** Measured court size, for converting court fractions to pixels. */
   width: number;
   height: number;
+  /** The shooter entered this possession on fire: the ball flies flame-trailed. */
+  hot?: boolean;
+  /** The game-deciding shot: both flight legs stretch to slow motion. */
+  cinema?: boolean;
   /** Fired when the ball reaches the rim, to sync the landing flourish. */
   onArrival?: (e: SimEvent) => void;
 }
@@ -43,10 +47,20 @@ function lerp(a: Pt, b: Pt, t: number): Pt {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
-export function BallFlight({ event, width, height, onArrival }: BallFlightProps) {
+export function BallFlight({
+  event,
+  width,
+  height,
+  hot = false,
+  cinema = false,
+  onArrival,
+}: BallFlightProps) {
   const { reducedMotion, highlightsOnly } = useFeelSettings();
   const { ballStyle, trailStyles, fire } = useBallFlight();
   const lastSeq = useRef<number | null>(null);
+  // Read inside the fire effect so a flag flip alone never re-fires a shot.
+  const cinemaRef = useRef(cinema);
+  cinemaRef.current = cinema;
 
   useEffect(() => {
     if (!event || width === 0 || height === 0) return;
@@ -87,16 +101,30 @@ export function BallFlight({ event, width, height, onArrival }: BallFlightProps)
       resolve = { x: rim.x, y: rim.y + dropSign * drop }; // ram/drop through the net
     }
 
-    fire({ origin, target, resolve, shape, onArrival: arrival });
+    fire({
+      origin,
+      target,
+      resolve,
+      shape,
+      timeScale: cinemaRef.current ? WINNER_TIME_SCALE : 1,
+      onArrival: arrival,
+    });
   }, [event, width, height, fire, onArrival, highlightsOnly]);
 
   if (reducedMotion) return null;
   return (
     <>
       {trailStyles.map((ts, i) => (
-        <Animated.View key={i} pointerEvents="none" style={[styles.trail, ts]} />
+        <Animated.View
+          key={i}
+          pointerEvents="none"
+          style={[styles.trail, hot && styles.trailHot, ts]}
+        />
       ))}
-      <Animated.View pointerEvents="none" style={[styles.ball, ballStyle]} />
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.ball, hot && styles.ballHot, ballStyle]}
+      />
     </>
   );
 }
@@ -117,6 +145,9 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: palette.courtLine,
   },
+  ballHot: {
+    borderColor: palette.flame,
+  },
   trail: {
     position: 'absolute',
     left: 0,
@@ -127,5 +158,8 @@ const styles = StyleSheet.create({
     marginTop: -TRAIL / 2,
     borderRadius: TRAIL / 2,
     backgroundColor: palette.orange,
+  },
+  trailHot: {
+    backgroundColor: palette.flame,
   },
 });

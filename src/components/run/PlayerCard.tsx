@@ -2,8 +2,8 @@ import { memo, useEffect, useRef, type ReactNode } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
-import { PixelPlayer } from '@/components/fx';
-import { usePop, useGlowPulse } from '@/feel';
+import { PixelPlayer, StaggerIn } from '@/components/fx';
+import { usePop, useGlowPulse, haptics, sfx } from '@/feel';
 import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { POSITION_COLOR } from '@/components/game/positionColor';
@@ -50,8 +50,10 @@ interface PlayerCardProps {
    * a glance read for the roster, draft, locker, and recruit screens. */
   showSpecialty?: boolean;
   /** In-progress collection state: this player is collected but not yet owned. Renders a
-   * copies-to-own progress meter and dims the card. Omitted for owned players. */
-  collect?: { copies: number; threshold: number };
+   * copies-to-own progress meter and dims the card. Omitted for owned players.
+   * `justGained` marks pips that just landed (this run's copies): they pop in one by
+   * one with rising clinks, so a banked copy is felt, not just displayed. */
+  collect?: { copies: number; threshold: number; justGained?: number };
   /** Whether the `collect` state dims the card ("not yours yet"). Off for a recruit OFFER,
    * where dimming would wrongly read as disabled. Defaults on. */
   collectDim?: boolean;
@@ -247,7 +249,12 @@ function PlayerCardImpl({
       )}
 
       {collect ? (
-        <CollectMeter copies={collect.copies} threshold={collect.threshold} color={tierColor} />
+        <CollectMeter
+          copies={collect.copies}
+          threshold={collect.threshold}
+          justGained={collect.justGained}
+          color={tierColor}
+        />
       ) : null}
 
       {expanded ? (
@@ -354,33 +361,65 @@ function CompositeChip({ label, value }: { label: string; value: number }) {
   );
 }
 
+/** Pips a fresh copy beat may clink in at once; more land silently filled. */
+const MAX_PIP_BEATS = 3;
+const PIP_BEAT_MS = 150;
+
 /** The copies-to-own progress meter for an in-progress (collected but not owned) player:
  * `threshold` pixel pips, the first `copies` filled in the class color, with a label. The
- * final pip that fills unlocks the player. */
+ * final pip that fills unlocks the player. Pips covered by `justGained` stagger in with
+ * rising dupe clinks (the "one more run and he's mine" beat), and a meter sitting one
+ * copy from the threshold turns gold: the honest near-miss read, static so it costs
+ * nothing to keep on screen. */
 function CollectMeter({
   copies,
   threshold,
+  justGained = 0,
   color,
 }: {
   copies: number;
   threshold: number;
+  justGained?: number;
   color: string;
 }) {
+  const fresh = Math.min(justGained, copies, MAX_PIP_BEATS);
+  useEffect(() => {
+    if (fresh <= 0) return;
+    const timers = Array.from({ length: fresh }, (_, i) =>
+      setTimeout(() => {
+        sfx.dupe(1 + i * 0.08); // each landed copy clinks a step higher
+        if (i === fresh - 1) haptics.light();
+      }, i * PIP_BEAT_MS)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [fresh]);
+
+  const oneAway = copies === threshold - 1;
+  const accent = oneAway ? palette.gold : color;
   return (
     <View style={styles.collectRow}>
       <View style={styles.collectPips}>
-        {Array.from({ length: threshold }).map((_, i) => (
-          <View
-            key={i}
-            style={[
-              styles.collectPip,
-              { borderColor: color, backgroundColor: i < copies ? color : 'transparent' },
-            ]}
-          />
-        ))}
+        {Array.from({ length: threshold }).map((_, i) => {
+          const pip = (
+            <View
+              style={[
+                styles.collectPip,
+                { borderColor: accent, backgroundColor: i < copies ? color : 'transparent' },
+              ]}
+            />
+          );
+          const freshIndex = i - (copies - fresh);
+          return freshIndex >= 0 && i < copies ? (
+            <StaggerIn key={i} index={freshIndex} stepMs={PIP_BEAT_MS} distancePx={4}>
+              {pip}
+            </StaggerIn>
+          ) : (
+            <View key={i}>{pip}</View>
+          );
+        })}
       </View>
-      <Text style={[styles.collectText, { color }]}>
-        {copies}/{threshold} TO OWN
+      <Text style={[styles.collectText, { color: accent }]}>
+        {oneAway ? '1 MORE TO OWN' : `${copies}/${threshold} TO OWN`}
       </Text>
     </View>
   );
