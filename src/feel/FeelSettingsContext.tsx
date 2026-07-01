@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { AppState } from 'react-native';
-import { useLowPowerMode } from 'expo-battery';
+import { useLowPowerMode } from './useLowPowerMode';
 import { setHapticsEnabled } from './haptics';
 import { setSoundEnabled, setSoundVolume, setAudioActive, initSfx } from './audio';
 import {
@@ -108,10 +108,11 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
   // sound off never pays to spin the audio engine up first (see the lazy-init effect).
   const [hydrated, setHydrated] = useState(false);
 
-  // iOS Low Power Mode / Android battery saver. expo-battery's hook is web-safe (it
-  // resolves false and the listener never fires off-device), so this is a no-op there.
-  // It initializes false and resolves the real state a tick later, so a device that
-  // boots in Low Power Mode may briefly read false; the effects below self-correct.
+  // iOS Low Power Mode / Android battery saver. Our ./useLowPowerMode wrapper resolves
+  // false on web (expo-battery's hook subscribes to a native event that is absent there
+  // and would throw), so this is a no-op off-device. It initializes false and resolves
+  // the real state a tick later, so a device that boots in Low Power Mode may briefly
+  // read false; the effects below self-correct.
   const lowPowerMode = useLowPowerMode();
 
   // Debounced persistence (mirrors HomeRosterContext): toggling speed/highlights mid
