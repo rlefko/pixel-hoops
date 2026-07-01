@@ -451,6 +451,92 @@ function upsertCollecting(
   return collecting.map((c, i) => (i === idx ? { player, copies } : c));
 }
 
+/** One in-progress player's copy movement this run, for the end-of-run collection strip. */
+export interface ProgressedCopy {
+  player: RosterPlayer;
+  before: number;
+  after: number;
+  threshold: number;
+}
+
+/** What a cleared run does to the collection: which players it UNLOCKED (crossed the class
+ * threshold to own) and which it only PROGRESSED (gained a copy, still short). Drives the
+ * "player scouted" reveal and the win-screen progress strip. */
+export interface AcquisitionDelta {
+  unlocked: RosterPlayer[];
+  progressed: ProgressedCopy[];
+}
+
+/**
+ * The NEW recruits a cleared run brings home: fielded players (a won on-loan legend included)
+ * not already owned, with run-scoped state stripped, de-duped by key. Empty on a loss. The
+ * single source of truth shared by the merge and the acquisition preview so both agree.
+ */
+function newRecruitsFromRun(home: HomeRoster, runRoster: Roster, champion: boolean): RosterPlayer[] {
+  if (!champion) return [];
+  const ownedKeys = new Set(home.players.map(playerKey));
+  const seen = new Set<string>();
+  const out: RosterPlayer[] = [];
+  for (const p of [...runRoster.starters, ...runRoster.bench]) {
+    const key = playerKey(p);
+    if (ownedKeys.has(key) || seen.has(key)) continue; // already owned, or offered twice
+    seen.add(key);
+    const copy = { ...p };
+    delete copy.item; // run-scoped
+    delete copy.trainingDelta; // run-scoped
+    delete copy.gamesOut; // injuries heal at run end
+    delete copy.equippedAbility; // the home equippedAbilities map is the source of truth
+    delete copy.onLoan; // a kept legend becomes owned (drops the on-loan team chemistry)
+    out.push(copy);
+  }
+  return out;
+}
+
+/**
+ * Deposit one copy per new recruit into `collecting`, returning the updated list plus the
+ * acquisition delta (which recruits crossed the threshold to UNLOCK, and which only
+ * PROGRESSED). Pure; the single source of truth for both the merge and the reveal preview.
+ */
+function depositRecruitCopies(
+  collecting: CollectingPlayer[],
+  recruits: RosterPlayer[]
+): { collecting: CollectingPlayer[] } & AcquisitionDelta {
+  let next = collecting;
+  const unlocked: RosterPlayer[] = [];
+  const progressed: ProgressedCopy[] = [];
+  for (const rp of recruits) {
+    const key = playerKey(rp);
+    const threshold = copiesToOwn(playerDraftClass(rp));
+    const before = next.find((c) => playerKey(c.player) === key)?.copies ?? 0;
+    const after = before + 1;
+    if (after >= threshold) {
+      unlocked.push(rp);
+      next = next.filter((c) => playerKey(c.player) !== key);
+    } else {
+      next = upsertCollecting(next, rp, after);
+      progressed.push({ player: rp, before, after, threshold });
+    }
+  }
+  return { collecting: next, unlocked, progressed };
+}
+
+/**
+ * The players a cleared run would UNLOCK vs PROGRESS, for the end-of-run reveal + strip. Pure
+ * and read-only (does not mutate the home roster); empty on a loss. Mirrors the deposit the
+ * merge performs, so the reveal always matches what actually banks.
+ */
+export function previewRunAcquisitions(
+  home: HomeRoster,
+  runRoster: Roster,
+  champion: boolean
+): AcquisitionDelta {
+  const { unlocked, progressed } = depositRecruitCopies(
+    home.collecting ?? [],
+    newRecruitsFromRun(home, runRoster, champion)
+  );
+  return { unlocked, progressed };
+}
+
 /**
  * Fold a finished run's gains back into the home collection. The persistent collection
  * is preserved; each NEW recruit (not already owned by key, on-loan stripped, run-scoped
@@ -475,38 +561,13 @@ export function mergeRunGainsIntoHome(
   // needs Date.now()). Prepended to the trophy case only on a win; ignored otherwise.
   championEntry?: HallOfFameEntry
 ): HomeRoster {
-  const rosterPlayers = [...runRoster.starters, ...runRoster.bench];
   // Owned players fielded this run drive the recency reorder below. On-loan players (a
   // scouted legend) are never in the owned collection, so they are excluded from this list.
-  const fielded = rosterPlayers.filter((p) => !p.onLoan);
+  const fielded = [...runRoster.starters, ...runRoster.bench].filter((p) => !p.onLoan);
   const ownedKeys = new Set(home.players.map(playerKey));
-  // Recruits are kept only when the run is CLEARED. On a loss they evaporate: only
-  // already-owned players come home (coins and reputation still bank below, and the
-  // permanent collection is never reduced). A scouted LEGEND is on-loan DURING the run but,
-  // when you WIN with it, is kept like any recruit: its copy deposits below and, with
-  // copiesToOwn('S+') = 1, owns it. So the deposit source is the UNFILTERED roster, and the
-  // deposit strips `onLoan` (a kept legend is a normal owned player, not a run-scoped loan).
-  const newRecruits = champion
-    ? rosterPlayers
-        .filter((p) => !ownedKeys.has(playerKey(p)))
-        .map((p) => {
-          const copy = { ...p };
-          delete copy.item; // run-scoped
-          delete copy.trainingDelta; // run-scoped
-          delete copy.gamesOut; // injuries heal at run end
-          delete copy.equippedAbility; // the home equippedAbilities map is the source of truth
-          delete copy.onLoan; // a kept legend becomes owned (drops the on-loan team chemistry)
-          return copy;
-        })
-    : [];
-  // De-dupe new recruits against each other (a run can offer the same name twice).
-  const seen = new Set<string>();
-  const deduped = newRecruits.filter((p) => {
-    const k = playerKey(p);
-    if (seen.has(k)) return false;
-    seen.add(k);
-    return true;
-  });
+  // The new recruits a cleared run brings home (a won on-loan legend included, run-scoped
+  // state stripped, de-duped); empty on a loss. Each deposits one copy below.
+  const deduped = newRecruitsFromRun(home, runRoster, champion);
 
   // Recency: the players fielded this run move to the FRONT of the collection (in
   // slot order), then this run's new recruits, then everyone else in prior order.
@@ -524,25 +585,14 @@ export function mergeRunGainsIntoHome(
   const fieldedOwned = fieldedOwnedKeys.map((k) => homeByKey.get(k)!);
   const restOwned = home.players.filter((p) => !seenF.has(playerKey(p)));
 
-  // Each new recruit deposits ONE copy toward owning that player. A recruit that crosses
-  // its class threshold unlocks into the collection now (front = recency); the rest
-  // advance their in-progress copy count in `collecting`. `deduped` is empty on a loss, so
-  // a lost run deposits nothing and this run's recruits evaporate (prior in-progress copies,
-  // banked on earlier wins, are untouched).
-  let collecting = home.collecting ?? [];
-  const unlockedRecruits: RosterPlayer[] = [];
-  for (const rp of deduped) {
-    const key = playerKey(rp);
-    const cls = playerDraftClass(rp);
-    const have = collecting.find((c) => playerKey(c.player) === key)?.copies ?? 0;
-    const next = have + 1;
-    if (next >= copiesToOwn(cls)) {
-      unlockedRecruits.push(rp);
-      collecting = collecting.filter((c) => playerKey(c.player) !== key);
-    } else {
-      collecting = upsertCollecting(collecting, rp, next);
-    }
-  }
+  // Each new recruit deposits ONE copy: crossing the class threshold unlocks the player into
+  // the collection now (front = recency); the rest advance their in-progress copy count in
+  // `collecting`. `deduped` is empty on a loss, so a lost run deposits nothing (prior
+  // in-progress copies, banked on earlier wins, are untouched).
+  const { collecting, unlocked: unlockedRecruits } = depositRecruitCopies(
+    home.collecting ?? [],
+    deduped
+  );
   const players = [...fieldedOwned, ...unlockedRecruits, ...restOwned];
 
   // The draft rotation to restore next run is captured at draft-confirm time into

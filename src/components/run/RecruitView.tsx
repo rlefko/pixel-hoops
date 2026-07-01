@@ -8,6 +8,7 @@ import { PlayerCard } from '@/components/run/PlayerCard';
 import { sfx } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { RosterPlayer } from '@/types/roster';
+import type { RecruitCollectStatus } from '@/hooks/useRun';
 
 /** Recruit node: pick one of a few depth-scaled candidates for your bench. */
 
@@ -16,6 +17,9 @@ interface RecruitViewProps {
   /** Per-option reroll usage; each option can be rerolled once per node. */
   rerolled: boolean[];
   benchCount: number;
+  /** An offer's collection status: OWNED (recruiting is wasted) or a copies meter for a
+   * multi-copy player still being collected. Common players return undefined (no meter). */
+  collectProgress: (rp: RosterPlayer) => RecruitCollectStatus | undefined;
   onRecruit: (player: RosterPlayer) => void;
   onReroll: (index: number) => void;
   onSkip: () => void;
@@ -25,6 +29,7 @@ export function RecruitView({
   offers,
   rerolled,
   benchCount,
+  collectProgress,
   onRecruit,
   onReroll,
   onSkip,
@@ -44,7 +49,9 @@ export function RecruitView({
       </Text>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
-        {offers.map((rp, i) => (
+        {offers.map((rp, i) => {
+          const status = collectProgress(rp);
+          return (
           <StaggerIn key={i} index={i} style={styles.card}>
             <Pressable
               onPress={() => {
@@ -57,9 +64,16 @@ export function RecruitView({
                 showSpecialty
                 expanded={expanded === i}
                 onToggleExpand={() => setExpanded(expanded === i ? null : i)}
+                collect={
+                  status?.kind === 'collecting'
+                    ? { copies: status.copies, threshold: status.threshold }
+                    : undefined
+                }
+                collectDim={false}
               />
             </Pressable>
             <View style={styles.metaRow}>
+              {status?.kind === 'owned' ? <Text style={styles.ownedTag}>OWNED</Text> : null}
               {rerolled[i] ? (
                 <PixelButton
                   label="REROLLED"
@@ -78,7 +92,8 @@ export function RecruitView({
               )}
             </View>
           </StaggerIn>
-        ))}
+          );
+        })}
       </ScrollView>
 
       <PixelButton label="Decline" onPress={onSkip} style={styles.decline} />
@@ -127,6 +142,12 @@ const styles = StyleSheet.create({
     paddingTop: space(1),
     borderTopWidth: BORDER.thin,
     borderTopColor: palette.bgDeep,
+  },
+  ownedTag: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+    marginRight: 'auto', // hug the left; the reroll button stays right
   },
   decline: { marginTop: space(4) },
 });

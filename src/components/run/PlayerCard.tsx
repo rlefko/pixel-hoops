@@ -52,6 +52,9 @@ interface PlayerCardProps {
   /** In-progress collection state: this player is collected but not yet owned. Renders a
    * copies-to-own progress meter and dims the card. Omitted for owned players. */
   collect?: { copies: number; threshold: number };
+  /** Whether the `collect` state dims the card ("not yours yet"). Off for a recruit OFFER,
+   * where dimming would wrongly read as disabled. Defaults on. */
+  collectDim?: boolean;
 }
 
 /** One rating's short label, for the expanded breakdown grid. */
@@ -113,6 +116,7 @@ function PlayerCardImpl({
   compact = false,
   showSpecialty = false,
   collect,
+  collectDim = true,
 }: PlayerCardProps) {
   // Fold run-scoped training into the displayed stats so a trained player reads
   // its true OVR/tier (up to S++) everywhere the card appears.
@@ -157,7 +161,7 @@ function PlayerCardImpl({
         isTile && styles.cardTile,
         compact && styles.cardCompact,
         injured && styles.injured,
-        collect && styles.collecting,
+        collect && collectDim && styles.collecting,
       ]}
     >
       <View style={[styles.head, isTile && styles.headTile]}>

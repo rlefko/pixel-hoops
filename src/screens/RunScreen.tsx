@@ -28,6 +28,7 @@ import { deriveTeamIdentity } from '@/game/team-identity';
 import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
 import { RunMapView } from '@/components/run/RunMapView';
 import { RecruitView } from '@/components/run/RecruitView';
+import { PlayerScoutedView } from '@/components/run/PlayerScoutedView';
 import { DraftView } from '@/components/run/DraftView';
 import { DropForRecruitView } from '@/components/run/DropForRecruitView';
 import { LineupBuilderView } from '@/components/run/LineupBuilderView';
@@ -55,7 +56,8 @@ type RunActions = ReturnType<typeof useRun>['actions'];
 
 export default function RunScreen() {
   const nav = useArcadeRouter();
-  const { model, loaded, actions, wonCoachIds, equippedCoachId } = useRun();
+  const { model, loaded, actions, wonCoachIds, wonPlayers, collectProgress, equippedCoachId } =
+    useRun();
   const { autoSkipGames } = useFeelSettings();
   const { savedRun } = useActiveRun();
   // Leaving the run is a suspend, not a quit: the run is auto-saved continuously, so
@@ -65,9 +67,13 @@ export default function RunScreen() {
   // The coach-unlock reveal plays after the champion celebration. Reset whenever the
   // run leaves the summary phase so it never leaks into the next run's summary.
   const [showCoachReveal, setShowCoachReveal] = useState(false);
+  const [showPlayerReveal, setShowPlayerReveal] = useState(false);
   const phaseKind = model?.phase.kind;
   useEffect(() => {
-    if (phaseKind !== 'summary') setShowCoachReveal(false);
+    if (phaseKind !== 'summary') {
+      setShowCoachReveal(false);
+      setShowPlayerReveal(false);
+    }
   }, [phaseKind]);
 
   // Music: the calm run theme plays across the WHOLE run (every phase). The live game
@@ -131,6 +137,7 @@ export default function RunScreen() {
         <DropForRecruitView
           incoming={model.phase.incoming}
           roster={model.core.roster}
+          collectProgress={collectProgress}
           onDrop={actions.dropForRecruit}
           onSkip={actions.backToMap}
         />
@@ -216,6 +223,7 @@ export default function RunScreen() {
           offers={model.phase.offers}
           rerolled={model.phase.rerolled}
           benchCount={model.core.roster.bench.length}
+          collectProgress={collectProgress}
           onRecruit={actions.recruit}
           onReroll={actions.rerollRecruit}
           onSkip={actions.skipNode}
@@ -270,7 +278,23 @@ export default function RunScreen() {
           ? classAboveLadder(model.ladderClass)
           : undefined;
       const wonCoaches = model.phase.champion ? wonCoachIds.map(getCoach) : [];
-      // After the celebration, reveal any newly-won coach(es) as the climactic spoils.
+      const unlockedPlayers = model.phase.champion ? wonPlayers.unlocked : [];
+      const progressed = model.phase.champion ? wonPlayers.progressed : [];
+      // Reveal order after the celebration: scouted (unlocked) players, then the climactic
+      // coach unlock, then out. Each reveal's own exits carry into the next.
+      const toCoachReveal = () => setShowCoachReveal(true);
+      const afterPlayersHome = wonCoaches.length > 0 ? toCoachReveal : goMenu;
+      const afterPlayersNewRun = wonCoaches.length > 0 ? toCoachReveal : actions.newRun;
+
+      if (showPlayerReveal && !showCoachReveal && unlockedPlayers.length > 0) {
+        return (
+          <PlayerScoutedView
+            players={unlockedPlayers}
+            onNewRun={afterPlayersNewRun}
+            onHome={afterPlayersHome}
+          />
+        );
+      }
       if (showCoachReveal && wonCoaches.length > 0) {
         return (
           <CoachUnlockView
@@ -282,10 +306,15 @@ export default function RunScreen() {
           />
         );
       }
-      // When a coach was won, the celebration's exits lead INTO the reveal first.
-      const toReveal = () => setShowCoachReveal(true);
-      const exitHome = wonCoaches.length > 0 ? toReveal : goMenu;
-      const exitNewRun = wonCoaches.length > 0 ? toReveal : actions.newRun;
+      // From the celebration, exits lead INTO the first applicable reveal (players, then coaches).
+      const firstReveal =
+        unlockedPlayers.length > 0
+          ? () => setShowPlayerReveal(true)
+          : wonCoaches.length > 0
+            ? toCoachReveal
+            : null;
+      const exitHome = firstReveal ?? goMenu;
+      const exitNewRun = firstReveal ?? actions.newRun;
       // A won ladder gets the full champion celebration (it needs the final game's
       // score and five). Losses, and the defensive champion-without-game case, fall
       // back to the flat summary.
@@ -297,6 +326,7 @@ export default function RunScreen() {
             ladderClass={model.ladderClass}
             wins={model.wins}
             unlockedClass={unlockedClass}
+            progressed={progressed}
             onNewRun={exitNewRun}
             onHome={exitHome}
           />
@@ -309,6 +339,7 @@ export default function RunScreen() {
           difficulty={model.difficulty}
           ladderClass={model.ladderClass}
           unlockedClass={unlockedClass}
+          progressed={progressed}
           onNewRun={exitNewRun}
           onMenu={exitHome}
         />

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   createRookieRoster,
   mergeRunGainsIntoHome,
+  previewRunAcquisitions,
   applyPlayerPull,
   playerKey,
   rememberDraftRotation,
@@ -227,6 +228,51 @@ const clearedThroughA = (): HomeRoster['ladderProgress'] => ({
   medium: null,
   hard: null,
   insane: null,
+});
+
+describe('previewRunAcquisitions', () => {
+  const freshRecruits = (home: HomeRoster) => {
+    const ownedKeys = new Set(home.players.map(playerKey));
+    const cRecruit = poolByClass('C')
+      .map(realPlayerToRosterPlayer)
+      .find((rp) => !ownedKeys.has(playerKey(rp)))!;
+    const aRecruit = realPlayerToRosterPlayer(poolByClass('A')[0]);
+    return { cRecruit, aRecruit };
+  };
+
+  it('reports unlocked vs progressed on a clear, and nothing on a loss', () => {
+    const home = createRookieRoster(createRNG('acq'));
+    const { cRecruit, aRecruit } = freshRecruits(home);
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [cRecruit, aRecruit] };
+
+    const won = previewRunAcquisitions(home, runRoster, true);
+    // C owns at one copy -> unlocked; A owns at three -> progressed 0->1.
+    expect(won.unlocked.some((p) => playerKey(p) === playerKey(cRecruit))).toBe(true);
+    expect(won.unlocked.some((p) => playerKey(p) === playerKey(aRecruit))).toBe(false);
+    expect(won.progressed.find((p) => playerKey(p.player) === playerKey(aRecruit))).toEqual(
+      expect.objectContaining({ before: 0, after: 1, threshold: 3 })
+    );
+
+    const lost = previewRunAcquisitions(home, runRoster, false);
+    expect(lost.unlocked).toEqual([]);
+    expect(lost.progressed).toEqual([]);
+  });
+
+  it('matches what the merge actually banks', () => {
+    const home = createRookieRoster(createRNG('acq2'));
+    const { cRecruit, aRecruit } = freshRecruits(home);
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [cRecruit, aRecruit] };
+    const preview = previewRunAcquisitions(home, runRoster, true);
+    const merged = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
+    for (const p of preview.unlocked) {
+      expect(merged.players.some((q) => playerKey(q) === playerKey(p))).toBe(true);
+    }
+    for (const pr of preview.progressed) {
+      expect(merged.collecting.find((c) => playerKey(c.player) === playerKey(pr.player))?.copies).toBe(
+        pr.after
+      );
+    }
+  });
 });
 
 describe('applyPlayerPull', () => {

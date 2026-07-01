@@ -36,6 +36,7 @@ import { CenterBurst } from '@/components/howtoplay/CenterBurst';
 import type { Position } from '@/types/roster';
 import type { MapNodeType } from '@/types/run-map';
 import type { PlayerClass } from '@/game/ratings';
+import { COPIES_TO_OWN } from '@/game/collection';
 
 const POSITIONS: Position[] = ['PG', 'SG', 'SF', 'PF', 'C'];
 const NODES: MapNodeType[] = ['game', 'elite', 'recruit', 'boost', 'training', 'rest', 'boss'];
@@ -224,6 +225,38 @@ export default function HowToPlayScreen() {
           />
           <Callout text="BUCKET!" color={palette.gold} textStyle={styles.callout} />
         </View>
+      </InfoPanel>
+
+      {/* How players enter the collection */}
+      <InfoPanel
+        icon={<LockerIcon size={16} color={palette.steelBlue} />}
+        title="SCOUT & COLLECT"
+        accent={palette.steelBlue}
+        body="Owning a player takes copies. Commons sign on the first; a rare S-star takes six. Win runs and scout the arcade to collect them, chase the legends, and overflow copies pay out coins."
+      >
+        <View style={styles.ladderRow}>
+          {(['C', 'B', 'A', 'S'] as PlayerClass[]).map((c, i) => (
+            <TagChip
+              key={c}
+              label={c}
+              color={CLASS_COLOR[c]}
+              size="micro"
+              sub={`${COPIES_TO_OWN[c]}x`}
+              glowDelayMs={i * 150}
+            />
+          ))}
+          <TagChip
+            label="LEGEND"
+            color={palette.gold}
+            size="micro"
+            sub="RARE"
+            icon={<StarIcon size={12} color={palette.gold} />}
+            glowDelayMs={600}
+          />
+        </View>
+        <MonoText style={styles.note}>
+          Copies come from run recruits and arcade scouting.
+        </MonoText>
       </InfoPanel>
 
       {/* The run map and power systems */}

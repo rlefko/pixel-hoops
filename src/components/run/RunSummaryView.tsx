@@ -3,7 +3,9 @@ import { StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop, LiveChip } from '@/components/fx';
+import { CollectionProgressStrip } from './CollectionProgressStrip';
 import { sfx, useIdle, HUB_IDLE_MS } from '@/feel';
+import type { ProgressedCopy } from '@/game/home-roster';
 import {
   DIFFICULTY_LABELS,
   type Difficulty,
@@ -22,6 +24,8 @@ interface RunSummaryViewProps {
   ladderClass: LadderClass;
   /** The newly unlocked ladder class (shown as a reward when present). */
   unlockedClass?: PlayerClass;
+  /** Players this run advanced a copy toward but did not unlock (compact progress strip). */
+  progressed?: ProgressedCopy[];
   onNewRun: () => void;
   onMenu: () => void;
 }
@@ -32,6 +36,7 @@ export function RunSummaryView({
   difficulty,
   ladderClass,
   unlockedClass,
+  progressed = [],
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
@@ -80,6 +85,7 @@ export function RunSummaryView({
           ? 'Recruits carried home.'
           : 'Run recruits lost. Your coins are safe.'}
       </Text>
+      <CollectionProgressStrip progressed={progressed} />
       <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
         <Text style={styles.buttonText}>NEW RUN</Text>
       </Pressable>
