@@ -44,6 +44,9 @@ describe('computeHotState', () => {
     expect(hot.get(1)).toMatchObject({ heating: true, igniting: false, hotKeys: [] });
     expect(hot.get(2)).toMatchObject({ heating: false, igniting: true });
     expect(hot.get(2)?.hotKeys).toEqual(['home-PG']);
+    // The warm tease covers exactly the two-straight window, then hands off to hot.
+    expect(hot.get(1)?.warmKeys).toEqual(['home-PG']);
+    expect(hot.get(2)?.warmKeys).toEqual([]);
   });
 
   it('resets the streak and cools the player on a miss', () => {
