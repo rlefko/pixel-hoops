@@ -45,16 +45,25 @@ function lingerFor(e: SimEvent): number {
 }
 
 const HIT_STOP_MS = 100;
+const WINNER_HIT_STOP_MS = 140;
+
+/**
+ * The game-winner cinema: the deciding ball hangs in the air. Both flight legs
+ * stretch by this factor, and eventGapMs stretches by the same one so the
+ * scheduler and the ball stay in sync ("pace scales, sync holds"). Spent on at
+ * most one event per game, in close finishes only.
+ */
+export const WINNER_TIME_SCALE = 1.5;
 
 /**
  * A freeze-frame hold (ms) on the biggest plays for weight: a made slam, a
  * rejection, the buzzer-beater. Folded into the gap so the screen sits on the
  * impact before the next event. Zero under reduced motion (see eventGapMs).
  */
-function hitStopFor(e: SimEvent): number {
+function hitStopFor(e: SimEvent, cinema: boolean): number {
+  if (cinema) return WINNER_HIT_STOP_MS;
   const madeDunk = e.action === 'dunk' && isMadeShot(e);
-  const buzzerBeater = e.callout === 'BUZZER BEATER!';
-  if (madeDunk || e.result === 'block' || buzzerBeater) return HIT_STOP_MS;
+  if (madeDunk || e.result === 'block' || e.callout === 'BUZZER BEATER!') return HIT_STOP_MS;
   return 0;
 }
 
@@ -67,14 +76,18 @@ export function isNoteworthy(e: SimEvent): boolean {
  * Delay before the next event. `speed` divides everything (the ball flight scales
  * by the same factor, so arrival stays in sync). In highlights mode, routine
  * non-scoring plays collapse to a tiny gap so they whip by while the score still
- * processes.
+ * processes. `cinema` marks the game-deciding shot (the buzzer-beater, or the
+ * clincher the feed derives from momentum): its flight legs run at
+ * WINNER_TIME_SCALE, so the gap stretches by the same factor.
  */
 export function eventGapMs(
   e: SimEvent,
   reducedMotion = false,
   speed = 1,
-  highlightsOnly = false
+  highlightsOnly = false,
+  cinema?: boolean
 ): number {
+  const slowMo = cinema ?? e.callout === 'BUZZER BEATER!';
   if (highlightsOnly && !isNoteworthy(e)) {
     return scaled(60, speed); // a routine miss or turnover: blow past it
   }
@@ -84,11 +97,11 @@ export function eventGapMs(
     if (isMadeShot(e)) return scaled(150, speed);
     return scaled(90, speed);
   }
+  const flightScale = slowMo ? WINNER_TIME_SCALE : 1;
   return scaled(
-    FLIGHT_DURATION_MAX +
-      resolveDurationFor(shotShapeFor(e)) +
+    (FLIGHT_DURATION_MAX + resolveDurationFor(shotShapeFor(e))) * flightScale +
       lingerFor(e) +
-      hitStopFor(e),
+      hitStopFor(e, slowMo),
     speed
   );
 }
