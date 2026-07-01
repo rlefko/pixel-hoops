@@ -368,6 +368,37 @@ export function coachesWonByClear(
   return earnedCoachIds(after).filter((id) => !owned.has(id));
 }
 
+/** The closest locked coach and how to get him, for the home-screen nudge. Picks the
+ * locked coach needing the fewest additional difficulty-clears (goal-gradient: the
+ * one-clear-away coach pulls hardest); catalog order breaks ties. */
+export function nextCoachNudge(
+  progress: Record<Difficulty, LadderClass | null>,
+  owned: ReadonlySet<string>
+): { coach: CoachProfile; hint: string } | null {
+  let best: { coach: CoachProfile; needed: number; cls: LadderClass } | null = null;
+  for (const c of COACHES) {
+    if (owned.has(c.id) || isCoachUnlocked(c.unlock, progress)) continue;
+    let cls: LadderClass | null = null;
+    let needed = 0;
+    if (c.unlock.kind === 'opener') {
+      cls = prevClass(c.unlock.forClass);
+      if (cls == null) continue;
+      needed = 1 - clearedDifficulties(cls, progress);
+    } else if (c.unlock.kind === 'ladder') {
+      cls = c.unlock.forClass;
+      needed = c.unlock.rank - clearedDifficulties(cls, progress);
+    }
+    if (cls == null || needed <= 0) continue;
+    if (!best || needed < best.needed) best = { coach: c, needed, cls };
+  }
+  if (!best) return null;
+  const times = best.needed === 1 ? '1 more difficulty' : `${best.needed} more difficulties`;
+  return {
+    coach: best.coach,
+    hint: `Clear ${best.cls} on ${times} to sign ${best.coach.name}`,
+  };
+}
+
 /** A short human-readable unlock condition for the collection UI's locked coaches. */
 export function coachUnlockLabel(unlock: CoachUnlock): string {
   switch (unlock.kind) {

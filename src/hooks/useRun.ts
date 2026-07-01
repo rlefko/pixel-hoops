@@ -13,6 +13,7 @@ import {
   type BountyGrant,
 } from '@/game/home-roster';
 import { createRNG, deriveSeed } from '@/game/rng';
+import type { Difficulty } from '@/game/difficulty-mode';
 import { copiesToOwn } from '@/game/collection';
 import { playerDraftClass } from '@/game/draft';
 import { coachesWonByClear } from '@/game/coaches';
@@ -249,6 +250,16 @@ export function useRun() {
         if (!homeRoster) return;
         clearActiveRun();
         dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster });
+      },
+      // The victory step-up: run it back one difficulty up, from the win screen (the
+      // confidence peak). Saves the selection AND starts the run from the same updated
+      // roster object, so the new run can never race the context write.
+      stepUpRun: (difficulty: Difficulty) => {
+        if (!homeRoster) return;
+        const next = { ...homeRoster, selectedDifficulty: difficulty };
+        saveHomeRoster(next);
+        clearActiveRun();
+        dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster: next });
       },
     }),
     [homeRoster, saveHomeRoster, clearActiveRun]

@@ -136,6 +136,19 @@ export function difficultyMods(difficulty: Difficulty): DifficultyMods {
   }
 }
 
+/** Short perk tags for a difficulty (the selector chips and the victory step-up
+ * pitch), derived from the mods so the UI can never drift from the tuning. */
+export function difficultyPerks(difficulty: Difficulty): string[] {
+  const m = difficultyMods(difficulty);
+  const perks: string[] = [];
+  if (m.copiesMul > 1) perks.push(`x${m.copiesMul} COPIES`);
+  if (m.rarityBonus > 0 || m.bossRarityBonus > 0) perks.push('RICHER DROPS');
+  if (m.trainingBonus.boss > 0) perks.push('+TRAINING');
+  if (m.legendSign.base > 0) perks.push('LEGEND SIGNINGS');
+  if (m.clearBonus > 0) perks.push(`+${m.clearBonus} CLEAR BONUS`);
+  return perks;
+}
+
 /** Short description per difficulty, for the selector UI. */
 export const DIFFICULTY_LABELS: Record<Difficulty, { name: string; blurb: string }> = {
   easy: { name: 'EASY', blurb: '8 draft points, 2 timeouts. The gentle climb.' },

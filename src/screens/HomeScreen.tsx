@@ -28,13 +28,15 @@ import {
   DIFFICULTIES,
   DIFFICULTY_LABELS,
   LADDER_CLASSES,
+  difficultyPerks,
   isCellCleared,
   unlockedClassesFromCells,
   type Difficulty,
   type LadderClass,
 } from '@/game/difficulty-mode';
 import { bountyFor } from '@/game/bounties';
-import { getCoach } from '@/game/coaches';
+import { getCoach, nextCoachNudge } from '@/game/coaches';
+import { COURT_THEMES, courtThemeUnlocked, courtThemeUnlockHint } from '@/game/court-themes';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** Main menu screen: the arcade lobby and entry point for the game. */
@@ -75,6 +77,16 @@ export default function HomeScreen() {
   const isConquered = (cls: LadderClass) =>
     homeRoster != null && isCellCleared(clearedCells, homeRoster.selectedDifficulty, cls);
   const coach = homeRoster ? getCoach(homeRoster.selectedCoachId) : null;
+  // The selected difficulty's repeatable perks (derived from the mods, so the pitch
+  // can never drift from the tuning), the closest locked coach, and the next court
+  // theme still to earn: the anticipation layer for climbing.
+  const perks = homeRoster ? difficultyPerks(homeRoster.selectedDifficulty).slice(0, 3) : [];
+  const coachNudge = homeRoster
+    ? nextCoachNudge(homeRoster.ladderProgress, new Set(homeRoster.ownedCoaches))
+    : null;
+  const nextTheme = homeRoster
+    ? COURT_THEMES.find((t) => !courtThemeUnlocked(t, clearedCells))
+    : undefined;
 
   const setDifficulty = (d: Difficulty) => {
     if (!homeRoster) return;
@@ -148,6 +160,15 @@ export default function HomeScreen() {
           <Text style={styles.selectBlurb}>
             {DIFFICULTY_LABELS[homeRoster.selectedDifficulty].blurb}
           </Text>
+          {perks.length > 0 ? (
+            <View style={styles.perkRow}>
+              {perks.map((p) => (
+                <Text key={p} style={styles.perkChip}>
+                  {p}
+                </Text>
+              ))}
+            </View>
+          ) : null}
 
           <Text style={styles.selectLabel}>LADDER</Text>
           <View style={styles.chipRow}>
@@ -189,6 +210,11 @@ export default function HomeScreen() {
               ? `${homeRoster.selectedLadderClass} BOUNTY CLAIMED`
               : `BOUNTY: ${bountyFor(homeRoster.selectedDifficulty, homeRoster.selectedLadderClass).label}`}
           </Text>
+          {nextTheme ? (
+            <Text style={styles.goalNudge}>
+              {courtThemeUnlockHint(nextTheme)} to unlock the {nextTheme.name} court.
+            </Text>
+          ) : null}
 
           <Text style={styles.selectLabel}>COACH</Text>
           {coach ? (
@@ -206,6 +232,7 @@ export default function HomeScreen() {
               <Text style={styles.coachChange}>CHANGE ›</Text>
             </Pressable>
           ) : null}
+          {coachNudge ? <Text style={styles.goalNudge}>{coachNudge.hint}.</Text> : null}
         </View>
       ) : null}
 
@@ -425,6 +452,32 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
     color: palette.gold,
+    textAlign: 'center',
+    marginTop: space(2),
+    maxWidth: 280,
+  },
+  perkRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: space(1),
+    marginTop: space(2),
+  },
+  perkChip: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.orange,
+    borderWidth: BORDER.thin,
+    borderColor: palette.orange + '66',
+    borderRadius: RADIUS.chip,
+    paddingVertical: 2,
+    paddingHorizontal: space(2),
+    overflow: 'hidden',
+  },
+  goalNudge: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
     textAlign: 'center',
     marginTop: space(2),
     maxWidth: 280,

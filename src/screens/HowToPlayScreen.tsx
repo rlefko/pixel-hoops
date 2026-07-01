@@ -294,7 +294,7 @@ export default function HowToPlayScreen() {
         icon={<CrownIcon size={16} color={palette.gold} />}
         title="CLIMB THE LADDER"
         accent={palette.gold}
-        body="Pick a difficulty. Easy and medium forgive a loss or two; hard and insane forgive none. Then climb the class ladder from C to S+, where clearing a rung unlocks a tougher next run and its Championship Bounty. Your power and the challenge rise together."
+        body="Pick a difficulty. Easy and medium forgive a loss or two; hard and insane forgive none. Then climb the class ladder from C to S+: clear a class ANYWHERE and it opens on every difficulty, so the 20-cell grid is yours to attack in any order. Your power and the challenge rise together."
       >
         <View style={styles.ladderRow}>
           {LADDER.map((c, i) => (
@@ -304,6 +304,31 @@ export default function HowToPlayScreen() {
         </View>
         <MonoText style={[styles.note, styles.timeoutLine]}>
           TIMEOUTS: EASY 2 / MED 1 / HARD 0 / INSANE 0
+        </MonoText>
+      </InfoPanel>
+
+      {/* Harder pays more: the repeatable climb rewards */}
+      <InfoPanel
+        icon={<CrownIcon size={16} color={palette.orange} />}
+        title="HARDER PAYS MORE"
+        accent={palette.orange}
+        body="Every difficulty above easy pays a repeatable premium: recruits bank double, triple, or quadruple collection copies on a clear, drops roll rarer, elite and boss wins train harder, and every championship adds a flat clear bonus. On hard and insane S ladders, a beaten boss's legend may even offer to sign. Deep hard and insane losses still bank a copy of your best recruit."
+      >
+        <View style={styles.ladderRow}>
+          <TagChip label="MEDIUM" color={palette.steelBlue} size="micro" sub="x2 COPIES" glowDelayMs={0} />
+          <TagChip label="HARD" color={palette.orange} size="micro" sub="x3 COPIES" glowDelayMs={150} />
+          <TagChip label="INSANE" color={palette.missRedLt} size="micro" sub="x4 COPIES" glowDelayMs={300} />
+          <TagChip
+            label="LEGENDS"
+            color={palette.gold}
+            size="micro"
+            sub="SIGNINGS"
+            icon={<CrownIcon size={12} color={palette.gold} />}
+            glowDelayMs={450}
+          />
+        </View>
+        <MonoText style={styles.note}>
+          Beat the legend, sign the legend: hard and insane S ladders only.
         </MonoText>
       </InfoPanel>
 

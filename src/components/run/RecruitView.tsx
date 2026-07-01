@@ -20,6 +20,9 @@ interface RecruitViewProps {
   /** An offer's collection status: OWNED (recruiting is wasted) or a copies meter for a
    * multi-copy player still being collected. Common players return undefined (no meter). */
   collectProgress: (rp: RosterPlayer) => RecruitCollectStatus | undefined;
+  /** The difficulty's championship copy multiplier; above 1 it is the pitch line
+   * ("a clear banks x3 copies"), so the perk is visible during play. */
+  copiesMul?: number;
   onRecruit: (player: RosterPlayer) => void;
   onReroll: (index: number) => void;
   onSkip: () => void;
@@ -30,6 +33,7 @@ export function RecruitView({
   rerolled,
   benchCount,
   collectProgress,
+  copiesMul = 1,
   onRecruit,
   onReroll,
   onSkip,
@@ -45,7 +49,9 @@ export function RecruitView({
         Add one to your bench ({benchCount} benched)
       </Text>
       <Text style={styles.provisional}>
-        Signed for this run. Clear the run to keep them.
+        {copiesMul > 1
+          ? `Signed for this run. A clear banks x${copiesMul} collection copies.`
+          : 'Signed for this run. Clear the run to keep them.'}
       </Text>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>

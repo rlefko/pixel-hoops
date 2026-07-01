@@ -15,7 +15,12 @@ import {
   MAX_BANISHES,
   type RunModel,
 } from '@/game/run-machine';
-import { classAboveLadder } from '@/game/difficulty-mode';
+import {
+  classAboveLadder,
+  DIFFICULTIES,
+  DIFFICULTY_LABELS,
+  difficultyPerks,
+} from '@/game/difficulty-mode';
 import { getCoach } from '@/game/coaches';
 import { coachForTeamName } from '@/game/opponent-coach';
 import { CoachRecBanner } from '@/components/run/CoachRecBanner';
@@ -241,6 +246,7 @@ export default function RunScreen() {
           rerolled={model.phase.rerolled}
           benchCount={model.core.roster.bench.length}
           collectProgress={collectProgress}
+          copiesMul={model.mods.copiesMul}
           onRecruit={actions.recruit}
           onReroll={actions.rerollRecruit}
           onSkip={actions.skipNode}
@@ -355,6 +361,17 @@ export default function RunScreen() {
       // score and five). Losses, and the defensive champion-without-game case, fall
       // back to the flat summary.
       if (champion && model.game) {
+        // The victory step-up: pitch the next difficulty at the confidence peak, with
+        // its concrete perk delta. Reveals still run first on Home/New Run exits; the
+        // step-up is a direct "one more run, one rung up".
+        const nextDifficulty = DIFFICULTIES[DIFFICULTIES.indexOf(model.difficulty) + 1];
+        const stepUp = nextDifficulty
+          ? {
+              label: `RUN IT BACK ON ${DIFFICULTY_LABELS[nextDifficulty].name}`,
+              perks: difficultyPerks(nextDifficulty).slice(0, 3).join(' · '),
+              onPress: () => actions.stepUpRun(nextDifficulty),
+            }
+          : undefined;
         return (
           <ChampionView
             game={model.game}
@@ -363,6 +380,7 @@ export default function RunScreen() {
             wins={model.wins}
             unlockedClass={unlockedClass}
             progressed={progressed}
+            stepUp={stepUp}
             onNewRun={exitNewRun}
             onHome={exitHome}
           />
