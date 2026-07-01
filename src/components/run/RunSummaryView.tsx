@@ -98,10 +98,12 @@ export function RunSummaryView({
           : 'Run recruits lost. Your coins are safe.'}
       </Text>
       {!champion && lossMargin != null && lossMargin > 0 && lossMargin <= NEAR_MISS_MARGIN ? (
-        <Text style={styles.nearMiss}>
-          SO CLOSE: lost by {lossMargin}
-          {lossClock ? ` with ${lossClock} left` : ''}.
-        </Text>
+        <Pop popOnMount>
+          <Text style={styles.nearMiss}>
+            SO CLOSE: lost by {lossMargin}
+            {lossClock ? ` with ${lossClock} left` : ''}.
+          </Text>
+        </Pop>
       ) : null}
       {!champion && nextUnlockLabel ? (
         <Text style={styles.nudge}>One clear from the {nextUnlockLabel} ladder.</Text>

@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { View, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { FlashOverlay, ParticleBurst, ShakeView, Counter } from '@/components/fx';
+import { FlashOverlay, ParticleBurst, ShakeView, Counter, Pop } from '@/components/fx';
+import { useIdle, HUB_IDLE_MS } from '@/feel';
 import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { PlayerCard } from './PlayerCard';
@@ -51,6 +52,9 @@ export function BountyRewardView({ grant, onNewRun, onHome }: BountyRewardViewPr
   const accent = legendary ? palette.gold : RARITY_COLOR[rarity];
 
   const { shakeRef, flashRef, fire } = useRewardBurst();
+  // Pause the legendary halo's breathe once the player settles on this terminal screen;
+  // the next touch wakes it. Mirrors RunSummaryView's idle-gated LiveChip.
+  const { idle, bump } = useIdle(HUB_IDLE_MS);
   // burst goes 0 -> 1 once on mount: it triggers the confetti AND kicks a coin count-up off
   // zero (Counter only tweens on a change), so no separate "settled" flag is needed.
   const [burst, setBurst] = useState(0);
@@ -65,7 +69,7 @@ export function BountyRewardView({ grant, onNewRun, onHome }: BountyRewardViewPr
   const ability = grant.abilityId ? getGachaAbility(grant.abilityId) : undefined;
 
   return (
-    <Screen style={styles.container} topGap={space(4)}>
+    <Screen style={styles.container} topGap={space(4)} onTouchStart={bump}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <ShakeView ref={shakeRef} style={styles.hero}>
           {grant.isCapstone ? (
@@ -73,16 +77,18 @@ export function BountyRewardView({ grant, onNewRun, onHome }: BountyRewardViewPr
           ) : (
             <StarIcon size={26} color={accent} />
           )}
-          <Text style={styles.title}>
-            {grant.isCapstone ? 'GRANDMASTER!' : 'CHAMPIONSHIP BOUNTY!'}
-          </Text>
+          <Pop popOnMount>
+            <Text style={styles.title}>
+              {grant.isCapstone ? 'GRANDMASTER!' : 'CHAMPIONSHIP BOUNTY!'}
+            </Text>
+          </Pop>
           <Text style={[styles.label, { color: accent }]}>{grant.bounty.label}</Text>
           <Text style={styles.blurb}>{grant.bounty.blurb}</Text>
 
           <View style={styles.rewardWrap}>
             {showPlayerCard && grant.player ? (
               <View style={styles.cardWrap}>
-                <LegendaryHalo visible={legendary} />
+                <LegendaryHalo visible={legendary} paused={idle} />
                 <PlayerCard
                   rp={grant.player}
                   showSpecialty
