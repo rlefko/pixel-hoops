@@ -166,8 +166,10 @@ export const sfx = {
     trigger('buzzerBeater');
   },
   win: () => {
-    duckMusic(700);
-    trigger('win');
+    // Soft, brief cue after every won game: a light duck and a small per-win pitch jitter
+    // so back-to-back wins never sound identical.
+    duckMusic(300);
+    trigger('win', 0.99 + (jitterTick++ % 3) * 0.01);
   },
   loss: () => trigger('loss'),
   champion: () => {
