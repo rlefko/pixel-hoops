@@ -63,8 +63,17 @@ type RunActions = ReturnType<typeof useRun>['actions'];
 
 export default function RunScreen() {
   const nav = useArcadeRouter();
-  const { model, loaded, actions, wonCoachIds, wonPlayers, bountyGrant, collectProgress, equippedCoachId } =
-    useRun();
+  const {
+    model,
+    loaded,
+    actions,
+    wonCoachIds,
+    wonPlayers,
+    bountyGrant,
+    dailyGrants,
+    collectProgress,
+    equippedCoachId,
+  } = useRun();
   const { autoSkipGames } = useFeelSettings();
   const { savedRun } = useActiveRun();
   // Leaving the run is a suspend, not a quit: the run is auto-saved continuously, so
@@ -381,6 +390,7 @@ export default function RunScreen() {
             unlockedClass={unlockedClass}
             progressed={progressed}
             stepUp={stepUp}
+            dailyGrants={dailyGrants}
             onNewRun={exitNewRun}
             onHome={exitHome}
           />
@@ -409,6 +419,7 @@ export default function RunScreen() {
           lossClock={lossClock}
           nextUnlockLabel={nextUnlockLabel}
           bankedRecruit={bankedRecruit}
+          dailyGrants={dailyGrants}
           onNewRun={exitNewRun}
           onMenu={exitHome}
         />

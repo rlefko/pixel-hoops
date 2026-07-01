@@ -4,6 +4,8 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { Pop, LiveChip } from '@/components/fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
+import { DailyRewardStrip } from './DailyRewardStrip';
+import type { DailyGrants } from '@/game/home-roster';
 import { sfx, useIdle, HUB_IDLE_MS } from '@/feel';
 import type { ProgressedCopy } from '@/game/home-roster';
 import {
@@ -37,6 +39,8 @@ interface RunSummaryViewProps {
    * outright (C/B own at one copy). A banked copy that only progressed shows through
    * `progressed` instead. */
   bankedRecruit?: RosterPlayer;
+  /** Daily Layer grants this settle paid (on a loss, at most weekly-tier lines). */
+  dailyGrants?: DailyGrants | null;
   onNewRun: () => void;
   onMenu: () => void;
 }
@@ -55,6 +59,7 @@ export function RunSummaryView({
   lossClock,
   nextUnlockLabel,
   bankedRecruit,
+  dailyGrants = null,
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
@@ -125,6 +130,7 @@ export function RunSummaryView({
         </Pop>
       ) : null}
       <CollectionProgressStrip progressed={progressed} />
+      <DailyRewardStrip grants={dailyGrants} />
       <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
         <Text style={styles.buttonText}>NEW RUN</Text>
       </Pressable>
