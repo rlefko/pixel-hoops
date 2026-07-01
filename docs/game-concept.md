@@ -205,19 +205,22 @@ Popularized by Habby (Archero, Survivor.io): start with hypercasual simplicity s
 
 ## Competitive and Social Systems
 
-### Daily Tournament
+### The Daily Layer (shipped)
 
-One free daily tournament for all players. Fixed handicap applied equally to everyone (e.g., "All opponents +4 Speed this week"). Global leaderboard showing best round reached from the past 7 days. Resets at midnight local time -- creates urgency without forced engagement. Completing a daily tournament awards bonus coins, reputation, and player fragments.
+The daily and weekly vision below shipped as the offline, win-gated Daily Layer (`src/game/daily.ts`, granted by `home-roster.settleDailyRewards`). Design rules, per the research behind it: everything is won by PLAYING (never by logging in), there are no streaks, no countdown timers, and no ads; a missed day forfeits only that day's optional bonus, never anything earned.
 
-### Weekly Challenges
+- **Daily Spotlight.** One cell of the (difficulty x ladder) grid is featured each day, derived per player from the local date and their unlocked classes (rookies see mostly winnable cells; proven climbers see hard as the star). Winning the spotlighted cell pays a once-per-day bounty of 150/250/400/600 coins by difficulty, on top of normal run rewards. Resets at midnight local time. No leaderboard and no shared seed: with no server, sameness is imperceptible, and a fixed seed would make retries replay identical losses.
+- **First win of the day.** The first championship each day pays 100 coins plus one free C scout pull (a new player early, a collection tick mid-game, and a coin overflow for veterans, so the bonus self-converts as progression grows).
+- **Weekly goals.** One meter, individual game wins, counted even from lost runs: 10 wins pay 150 coins, 35 pay 400, 100 pay 600 plus a random rare ability. Tiers auto-grant the moment they are crossed (no claim buttons); unfinished tiers reset Monday with nothing earned ever taken away.
 
-Progressive objectives that span an entire week:
+### Weekly Challenges (future)
 
-- "Win 5 games total"
+Beyond the shipped win-count goals, richer objective variety remains on the board:
+
 - "Win a game with an all-guard lineup"
 - "Recruit 3 new players in one run"
 
-Each challenge has tiered rewards -- partial completion earns something, full completion unlocks exclusive cosmetic equipment (jersey designs, court themes). This follows the Zeigarnik Effect: incomplete objectives create psychological tension that drives return engagement.
+Cosmetic rewards for challenges (jersey designs, court themes) are deferred to the Seasons vision; court themes are currently earned by difficulty conquests.
 
 ### Season Structure
 
