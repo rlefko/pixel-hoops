@@ -185,8 +185,50 @@ A second visual pass made navigation legible and the sim lively.
   and a rim/net ripple lands with the basket (`RimRipple`). All reuse the
   `feel/` reanimated primitives and honor `reducedMotion`.
 
+## 6. Watch narrative and ceremony tiers (the visual excitement pass)
+
+A third pass gave the watch a narrative layer and the meta screens celebration
+proportional to magnitude, per the blueprint's compulsion-loop and
+juice-the-peaks principles. Nothing below slows the average watch; only the
+game-winner cinema spends time (about 250ms, at most once per game, close
+finishes only).
+
+- **Momentum derivation.** `src/game/momentum.ts` mirrors `streaks.ts`: pure,
+  per-event scoring runs (banners gated at 6-0 / 10-0 / 14-0), lead changes,
+  a crunch flag (close Q4, final 4:00, mirroring the sim's clutch margin), and
+  the clincher. Unit-tested; no sim changes.
+- **Watch peaks.** The hot hand escalates (warm tease aura at two straight, a
+  flame-trailed ball and an ignite spark burst at three); the score bug pops and
+  the frame tints on lead changes; crunch time dresses the screen (gold
+  breathing underline, `CrunchVignette` edge frame, "CRUNCH TIME!" beat); quarter
+  breaks get a small chapter marker; and the buzzer-beater or clincher plays in
+  cinema (1.5x-stretched flight synced through `eventGapMs`, a 5 percent court
+  zoom, a longer hit-stop). The callout slot keeps one voice at a time:
+  clincher > streak > big play > crunch > run > sub.
+- **The audible economy.** `TickCounter` (fx) wraps `useCountUp` with pitched
+  tick audio and tier-layered settle beats (small ticks; medium adds the coin
+  clink and a pop; large adds a success haptic). Wins tally their payout on the
+  postgame screen (`pendingWinRewards` keeps the shown number exactly equal to
+  the banked one), the wallet pill ticks as it receives, and training and locker
+  +1s blip (band promotions land a bigger beat).
+- **Ceremonies.** Run end shows an endowed ladder bar (cleared maps filled, the
+  next rung breathing), a banked-coins keep-tally, and a NEW RUN glow; the
+  champion screen counts its haul and stages the ladder unlock as its own beat;
+  collection copy pips clink in one by one and a meter one copy from ownership
+  turns gold ("1 MORE TO OWN").
+- **Staged reveals.** `useStagedReveal` (feel) extracts the legend flip's
+  windup-hold-payoff: anticipation scales with the machine's stakes, the payoff
+  with the result. Applied to the arcade's ability and scouting pulls; commons
+  stay instant and reduced motion skips the hold.
+- **Run heat.** `StreakFlame` marks a hot run (ember at 2 wins, breathing flame
+  at 4, gold blaze at 6) on the run HUD, the pregame, and the home screen's
+  resume card. Peak games (elite, boss, championship) tip off through a
+  stake-themed pixel-dissolve ceremony; routine games keep the instant cut.
+
 ## Deferred (see roadmap)
 
-Hand-drawn sprite sheets, a reactive crowd, multi-frame dunk and block animation
-frames, complete per-franchise real rosters and a full 2,500-player import,
-era-based power tiers, and an audio pass.
+Hand-drawn sprite sheets, a reactive crowd (an ambient edge-pulse primitive and
+bracket-scaled arena crowds were designed and deferred), multi-frame dunk and
+block animation frames, hub "since you left" deltas, bounty-crest shelf
+milestone bursts, a procedural crowd-noise audio layer, complete per-franchise
+real rosters and a full 2,500-player import, and era-based power tiers.
