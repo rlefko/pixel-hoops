@@ -39,11 +39,13 @@ export type BoostOffer = { kind: 'new'; defId: string };
 export const MAX_BOOSTS = 5;
 const OFFER_COUNT = 3;
 
-/** Options for {@link drawBoostOffers}: a run-scoped banish set (never offered) and
- * a rarity pity offset (a drought biases the roll toward epic+). */
+/** Options for {@link drawBoostOffers}: a run-scoped banish set (never offered), a
+ * rarity pity offset (a drought biases the roll toward epic+), and the difficulty's
+ * flat rarity bonus (harder runs draft richer boards). */
 export interface DrawBoostOpts {
   banished?: ReadonlySet<string>;
   pityOffset?: number;
+  rarityBonus?: number;
 }
 
 export const BOOST_DEFS: readonly BoostDef[] = [
@@ -129,7 +131,7 @@ export function drawBoostOffers(
   offerCount: number = OFFER_COUNT,
   opts: DrawBoostOpts = {}
 ): BoostOffer[] {
-  const { banished, pityOffset = 0 } = opts;
+  const { banished, pityOffset = 0, rarityBonus = 0 } = opts;
   const ownedIds = new Set(owned.map((b) => b.id));
   const chosen = new Set<string>();
   const offers: BoostOffer[] = [];
@@ -139,7 +141,7 @@ export function drawBoostOffers(
   const available = (r: Rarity): BoostDef[] => BY_RARITY[r].filter((d) => !blocked(d.id));
 
   for (let attempt = 0; offers.length < offerCount && attempt < offerCount * 12; attempt++) {
-    const pool = available(rollRarity(rng, pityOffset));
+    const pool = available(rollRarity(rng, pityOffset, rarityBonus));
     if (!pool.length) continue;
     const def = rng.pick(pool);
     chosen.add(def.id);

@@ -291,8 +291,9 @@ export const MAX_BANISHES = 6;
 // --- Coin payout ---
 
 /** Coins for a win: round-scaled, node-type multiplied, plus a dominance bonus.
- * A harder difficulty pays proportionally MORE (mods.coinMul rises steeply), so climbing
- * a tougher ladder is worth the extra punishment. */
+ * A harder difficulty pays proportionally more per win (mods.coinMul), with the big
+ * difficulty premium reserved for mods.clearBonus on a championship, so the payout
+ * rewards finishing brutal runs rather than farming their gentle early maps. */
 function coinsForWin(node: MapNode, result: SimResult, mods: DifficultyMods): number {
   const round = node.round ?? node.layer + 1;
   let coins = COIN_BASE + COIN_PER_ROUND * (round - 1);
@@ -303,10 +304,13 @@ function coinsForWin(node: MapNode, result: SimResult, mods: DifficultyMods): nu
   return Math.round(coins * mods.coinMul);
 }
 
-/** Training points a win awards, scaled by the opponent's difficulty. */
-function trainingPointsFor(node: MapNode): number {
-  if (node.type === 'boss') return TP_BOSS;
-  if (node.type === 'elite') return TP_ELITE;
+/** Training points a win awards: node-type scaled, with the difficulty's bonus on
+ * elite and boss wins (routine games stay flat everywhere, so harder runs train
+ * denser without training longer). Training is the only channel into the S++ apex,
+ * which the hard/insane finale actually demands. */
+function trainingPointsFor(node: MapNode, mods: DifficultyMods): number {
+  if (node.type === 'boss') return TP_BOSS + mods.trainingBonus.boss;
+  if (node.type === 'elite') return TP_ELITE + mods.trainingBonus.elite;
   return TP_GAME;
 }
 
@@ -696,7 +700,10 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
     case 'rest':
       return { ...model, core, phase: { kind: 'rest', nodeId } };
     case 'boost': {
-      const stock = rollBoostStock(createRNG(deriveSeed(core.seed, `boost-${nodeId}`)));
+      const stock = rollBoostStock(
+        createRNG(deriveSeed(core.seed, `boost-${nodeId}`)),
+        model.mods.rarityBonus
+      );
       return { ...model, core, phase: { kind: 'boost', nodeId, stock } };
     }
     default:
@@ -736,7 +743,11 @@ function advanceToNextMap(model: RunModel): RunModel {
     model.boosts,
     createRNG(deriveSeed(model.core.seed, drawLabel)),
     model.mods.boostOfferCount,
-    { banished: new Set(model.banishedBoosts), pityOffset: pityRarityOffset(model.boostPity) }
+    {
+      banished: new Set(model.banishedBoosts),
+      pityOffset: pityRarityOffset(model.boostPity),
+      rarityBonus: model.mods.rarityBonus,
+    }
   );
   return {
     ...model,
@@ -779,7 +790,11 @@ export function runReducer(
         [],
         createRNG(deriveSeed(model.core.seed, drawLabel)),
         model.mods.boostOfferCount,
-        { banished: new Set(model.banishedBoosts), pityOffset: pityRarityOffset(model.boostPity) }
+        {
+          banished: new Set(model.banishedBoosts),
+          pityOffset: pityRarityOffset(model.boostPity),
+          rarityBonus: model.mods.rarityBonus,
+        }
       );
       return {
         ...model,
@@ -894,7 +909,7 @@ export function runReducer(
         ...model.core.rewards,
         coins: model.core.rewards.coins + coins,
         reputation: model.core.rewards.reputation + Math.round((node.layer + 1) * model.mods.repMul),
-        trainingPoints: model.core.rewards.trainingPoints + trainingPointsFor(node),
+        trainingPoints: model.core.rewards.trainingPoints + trainingPointsFor(node, model.mods),
       };
       const roster = model.game
         ? applyInjuries(model.core, model.game.result.box.home, nodeId, model.mods)
@@ -903,11 +918,22 @@ export function runReducer(
       const wins = model.wins + 1;
       if (isBoss) {
         if (core.currentMapIndex >= TOTAL_MAPS - 1) {
-          return { ...model, core, wins, phase: { kind: 'summary', champion: true } };
+          // The championship clear bonus banks with the final win's coins (as-earned,
+          // like every payout), so only a FINISHED run ever touches the difficulty's
+          // coin premium; partial runs cannot farm it.
+          const crowned = {
+            ...core,
+            rewards: { ...rewards, coins: rewards.coins + model.mods.clearBonus },
+          };
+          return { ...model, core: crowned, wins, phase: { kind: 'summary', champion: true } };
         }
         const advanced = advanceToNextMap({ ...model, core, wins });
         // A boss always drops gear (rare / epic / legendary, never common).
-        const drop = rollDrop('boss', createRNG(deriveSeed(model.core.seed, `drop-${nodeId}`)));
+        const drop = rollDrop(
+          'boss',
+          createRNG(deriveSeed(model.core.seed, `drop-${nodeId}`)),
+          model.mods.bossRarityBonus
+        );
         return drop
           ? { ...advanced, phase: { kind: 'itemDrop', nodeId, drop, returnTo: advanced.phase } }
           : advanced;
@@ -1057,7 +1083,11 @@ export function runReducer(
         [...model.boosts, ...survivors.map((o) => ({ id: o.defId }))],
         createRNG(deriveSeed(model.core.seed, `${phase.drawLabel}-banish-${banished.length}`)),
         1,
-        { banished: new Set(banished), pityOffset: pityRarityOffset(model.boostPity) }
+        {
+          banished: new Set(banished),
+          pityOffset: pityRarityOffset(model.boostPity),
+          rarityBonus: model.mods.rarityBonus,
+        }
       )[0];
       const offers = replacement ? [...survivors, replacement] : survivors;
       return { ...model, banishedBoosts: banished, phase: { ...phase, offers } };

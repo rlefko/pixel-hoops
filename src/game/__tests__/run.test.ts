@@ -519,7 +519,7 @@ describe('run reducer', () => {
   });
 
   it('rejects a draft over the difficulty point budget', () => {
-    // Insane = 0 draft points: only below-class (free) players are draftable.
+    // Insane = 2 draft points: the squeeze is real but never a full collection ban.
     const insaneHome = {
       ...rookie('reducer'),
       selectedDifficulty: 'insane' as const,
@@ -528,11 +528,14 @@ describe('run reducer', () => {
     const m = initRun('rich', insaneHome);
     if (m.phase.kind !== 'draft') throw new Error('expected draft');
     const dOnly = m.phase.available.filter((p) => p.originalClass === 'D').slice(0, 5);
-    const ok = runReducer(m, { type: 'confirmDraft', starters: dOnly, bench: [] })!;
-    expect(ok.phase.kind).toBe('boostDraft'); // five free D players fit 0 points
-    // Adding a C player (cost 1) to the bench blows the 0-point budget -> rejected.
-    const c = m.phase.available.find((p) => p.originalClass === 'C')!;
-    const over = runReducer(m, { type: 'confirmDraft', starters: dOnly, bench: [c] })!;
+    const cs = m.phase.available.filter((p) => p.originalClass === 'C');
+    // Three free D players plus two at-ladder C players (1 point each) fit 2 points:
+    // "my guys, against the wall" instead of a forced all-D five.
+    const mixed = [...dOnly.slice(0, 3), ...cs.slice(0, 2)];
+    const ok = runReducer(m, { type: 'confirmDraft', starters: mixed, bench: [] })!;
+    expect(ok.phase.kind).toBe('boostDraft');
+    // A third C player (3 points total) blows the 2-point budget -> rejected.
+    const over = runReducer(m, { type: 'confirmDraft', starters: mixed, bench: [cs[2]] })!;
     expect(over.phase.kind).toBe('draft'); // rejected, still drafting
   });
 

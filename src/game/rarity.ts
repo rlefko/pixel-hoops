@@ -52,14 +52,17 @@ export function pityRarityOffset(streak: number): number {
 }
 
 /**
- * Roll an in-run rarity: 74 / 20 / 5 / 1 (common / rare / epic / legendary). With a
- * pity offset (a boost-draft drought), weight shifts out of common into epic and
- * legendary, so a long dry streak still pays off. At the max offset the epic+ share
- * rises from ~6% to ~30% (never the norm). Rare stays put; common is floored at 1.
+ * Roll an in-run rarity: 74 / 20 / 5 / 1 (common / rare / epic / legendary). Two
+ * additive shifts move weight out of common into epic and legendary: a pity offset
+ * (a boost-draft drought, so a long dry streak still pays off) and a flat bonus
+ * (the difficulty's rarityBonus, so harder runs drop richer). They compose: pity is
+ * clamped independently, so the difficulty shift never eats the drought's swing.
+ * Rare stays put; common is floored at 1. One weightedPick draw either way, so the
+ * RNG stream (and every seeded replay) is unchanged.
  */
-export function rollRarity(rng: RNG, pityOffset = 0): Rarity {
-  if (pityOffset <= 0) return rng.weightedPick(IN_RUN_WEIGHTS);
-  const b = pityRarityOffset(pityOffset) * PITY_PER_STREAK;
+export function rollRarity(rng: RNG, pityOffset = 0, bonus = 0): Rarity {
+  const b = pityRarityOffset(pityOffset) * PITY_PER_STREAK + Math.max(0, bonus);
+  if (b <= 0) return rng.weightedPick(IN_RUN_WEIGHTS);
   const weights: readonly (readonly [Rarity, number])[] = [
     ['common', Math.max(1, 74 - 2 * b)],
     ['rare', 20],
@@ -69,9 +72,17 @@ export function rollRarity(rng: RNG, pityOffset = 0): Rarity {
   return rng.weightedPick(weights);
 }
 
-/** Roll a boss-drop rarity: 75 / 20 / 5 (rare / epic / legendary), never common. */
-export function rollBossRarity(rng: RNG): Rarity {
-  return rng.weightedPick(BOSS_WEIGHTS);
+/** Roll a boss-drop rarity: 75 / 20 / 5 (rare / epic / legendary), never common. A
+ * bonus (the difficulty's bossRarityBonus) shifts weight from rare into epic and
+ * legendary, so the cruelest bosses drop the loudest gear. */
+export function rollBossRarity(rng: RNG, bonus = 0): Rarity {
+  if (bonus <= 0) return rng.weightedPick(BOSS_WEIGHTS);
+  const weights: readonly (readonly [Rarity, number])[] = [
+    ['rare', Math.max(1, 75 - 2 * bonus)],
+    ['epic', 20 + bonus],
+    ['legendary', 5 + bonus],
+  ];
+  return rng.weightedPick(weights);
 }
 
 /** Sign-aware sum of every entry in a stat delta (the individual-scale net). */

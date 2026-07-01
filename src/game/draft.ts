@@ -23,7 +23,7 @@ export const MAX_RUN_ROSTER = 12;
 /** A five is the minimum draftable rotation (you must be able to field a lineup). */
 const MIN_ROTATION = 5;
 
-/** Draft points granted for a difficulty (easy 8 / medium 5 / hard 2 / insane 0). */
+/** Draft points granted for a difficulty (easy 8 / medium 5 / hard 3 / insane 2). */
 export function draftPoints(difficulty: Difficulty): number {
   return difficultyMods(difficulty).draftPoints;
 }
