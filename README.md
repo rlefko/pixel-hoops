@@ -58,6 +58,19 @@ npm install
 npx expo start --clear
 ```
 
+### Native build errors after an Expo SDK upgrade
+
+If `npx expo run:ios` or `npx expo run:android` fails at the native build or CocoaPods step after bumping the Expo SDK, with errors like `[Expo] @expo/dom-webview was not linked: requires iOS 16.4 but app targets 15.1`, `Unable to find a specification for ExpoModulesCore`, or `no such module 'Expo'`, your local native build state is stale. The gitignored `ios/` and `android/` folders, the CocoaPods install, and Xcode's DerivedData were all produced by the old SDK. Regenerate everything from scratch at the current SDK's defaults (SDK 56 targets iOS 16.4 and ships Expo as precompiled XCFrameworks):
+
+```bash
+npx expo prebuild --clean                      # regenerate ios/ and android/
+rm -rf ~/Library/Developer/Xcode/DerivedData   # clear Xcode's stale build cache
+cd ios && pod install && cd ..                 # reinstall pods (fetches the precompiled frameworks)
+npx expo run:ios
+```
+
+If CocoaPods still cannot resolve a pod spec such as `ExpoModulesCore`, refresh the local spec repo first with `cd ios && pod install --repo-update`.
+
 ## Game Concept
 
 Pixel Hoops combines Slay the Spire-style roster building with NBA Jam arcade energy. Draft a roster of 8-bit players, chase lineup synergies, recruit defeated opponents between runs, and climb tournament brackets by out-building your rivals. You set the five and the game plan; the game auto-sims each matchup possession by possession. Every run ends in permadeath but leaves permanent progress behind.
