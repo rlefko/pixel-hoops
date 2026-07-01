@@ -217,10 +217,9 @@ describe('home roster persistence', () => {
     const grown = { ...run, bench: [...run.bench, ...recruits] };
     // champion = true: recruits are kept only when the run is cleared.
     const merged = mergeRunGainsIntoHome(home, grown, {
-      coins: 5,
-      reputation: 3,
-      trainingPoints: 0,
-    }, false, true);
+      rewards: { coins: 5, reputation: 3, trainingPoints: 0 },
+      champion: true,
+    });
     // Each new recruit is banked, never lost: B/C own on the first copy (into players), A
     // accrues a copy (into collecting). So the gains land across players + collecting.
     const playersGained = merged.players.length - home.players.length;
@@ -237,7 +236,7 @@ describe('home roster persistence', () => {
       (r) => !homeKeys.has(`${r.player.name}|${r.position}`)
     );
     const flooded = { ...run, bench: cRecruits };
-    expect(mergeRunGainsIntoHome(home, flooded, undefined, false, true).players.length).toBeGreaterThan(17);
+    expect(mergeRunGainsIntoHome(home, flooded, { champion: true }).players.length).toBeGreaterThan(17);
   });
 
   it('serialize/deserialize round-trips and rejects garbage', () => {
@@ -284,12 +283,10 @@ describe('home roster persistence', () => {
       starters: [equipped, ...run.starters.slice(1)],
       bench: [legend],
     };
-    const merged = mergeRunGainsIntoHome(
-      home,
-      grown,
-      { coins: 0, reputation: 0, trainingPoints: 0 },
-      true
-    );
+    const merged = mergeRunGainsIntoHome(home, grown, {
+      rewards: { coins: 0, reputation: 0, trainingPoints: 0 },
+      legendOffered: true,
+    });
     expect(merged.players.some((p) => p.onLoan)).toBe(false);
     expect(merged.players.every((p) => !p.item)).toBe(true);
     expect(merged.players.every((p) => !p.trainingDelta)).toBe(true);
@@ -335,7 +332,7 @@ describe('home roster persistence', () => {
       starters: [{ ...run.starters[0], gamesOut: 2 }, ...run.starters.slice(1)],
       bench: generateRecruitOffers('C', 'easy', 0, 30, createRNG('flood')),
     };
-    const merged = mergeRunGainsIntoHome(home, flooded, undefined, false, true); // champion keeps recruits
+    const merged = mergeRunGainsIntoHome(home, flooded, { champion: true }); // champion keeps recruits
     expect(merged.players.length).toBeGreaterThan(17); // no 17-player cap any more
     // Every owned player is still present (recency reorders, never drops).
     const key = (p: RosterPlayer) => `${p.player.name}|${p.position}`;
@@ -385,7 +382,7 @@ describe('home roster persistence', () => {
     // medium's ladder, never easy's.
     const home = { ...rookie('played'), selectedDifficulty: 'easy' as const };
     const run = homeToRunRoster(home);
-    const merged = mergeRunGainsIntoHome(home, run, undefined, false, true, 'C', 'medium');
+    const merged = mergeRunGainsIntoHome(home, run, { champion: true, clearedClass: 'C', playedDifficulty: 'medium' });
     expect(merged.ladderProgress.medium).toBe('C');
     expect(merged.ladderProgress.easy).toBeNull();
   });

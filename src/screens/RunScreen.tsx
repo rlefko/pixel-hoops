@@ -284,7 +284,11 @@ export default function RunScreen() {
           : undefined;
       const wonCoaches = champion ? wonCoachIds.map(getCoach) : [];
       const unlockedPlayers = champion ? wonPlayers.unlocked : [];
-      const progressed = champion ? wonPlayers.progressed : [];
+      // On a loss these carry the milestone bank (empty on an ordinary loss): a banked
+      // copy that only progressed rides the strip; one that OWNED outright (C/B own at
+      // one copy) shows as the "stays in touch" recruit.
+      const progressed = wonPlayers.progressed;
+      const bankedRecruit = !champion ? wonPlayers.unlocked[0] : undefined;
       const bounty = champion ? bountyGrant : null;
       // Reveal order after the celebration: the headline BOUNTY first (the "harder difficulty
       // paid off" moment), then scouted (unlocked) players, then the climactic coach unlock,
@@ -373,6 +377,7 @@ export default function RunScreen() {
           lossMargin={lossMargin}
           lossClock={lossClock}
           nextUnlockLabel={nextUnlockLabel}
+          bankedRecruit={bankedRecruit}
           onNewRun={exitNewRun}
           onMenu={exitHome}
         />

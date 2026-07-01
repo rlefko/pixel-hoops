@@ -148,9 +148,14 @@ export function useRun() {
             new Set(next.ownedCoaches)
           )
         : [];
-      // The players this championship unlocks/progresses, captured against the PRE-merge
-      // collection (the merge below deposits them), for the scouted-player reveal + strip.
-      wonPlayersRef.current = previewRunAcquisitions(next, model.core.roster, champion);
+      // The players this settle unlocks/progresses (a milestone-banked loss included),
+      // captured against the PRE-merge collection (the merge below deposits them), for
+      // the scouted-player reveal + the summary strips.
+      wonPlayersRef.current = previewRunAcquisitions(next, model.core.roster, {
+        champion,
+        playedDifficulty: model.difficulty,
+        bossWins: model.core.currentMapIndex,
+      });
       // A championship banks a Hall of Fame snapshot of the final game. Date.now() lives
       // here (the hook), keeping the merge and the entry builder clock-free.
       const championEntry =
@@ -176,16 +181,15 @@ export function useRun() {
       );
       bountyGrantRef.current = bountyGrant;
       next = {
-        ...mergeRunGainsIntoHome(
-          withBounty,
-          model.core.roster,
-          model.core.rewards,
-          model.legend.offeredThisRun,
+        ...mergeRunGainsIntoHome(withBounty, model.core.roster, {
+          rewards: model.core.rewards,
+          legendOffered: model.legend.offeredThisRun,
           champion,
-          model.ladderClass,
-          model.difficulty,
-          championEntry
-        ),
+          clearedClass: model.ladderClass,
+          playedDifficulty: model.difficulty,
+          championEntry,
+          bossWins: model.core.currentMapIndex,
+        }),
         settledRunId: runId,
       };
     }

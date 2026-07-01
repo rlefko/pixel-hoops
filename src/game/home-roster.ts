@@ -6,12 +6,13 @@ import { buildStartingTwelve } from './tournament';
 import { backfillPlayStyleStats, expandStats, isLegacyStats } from './stat-migration';
 import { remapElite, remapSystem, STAT_MIN } from './stat-scaling';
 import { RATING_CAP, canUpgrade, perStatMax, upgradeCost } from './upgrades';
-import { classForOvr, ovr, type PlayerClass } from './ratings';
+import { CLASS_ORDER, classForOvr, ovr, ovrRaw, type PlayerClass } from './ratings';
 import {
   DIFFICULTIES,
   LADDER_CLASSES,
   advanceLadder,
   cellKey,
+  difficultyMods,
   frontierFromCells,
   isLadderClass,
   type Difficulty,
@@ -509,12 +510,12 @@ export interface AcquisitionDelta {
 }
 
 /**
- * The NEW recruits a cleared run brings home: fielded players (a won on-loan legend included)
- * not already owned, with run-scoped state stripped, de-duped by key. Empty on a loss. The
- * single source of truth shared by the merge and the acquisition preview so both agree.
+ * The candidate recruits a run could bring home: fielded players (a won on-loan legend
+ * included) not already owned, with run-scoped state stripped, de-duped by key. Which of
+ * them actually deposit is the settle's call: all of them on a championship, the single
+ * best non-legend on a milestone-banked loss, nothing otherwise (see settleDeposits).
  */
-function newRecruitsFromRun(home: HomeRoster, runRoster: Roster, champion: boolean): RosterPlayer[] {
-  if (!champion) return [];
+function runRecruitCandidates(home: HomeRoster, runRoster: Roster): RosterPlayer[] {
   const ownedKeys = new Set(home.players.map(playerKey));
   const seen = new Set<string>();
   const out: RosterPlayer[] = [];
@@ -533,14 +534,40 @@ function newRecruitsFromRun(home: HomeRoster, runRoster: Roster, champion: boole
   return out;
 }
 
+/** Whether a recruit is a legend for deposit purposes. Legends own at ONE copy, so they
+ * are exempt from the copies multiplier (nothing to multiply) and barred from milestone
+ * banking (a loss must never hand out a full legend). */
+function isLegendRecruit(rp: RosterPlayer): boolean {
+  return (rp.legendary ?? false) || playerDraftClass(rp) === 'S+';
+}
+
+/** The single best milestone-bankable recruit (highest class, then raw OVR), as a
+ * deposit list. Legends are excluded: an on-loan legend owns at one copy, so banking it
+ * from a loss would bypass the clear requirement entirely. */
+function bestBankableRecruit(candidates: RosterPlayer[]): RosterPlayer[] {
+  const rank = (rp: RosterPlayer) => CLASS_ORDER.indexOf(playerDraftClass(rp));
+  const best = candidates
+    .filter((rp) => !isLegendRecruit(rp))
+    .sort(
+      (a, b) =>
+        rank(b) - rank(a) ||
+        ovrRaw(b.player.stats, b.position) - ovrRaw(a.player.stats, a.position)
+    )[0];
+  return best ? [best] : [];
+}
+
 /**
- * Deposit one copy per new recruit into `collecting`, returning the updated list plus the
+ * Deposit copies per new recruit into `collecting`, returning the updated list plus the
  * acquisition delta (which recruits crossed the threshold to UNLOCK, and which only
- * PROGRESSED). Pure; the single source of truth for both the merge and the reveal preview.
+ * PROGRESSED). `copiesMul` is the difficulty's championship multiplier, capped per
+ * recruit at exactly the copies still needed (a deposit tops a player up, it never
+ * mints overflow coins) and exempt for legends (always one copy). Pure; the single
+ * source of truth for both the merge and the reveal preview.
  */
 function depositRecruitCopies(
   collecting: CollectingPlayer[],
-  recruits: RosterPlayer[]
+  recruits: RosterPlayer[],
+  copiesMul = 1
 ): { collecting: CollectingPlayer[] } & AcquisitionDelta {
   let next = collecting;
   const unlocked: RosterPlayer[] = [];
@@ -549,7 +576,10 @@ function depositRecruitCopies(
     const key = playerKey(rp);
     const threshold = copiesToOwn(playerDraftClass(rp));
     const before = next.find((c) => playerKey(c.player) === key)?.copies ?? 0;
-    const after = before + 1;
+    const copies = isLegendRecruit(rp)
+      ? 1
+      : Math.max(1, Math.min(copiesMul, threshold - before));
+    const after = before + copies;
     if (after >= threshold) {
       unlocked.push(rp);
       next = next.filter((c) => playerKey(c.player) !== key);
@@ -561,54 +591,88 @@ function depositRecruitCopies(
   return { collecting: next, unlocked, progressed };
 }
 
+/** Terminal-settle inputs shared by the merge and its preview. */
+export interface RunSettle {
+  rewards?: RunRewards;
+  /** Whether a legendary was offered this run (resets the soft-pity streak). */
+  legendOffered?: boolean;
+  champion?: boolean;
+  /** The ladder class a championship cleared (advances the ladder + stamps the cell). */
+  clearedClass?: LadderClass;
+  /** The difficulty the run was actually PLAYED on (model.difficulty), which can differ
+   * from home.selectedDifficulty if the menu selection changed. Drives the ladder write,
+   * the copies multiplier, and milestone banking. Defaults to the current selection. */
+  playedDifficulty?: Difficulty;
+  /** A pre-built Hall of Fame entry for a championship (the hook builds it, since it
+   * needs Date.now()). Prepended to the trophy case only on a win; ignored otherwise. */
+  championEntry?: HallOfFameEntry;
+  /** Bosses beaten this run (core.currentMapIndex at the summary). On a hard/insane
+   * loss at or past the difficulty's milestone, the best non-legend recruit still
+   * deposits one copy ("he stays in touch"). */
+  bossWins?: number;
+}
+
+/** The recruit deposits a settle performs: every candidate x the difficulty's copies
+ * multiplier on a championship; the single best non-legend x1 on a milestone-banked
+ * loss; nothing otherwise. ONE chooser for the merge and the preview, so the reveal can
+ * never disagree with what actually banks. */
+function settleDeposits(
+  home: HomeRoster,
+  runRoster: Roster,
+  settle: RunSettle
+): { collecting: CollectingPlayer[] } & AcquisitionDelta {
+  const { champion = false, bossWins = 0 } = settle;
+  const mods = difficultyMods(settle.playedDifficulty ?? home.selectedDifficulty);
+  const candidates = runRecruitCandidates(home, runRoster);
+  if (champion) return depositRecruitCopies(home.collecting ?? [], candidates, mods.copiesMul);
+  const milestone = mods.milestoneBossWins != null && bossWins >= mods.milestoneBossWins;
+  return depositRecruitCopies(
+    home.collecting ?? [],
+    milestone ? bestBankableRecruit(candidates) : []
+  );
+}
+
 /**
- * The players a cleared run would UNLOCK vs PROGRESS, for the end-of-run reveal + strip. Pure
- * and read-only (does not mutate the home roster); empty on a loss. Mirrors the deposit the
- * merge performs, so the reveal always matches what actually banks.
+ * The players a run's settle would UNLOCK vs PROGRESS, for the end-of-run reveal + strip
+ * (including a milestone-banked loss). Pure and read-only (does not mutate the home
+ * roster). Mirrors the deposit the merge performs, so the reveal always matches what
+ * actually banks.
  */
 export function previewRunAcquisitions(
   home: HomeRoster,
   runRoster: Roster,
-  champion: boolean
+  settle: RunSettle
 ): AcquisitionDelta {
-  const { unlocked, progressed } = depositRecruitCopies(
-    home.collecting ?? [],
-    newRecruitsFromRun(home, runRoster, champion)
-  );
+  const { unlocked, progressed } = settleDeposits(home, runRoster, settle);
   return { unlocked, progressed };
 }
 
 /**
  * Fold a finished run's gains back into the home collection. The persistent collection
- * is preserved; each NEW recruit (not already owned by key, on-loan stripped, run-scoped
- * state removed) deposits ONE copy toward owning that player, unlocking it into the
- * collection when its class threshold is met (else advancing `collecting`). Rewards bank.
- * On a championship at the run's (difficulty, ladder class) frontier the ladder advances
- * and auto-selects the newly unlocked class. The legendary pity streak advances
- * unless a legendary was offered this run.
+ * is preserved; the settle decides which NEW recruits deposit copies (all of them, at
+ * the difficulty's multiplier, on a championship; the best non-legend on a milestone-
+ * banked hard/insane loss), unlocking a player into the collection when its class
+ * threshold is met (else advancing `collecting`). Rewards bank. On a championship the
+ * cleared CELL is stamped, the played difficulty's ladder advances, and the next class
+ * auto-selects. The legendary pity streak advances unless a legendary was offered.
  */
 export function mergeRunGainsIntoHome(
   home: HomeRoster,
   runRoster: Roster,
-  rewards?: RunRewards,
-  legendOffered = false,
-  champion = false,
-  clearedClass?: LadderClass,
-  // The difficulty the run was actually PLAYED on (model.difficulty), which can
-  // differ from home.selectedDifficulty if the menu selection changed; the ladder
-  // must advance on the played difficulty. Defaults to the current selection.
-  playedDifficulty: Difficulty = home.selectedDifficulty,
-  // A pre-built Hall of Fame entry for a championship (the hook builds it, since it
-  // needs Date.now()). Prepended to the trophy case only on a win; ignored otherwise.
-  championEntry?: HallOfFameEntry
+  settle: RunSettle = {}
 ): HomeRoster {
+  const {
+    rewards,
+    legendOffered = false,
+    champion = false,
+    clearedClass,
+    playedDifficulty = home.selectedDifficulty,
+    championEntry,
+  } = settle;
   // Owned players fielded this run drive the recency reorder below. On-loan players (a
   // scouted legend) are never in the owned collection, so they are excluded from this list.
   const fielded = [...runRoster.starters, ...runRoster.bench].filter((p) => !p.onLoan);
   const ownedKeys = new Set(home.players.map(playerKey));
-  // The new recruits a cleared run brings home (a won on-loan legend included, run-scoped
-  // state stripped, de-duped); empty on a loss. Each deposits one copy below.
-  const deduped = newRecruitsFromRun(home, runRoster, champion);
 
   // Recency: the players fielded this run move to the FRONT of the collection (in
   // slot order), then this run's new recruits, then everyone else in prior order.
@@ -626,14 +690,11 @@ export function mergeRunGainsIntoHome(
   const fieldedOwned = fieldedOwnedKeys.map((k) => homeByKey.get(k)!);
   const restOwned = home.players.filter((p) => !seenF.has(playerKey(p)));
 
-  // Each new recruit deposits ONE copy: crossing the class threshold unlocks the player into
-  // the collection now (front = recency); the rest advance their in-progress copy count in
-  // `collecting`. `deduped` is empty on a loss, so a lost run deposits nothing (prior
-  // in-progress copies, banked on earlier wins, are untouched).
-  const { collecting, unlocked: unlockedRecruits } = depositRecruitCopies(
-    home.collecting ?? [],
-    deduped
-  );
+  // The settle's recruit deposits: crossing the class threshold unlocks the player into
+  // the collection now (front = recency); the rest advance their in-progress copy count
+  // in `collecting`. An ordinary loss deposits nothing (prior in-progress copies, banked
+  // on earlier wins, are untouched).
+  const { collecting, unlocked: unlockedRecruits } = settleDeposits(home, runRoster, settle);
   const players = [...fieldedOwned, ...unlockedRecruits, ...restOwned];
 
   // The draft rotation to restore next run is captured at draft-confirm time into
