@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { encodeWav, SAMPLE_RATE, BITS_PER_SAMPLE, CHANNELS } from '@/audio/wav';
 import { renderRecipe, type Recipe } from '@/audio/synth';
 import { RECIPES, type SfxName } from '@/audio/recipes';
+import { peak } from './helpers';
 
 function view(bytes: Uint8Array): DataView {
   return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -65,10 +66,8 @@ describe('renderRecipe', () => {
       );
       expect(out.length, `${name} length`).toBe(longest);
 
-      let peak = 0;
-      for (const s of out) peak = Math.max(peak, Math.abs(s));
-      expect(peak, `${name} stays within [-1, 1]`).toBeLessThanOrEqual(1);
-      expect(peak, `${name} is not silent`).toBeGreaterThan(0);
+      expect(peak(out), `${name} stays within [-1, 1]`).toBeLessThanOrEqual(1);
+      expect(peak(out), `${name} is not silent`).toBeGreaterThan(0);
     }
   });
 

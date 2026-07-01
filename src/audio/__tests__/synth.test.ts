@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderVoice, type Voice } from '@/audio/synth';
+import { peak, allFinite } from './helpers';
 
 /** Pure FNV-1a over int16-quantized samples (no node:crypto, so no @types/node needed). */
 function hashSamples(a: Float32Array): string {
@@ -13,22 +14,11 @@ function hashSamples(a: Float32Array): string {
   return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-function peak(a: Float32Array): number {
-  let p = 0;
-  for (const s of a) p = Math.max(p, Math.abs(s));
-  return p;
-}
-
 /** First-difference energy: a cheap proxy for high-frequency content. */
 function hfEnergy(a: Float32Array): number {
   let e = 0;
   for (let i = 1; i < a.length; i++) e += Math.abs(a[i] - a[i - 1]);
   return e;
-}
-
-function allFinite(a: Float32Array): boolean {
-  for (const s of a) if (!Number.isFinite(s)) return false;
-  return true;
 }
 
 // Legacy fixtures: only the original chiptune fields. Their output must NEVER change when
@@ -119,5 +109,56 @@ describe('determinism', () => {
   it('renders byte-identical across runs (filter + fm)', () => {
     const v: Voice = { osc: 'fm', freq: 330, durMs: 200, fm: { ratio: 2, index: 3, indexDecayMs: 120 }, filter: { baseHz: 300, peakHz: 4000, q: 3, decayMs: 180, sustain: 0.2 } };
     expect(Array.from(renderVoice(v))).toEqual(Array.from(renderVoice(v)));
+  });
+});
+
+describe('pluck (Karplus-Strong)', () => {
+  const voice: Voice = { osc: 'pluck', freq: 220, durMs: 400, noiseSeed: 5, pluck: { damp: 0.995, brightness: 0.9 } };
+
+  function rms(a: Float32Array, from: number, to: number): number {
+    let e = 0;
+    for (let i = from; i < to; i++) e += a[i] * a[i];
+    return Math.sqrt(e / (to - from));
+  }
+
+  /** Autocorrelation peak lag: the period of the dominant pitch, in samples. */
+  function bestLag(a: Float32Array, minLag: number, maxLag: number, from: number, window: number): number {
+    let best = minLag;
+    let bestScore = -Infinity;
+    for (let lag = minLag; lag <= maxLag; lag++) {
+      let score = 0;
+      for (let i = from; i < from + window; i++) score += a[i] * a[i + lag];
+      if (score > bestScore) {
+        bestScore = score;
+        best = lag;
+      }
+    }
+    return best;
+  }
+
+  it('renders deterministically', () => {
+    expect(hashSamples(renderVoice(voice))).toBe(hashSamples(renderVoice(voice)));
+  });
+
+  it('rings within a semitone of the requested pitch', () => {
+    const out = renderVoice(voice);
+    // Expected period = the delay-line length; a semitone is ~6% either way.
+    const expected = Math.round(22050 / 220);
+    const lag = bestLag(out, 50, 200, 441, 2000);
+    expect(lag).toBeGreaterThanOrEqual(Math.floor(expected / 2 ** (1 / 12)));
+    expect(lag).toBeLessThanOrEqual(Math.ceil(expected * 2 ** (1 / 12)));
+  });
+
+  it('decays like a plucked string', () => {
+    const out = renderVoice(voice);
+    const ms50 = Math.round(22050 * 0.05);
+    expect(rms(out, 0, ms50)).toBeGreaterThan(rms(out, out.length - ms50, out.length));
+  });
+
+  it('stays finite and within full scale', () => {
+    const out = renderVoice(voice);
+    expect(allFinite(out)).toBe(true);
+    expect(peak(out)).toBeLessThanOrEqual(1);
+    expect(peak(out)).toBeGreaterThan(0);
   });
 });
