@@ -26,13 +26,17 @@ export function StatNumber({
 }) {
   const band = CLASS_ORDER.indexOf(classForOvr(value));
   // Seed with the mount value so a freshly rendered number never pops; only a
-  // band that rises between renders (an upgrade/training tick) celebrates.
+  // value that rises between renders (an upgrade/training tick) celebrates: a
+  // small blip per +1, and the bigger band pop when it climbs a whole class.
   const prevBand = useRef(band);
+  const prevValue = useRef(value);
   const { popStyle, pop } = usePop();
   useEffect(() => {
     if (animate && band > prevBand.current) pop({ scale: 1.35 });
+    else if (animate && value > prevValue.current) pop({ scale: 1.12 });
     prevBand.current = band;
-  }, [animate, band, pop]);
+    prevValue.current = value;
+  }, [animate, band, value, pop]);
 
   return (
     <Animated.Text style={[style, { color: statColor(value) }, popStyle]}>

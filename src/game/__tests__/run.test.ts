@@ -19,6 +19,7 @@ import {
   buildHomeTeam,
   buildOpponentTeam,
   coachReorderRoster,
+  pendingWinRewards,
   steppingInSubs,
   TOTAL_MAPS,
   MAX_BANISHES,
@@ -572,6 +573,31 @@ describe('run reducer', () => {
     expect(won.phase.kind).toBe('map');
     expect(won.wins).toBe(1);
     expect(won.core.rewards.trainingPoints).toBe(1);
+  });
+
+  it('pendingWinRewards matches exactly what resolveGameResult banks', () => {
+    // Run a real sim so the payout includes the dominance bonus, then compare the
+    // UI-facing tally against the banked deltas.
+    const pre = withNode(start(), node({ id: 'g1', type: 'game', round: 1 }));
+    const game = runReducer({ ...pre, phase: { kind: 'pregame', nodeId: 'g1' } }, {
+      type: 'enterGame',
+    })!;
+    const postgame = { ...game, phase: { kind: 'postgame', nodeId: 'g1', won: true } as const };
+    const pending = pendingWinRewards(postgame);
+    const resolved = runReducer(postgame, { type: 'resolveGameResult' })!;
+    expect(pending).not.toBeNull();
+    expect(resolved.core.rewards.coins - postgame.core.rewards.coins).toBe(pending!.coins);
+    expect(resolved.core.rewards.trainingPoints - postgame.core.rewards.trainingPoints).toBe(
+      pending!.trainingPoints
+    );
+    expect(resolved.core.rewards.reputation - postgame.core.rewards.reputation).toBe(
+      pending!.reputation
+    );
+    // And it stays null anywhere but a winning postgame.
+    expect(pendingWinRewards(pre)).toBeNull();
+    expect(
+      pendingWinRewards({ ...game, phase: { kind: 'postgame', nodeId: 'g1', won: false } })
+    ).toBeNull();
   });
 
   it('stamps a played combat node with its result so the map tile can show W/score', () => {
