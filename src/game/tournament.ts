@@ -14,7 +14,7 @@ import {
   freeAgentPool,
 } from './player-pool';
 import { anchorStatsToClass, classShift, classTargetOvr, scaleLegendToLevel } from './classes';
-import { type LadderClass } from './difficulty-mode';
+import { type Difficulty, type LadderClass } from './difficulty-mode';
 import type { PlayerClass } from './ratings';
 import { isSpecialistStats } from './specialty';
 import type { RealPlayer } from '@/types/nba';
@@ -358,20 +358,23 @@ export function pickSpecialistOfClass(
  * ladder class (roster depth), with a small chance of the class below and a rare reach-up to
  * the class above. The reach-up is DISABLED when it would produce S or a legend (S+), so
  * lower ladders never leak S-class stars into your collection. On the S / S+ ladder offers
- * are a 60/40 mix of S and A, so even endless S-ladder replay only trickles S copies and an
- * S recruit stays a treat (the real S-ladder highlight is the separate, pity-gated legend
- * reveal). If a class pool is exhausted the pick falls back to the ladder class, then any
+ * are a mix of S and A, so even endless S-ladder replay only trickles S copies and an S
+ * recruit stays a treat (the real S-ladder highlight is the separate, pity-gated legend
+ * reveal). A HARDER difficulty shifts the odds UP (more reach-up, more S on the top ladder):
+ * because recruits are kept only on a clear, better odds on a brutal run are pure risk/reward,
+ * not a farm. If a class pool is exhausted the pick falls back to the ladder class, then any
  * untaken real, then a procedural player. The map-progress argument is retained for
  * signature/back-compat; offers no longer ramp by map.
  */
 export function generateRecruitOffers(
   ladderClass: LadderClass,
+  difficulty: Difficulty,
   mapProgress: number,
   count: number,
   rng: RNG,
   exclude: Set<string> = new Set()
 ): RosterPlayer[] {
-  const weights = recruitClassWeights(ladderClass);
+  const weights = recruitClassWeights(ladderClass, difficulty);
   const taken = new Set(exclude);
   const offers: RosterPlayer[] = [];
   for (let i = 0; i < count; i++) {
@@ -387,24 +390,40 @@ export function generateRecruitOffers(
   return offers;
 }
 
+/** How much of the S / S+ ladder's offer mix is S (vs A), by difficulty. A harder clear
+ * banks more of the scarce S copies, but insane-S clears stay rare, so S never floods. */
+const S_LADDER_S_SHARE: Record<Difficulty, number> = { easy: 60, medium: 65, hard: 75, insane: 85 };
+
+/** Per-offer weights [ladderClass, below, reach-up] on the C/B/A ladders, by difficulty.
+ * A harder difficulty trades depth-below for a heavier reach-up toward the class above. */
+const LADDER_WEIGHTS: Record<Difficulty, [number, number, number]> = {
+  easy: [85, 12, 3],
+  medium: [85, 9, 6],
+  hard: [82, 5, 13],
+  insane: [78, 3, 19],
+};
+
 /**
- * Per-offer class weights, shaped by rarity. The S / S+ ladder mixes S with A (60/40) so S
- * stays scarce under repeat farming; every other ladder is ladder-primary with a little
- * depth below and a rare reach-up that is BARRED from producing S/S+ (so no A-ladder S leak).
- * classShift clamps at the ladder ends; the D class has no real pool, so it is dropped.
+ * Per-offer class weights, shaped by rarity AND difficulty. The S / S+ ladder mixes S with A
+ * (S share rising with difficulty) so S stays scarce under repeat farming; every other ladder
+ * is ladder-primary with a little depth below and a reach-up (heavier on harder difficulty)
+ * that is BARRED from producing S/S+ (so no A-ladder S leak). classShift clamps at the ladder
+ * ends; the D class has no real pool, so it is dropped.
  */
-function recruitClassWeights(ladderClass: LadderClass): [PlayerClass, number][] {
+function recruitClassWeights(ladderClass: LadderClass, difficulty: Difficulty): [PlayerClass, number][] {
   if (ladderClass === 'S' || ladderClass === 'S+') {
+    const s = S_LADDER_S_SHARE[difficulty];
     return [
-      ['S', 60],
-      ['A', 40],
+      ['S', s],
+      ['A', 100 - s],
     ];
   }
+  const [atClass, belowW, aboveW] = LADDER_WEIGHTS[difficulty];
   const below = classShift(ladderClass, -1);
   const above = classShift(ladderClass, 1);
-  const entries: [PlayerClass, number][] = [[ladderClass, 85]];
-  if (below !== 'D') entries.push([below, 12]);
-  if (above !== 'S' && above !== 'S+') entries.push([above, 3]);
+  const entries: [PlayerClass, number][] = [[ladderClass, atClass]];
+  if (below !== 'D') entries.push([below, belowW]);
+  if (above !== 'S' && above !== 'S+') entries.push([above, aboveW]);
   return entries;
 }
 

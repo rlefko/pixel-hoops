@@ -5,7 +5,7 @@ import { Screen } from '@/components/Screen';
 import { MenuButton } from '@/components/MenuButton';
 import { DisplayText, MonoText } from '@/components/StyledText';
 import { Callout, Counter, Pop } from '@/components/fx';
-import { useBobPulse } from '@/feel';
+import { useBobPulse, useIdle, HUB_IDLE_MS } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import {
   BasketballIcon,
@@ -66,10 +66,13 @@ export default function HowToPlayScreen() {
   const router = useRouter();
 
   // A few looping accents on the always-visible hero (the rest of the page's juice
-  // rides on per-component pops, glows, and bursts). All hold lit under reduced motion.
-  const bob0 = useBobPulse(1100, { delayMs: 0 });
-  const bob1 = useBobPulse(1100, { delayMs: 150 });
-  const bob2 = useBobPulse(1100, { delayMs: 300 });
+  // rides on per-component pops, glows, and bursts). All hold lit under reduced motion,
+  // and settle after 30s of no touch so the always-on hero never drains battery on an
+  // open help screen.
+  const { idle, bump } = useIdle(HUB_IDLE_MS);
+  const bob0 = useBobPulse(1100, { delayMs: 0, paused: idle });
+  const bob1 = useBobPulse(1100, { delayMs: 150, paused: idle });
+  const bob2 = useBobPulse(1100, { delayMs: 300, paused: idle });
 
   return (
     <Screen
@@ -78,12 +81,13 @@ export default function HowToPlayScreen() {
       onBack={() => router.back()}
       backLabel="CLOSE"
       contentContainerStyle={styles.content}
+      onTouchStart={bump}
     >
       {/* Hero marquee */}
       <View style={styles.hero}>
         <MonoText style={styles.kicker}>PIXEL HOOPS</MonoText>
         <View style={styles.marquee}>
-          <LegendaryHalo visible style={styles.heroHalo} />
+          <LegendaryHalo visible paused={idle} style={styles.heroHalo} />
           <Pop popOnMount>
             <DisplayText style={styles.title}>HOW TO PLAY</DisplayText>
           </Pop>
@@ -290,7 +294,7 @@ export default function HowToPlayScreen() {
         icon={<CrownIcon size={16} color={palette.gold} />}
         title="CLIMB THE LADDER"
         accent={palette.gold}
-        body="Pick a difficulty. Easy and medium forgive a loss or two; hard and insane forgive none. Then climb the class ladder from C to S+, where clearing a rung unlocks a tougher next run. Your power and the challenge rise together."
+        body="Pick a difficulty. Easy and medium forgive a loss or two; hard and insane forgive none. Then climb the class ladder from C to S+, where clearing a rung unlocks a tougher next run and its Championship Bounty. Your power and the challenge rise together."
       >
         <View style={styles.ladderRow}>
           {LADDER.map((c, i) => (
@@ -300,6 +304,24 @@ export default function HowToPlayScreen() {
         </View>
         <MonoText style={[styles.note, styles.timeoutLine]}>
           TIMEOUTS: EASY 2 / MED 1 / HARD 0 / INSANE 0
+        </MonoText>
+      </InfoPanel>
+
+      {/* Championship bounties: the reward for climbing */}
+      <InfoPanel
+        icon={<StarIcon size={16} color={REWARD_CHROME} />}
+        title="CHAMPIONSHIP BOUNTIES"
+        accent={REWARD_CHROME}
+        body="Clear a rung you have never beaten and claim its Championship Bounty, a one-time reward that climbs up and to the right: coins, then guaranteed stars, then abilities, then a guaranteed legend, and the Grandmaster crest for taking S+ on insane. A harder run also pays more coins and richer recruits."
+      >
+        <View style={styles.ladderRow}>
+          <TagChip label="COINS" color={palette.gold} size="micro" icon={<CoinIcon size={12} color={palette.gold} />} glowDelayMs={0} />
+          <TagChip label="STARS" color={palette.steelBlue} size="micro" icon={<RecruitIcon size={12} color={palette.steelBlue} />} glowDelayMs={120} />
+          <TagChip label="ABILITIES" color={SYNERGY_CHROME} size="micro" icon={<StarIcon size={12} color={SYNERGY_CHROME} />} glowDelayMs={240} />
+          <TagChip label="LEGENDS" color={palette.gold} size="micro" icon={<CrownIcon size={12} color={palette.gold} />} glowDelayMs={360} />
+        </View>
+        <MonoText style={styles.note}>
+          Harder difficulty, bigger bounty. Every clear stamps a crest: 20 to collect.
         </MonoText>
       </InfoPanel>
 

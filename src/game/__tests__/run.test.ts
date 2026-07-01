@@ -55,20 +55,20 @@ function atMap(runSeed: string, homeSeed = runSeed): RunModel {
 
 describe('generateRecruitOffers', () => {
   it('is deterministic and honors count', () => {
-    const a = generateRecruitOffers('C', 0, 3, createRNG('r1'));
-    const b = generateRecruitOffers('C', 0, 3, createRNG('r1'));
+    const a = generateRecruitOffers('C', 'easy', 0, 3, createRNG('r1'));
+    const b = generateRecruitOffers('C', 'easy', 0, 3, createRNG('r1'));
     expect(a).toEqual(b);
     expect(a).toHaveLength(3);
   });
 
   it('differs by seed', () => {
-    const a = generateRecruitOffers('C', 0, 3, createRNG('r1'));
-    const b = generateRecruitOffers('C', 0, 3, createRNG('r2'));
+    const a = generateRecruitOffers('C', 'easy', 0, 3, createRNG('r1'));
+    const b = generateRecruitOffers('C', 'easy', 0, 3, createRNG('r2'));
     expect(a).not.toEqual(b);
   });
 
   it('shapes C-ladder offers as mostly C with only a rare reach-up to B (never A/S)', () => {
-    const offers = generateRecruitOffers('C', 0.5, 40, createRNG('cshape'));
+    const offers = generateRecruitOffers('C', 'easy', 0.5, 40, createRNG('cshape'));
     for (const o of offers) {
       expect(['C', 'B']).toContain(o.originalClass); // never D (no pool) or A/S
       expect(POSITIONS).toContain(o.position);
@@ -77,17 +77,17 @@ describe('generateRecruitOffers', () => {
     expect(offers.filter((o) => o.originalClass === 'C').length).toBeGreaterThan(offers.length / 2);
   });
 
-  it('never leaks S-class stars onto the A ladder (the reach-up is barred at S)', () => {
-    const offers = generateRecruitOffers('A', 1, 40, createRNG('aleak'));
+  it('never leaks S-class stars onto the A ladder, even at insane (heaviest reach-up)', () => {
+    const offers = generateRecruitOffers('A', 'insane', 1, 40, createRNG('aleak'));
     for (const o of offers) {
-      expect(o.originalClass).not.toBe('S'); // the A->S leak is closed
+      expect(o.originalClass).not.toBe('S'); // the A->S leak is closed at every difficulty
       expect(['A', 'B']).toContain(o.originalClass); // A primary, B for depth
       expect(o.legendary).toBeFalsy();
     }
   });
 
   it('mixes S and A on the S ladder so S stays scarce under repeat farming', () => {
-    const offers = generateRecruitOffers('S', 0.5, 40, createRNG('smix'));
+    const offers = generateRecruitOffers('S', 'easy', 0.5, 40, createRNG('smix'));
     const classes = new Set(offers.map((o) => o.originalClass));
     expect(classes.has('S')).toBe(true);
     expect(classes.has('A')).toBe(true);
@@ -97,9 +97,27 @@ describe('generateRecruitOffers', () => {
     }
   });
 
+  it('a harder difficulty reaches up more often (better recruit quality as a risk/reward)', () => {
+    // C-ladder reach-up is to B; insane weights it far heavier than easy, so a brutal run
+    // trickles more B-class recruits (kept only on a clear). Deterministic per seed.
+    const countB = (d: 'easy' | 'insane') =>
+      generateRecruitOffers('C', d, 0.5, 40, createRNG('reachup')).filter(
+        (o) => o.originalClass === 'B'
+      ).length;
+    expect(countB('insane')).toBeGreaterThan(countB('easy'));
+  });
+
+  it('raises the S share on the S ladder as difficulty climbs', () => {
+    const countS = (d: 'easy' | 'insane') =>
+      generateRecruitOffers('S', d, 0.5, 30, createRNG('sshare')).filter(
+        (o) => o.originalClass === 'S'
+      ).length;
+    expect(countS('insane')).toBeGreaterThanOrEqual(countS('easy'));
+  });
+
   it('offers real players, never an excluded or duplicate name', () => {
     const exclude = new Set(['Trae Young', 'LaMelo Ball']);
-    const offers = generateRecruitOffers('B', 0.5, 12, createRNG('ex'), exclude);
+    const offers = generateRecruitOffers('B', 'easy', 0.5, 12, createRNG('ex'), exclude);
     const poolNames = new Set(NBA_POOL.map((p) => p.name));
     for (const o of offers) {
       expect(exclude.has(o.player.name)).toBe(false);
@@ -181,7 +199,7 @@ describe('home roster persistence', () => {
     const base = rookie();
     const home = {
       ...base,
-      players: [...base.players, ...generateRecruitOffers('C', 0, 3, createRNG('x'))],
+      players: [...base.players, ...generateRecruitOffers('C', 'easy', 0, 3, createRNG('x'))],
     };
     const run = homeToRunRoster(home);
     expect(run.starters).toHaveLength(5);
@@ -192,7 +210,7 @@ describe('home roster persistence', () => {
     const home = rookie();
     const run = homeToRunRoster(home);
     const homeKeys = new Set(home.players.map((p) => `${p.player.name}|${p.position}`));
-    const recruits = generateRecruitOffers('B', 0.5, 6, createRNG('m')).filter(
+    const recruits = generateRecruitOffers('B', 'easy', 0.5, 6, createRNG('m')).filter(
       (r) => !homeKeys.has(`${r.player.name}|${r.position}`)
     );
     expect(recruits.length).toBeGreaterThan(0);
@@ -215,7 +233,7 @@ describe('home roster persistence', () => {
     expect(new Set(keys).size).toBe(keys.length);
 
     // Flooding with many C recruits (own on the first copy) grows past any old 17-player cap.
-    const cRecruits = generateRecruitOffers('C', 0, 30, createRNG('big')).filter(
+    const cRecruits = generateRecruitOffers('C', 'easy', 0, 30, createRNG('big')).filter(
       (r) => !homeKeys.has(`${r.player.name}|${r.position}`)
     );
     const flooded = { ...run, bench: cRecruits };
@@ -315,7 +333,7 @@ describe('home roster persistence', () => {
     const run = homeToRunRoster(home);
     const flooded = {
       starters: [{ ...run.starters[0], gamesOut: 2 }, ...run.starters.slice(1)],
-      bench: generateRecruitOffers('C', 0, 30, createRNG('flood')),
+      bench: generateRecruitOffers('C', 'easy', 0, 30, createRNG('flood')),
     };
     const merged = mergeRunGainsIntoHome(home, flooded, undefined, false, true); // champion keeps recruits
     expect(merged.players.length).toBeGreaterThan(17); // no 17-player cap any more
@@ -679,7 +697,7 @@ describe('run reducer', () => {
   it('recruit appends to the bench and returns to the map', () => {
     const m = start();
     const before = m.core.roster.bench.length;
-    const [offer] = generateRecruitOffers('C', 0, 1, createRNG('o'));
+    const [offer] = generateRecruitOffers('C', 'easy', 0, 1, createRNG('o'));
     const next = runReducer(
       { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer], rerolled: [false] } },
       { type: 'recruit', player: offer }
@@ -692,10 +710,10 @@ describe('run reducer', () => {
   it('recruiting past the 12-man cap asks for a drop', () => {
     let m = start();
     // Pad the roster to the 12-man cap.
-    const fillers = generateRecruitOffers('C', 0, 12, createRNG('fill'));
+    const fillers = generateRecruitOffers('C', 'easy', 0, 12, createRNG('fill'));
     const all = [...m.core.roster.starters, ...m.core.roster.bench, ...fillers].slice(0, MAX_RUN_ROSTER);
     m = { ...m, core: { ...m.core, roster: { starters: all.slice(0, 5), bench: all.slice(5) } } };
-    const [offer] = generateRecruitOffers('B', 0, 1, createRNG('over'));
+    const [offer] = generateRecruitOffers('B', 'easy', 0, 1, createRNG('over'));
     const next = runReducer(
       { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer], rerolled: [false] } },
       { type: 'recruit', player: offer }
@@ -710,10 +728,10 @@ describe('run reducer', () => {
   it('keeping the squad from dropForRecruit discards the incoming and leaves the roster unchanged', () => {
     let m = start();
     // Pad the roster to the 12-man cap so recruiting forces the drop screen.
-    const fillers = generateRecruitOffers('C', 0, 12, createRNG('fill'));
+    const fillers = generateRecruitOffers('C', 'easy', 0, 12, createRNG('fill'));
     const all = [...m.core.roster.starters, ...m.core.roster.bench, ...fillers].slice(0, MAX_RUN_ROSTER);
     m = { ...m, core: { ...m.core, roster: { starters: all.slice(0, 5), bench: all.slice(5) } } };
-    const [offer] = generateRecruitOffers('B', 0, 1, createRNG('over'));
+    const [offer] = generateRecruitOffers('B', 'easy', 0, 1, createRNG('over'));
     const next = runReducer(
       { ...m, phase: { kind: 'recruit', nodeId: 'n', offers: [offer], rerolled: [false] } },
       { type: 'recruit', player: offer }
@@ -729,7 +747,7 @@ describe('run reducer', () => {
 
   it('rerolls one recruit option once, deterministically, then refuses a second reroll', () => {
     const m = start();
-    const offers = generateRecruitOffers('C', 0, 3, createRNG('offers'));
+    const offers = generateRecruitOffers('C', 'easy', 0, 3, createRNG('offers'));
     const recruitModel: RunModel = {
       ...m,
       phase: { kind: 'recruit', nodeId: 'n1', offers, rerolled: [false, false, false] },
@@ -1109,7 +1127,7 @@ describe('between-game injuries', () => {
 
   it('sits an injured starter when healthy depth covers it', () => {
     let m = atMap('dress');
-    const bench = generateRecruitOffers('C', 0, 1, createRNG('bp'));
+    const bench = generateRecruitOffers('C', 'easy', 0, 1, createRNG('bp'));
     const [first, ...rest] = m.core.roster.starters;
     m = {
       ...m,
@@ -1131,7 +1149,7 @@ describe('between-game injuries', () => {
   it('steppingInSubs names the healthy sub for an injured starter, else none', () => {
     const m = started('subs');
     expect(steppingInSubs(m.core.roster)).toEqual([]); // a healthy five subs nobody
-    const bench = generateRecruitOffers('C', 0, 1, createRNG('sub-bp'));
+    const bench = generateRecruitOffers('C', 'easy', 0, 1, createRNG('sub-bp'));
     const [first, ...rest] = m.core.roster.starters;
     const roster = { starters: [{ ...first, gamesOut: 1 }, ...rest], bench };
     const subs = steppingInSubs(roster);

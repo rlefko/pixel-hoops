@@ -11,6 +11,7 @@ import {
   DIFFICULTIES,
   LADDER_CLASSES,
   advanceLadder,
+  isClassConquered,
   isLadderClass,
   type Difficulty,
   type LadderClass,
@@ -23,7 +24,8 @@ import {
 } from './player-gacha';
 import { copiesToOwn, type CollectingPlayer } from './collection';
 import { playerDraftClass } from './draft';
-import { GACHA_MACHINES, getGachaAbility } from './abilities-gacha';
+import { GACHA_MACHINES, getGachaAbility, pickAbilityOfRarity } from './abilities-gacha';
+import { BOUNTIES, GRANDMASTER_KEY, bountyFor, bountyKey, type Bounty } from './bounties';
 import { HALL_OF_FAME_CAP, sanitizeHallOfFame, type HallOfFameEntry } from './hall-of-fame';
 import { COACHES, STARTER_COACH_ID, earnedCoachIds, coachesWonByClear, isCoachId } from './coaches';
 
@@ -89,8 +91,18 @@ export interface HomeRoster {
    * legend pity) have been merged, so a run resumed past a crash can never grant them
    * twice. Set in the same write as the merge. */
   settledRunId?: string;
+  /** Cells whose one-time Championship Bounty has been materially granted, keyed by
+   * bounties.bountyKey (`difficulty:ladderClass`). An explicit record + idempotency guard;
+   * crests derive from ladderProgress, not this, so a veteran save shows every past-clear
+   * crest while starting with an empty claimed set (no material windfall). See bounties.ts. */
+  claimedBounties: string[];
 }
 
+// v15 adds Championship Bounties (`claimedBounties`): a one-time reward on each (difficulty
+// x ladder class) cell, granted the first time that cell is cleared. The field defaults to
+// [] on older saves (no value migration). Crucially, crests derive from `ladderProgress`, so
+// a veteran retroactively shows every past-clear crest, but `claimedBounties` starts empty so
+// no material reward is retro-granted; only genuinely new frontier clears pay a bounty.
 // v14 rebalances copies-to-own (B 2->1 so the huge B pool no longer orphans, S 4->6 so the
 // tiny S pool stays a chase) and lets a LEGEND you win a run with be kept (the copy deposit
 // no longer strips on-loan players). No shape change: on load, deserialize auto-promotes any
@@ -122,7 +134,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 14;
+const HOME_ROSTER_VERSION = 15;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -237,6 +249,7 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     hallOfFame: [],
     ownedCoaches: [STARTER_COACH_ID],
     selectedCoachId: STARTER_COACH_ID,
+    claimedBounties: [],
   };
 }
 
@@ -419,16 +432,27 @@ export function applyPlayerPull(
   if (!machineUnlocked(tier, home.ladderProgress) || home.coins < result.cost) {
     return { home, result };
   }
-  const coins = home.coins - result.cost + result.overflowCoins;
-  if (result.isOverflow) return { home: { ...home, coins }, result }; // whole tier owned
+  // Charge the pull, then deposit the copy (foldPull credits any overflow bounty).
+  return { home: foldPull({ ...home, coins: home.coins - result.cost }, result), result };
+}
+
+/**
+ * Fold a pull RESULT into the collection: deposit the copy (graduating the player into the
+ * owned set when it crosses the threshold) and credit any overflow bounty. Does NOT charge
+ * the pull cost (the caller deducts it). Shared by the paid scout pull (applyPlayerPull) and
+ * free grants (claimRunBounty), so both move a copy the exact same way.
+ */
+function foldPull(home: HomeRoster, result: PlayerPullResult): HomeRoster {
+  const coins = home.coins + result.overflowCoins;
+  if (result.isOverflow) return { ...home, coins }; // whole tier owned: overflow bounty only
   if (result.unlockedNow) {
     // Graduate into the owned collection (front = recency); drop the in-progress entry.
     const collecting = home.collecting.filter((c) => playerKey(c.player) !== result.targetKey);
-    return { home: { ...home, coins, players: [result.player, ...home.players], collecting }, result };
+    return { ...home, coins, players: [result.player, ...home.players], collecting };
   }
   // Still collecting: upsert the in-progress entry with the new copy count.
   const collecting = upsertCollecting(home.collecting, result.player, result.newCopies);
-  return { home: { ...home, coins, collecting }, result };
+  return { ...home, coins, collecting };
 }
 
 /** A map of every in-progress player's key to its collected copies (for pull selection
@@ -642,6 +666,86 @@ export function mergeRunGainsIntoHome(
   };
 }
 
+/** What a claimed Championship Bounty granted, for the run-summary reveal. */
+export interface BountyGrant {
+  key: string;
+  bounty: Bounty;
+  /** The apex insane:S+ Grandmaster cell (the reveal treats it as the loudest beat). */
+  isCapstone: boolean;
+  /** Coins added (a coin bounty, the capstone bundle, or a player-grant overflow refund). */
+  coins?: number;
+  /** A granted player (a guaranteed scout), and whether it UNLOCKED vs only progressed. */
+  player?: RosterPlayer;
+  playerUnlocked?: boolean;
+  /** A granted passive-ability id. */
+  abilityId?: string;
+}
+
+/**
+ * Grant a run's Championship Bounty on a championship, ONCE per cell, reusing the scout fold
+ * (foldPull) for player grants and addAbility for ability grants. Returns the updated home
+ * plus a grant descriptor for the reveal, or `{ granted: null }` when nothing is owed.
+ *
+ * The "first clear" test is the pre-clear ladder frontier being BELOW this class, so a
+ * veteran replaying an already-conquered cell never farms material (their crest still shows,
+ * derived from ladderProgress) - this is what makes "crests-only for past clears" automatic,
+ * with no migration. `claimedBounties` is a belt-and-suspenders record + explicit guard.
+ * Call against the PRE-merge home (ladderProgress not yet advanced), inside the settle write.
+ */
+export function claimRunBounty(
+  home: HomeRoster,
+  difficulty: Difficulty,
+  ladderClass: LadderClass,
+  champion: boolean,
+  rng: RNG
+): { home: HomeRoster; granted: BountyGrant | null } {
+  if (!champion) return { home, granted: null };
+  const key = bountyKey(difficulty, ladderClass);
+  if (home.claimedBounties.includes(key)) return { home, granted: null };
+  // First clear only: the pre-clear frontier must be BELOW this class (i.e. not yet
+  // conquered), so a veteran replaying an already-conquered cell never farms material.
+  if (isClassConquered(ladderClass, home.ladderProgress[difficulty])) return { home, granted: null };
+
+  const bounty = bountyFor(difficulty, ladderClass);
+  const grant: BountyGrant = { key, bounty, isCapstone: key === GRANDMASTER_KEY };
+  let next: HomeRoster = { ...home, claimedBounties: [...home.claimedBounties, key] };
+  const reward = bounty.reward;
+  switch (reward.kind) {
+    case 'coins':
+      next = { ...next, coins: next.coins + reward.amount };
+      grant.coins = reward.amount;
+      break;
+    case 'crest':
+      if (reward.coins) {
+        next = { ...next, coins: next.coins + reward.coins };
+        grant.coins = reward.coins;
+      }
+      break;
+    case 'ability': {
+      const id = pickAbilityOfRarity(reward.rarity, rng);
+      next = addAbility(next, id);
+      grant.abilityId = id;
+      break;
+    }
+    case 'player': {
+      // A free guaranteed scout: fold a copy in exactly like a paid pull, no cost and no
+      // machine gate (the clear IS the unlock). A fully-owned tier converts to overflow coins.
+      const result = pullPlayer(
+        reward.tier,
+        new Set(next.players.map(playerKey)),
+        collectingCopyMap(next),
+        rng
+      );
+      next = foldPull(next, result);
+      grant.player = result.player;
+      grant.playerUnlocked = result.unlockedNow;
+      if (result.overflowCoins > 0) grant.coins = result.overflowCoins;
+      break;
+    }
+  }
+  return { home: next, granted: grant };
+}
+
 export function serializeHomeRoster(home: HomeRoster): SerializedHomeRoster {
   return { version: HOME_ROSTER_VERSION, data: home };
 }
@@ -853,5 +957,10 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     lastBankedRunId: typeof data.lastBankedRunId === 'string' ? data.lastBankedRunId : undefined,
     lastBankedCoins: typeof data.lastBankedCoins === 'number' ? data.lastBankedCoins : undefined,
     settledRunId: typeof data.settledRunId === 'string' ? data.settledRunId : undefined,
+    // v15: default to [] on older saves (no material retro-grant; crests derive from
+    // ladderProgress). Filter against the catalog so stale/garbage keys never linger.
+    claimedBounties: Array.isArray(data.claimedBounties)
+      ? data.claimedBounties.filter((k): k is string => typeof k === 'string' && k in BOUNTIES)
+      : [],
   };
 }

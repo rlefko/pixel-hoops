@@ -5,6 +5,7 @@ import {
   difficultyMods,
   unlockedClasses,
   isClassUnlocked,
+  isClassConquered,
   advanceLadder,
   classAboveLadder,
   isLadderClass,
@@ -45,11 +46,21 @@ describe('difficulty modes', () => {
     expect(difficultyMods('insane').injuryMul).toBeGreaterThan(difficultyMods('easy').injuryMul);
   });
 
-  it('rewards the grind: harder tiers pay more coins', () => {
-    expect(difficultyMods('easy').coinMul).toBe(1.0);
+  it('rewards the grind: harder tiers pay more coins, steeply', () => {
+    expect(difficultyMods('easy').coinMul).toBe(1.0); // easy is the anchor
     expect(difficultyMods('medium').coinMul).toBeGreaterThan(difficultyMods('easy').coinMul);
     expect(difficultyMods('hard').coinMul).toBeGreaterThan(difficultyMods('medium').coinMul);
     expect(difficultyMods('insane').coinMul).toBeGreaterThan(difficultyMods('hard').coinMul);
+    // The top end roughly doubles easy's payout (not a token +50% bump), so a brutal run
+    // is genuinely worth it.
+    expect(difficultyMods('insane').coinMul).toBeGreaterThanOrEqual(2.0);
+  });
+
+  it('scales reputation (the lifetime prestige score) up with difficulty', () => {
+    expect(difficultyMods('easy').repMul).toBe(1.0);
+    expect(difficultyMods('medium').repMul).toBeGreaterThan(difficultyMods('easy').repMul);
+    expect(difficultyMods('hard').repMul).toBeGreaterThan(difficultyMods('medium').repMul);
+    expect(difficultyMods('insane').repMul).toBeGreaterThan(difficultyMods('hard').repMul);
   });
 
   it('every difficulty resolves to a full mods object', () => {
@@ -83,6 +94,14 @@ describe('ladder unlocks', () => {
     expect(advanceLadder(null, 'C')).toBe('C');
     expect(advanceLadder('C', 'B')).toBe('B');
     expect(advanceLadder('B', 'C')).toBe('B'); // beating a lower rung never regresses
+  });
+
+  it('isClassConquered marks a class at/below the frontier, unlike isClassUnlocked', () => {
+    expect(isClassConquered('C', null)).toBe(false); // nothing cleared yet
+    expect(isClassConquered('B', 'B')).toBe(true); // the frontier itself is conquered
+    expect(isClassConquered('C', 'B')).toBe(true); // and everything below it
+    expect(isClassConquered('A', 'B')).toBe(false); // the next rung is unlocked but NOT conquered
+    expect(isClassUnlocked('A', 'B')).toBe(true); // (the key difference from isClassUnlocked)
   });
 
   it('classAboveLadder steps the full class ladder (S -> S+, S+ -> S++)', () => {

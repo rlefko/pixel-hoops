@@ -26,9 +26,18 @@ interface RunSummaryViewProps {
   unlockedClass?: PlayerClass;
   /** Players this run advanced a copy toward but did not unlock (compact progress strip). */
   progressed?: ProgressedCopy[];
+  /** On a loss: the final deficit, for the "so close" near-miss line (shown only when small). */
+  lossMargin?: number;
+  /** On a loss: the trimmed clock when the game ended (e.g. "0:48"). */
+  lossClock?: string;
+  /** On a loss at the frontier: the class one clear would have unlocked (a retry nudge). */
+  nextUnlockLabel?: PlayerClass;
   onNewRun: () => void;
   onMenu: () => void;
 }
+
+/** A loss within this many points reads as a "so close" near-miss (a wider loss does not). */
+const NEAR_MISS_MARGIN = 6;
 
 export function RunSummaryView({
   champion,
@@ -37,6 +46,9 @@ export function RunSummaryView({
   ladderClass,
   unlockedClass,
   progressed = [],
+  lossMargin,
+  lossClock,
+  nextUnlockLabel,
   onNewRun,
   onMenu,
 }: RunSummaryViewProps) {
@@ -85,6 +97,17 @@ export function RunSummaryView({
           ? 'Recruits carried home.'
           : 'Run recruits lost. Your coins are safe.'}
       </Text>
+      {!champion && lossMargin != null && lossMargin > 0 && lossMargin <= NEAR_MISS_MARGIN ? (
+        <Pop popOnMount>
+          <Text style={styles.nearMiss}>
+            SO CLOSE: lost by {lossMargin}
+            {lossClock ? ` with ${lossClock} left` : ''}.
+          </Text>
+        </Pop>
+      ) : null}
+      {!champion && nextUnlockLabel ? (
+        <Text style={styles.nudge}>One clear from the {nextUnlockLabel} ladder.</Text>
+      ) : null}
       <CollectionProgressStrip progressed={progressed} />
       <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>
         <Text style={styles.buttonText}>NEW RUN</Text>
@@ -128,6 +151,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   noteLost: { color: palette.missRedLt },
+  nearMiss: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
+    textAlign: 'center',
+    marginTop: space(3),
+    paddingHorizontal: space(4),
+  },
+  nudge: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
+    textAlign: 'center',
+    marginTop: space(2),
+  },
   button: {
     marginTop: space(7),
     paddingVertical: space(4),

@@ -42,6 +42,8 @@ import { LegendRevealView } from '@/components/run/LegendRevealView';
 import { RunSummaryView } from '@/components/run/RunSummaryView';
 import { ChampionView } from '@/components/run/ChampionView';
 import { CoachUnlockView } from '@/components/run/CoachUnlockView';
+import { BountyRewardView } from '@/components/run/BountyRewardView';
+import type { SimResult } from '@/types/sim';
 import { BoxScoreView } from '@/components/run/BoxScoreView';
 import { ClockIcon } from '@/components/run/PixelIcons';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -56,7 +58,7 @@ type RunActions = ReturnType<typeof useRun>['actions'];
 
 export default function RunScreen() {
   const nav = useArcadeRouter();
-  const { model, loaded, actions, wonCoachIds, wonPlayers, collectProgress, equippedCoachId } =
+  const { model, loaded, actions, wonCoachIds, wonPlayers, bountyGrant, collectProgress, equippedCoachId } =
     useRun();
   const { autoSkipGames } = useFeelSettings();
   const { savedRun } = useActiveRun();
@@ -68,11 +70,13 @@ export default function RunScreen() {
   // run leaves the summary phase so it never leaks into the next run's summary.
   const [showCoachReveal, setShowCoachReveal] = useState(false);
   const [showPlayerReveal, setShowPlayerReveal] = useState(false);
+  const [showBountyReveal, setShowBountyReveal] = useState(false);
   const phaseKind = model?.phase.kind;
   useEffect(() => {
     if (phaseKind !== 'summary') {
       setShowCoachReveal(false);
       setShowPlayerReveal(false);
+      setShowBountyReveal(false);
     }
   }, [phaseKind]);
 
@@ -273,25 +277,39 @@ export default function RunScreen() {
         />
       );
     case 'summary': {
+      const champion = model.phase.champion;
       const unlockedClass =
-        model.phase.champion && model.atFrontier && model.ladderClass !== 'S+'
+        champion && model.atFrontier && model.ladderClass !== 'S+'
           ? classAboveLadder(model.ladderClass)
           : undefined;
-      const wonCoaches = model.phase.champion ? wonCoachIds.map(getCoach) : [];
-      const unlockedPlayers = model.phase.champion ? wonPlayers.unlocked : [];
-      const progressed = model.phase.champion ? wonPlayers.progressed : [];
-      // Reveal order after the celebration: scouted (unlocked) players, then the climactic
-      // coach unlock, then out. Each reveal's own exits carry into the next.
+      const wonCoaches = champion ? wonCoachIds.map(getCoach) : [];
+      const unlockedPlayers = champion ? wonPlayers.unlocked : [];
+      const progressed = champion ? wonPlayers.progressed : [];
+      const bounty = champion ? bountyGrant : null;
+      // Reveal order after the celebration: the headline BOUNTY first (the "harder difficulty
+      // paid off" moment), then scouted (unlocked) players, then the climactic coach unlock,
+      // then out. Each reveal's exits carry into the next applicable one.
+      const toPlayerReveal = () => setShowPlayerReveal(true);
       const toCoachReveal = () => setShowCoachReveal(true);
-      const afterPlayersHome = wonCoaches.length > 0 ? toCoachReveal : goMenu;
-      const afterPlayersNewRun = wonCoaches.length > 0 ? toCoachReveal : actions.newRun;
+      const afterPlayers = (exit: () => void) => (wonCoaches.length > 0 ? toCoachReveal : exit);
+      const afterBounty = (exit: () => void) =>
+        unlockedPlayers.length > 0 ? toPlayerReveal : wonCoaches.length > 0 ? toCoachReveal : exit;
 
+      if (showBountyReveal && !showPlayerReveal && !showCoachReveal && bounty) {
+        return (
+          <BountyRewardView
+            grant={bounty}
+            onNewRun={afterBounty(actions.newRun)}
+            onHome={afterBounty(goMenu)}
+          />
+        );
+      }
       if (showPlayerReveal && !showCoachReveal && unlockedPlayers.length > 0) {
         return (
           <PlayerScoutedView
             players={unlockedPlayers}
-            onNewRun={afterPlayersNewRun}
-            onHome={afterPlayersHome}
+            onNewRun={afterPlayers(actions.newRun)}
+            onHome={afterPlayers(goMenu)}
           />
         );
       }
@@ -306,10 +324,11 @@ export default function RunScreen() {
           />
         );
       }
-      // From the celebration, exits lead INTO the first applicable reveal (players, then coaches).
-      const firstReveal =
-        unlockedPlayers.length > 0
-          ? () => setShowPlayerReveal(true)
+      // From the celebration, exits lead INTO the first applicable reveal (bounty, players, coaches).
+      const firstReveal = bounty
+        ? () => setShowBountyReveal(true)
+        : unlockedPlayers.length > 0
+          ? toPlayerReveal
           : wonCoaches.length > 0
             ? toCoachReveal
             : null;
@@ -318,7 +337,7 @@ export default function RunScreen() {
       // A won ladder gets the full champion celebration (it needs the final game's
       // score and five). Losses, and the defensive champion-without-game case, fall
       // back to the flat summary.
-      if (model.phase.champion && model.game) {
+      if (champion && model.game) {
         return (
           <ChampionView
             game={model.game}
@@ -332,20 +351,43 @@ export default function RunScreen() {
           />
         );
       }
+      // A close loss reads as "so close" (drives the retry); a loss AT the frontier shows
+      // exactly what one clear would have unlocked. Both are pure framing, no reward attached.
+      const lossMargin =
+        !champion && model.game
+          ? model.game.result.finalAway - model.game.result.finalHome
+          : undefined;
+      const lossClock = !champion && model.game ? lastEventClock(model.game.result) : undefined;
+      const nextUnlockLabel =
+        !champion && model.atFrontier && model.ladderClass !== 'S+'
+          ? classAboveLadder(model.ladderClass)
+          : undefined;
       return (
         <RunSummaryView
-          champion={model.phase.champion}
+          champion={champion}
           wins={model.wins}
           difficulty={model.difficulty}
           ladderClass={model.ladderClass}
           unlockedClass={unlockedClass}
           progressed={progressed}
+          lossMargin={lossMargin}
+          lossClock={lossClock}
+          nextUnlockLabel={nextUnlockLabel}
           onNewRun={exitNewRun}
           onMenu={exitHome}
         />
       );
     }
   }
+}
+
+/** The trimmed game clock of the last sim event (e.g. "0:48" from "Q4 0:48"), for the
+ * near-miss "lost with M:SS left" framing. Empty when the game emitted no events. */
+function lastEventClock(result: SimResult): string {
+  const last = result.events[result.events.length - 1];
+  if (!last) return '';
+  const parts = last.clock.split(' ');
+  return parts[parts.length - 1];
 }
 
 function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {

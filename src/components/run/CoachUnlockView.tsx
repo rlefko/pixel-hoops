@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-nativ
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { FlashOverlay, ParticleBurst, ShakeView } from '@/components/fx';
+import { useIdle, HUB_IDLE_MS } from '@/feel';
 import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { WhistleIcon } from '@/components/run/PixelIcons';
@@ -49,6 +50,8 @@ export function CoachUnlockView({ coaches, equippedId, onEquip, onNewRun, onHome
   const last = index >= coaches.length - 1;
 
   const { shakeRef, flashRef, fire } = useRewardBurst();
+  // Pause the legendary halo's breathe once the player settles here; a touch wakes it.
+  const { idle, bump } = useIdle(HUB_IDLE_MS);
   const [burst, setBurst] = useState(0);
 
   // Fire the burst on mount and on every step to a new coach (re-fires the confetti).
@@ -58,7 +61,7 @@ export function CoachUnlockView({ coaches, equippedId, onEquip, onNewRun, onHome
   }, [fire, rarity, index]);
 
   return (
-    <Screen style={styles.container} topGap={space(4)}>
+    <Screen style={styles.container} topGap={space(4)} onTouchStart={bump}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <ShakeView ref={shakeRef} style={styles.hero}>
           <WhistleIcon size={26} color={accent} />
@@ -69,7 +72,7 @@ export function CoachUnlockView({ coaches, equippedId, onEquip, onNewRun, onHome
             </Text>
           ) : null}
           <View style={styles.cardWrap}>
-            <LegendaryHalo visible={legendary} />
+            <LegendaryHalo visible={legendary} paused={idle} />
             <CoachCard
               coach={coach}
               owned

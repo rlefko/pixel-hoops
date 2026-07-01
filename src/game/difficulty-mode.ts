@@ -56,8 +56,12 @@ export interface DifficultyMods {
   injuryMul: number;
   /** Most games an injury can sideline a player. */
   maxGamesOut: number;
-  /** Multiplier on win coin payouts. */
+  /** Multiplier on win coin payouts. Steeper than a token bump so a harder run pays
+   * proportionally more, not a rounding error. */
   coinMul: number;
+  /** Multiplier on reputation earned. Reputation is a lifetime PRESTIGE score (no sink),
+   * so scaling it by difficulty makes a veteran's total reflect how hard they play. */
+  repMul: number;
   /** Extra weight added to the elite node-type roll (more elites per map). */
   eliteWeightBonus: number;
   /** Whether the guaranteed pre-boss rest node remains. */
@@ -71,28 +75,28 @@ export function difficultyMods(difficulty: Difficulty): DifficultyMods {
       return {
         draftPoints: 8, rampStart: -4.0, rampEnd: -0.4, secondChances: 2,
         elitesFromMap0: false, boostOfferCount: 3, bossExtraLegend: false,
-        injuryMul: 1, maxGamesOut: 2, coinMul: 1.0, eliteWeightBonus: 0,
+        injuryMul: 1, maxGamesOut: 2, coinMul: 1.0, repMul: 1.0, eliteWeightBonus: 0,
         preBossRest: true,
       };
     case 'medium':
       return {
         draftPoints: 5, rampStart: -4.0, rampEnd: 0.0, secondChances: 1,
         elitesFromMap0: true, boostOfferCount: 3, bossExtraLegend: false,
-        injuryMul: 1, maxGamesOut: 2, coinMul: 1.1, eliteWeightBonus: 0,
+        injuryMul: 1, maxGamesOut: 2, coinMul: 1.25, repMul: 1.5, eliteWeightBonus: 0,
         preBossRest: true,
       };
     case 'hard':
       return {
         draftPoints: 2, rampStart: -3.5, rampEnd: 1.5, secondChances: 0,
         elitesFromMap0: true, boostOfferCount: 2, bossExtraLegend: true,
-        injuryMul: 1.5, maxGamesOut: 3, coinMul: 1.25, eliteWeightBonus: 2,
+        injuryMul: 1.5, maxGamesOut: 3, coinMul: 1.6, repMul: 2.5, eliteWeightBonus: 2,
         preBossRest: true,
       };
     case 'insane':
       return {
         draftPoints: 0, rampStart: -3.0, rampEnd: 4.0, secondChances: 0,
         elitesFromMap0: true, boostOfferCount: 2, bossExtraLegend: true,
-        injuryMul: 1.75, maxGamesOut: 3, coinMul: 1.5, eliteWeightBonus: 3,
+        injuryMul: 1.75, maxGamesOut: 3, coinMul: 2.1, repMul: 4.0, eliteWeightBonus: 3,
         preBossRest: false,
       };
   }
@@ -124,6 +128,16 @@ export function unlockedClasses(highestCleared: LadderClass | null): LadderClass
 /** Whether a ladder class is unlocked given the highest cleared. */
 export function isClassUnlocked(cls: LadderClass, highestCleared: LadderClass | null): boolean {
   return unlockedClasses(highestCleared).includes(cls);
+}
+
+/**
+ * Whether a class has been CONQUERED on a difficulty: the frontier (highest cleared) has
+ * reached at or beyond it. Distinct from isClassUnlocked, which also returns true for the one
+ * rung above the frontier (the next, not-yet-cleared class). Drives Championship-Bounty
+ * crests (which derive from ladder progress) and the first-clear grant guard (its negation).
+ */
+export function isClassConquered(cls: LadderClass, highestCleared: LadderClass | null): boolean {
+  return highestCleared != null && ladderIndex(highestCleared) >= ladderIndex(cls);
 }
 
 /**

@@ -175,3 +175,10 @@ export function pullMachine(machineId: MachineId, rng: RNG): { id: string; rarit
   const ability = rng.pick(BY_RARITY[rarity]);
   return { id: ability.id, rarity };
 }
+
+/** Pick a uniform-random ability of an exact rarity (deterministic from the seeded RNG).
+ * Used by fixed-rarity grants like a Championship Bounty, which award a rarity directly
+ * rather than rolling a machine's odds. */
+export function pickAbilityOfRarity(rarity: Rarity, rng: RNG): string {
+  return rng.pick(BY_RARITY[rarity]).id;
+}

@@ -4,6 +4,7 @@ import {
   mergeRunGainsIntoHome,
   previewRunAcquisitions,
   applyPlayerPull,
+  claimRunBounty,
   playerKey,
   rememberDraftRotation,
   resolveDraftRotation,
@@ -17,6 +18,8 @@ import {
 import { STARTER_COACH_ID, earnedCoachIds, coachesByClass } from '@/game/coaches';
 import { poolByClass, realPlayerToRosterPlayer } from '@/game/player-pool';
 import { tierPool } from '@/game/player-gacha';
+import { overflowBounty } from '@/game/collection';
+import { GRANDMASTER_KEY, bountyKey } from '@/game/bounties';
 import { NBA_LEGENDS } from '@/data/nba';
 import { createRNG } from '@/game/rng';
 import type { Roster, RosterPlayer } from '@/types/roster';
@@ -338,6 +341,119 @@ describe('applyPlayerPull', () => {
     expect(result.isOverflow).toBe(true);
     expect(next.coins).toBe(10000 - 2500 + 1250); // overflow bounty = half the scout price
     expect(next.players.length).toBe(home.players.length);
+  });
+});
+
+describe('claimRunBounty: one-time championship bounties', () => {
+  const withProgress = (seed: string, progress: Partial<HomeRoster['ladderProgress']>): HomeRoster => ({
+    ...createRookieRoster(createRNG(seed)),
+    coins: 1000,
+    ladderProgress: { easy: null, medium: null, hard: null, insane: null, ...progress },
+  });
+
+  it('grants a coins bounty on a first clear, then nothing on a replay (idempotent)', () => {
+    const home = withProgress('b-coins', {}); // fresh: easy frontier is null
+    const first = claimRunBounty(home, 'easy', 'C', true, createRNG('g1'));
+    expect(first.granted?.coins).toBe(150); // easy:C pays 150 coins
+    expect(first.home.coins).toBe(1000 + 150);
+    expect(first.home.claimedBounties).toContain(bountyKey('easy', 'C'));
+    // Re-claiming the same cell (already in claimedBounties) grants nothing.
+    const second = claimRunBounty(first.home, 'easy', 'C', true, createRNG('g1'));
+    expect(second.granted).toBeNull();
+    expect(second.home.coins).toBe(first.home.coins);
+  });
+
+  it('never materially grants a cell the ladder already covers (crests-only for veterans)', () => {
+    // A veteran who has cleared S on easy replays easy:C. claimedBounties is empty, but the
+    // pre-clear frontier (S) is at/above C, so no material is granted (their crest still shows,
+    // derived from ladderProgress).
+    const veteran = withProgress('b-vet', { easy: 'S' });
+    const res = claimRunBounty(veteran, 'easy', 'C', true, createRNG('gv'));
+    expect(res.granted).toBeNull();
+    expect(res.home.coins).toBe(veteran.coins);
+    expect(res.home.claimedBounties).toEqual([]);
+  });
+
+  it('grants nothing on a loss', () => {
+    const home = withProgress('b-loss', {});
+    const res = claimRunBounty(home, 'easy', 'C', false, createRNG('gl'));
+    expect(res.granted).toBeNull();
+    expect(res.home).toBe(home);
+  });
+
+  it('a player bounty deposits a copy and unlocks per copiesToOwn', () => {
+    // insane:S grants a legendary player (owns at one copy) -> unlocks immediately.
+    const home = withProgress('b-legend', { insane: 'A' }); // frontier A < S: a first clear
+    const before = home.players.length;
+    const res = claimRunBounty(home, 'insane', 'S', true, createRNG('gp'));
+    expect(res.granted?.player).toBeDefined();
+    expect(res.granted?.playerUnlocked).toBe(true);
+    expect(res.home.players.length).toBe(before + 1);
+
+    // medium:S grants an A player (owns at three) -> progressed, not unlocked.
+    const home2 = withProgress('b-aplayer', { medium: 'A' });
+    const res2 = claimRunBounty(home2, 'medium', 'S', true, createRNG('ga'));
+    expect(res2.granted?.player).toBeDefined();
+    expect(res2.granted?.playerUnlocked).toBe(false);
+    expect(res2.home.collecting.length).toBe(1);
+  });
+
+  it('a player bounty on a fully-owned tier overflows into coins, no new player', () => {
+    const home: HomeRoster = {
+      ...withProgress('b-overflow', { insane: 'A' }),
+      players: [...createRookieRoster(createRNG('b-overflow')).players, ...NBA_LEGENDS.map(realPlayerToRosterPlayer)],
+    };
+    const before = home.players.length;
+    const res = claimRunBounty(home, 'insane', 'S', true, createRNG('go')); // insane:S = legendary player
+    expect(res.granted?.coins).toBe(overflowBounty('S+')); // all legends owned -> overflow bounty
+    expect(res.home.players.length).toBe(before);
+  });
+
+  it('an ability bounty adds a copy to the inventory', () => {
+    const home = withProgress('b-ability', { easy: 'A' }); // easy:S = rare ability; frontier A < S
+    const res = claimRunBounty(home, 'easy', 'S', true, createRNG('gab'));
+    expect(res.granted?.abilityId).toBeDefined();
+    expect(res.home.abilityInventory[res.granted!.abilityId!]).toBe(1);
+  });
+
+  it('is deterministic: same seed and home yield an identical grant', () => {
+    const home = withProgress('b-det', { easy: 'A' });
+    const a = claimRunBounty(home, 'easy', 'S', true, createRNG('same'));
+    const b = claimRunBounty(home, 'easy', 'S', true, createRNG('same'));
+    expect(a.granted).toEqual(b.granted);
+    expect(a.home.abilityInventory).toEqual(b.home.abilityInventory);
+  });
+
+  it('the insane:S+ capstone is the Grandmaster crest plus a coin bundle', () => {
+    const home = withProgress('b-cap', { insane: 'S' }); // frontier S < S+
+    const res = claimRunBounty(home, 'insane', 'S+', true, createRNG('gc'));
+    expect(res.granted?.isCapstone).toBe(true);
+    expect(res.granted?.coins).toBe(10000);
+    expect(res.home.coins).toBe(home.coins + 10000);
+    expect(res.home.claimedBounties).toContain(GRANDMASTER_KEY);
+  });
+});
+
+describe('v15 bounties migration', () => {
+  it('defaults claimedBounties to [] on a pre-v15 save and round-trips', () => {
+    const home = createRookieRoster(createRNG('b-mig'));
+    const serialized = serializeHomeRoster(home);
+    delete (serialized.data as Partial<HomeRoster>).claimedBounties; // simulate a pre-v15 save
+    expect(deserializeHomeRoster(serialized)!.claimedBounties).toEqual([]);
+
+    const withClaims: HomeRoster = { ...home, claimedBounties: [bountyKey('easy', 'C')] };
+    const restored = deserializeHomeRoster(serializeHomeRoster(withClaims))!;
+    expect(restored.claimedBounties).toEqual([bountyKey('easy', 'C')]);
+  });
+
+  it('filters out stale / garbage claimed keys', () => {
+    const home = createRookieRoster(createRNG('b-mig2'));
+    const dirty = {
+      version: 15,
+      data: { ...home, claimedBounties: [bountyKey('hard', 'A'), 'not:a:cell', 42, null] },
+    };
+    const restored = deserializeHomeRoster(dirty)!;
+    expect(restored.claimedBounties).toEqual([bountyKey('hard', 'A')]);
   });
 });
 

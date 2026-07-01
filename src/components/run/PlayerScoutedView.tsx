@@ -3,6 +3,7 @@ import { View, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-nativ
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { FlashOverlay, ParticleBurst, ShakeView, StaggerIn } from '@/components/fx';
+import { useIdle, HUB_IDLE_MS } from '@/feel';
 import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { PlayerCard } from './PlayerCard';
@@ -20,7 +21,8 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
  * gold burst, A is epic, C/B is rare. Unlocked cards stagger in (no per-card step-through, since
  * a run can sign several at once). All juice no-ops under reduced motion. Runs that only
  * PROGRESSED shards (no unlock) skip this and show a compact strip on the win screen instead.
- * Sequenced by RunScreen after the champion celebration and before the coach unlock.
+ * Sequenced by RunScreen after the champion celebration and the bounty reveal, before the
+ * coach unlock.
  */
 
 const CENTER_X = Dimensions.get('window').width / 2;
@@ -53,6 +55,8 @@ export function PlayerScoutedView({ players, onNewRun, onHome }: PlayerScoutedVi
   const accent = legendary ? palette.gold : CLASS_COLOR[playerDraftClass(bestPlayer)];
 
   const { shakeRef, flashRef, fire } = useRewardBurst();
+  // Pause the legendary halo's breathe once the player settles here; a touch wakes it.
+  const { idle, bump } = useIdle(HUB_IDLE_MS);
   const [burst, setBurst] = useState(0);
   useEffect(() => {
     fire(best);
@@ -60,7 +64,7 @@ export function PlayerScoutedView({ players, onNewRun, onHome }: PlayerScoutedVi
   }, [fire, best]);
 
   return (
-    <Screen style={styles.container} topGap={space(4)}>
+    <Screen style={styles.container} topGap={space(4)} onTouchStart={bump}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
         <ShakeView ref={shakeRef} style={styles.hero}>
           <RecruitIcon size={26} color={accent} />
@@ -70,7 +74,7 @@ export function PlayerScoutedView({ players, onNewRun, onHome }: PlayerScoutedVi
             {players.map((p, i) => (
               <StaggerIn key={`${p.player.name}-${p.position}-${i}`} index={i} style={styles.row}>
                 <View style={styles.cardWrap}>
-                  <LegendaryHalo visible={playerRarity(p) === 'legendary'} />
+                  <LegendaryHalo visible={playerRarity(p) === 'legendary'} paused={idle} />
                   <PlayerCard rp={p} showSpecialty right={<Text style={styles.newTag}>NEW</Text>} />
                 </View>
               </StaggerIn>

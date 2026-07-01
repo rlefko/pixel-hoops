@@ -10,16 +10,20 @@ const CENTER_X = Dimensions.get('window').width / 2;
  * The pulsing gold halo behind a legendary reward (the same S++ "breathe" the
  * PlayerCard uses). Renders nothing unless `visible`. Place it inside a
  * relatively-positioned wrapper, before the card; pass `style` to override the
- * default insets for a tighter or looser glow.
+ * default insets for a tighter or looser glow. Pass `paused` (typically an
+ * `idle` flag) to hold the glow steady when the screen sits untouched, so the loop
+ * does not drain battery; it already holds steady under reduced motion / low power.
  */
 export function LegendaryHalo({
   visible,
   style,
+  paused = false,
 }: {
   visible: boolean;
   style?: StyleProp<ViewStyle>;
+  paused?: boolean;
 }) {
-  const glowStyle = useGlowPulse();
+  const glowStyle = useGlowPulse(900, { paused });
   if (!visible) return null;
   return <Animated.View pointerEvents="none" style={[styles.halo, style, glowStyle]} />;
 }

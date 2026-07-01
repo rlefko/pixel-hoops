@@ -4,12 +4,15 @@ import { runReducer } from '@/game/run-machine';
 import {
   mergeRunGainsIntoHome,
   previewRunAcquisitions,
+  claimRunBounty,
   collectingCopyMap,
   playerKey,
   rememberDraftRotation,
   selectCoach,
   type AcquisitionDelta,
+  type BountyGrant,
 } from '@/game/home-roster';
+import { createRNG, deriveSeed } from '@/game/rng';
 import { copiesToOwn } from '@/game/collection';
 import { playerDraftClass } from '@/game/draft';
 import { coachesWonByClear } from '@/game/coaches';
@@ -49,6 +52,9 @@ export function useRun() {
   // The players this run's championship UNLOCKED vs PROGRESSED (computed BEFORE the merge,
   // against the pre-merge collection), surfaced in the scouted-player reveal + progress strip.
   const wonPlayersRef = useRef<AcquisitionDelta>({ unlocked: [], progressed: [] });
+  // The one-time Championship Bounty this run's first-clear granted (null otherwise),
+  // surfaced as the headline "harder difficulty paid off" reveal beat.
+  const bountyGrantRef = useRef<BountyGrant | null>(null);
 
   // Start the run once, after both the home roster and the saved-run slot have hydrated.
   // The home screen passes `mode` 'new' or 'resume'; only 'resume' (with a saved run)
@@ -117,6 +123,7 @@ export function useRun() {
     if (!isSummary) {
       wonCoachRef.current = [];
       wonPlayersRef.current = { unlocked: [], progressed: [] };
+      bountyGrantRef.current = null;
     }
 
     const earned = model.core.rewards.coins;
@@ -156,9 +163,20 @@ export function useRun() {
               Date.now()
             )
           : undefined;
+      // Grant this cell's one-time bounty against the PRE-merge home (its ladderProgress is
+      // still the pre-clear frontier, which the first-clear test reads). Seeded off the run so
+      // a resumed settle reproduces the same grant; the merge below spreads the granted home.
+      const { home: withBounty, granted: bountyGrant } = claimRunBounty(
+        next,
+        model.difficulty,
+        model.ladderClass,
+        champion,
+        createRNG(deriveSeed(model.core.seed, 'bounty'))
+      );
+      bountyGrantRef.current = bountyGrant;
       next = {
         ...mergeRunGainsIntoHome(
-          next,
+          withBounty,
           model.core.roster,
           model.core.rewards,
           model.legend.offeredThisRun,
@@ -251,6 +269,7 @@ export function useRun() {
     actions,
     wonCoachIds: wonCoachRef.current,
     wonPlayers: wonPlayersRef.current,
+    bountyGrant: bountyGrantRef.current,
     collectProgress,
     equippedCoachId: homeRoster?.selectedCoachId,
   };
