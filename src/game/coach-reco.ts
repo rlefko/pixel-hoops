@@ -1,8 +1,10 @@
-import { POSITIONS, nameKey, type Roster, type RosterPlayer } from '@/types/roster';
+import { POSITIONS, nameKey, type Position, type Roster, type RosterPlayer } from '@/types/roster';
+import type { PlayerStats } from '@/types/player';
 import type { Team } from '@/types/team';
 import type { Difficulty } from './difficulty-mode';
 import type { CoachProfile, CoachClass } from './coaches';
 import { ovr, ovrRaw, offRaw, defRaw, classForOvr, CLASS_ORDER } from './ratings';
+import { effectivePlayers } from './apply-effects';
 import { deriveArchetype, counterEdge, archetypeLabel, Q_TO_RATING } from './team-archetype';
 
 /**
@@ -89,22 +91,30 @@ const PACE_LEAN = 0.4;
  * (focus: lockdown -> team defense, inside/outside -> that stat; pace: fast ->
  * athleticism, slow -> defense). A balanced/auto coach has no lean, so it simply
  * fields its best players. Used for both starter selection and bench ordering.
+ * Takes EFFECTIVE stats (item + ability + in-run training baked, the same line the
+ * sim fields), so the coach values a trained-up or geared player at what they are
+ * now, not their base line.
  */
-function playerFit(rp: RosterPlayer, coach: CoachProfile): number {
-  const s = rp.player.stats;
+function playerFit(s: PlayerStats, position: Position, coach: CoachProfile): number {
   let lean = 0;
   if (coach.prefFocus === 'lockdown') lean += ((s.perimeterD + s.interiorD) / 2 - BAND_MID) * FOCUS_LEAN;
   else if (coach.prefFocus === 'inside') lean += (s.inside - BAND_MID) * FOCUS_LEAN;
   else if (coach.prefFocus === 'outside') lean += (s.outside - BAND_MID) * FOCUS_LEAN;
   if (coach.prefPace === 'fast') lean += (s.athleticism - BAND_MID) * PACE_LEAN;
   else if (coach.prefPace === 'slow') lean += ((s.perimeterD + s.interiorD) / 2 - BAND_MID) * PACE_LEAN;
-  return ovrRaw(s, rp.position) + lean;
+  return ovrRaw(s, position) + lean;
 }
 
-/** A player's effective class rank (0 = D ... up the ladder), from their displayed
- * overall, for the class floor. */
-function classRank(rp: RosterPlayer): number {
-  return CLASS_ORDER.indexOf(classForOvr(ovr(rp.player.stats, rp.position)));
+/** A player's class rank (0 = D ... up the ladder), from their EFFECTIVE overall, for
+ * the class floor (so an upgraded player is not treated as its base class). */
+function classRank(s: PlayerStats, position: Position): number {
+  return CLASS_ORDER.indexOf(classForOvr(ovr(s, position)));
+}
+
+/** A frontcourt (big) slot vs a backcourt/wing (perimeter) slot. Used to preserve a
+ * team's guard/big balance across a reshape. */
+function isBig(position: Position): boolean {
+  return position === 'PF' || position === 'C';
 }
 
 /** How many starter changes a coach may make, by class: a top coach can restructure
@@ -214,6 +224,17 @@ export function reorderForCoach(args: ReorderArgs): ReorderResult {
   const budget = budgetForClass(coach.class);
   const matchupW = matchupWeightForIq(coach.iq);
 
+  // Value players by their EFFECTIVE line (item + ability + in-run training baked),
+  // the same one the sim fields, so the coach never overlooks a trained-up or geared
+  // player by reading their base stats. Baked once, keyed by player identity.
+  const all = [...roster.starters, ...roster.bench];
+  const effList = effectivePlayers(all);
+  const effByRef = new Map<RosterPlayer, PlayerStats>();
+  all.forEach((rp, i) => effByRef.set(rp, effList[i].player.stats));
+  const eff = (rp: RosterPlayer): PlayerStats => effByRef.get(rp) ?? rp.player.stats;
+  const fit = (rp: RosterPlayer): number => playerFit(eff(rp), rp.position, coach);
+  const rank = (rp: RosterPlayer): number => classRank(eff(rp), rp.position);
+
   let current = roster;
   let styleGain = 0;
 
@@ -224,10 +245,14 @@ export function reorderForCoach(args: ReorderArgs): ReorderResult {
       matchupW > 0 && opponent ? matchupScore(buildHome(current), opponent) : 0;
     let best: { swap: Swap; gain: number; styleGain: number } | null = null;
     for (const swap of singleSwaps(current)) {
+      // Keep the team's guard/big balance: a big only replaces a big and a perimeter
+      // player only replaces a perimeter player, so the coach never discards a ball
+      // handler for another center or stacks the frontcourt.
+      if (isBig(swap.in.position) !== isBig(swap.out.position)) continue;
       // Quality anchor: never trade a higher-class player out for a lower-class one
       // just to fit the style.
-      if (classRank(swap.in) < classRank(swap.out)) continue;
-      const sGain = playerFit(swap.in, coach) - playerFit(swap.out, coach);
+      if (rank(swap.in) < rank(swap.out)) continue;
+      const sGain = fit(swap.in) - fit(swap.out);
       // A smarter coach is penalized for a style move that worsens the matchup (avoids
       // a bad counter) but never chases the matchup over its style.
       const mGain =
@@ -244,7 +269,7 @@ export function reorderForCoach(args: ReorderArgs): ReorderResult {
 
   // Slot the five into natural PG..C order and order the bench by fit, so the WHOLE
   // roster is set coherently, not just which five plays.
-  const bench = [...current.bench].sort((a, b) => playerFit(b, coach) - playerFit(a, coach));
+  const bench = [...current.bench].sort((a, b) => fit(b) - fit(a));
   const result: Roster = { starters: slotByPosition(current.starters), bench };
   return {
     roster: result,
