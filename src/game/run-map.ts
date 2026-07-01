@@ -52,7 +52,10 @@ function randomInteriorType(mapIndex: number, rng: RNG, mods: DifficultyMods): M
   const entries: [MapNodeType, number][] = [
     ['game', 6],
     ['elite', elitesOn ? 2 + mods.eliteWeightBonus : 0],
-    ['recruit', 2],
+    // Interior recruit weight is light (the entry row already pins one recruit per map);
+    // the collection chase is paced by the copies-to-own count + rarity-shaped offers,
+    // not by flooding recruit nodes. See src/game/collection.ts and tournament.ts.
+    ['recruit', 1],
     ['boost', 1],
     ['rest', 1],
     ['training', 2],

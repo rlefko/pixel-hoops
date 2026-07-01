@@ -1,7 +1,17 @@
 import { useReducer, useEffect, useMemo, useRef } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { runReducer } from '@/game/run-machine';
-import { mergeRunGainsIntoHome, playerKey, rememberDraftRotation, selectCoach } from '@/game/home-roster';
+import {
+  mergeRunGainsIntoHome,
+  previewRunAcquisitions,
+  collectingCopyMap,
+  playerKey,
+  rememberDraftRotation,
+  selectCoach,
+  type AcquisitionDelta,
+} from '@/game/home-roster';
+import { copiesToOwn } from '@/game/collection';
+import { playerDraftClass } from '@/game/draft';
 import { coachesWonByClear } from '@/game/coaches';
 import { buildHallOfFameEntry } from '@/game/hall-of-fame';
 import { useHomeRoster } from '@/context/HomeRosterContext';
@@ -9,6 +19,13 @@ import { useActiveRun } from '@/context/ActiveRunContext';
 import type { RosterPlayer } from '@/types/roster';
 import type { PlayerStats } from '@/types/player';
 import type { BoostOffer } from '@/game/boosts';
+
+/** A recruit offer's collection status: already OWNED (recruiting it is wasted), or a
+ * multi-copy player still being collected (show its copies meter). Common players that own
+ * on the first copy return undefined (no meter). */
+export type RecruitCollectStatus =
+  | { kind: 'owned' }
+  | { kind: 'collecting'; copies: number; threshold: number };
 
 /**
  * React wrapper around the pure run machine (src/game/run-machine.ts). It:
@@ -29,6 +46,9 @@ export function useRun() {
   // The coach ids won by this run's championship (computed BEFORE the merge, which
   // then folds them into the owned collection), surfaced in the unlock reveal beat.
   const wonCoachRef = useRef<string[]>([]);
+  // The players this run's championship UNLOCKED vs PROGRESSED (computed BEFORE the merge,
+  // against the pre-merge collection), surfaced in the scouted-player reveal + progress strip.
+  const wonPlayersRef = useRef<AcquisitionDelta>({ unlocked: [], progressed: [] });
 
   // Start the run once, after both the home roster and the saved-run slot have hydrated.
   // The home screen passes `mode` 'new' or 'resume'; only 'resume' (with a saved run)
@@ -94,7 +114,10 @@ export function useRun() {
     // to model.phase here.
     const champion = model.phase.kind === 'summary' ? model.phase.champion : false;
     // Don't let a prior championship's won-coach reveal leak into a later run.
-    if (!isSummary) wonCoachRef.current = [];
+    if (!isSummary) {
+      wonCoachRef.current = [];
+      wonPlayersRef.current = { unlocked: [], progressed: [] };
+    }
 
     const earned = model.core.rewards.coins;
     const priorBanked =
@@ -118,6 +141,9 @@ export function useRun() {
             new Set(next.ownedCoaches)
           )
         : [];
+      // The players this championship unlocks/progresses, captured against the PRE-merge
+      // collection (the merge below deposits them), for the scouted-player reveal + strip.
+      wonPlayersRef.current = previewRunAcquisitions(next, model.core.roster, champion);
       // A championship banks a Hall of Fame snapshot of the final game. Date.now() lives
       // here (the hook), keeping the merge and the entry builder clock-free.
       const championEntry =
@@ -203,11 +229,29 @@ export function useRun() {
     [homeRoster, saveHomeRoster, clearActiveRun]
   );
 
+  // Per-offer collection status for the recruit node + drop screen: OWNED (recruiting is
+  // wasted), or an in-progress copies meter for a multi-copy player still being collected.
+  // Common players (own on the first copy) show no meter. Derived from the home snapshot,
+  // since recruit copies only bank at run end.
+  const collectProgress = useMemo(() => {
+    const owned = new Set(homeRoster ? homeRoster.players.map(playerKey) : []);
+    const copies = homeRoster ? collectingCopyMap(homeRoster) : {};
+    return (rp: RosterPlayer): RecruitCollectStatus | undefined => {
+      const key = playerKey(rp);
+      if (owned.has(key)) return { kind: 'owned' };
+      const threshold = copiesToOwn(playerDraftClass(rp));
+      if (threshold <= 1) return undefined;
+      return { kind: 'collecting', copies: copies[key] ?? 0, threshold };
+    };
+  }, [homeRoster]);
+
   return {
     model,
     loaded: loaded && runLoaded,
     actions,
     wonCoachIds: wonCoachRef.current,
+    wonPlayers: wonPlayersRef.current,
+    collectProgress,
     equippedCoachId: homeRoster?.selectedCoachId,
   };
 }

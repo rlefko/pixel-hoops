@@ -12,6 +12,7 @@ import { useHomeRoster } from '@/context/HomeRosterContext';
 import {
   playerKey,
   ownedRosterPlayers,
+  collectingCopyMap,
   abilityOwned,
   abilityEquipped,
   canEquipAbility,
@@ -31,6 +32,8 @@ import {
   PLAYER_MACHINES,
   PLAYER_GACHA_TIERS,
   tierCounts,
+  machineUnlocked,
+  machineGate,
   type PlayerGachaTier,
   type PlayerPullResult,
 } from '@/game/player-gacha';
@@ -59,6 +62,7 @@ export function ArcadeTab() {
   const [lastPull, setLastPull] = useState<{ id: string; rarity: Rarity } | null>(null);
   const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
   const [lastScout, setLastScout] = useState<PlayerPullResult | null>(null);
+  const [scoutNonce, setScoutNonce] = useState(0); // re-triggers the reveal Pop each pull
   const [query, setQuery] = useState('');
 
   const players = useMemo(() => {
@@ -73,6 +77,11 @@ export function ArcadeTab() {
   );
   const ownedKeys = useMemo(
     () => new Set(homeRoster ? homeRoster.players.map(playerKey) : []),
+    [homeRoster]
+  );
+  // In-progress copy counts, so a machine can show "next 3/4" and pulls concentrate.
+  const collectingCopies = useMemo(
+    () => (homeRoster ? collectingCopyMap(homeRoster) : {}),
     [homeRoster]
   );
   // One shared breathe for legendary ability chips (top-tier only); lower rarities stay flat.
@@ -99,16 +108,19 @@ export function ArcadeTab() {
 
   const scout = (tier: PlayerGachaTier) => {
     const machine = PLAYER_MACHINES[tier];
-    // Block when unaffordable or the tier is fully collected (a guaranteed repeat).
-    if (coins < machine.cost || tierCounts(tier, ownedKeys).complete) {
+    // Block when locked behind the ladder, unaffordable, or fully collected (overflow only).
+    const locked = !machineUnlocked(tier, homeRoster.ladderProgress);
+    if (locked || coins < machine.cost || tierCounts(tier, ownedKeys, collectingCopies).complete) {
       sfx.error();
       return;
     }
     scoutCounter += 1;
     const { home, result } = applyPlayerPull(homeRoster, tier, createRNG(`scout-${tier}-${coins}-${scoutCounter}`));
     setLastScout(result);
-    // A fresh signing celebrates; a duplicate is the deflating "already got 'em" beat.
-    if (result.isDupe) sfx.dupe();
+    setScoutNonce((n) => n + 1);
+    // Unlocking a player celebrates; a plain copy is a lighter beat; an overflow (whole
+    // tier owned) is the deflating "already got 'em" coin bounty.
+    if (result.isOverflow) sfx.dupe();
     else sfx.recruit();
     saveHomeRoster(home);
   };
@@ -137,26 +149,38 @@ export function ArcadeTab() {
       <View style={styles.machines}>
         {PLAYER_GACHA_TIERS.map((tier) => {
           const m = PLAYER_MACHINES[tier];
-          const counts = tierCounts(tier, ownedKeys);
+          const counts = tierCounts(tier, ownedKeys, collectingCopies);
+          const unlocked = machineUnlocked(tier, homeRoster.ladderProgress);
+          const gate = machineGate(tier);
           const color = m.legendary ? palette.gold : CLASS_COLOR[m.cls];
-          const disabled = coins < m.cost || counts.complete;
+          const disabled = !unlocked || coins < m.cost || counts.complete;
+          const closest =
+            counts.closest && counts.closest.copies > 0
+              ? ` · next ${counts.closest.copies}/${counts.closest.threshold}`
+              : '';
+          const label = !unlocked
+            ? `CLEAR ${gate} LADDER`
+            : counts.complete
+              ? 'COLLECTED'
+              : `SCOUT · ${m.cost}c`;
           return (
-            <View key={tier} style={styles.machine}>
+            <View key={tier} style={[styles.machine, !unlocked && styles.machineLocked]}>
               <View style={styles.machineHead}>
                 <Text style={[styles.machineName, { color }]}>{m.name}</Text>
                 <Text style={styles.collected}>
                   {counts.owned}/{counts.total}
+                  {closest}
                 </Text>
               </View>
-              <Text style={styles.machineBlurb}>{m.blurb}</Text>
+              <Text style={styles.machineBlurb}>
+                {unlocked ? m.blurb : `Locked until you clear the ${gate} ladder.`}
+              </Text>
               <Pressable
                 onPress={() => scout(tier)}
                 disabled={disabled}
                 style={[styles.pullBtn, disabled && styles.pullDisabled]}
               >
-                <Text style={styles.pullText}>
-                  {counts.complete ? 'COLLECTED' : `SCOUT · ${m.cost}c`}
-                </Text>
+                <Text style={styles.pullText}>{label}</Text>
               </Pressable>
             </View>
           );
@@ -164,12 +188,23 @@ export function ArcadeTab() {
       </View>
 
       {lastScout ? (
-        <Pop trigger={lastScout.player.player.name} style={[styles.reveal, { borderColor: scoutColor }]}>
+        <Pop trigger={scoutNonce} style={[styles.reveal, { borderColor: scoutColor }]}>
           <Text style={[styles.revealRarity, { color: scoutColor }]}>
-            {lastScout.isDupe ? `REPEAT · +${lastScout.refund}c REFUNDED` : 'NEW SIGNING'}
+            {lastScout.isOverflow
+              ? `COLLECTED · +${lastScout.overflowCoins}c`
+              : lastScout.unlockedNow
+                ? 'UNLOCKED!'
+                : `NEW COPY · ${lastScout.newCopies}/${lastScout.threshold}`}
           </Text>
           <View style={styles.revealCardWrap}>
-            <PlayerCard rp={lastScout.player} />
+            <PlayerCard
+              rp={lastScout.player}
+              collect={
+                lastScout.isOverflow || lastScout.unlockedNow
+                  ? undefined
+                  : { copies: lastScout.newCopies, threshold: lastScout.threshold }
+              }
+            />
           </View>
         </Pop>
       ) : null}
@@ -305,6 +340,7 @@ const styles = StyleSheet.create({
     backgroundColor: palette.bgPanel,
     borderRadius: RADIUS.chip,
   },
+  machineLocked: { opacity: 0.5 },
   machineHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   machineName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body },
   collected: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },

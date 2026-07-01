@@ -8,7 +8,7 @@ import { useHubBackdrop } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { ownedRosterPlayers, totalUpgrades } from '@/game/home-roster';
+import { collectingRosterPlayers, ownedRosterPlayers, totalUpgrades } from '@/game/home-roster';
 import { CLASS_ORDER, type PlayerClass } from '@/game/ratings';
 import {
   availableClasses,
@@ -39,12 +39,14 @@ const SORTS: { id: Sort; label: string }[] = [
  * recycled back into the window on scroll snap in instead of re-strobing. */
 const RosterRow = memo(function RosterRow({
   rp,
+  collect,
   index,
   entering,
   expanded,
   onToggle,
 }: {
   rp: RosterPlayer;
+  collect?: { copies: number; threshold: number };
   index: number;
   entering: boolean;
   expanded: boolean;
@@ -54,6 +56,7 @@ const RosterRow = memo(function RosterRow({
     <StaggerIn index={index} enabled={entering} style={styles.row}>
       <PlayerCard
         rp={rp}
+        collect={collect}
         showSpecialty
         expanded={expanded}
         onToggleExpand={() => onToggle(rp)}
@@ -61,6 +64,9 @@ const RosterRow = memo(function RosterRow({
     </StaggerIn>
   );
 });
+
+/** A browse row: an owned player, or an in-progress one carrying its copies meter. */
+type BrowseItem = { rp: RosterPlayer; collect?: { copies: number; threshold: number } };
 
 export default function RosterScreen() {
   const nav = useArcadeRouter();
@@ -76,6 +82,8 @@ export default function RosterScreen() {
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
   const [positions, setPositions] = useState<Set<Position>>(new Set());
   const [sort, setSort] = useState<Sort>('recent');
+  // Toggle to browse IN-PROGRESS players (collected, not yet owned) instead of the roster.
+  const [showCollecting, setShowCollecting] = useState(false);
 
   // Track the expanded player by object reference, not list slot, so an open stat
   // spread follows the player across re-sorts and filters (the collection can hold
@@ -91,41 +99,49 @@ export default function RosterScreen() {
     () => (homeRoster ? ownedRosterPlayers(homeRoster) : []),
     [homeRoster]
   );
-
-  const enabledClasses = useMemo(() => availableClasses(players), [players]);
-  const enabledPositions = useMemo(
-    () => availablePositions(players),
-    [players]
+  const collectingRows = useMemo(
+    () => (homeRoster ? collectingRosterPlayers(homeRoster) : []),
+    [homeRoster]
   );
+  // Map an in-progress player key to its meter, so the browse list can attach it.
+  const collectByKey = useMemo(() => {
+    const map = new Map<RosterPlayer, { copies: number; threshold: number }>();
+    for (const r of collectingRows) map.set(r.player, { copies: r.copies, threshold: r.threshold });
+    return map;
+  }, [collectingRows]);
 
-  const shown = useMemo(() => {
+  // The player set the filter chips + list draw from (owned, or the in-progress ones).
+  const sourcePlayers = useMemo(
+    () => (showCollecting ? collectingRows.map((r) => r.player) : players),
+    [showCollecting, collectingRows, players]
+  );
+  const enabledClasses = useMemo(() => availableClasses(sourcePlayers), [sourcePlayers]);
+  const enabledPositions = useMemo(() => availablePositions(sourcePlayers), [sourcePlayers]);
+
+  const shown = useMemo<BrowseItem[]>(() => {
     const q = query.trim().toLowerCase();
-    const filtered = players.filter((rp) => {
+    const filtered = sourcePlayers.filter((rp) => {
       if (q && !rp.player.name.toLowerCase().includes(q)) return false;
-      if (
-        classes.size > 0 &&
-        (!rp.originalClass || !classes.has(rp.originalClass))
-      )
-        return false;
+      if (classes.size > 0 && (!rp.originalClass || !classes.has(rp.originalClass))) return false;
       if (positions.size > 0 && !positions.has(rp.position)) return false;
       return true;
     });
-    if (sort === 'recent') return filtered; // the collection is already recency-ordered
-    if (sort === 'power') {
-      const upgradesOf = homeRoster
-        ? (rp: RosterPlayer) => totalUpgrades(homeRoster, rp)
-        : undefined;
-      return filtered.sort(compareByRatingDesc(upgradesOf));
-    }
-    const classIdx = (rp: (typeof players)[number]) =>
-      rp.originalClass ? CLASS_ORDER.indexOf(rp.originalClass) : -1;
-    return filtered.sort((a, b) => {
-      if (sort === 'name') return a.player.name.localeCompare(b.player.name);
-      return (
-        classIdx(b) - classIdx(a) || a.player.name.localeCompare(b.player.name)
-      ); // class
-    });
-  }, [players, query, classes, positions, sort, homeRoster]);
+    // In-progress players keep their collection order (nearest additions first); no re-sort.
+    const ordered =
+      showCollecting || sort === 'recent'
+        ? filtered
+        : sort === 'power'
+          ? filtered.slice().sort(
+              compareByRatingDesc(homeRoster ? (rp) => totalUpgrades(homeRoster, rp) : undefined)
+            )
+          : filtered.slice().sort((a, b) => {
+              if (sort === 'name') return a.player.name.localeCompare(b.player.name);
+              const classIdx = (rp: RosterPlayer) =>
+                rp.originalClass ? CLASS_ORDER.indexOf(rp.originalClass) : -1;
+              return classIdx(b) - classIdx(a) || a.player.name.localeCompare(b.player.name);
+            });
+    return ordered.map((rp) => ({ rp, collect: collectByKey.get(rp) }));
+  }, [sourcePlayers, showCollecting, query, classes, positions, sort, homeRoster, collectByKey]);
 
   if (!loaded || !homeRoster) {
     return (
@@ -154,7 +170,21 @@ export default function RosterScreen() {
     <Screen style={styles.container} onBack={() => nav.back()} {...screenProps}>
       <View style={styles.headerRow}>
         <Text style={styles.title}>ROSTER</Text>
-        <Text style={styles.count}>{players.length} OWNED</Text>
+        <View style={styles.headerRight}>
+          {collectingRows.length > 0 ? (
+            <Pressable
+              onPress={() => setShowCollecting((v) => !v)}
+              style={[styles.progressBtn, showCollecting && styles.progressBtnActive]}
+            >
+              <Text style={[styles.progressText, showCollecting && styles.progressTextActive]}>
+                IN PROGRESS {collectingRows.length}
+              </Text>
+            </Pressable>
+          ) : null}
+          <Text style={styles.count}>
+            {showCollecting ? `${collectingRows.length} IN PROGRESS` : `${players.length} OWNED`}
+          </Text>
+        </View>
       </View>
       <RosterFilterBar
         query={query}
@@ -186,13 +216,14 @@ export default function RosterScreen() {
         style={styles.list}
         contentContainerStyle={styles.listContent}
         data={shown}
-        keyExtractor={(rp, i) => `${rp.player.name}-${rp.position}-${i}`}
+        keyExtractor={(item, i) => `${item.rp.player.name}-${item.rp.position}-${i}`}
         renderItem={({ item, index }) => (
           <RosterRow
-            rp={item}
+            rp={item.rp}
+            collect={item.collect}
             index={index}
             entering={entering}
-            expanded={expanded === item}
+            expanded={expanded === item.rp}
             onToggle={onToggle}
           />
         )}
@@ -236,6 +267,17 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.small,
     color: palette.inkDim,
   },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: space(2) },
+  progressBtn: {
+    paddingHorizontal: space(2),
+    paddingVertical: space(1),
+    borderWidth: BORDER.thin,
+    borderColor: palette.steelBlue + '88',
+    borderRadius: RADIUS.chip,
+  },
+  progressBtnActive: { backgroundColor: palette.steelBlue + '33', borderColor: palette.steelBlue },
+  progressText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.steelBlue },
+  progressTextActive: { color: palette.steelBlue },
   sortBtn: {
     paddingHorizontal: space(2),
     paddingVertical: space(1.5),

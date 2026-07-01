@@ -6,6 +6,7 @@ import { PixelButton } from '@/components/PixelButton';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { MAX_RUN_ROSTER } from '@/game/draft';
 import type { Roster, RosterPlayer } from '@/types/roster';
+import type { RecruitCollectStatus } from '@/hooks/useRun';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -17,6 +18,8 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 interface DropForRecruitViewProps {
   incoming: RosterPlayer;
   roster: Roster;
+  /** The incoming player's collection status, so its copies meter shows what signing gains. */
+  collectProgress: (rp: RosterPlayer) => RecruitCollectStatus | undefined;
   onDrop: (index: number) => void;
   onSkip: () => void;
 }
@@ -24,10 +27,12 @@ interface DropForRecruitViewProps {
 export function DropForRecruitView({
   incoming,
   roster,
+  collectProgress,
   onDrop,
   onSkip,
 }: DropForRecruitViewProps) {
   const all = [...roster.starters, ...roster.bench];
+  const incomingStatus = collectProgress(incoming);
   return (
     <Screen style={styles.container} bottomGap={space(5)}>
       <Text style={styles.title}>SQUAD FULL</Text>
@@ -36,7 +41,15 @@ export function DropForRecruitView({
         your squad:
       </Text>
       <Pop popOnMount style={styles.incoming}>
-        <PlayerCard rp={incoming} />
+        <PlayerCard
+          rp={incoming}
+          collect={
+            incomingStatus?.kind === 'collecting'
+              ? { copies: incomingStatus.copies, threshold: incomingStatus.threshold }
+              : undefined
+          }
+          collectDim={false}
+        />
       </Pop>
       <Text style={styles.sectionLabel}>TAP A PLAYER TO DROP</Text>
       <ScrollView

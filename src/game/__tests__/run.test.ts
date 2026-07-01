@@ -67,22 +67,34 @@ describe('generateRecruitOffers', () => {
     expect(a).not.toEqual(b);
   });
 
-  it('offers real players at the ladder class on the first map', () => {
-    const offers = generateRecruitOffers('C', 0, 8, createRNG('rs'));
+  it('shapes C-ladder offers as mostly C with only a rare reach-up to B (never A/S)', () => {
+    const offers = generateRecruitOffers('C', 0.5, 40, createRNG('cshape'));
     for (const o of offers) {
-      // mapProgress 0 -> no class-above chance, so every offer is a C-class real.
-      expect(o.originalClass).toBe('C');
+      expect(['C', 'B']).toContain(o.originalClass); // never D (no pool) or A/S
       expect(POSITIONS).toContain(o.position);
+      expect(o.legendary).toBeFalsy();
+    }
+    expect(offers.filter((o) => o.originalClass === 'C').length).toBeGreaterThan(offers.length / 2);
+  });
+
+  it('never leaks S-class stars onto the A ladder (the reach-up is barred at S)', () => {
+    const offers = generateRecruitOffers('A', 1, 40, createRNG('aleak'));
+    for (const o of offers) {
+      expect(o.originalClass).not.toBe('S'); // the A->S leak is closed
+      expect(['A', 'B']).toContain(o.originalClass); // A primary, B for depth
       expect(o.legendary).toBeFalsy();
     }
   });
 
-  it('mixes in the class above by the last map (growing chance)', () => {
-    // mapProgress ~1 -> up to 50% chance of the class above (B from a C ladder).
-    const offers = generateRecruitOffers('C', 1, 12, createRNG('above'));
+  it('mixes S and A on the S ladder so S stays scarce under repeat farming', () => {
+    const offers = generateRecruitOffers('S', 0.5, 40, createRNG('smix'));
     const classes = new Set(offers.map((o) => o.originalClass));
-    expect(classes.has('B')).toBe(true);
-    for (const o of offers) expect(['C', 'B']).toContain(o.originalClass);
+    expect(classes.has('S')).toBe(true);
+    expect(classes.has('A')).toBe(true);
+    for (const o of offers) {
+      expect(['S', 'A']).toContain(o.originalClass);
+      expect(o.legendary).toBeFalsy(); // legends come only via the pity-gated reveal
+    }
   });
 
   it('offers real players, never an excluded or duplicate name', () => {
@@ -176,10 +188,14 @@ describe('home roster persistence', () => {
     expect(run.bench).toHaveLength(home.players.length - 5);
   });
 
-  it('a cleared run adds only new recruits (uncapped collection), carries rewards', () => {
+  it('banks new recruits on a clear (owned or in-progress) and carries rewards', () => {
     const home = rookie();
     const run = homeToRunRoster(home);
-    const recruits = generateRecruitOffers('B', 0.5, 4, createRNG('m'));
+    const homeKeys = new Set(home.players.map((p) => `${p.player.name}|${p.position}`));
+    const recruits = generateRecruitOffers('B', 0.5, 6, createRNG('m')).filter(
+      (r) => !homeKeys.has(`${r.player.name}|${r.position}`)
+    );
+    expect(recruits.length).toBeGreaterThan(0);
     const grown = { ...run, bench: [...run.bench, ...recruits] };
     // champion = true: recruits are kept only when the run is cleared.
     const merged = mergeRunGainsIntoHome(home, grown, {
@@ -187,17 +203,22 @@ describe('home roster persistence', () => {
       reputation: 3,
       trainingPoints: 0,
     }, false, true);
-    // Home's 12 are preserved; the new recruits (not already owned) are appended.
-    expect(merged.players.length).toBeGreaterThan(home.players.length);
+    // Each new recruit is banked, never lost: B/C own on the first copy (into players), A
+    // accrues a copy (into collecting). So the gains land across players + collecting.
+    const playersGained = merged.players.length - home.players.length;
+    expect(playersGained + merged.collecting.length).toBeGreaterThan(0);
     // Coins bank as-earned (the useRun ledger), so the merge leaves the wallet untouched.
     expect(merged.coins).toBe(home.coins);
     expect(merged.reputation).toBe(home.reputation + 3);
-    // Unique by name|position (no duplicates).
+    // Owned players stay unique by name|position (no duplicates).
     const keys = merged.players.map((p) => `${p.player.name}|${p.position}`);
     expect(new Set(keys).size).toBe(keys.length);
 
-    // Flooding with many recruits grows past any old 17-player cap (uncapped now).
-    const flooded = { ...run, bench: generateRecruitOffers('C', 0, 30, createRNG('big')) };
+    // Flooding with many C recruits (own on the first copy) grows past any old 17-player cap.
+    const cRecruits = generateRecruitOffers('C', 0, 30, createRNG('big')).filter(
+      (r) => !homeKeys.has(`${r.player.name}|${r.position}`)
+    );
+    const flooded = { ...run, bench: cRecruits };
     expect(mergeRunGainsIntoHome(home, flooded, undefined, false, true).players.length).toBeGreaterThan(17);
   });
 

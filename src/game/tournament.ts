@@ -13,8 +13,8 @@ import {
   poolByClass,
   freeAgentPool,
 } from './player-pool';
-import { anchorStatsToClass, classTargetOvr, scaleLegendToLevel } from './classes';
-import { classAboveLadder, type LadderClass } from './difficulty-mode';
+import { anchorStatsToClass, classShift, classTargetOvr, scaleLegendToLevel } from './classes';
+import { type LadderClass } from './difficulty-mode';
 import type { PlayerClass } from './ratings';
 import { isSpecialistStats } from './specialty';
 import type { RealPlayer } from '@/types/nba';
@@ -353,13 +353,16 @@ export function pickSpecialistOfClass(
 }
 
 /**
- * Deterministic recruit candidates for a recruit node. Recruits are REAL players
- * at the run's ladder class, with a chance ramping 0 -> 50% by the final map of
- * offering the class ABOVE instead (`mapProgress` is 0 on the first map, ~1 on the
- * last). Above D every recruit is a real player; only if a class pool is fully
- * exhausted does it fall back to the ladder class, then any untaken real, then a
- * procedural player. Real all-time legends (S+) surface only as the rare on-loan
- * offer, gated separately by the run machine (and only on the S ladder).
+ * Deterministic recruit candidates for a recruit node. Offers are shaped by RARITY, not
+ * ladder position (see recruitClassWeights): on the C/B/A ladders each offer is mostly the
+ * ladder class (roster depth), with a small chance of the class below and a rare reach-up to
+ * the class above. The reach-up is DISABLED when it would produce S or a legend (S+), so
+ * lower ladders never leak S-class stars into your collection. On the S / S+ ladder offers
+ * are a 60/40 mix of S and A, so even endless S-ladder replay only trickles S copies and an
+ * S recruit stays a treat (the real S-ladder highlight is the separate, pity-gated legend
+ * reveal). If a class pool is exhausted the pick falls back to the ladder class, then any
+ * untaken real, then a procedural player. The map-progress argument is retained for
+ * signature/back-compat; offers no longer ramp by map.
  */
 export function generateRecruitOffers(
   ladderClass: LadderClass,
@@ -368,14 +371,13 @@ export function generateRecruitOffers(
   rng: RNG,
   exclude: Set<string> = new Set()
 ): RosterPlayer[] {
-  const aboveChance = clamp(0.5 * mapProgress, 0, 0.5);
-  const above = classAboveLadder(ladderClass);
+  const weights = recruitClassWeights(ladderClass);
   const taken = new Set(exclude);
   const offers: RosterPlayer[] = [];
   for (let i = 0; i < count; i++) {
-    const wantAbove = rng.chance(aboveChance);
+    const target = rng.weightedPick(weights);
     const chosen =
-      (wantAbove ? pickRealOfClass(above, taken, rng) : null) ??
+      pickRealOfClass(target, taken, rng) ??
       pickRealOfClass(ladderClass, taken, rng) ??
       pickAnyUntakenReal(taken, rng) ??
       generatePlayerOfClass(ladderClass, rng.pick(POSITIONS), rng);
@@ -383,6 +385,27 @@ export function generateRecruitOffers(
     offers.push(chosen);
   }
   return offers;
+}
+
+/**
+ * Per-offer class weights, shaped by rarity. The S / S+ ladder mixes S with A (60/40) so S
+ * stays scarce under repeat farming; every other ladder is ladder-primary with a little
+ * depth below and a rare reach-up that is BARRED from producing S/S+ (so no A-ladder S leak).
+ * classShift clamps at the ladder ends; the D class has no real pool, so it is dropped.
+ */
+function recruitClassWeights(ladderClass: LadderClass): [PlayerClass, number][] {
+  if (ladderClass === 'S' || ladderClass === 'S+') {
+    return [
+      ['S', 60],
+      ['A', 40],
+    ];
+  }
+  const below = classShift(ladderClass, -1);
+  const above = classShift(ladderClass, 1);
+  const entries: [PlayerClass, number][] = [[ladderClass, 85]];
+  if (below !== 'D') entries.push([below, 12]);
+  if (above !== 'S' && above !== 'S+') entries.push([above, 3]);
+  return entries;
 }
 
 /** Any untaken real from the whole class pool, for the rare exhausted-bucket case. */

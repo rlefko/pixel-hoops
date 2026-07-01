@@ -49,6 +49,12 @@ interface PlayerCardProps {
   /** Show the player's play-style specialty (e.g. "Rim Protector") under the name,
    * a glance read for the roster, draft, locker, and recruit screens. */
   showSpecialty?: boolean;
+  /** In-progress collection state: this player is collected but not yet owned. Renders a
+   * copies-to-own progress meter and dims the card. Omitted for owned players. */
+  collect?: { copies: number; threshold: number };
+  /** Whether the `collect` state dims the card ("not yours yet"). Off for a recruit OFFER,
+   * where dimming would wrongly read as disabled. Defaults on. */
+  collectDim?: boolean;
 }
 
 /** One rating's short label, for the expanded breakdown grid. */
@@ -109,6 +115,8 @@ function PlayerCardImpl({
   variant = 'row',
   compact = false,
   showSpecialty = false,
+  collect,
+  collectDim = true,
 }: PlayerCardProps) {
   // Fold run-scoped training into the displayed stats so a trained player reads
   // its true OVR/tier (up to S++) everywhere the card appears.
@@ -153,6 +161,7 @@ function PlayerCardImpl({
         isTile && styles.cardTile,
         compact && styles.cardCompact,
         injured && styles.injured,
+        collect && collectDim && styles.collecting,
       ]}
     >
       <View style={[styles.head, isTile && styles.headTile]}>
@@ -236,6 +245,10 @@ function PlayerCardImpl({
           <CompositeChip label="ATH" value={ath(stats)} />
         </View>
       )}
+
+      {collect ? (
+        <CollectMeter copies={collect.copies} threshold={collect.threshold} color={tierColor} />
+      ) : null}
 
       {expanded ? (
         <View style={styles.panel}>
@@ -341,6 +354,38 @@ function CompositeChip({ label, value }: { label: string; value: number }) {
   );
 }
 
+/** The copies-to-own progress meter for an in-progress (collected but not owned) player:
+ * `threshold` pixel pips, the first `copies` filled in the class color, with a label. The
+ * final pip that fills unlocks the player. */
+function CollectMeter({
+  copies,
+  threshold,
+  color,
+}: {
+  copies: number;
+  threshold: number;
+  color: string;
+}) {
+  return (
+    <View style={styles.collectRow}>
+      <View style={styles.collectPips}>
+        {Array.from({ length: threshold }).map((_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.collectPip,
+              { borderColor: color, backgroundColor: i < copies ? color : 'transparent' },
+            ]}
+          />
+        ))}
+      </View>
+      <Text style={[styles.collectText, { color }]}>
+        {copies}/{threshold} TO OWN
+      </Text>
+    </View>
+  );
+}
+
 /**
  * A proportional fill bar for a single rating. The bar fills to the NORMAL cap
  * (STAT_NORMAL_MAX = 20), so a maxed-for-tier stat reads as a full, satisfying bar
@@ -386,6 +431,7 @@ const styles = StyleSheet.create({
     paddingVertical: space(0.5),
   },
   injured: { opacity: 0.55 },
+  collecting: { opacity: 0.7 }, // an in-progress player reads as "not yours yet"
   head: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -557,4 +603,19 @@ const styles = StyleSheet.create({
   },
   pipFill: { backgroundColor: palette.makeGreen },
   pipOver: { backgroundColor: palette.gold }, // the over-cap "charged" tip (trained past 20)
+  collectRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(1.5),
+    marginTop: space(1),
+    marginLeft: 30 + space(2), // align under the name column, like the OFF/DEF/ATH chips
+  },
+  collectPips: { flexDirection: 'row', gap: space(0.5) },
+  collectPip: {
+    width: 8,
+    height: 8,
+    borderWidth: BORDER.thin,
+    borderRadius: RADIUS.none,
+  },
+  collectText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
 });

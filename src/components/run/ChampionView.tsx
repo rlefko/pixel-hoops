@@ -7,12 +7,14 @@ import { LineupBoard } from '@/components/game/LineupBoard';
 import { sfx } from '@/feel';
 import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
+import { CollectionProgressStrip } from './CollectionProgressStrip';
 import { CrownIcon, VictoryTierIcon } from './PixelIcons';
 import { buildHallOfFameEntry, type ChampionGame } from '@/game/hall-of-fame';
 import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
+import type { ProgressedCopy } from '@/game/home-roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -31,6 +33,8 @@ interface ChampionViewProps {
   wins: number;
   /** The newly unlocked ladder class (shown as a reward when present). */
   unlockedClass?: PlayerClass;
+  /** Players this run advanced a copy toward but did not unlock (compact progress strip). */
+  progressed?: ProgressedCopy[];
   onNewRun: () => void;
   onHome: () => void;
 }
@@ -44,6 +48,7 @@ export function ChampionView({
   ladderClass,
   wins,
   unlockedClass,
+  progressed = [],
   onNewRun,
   onHome,
 }: ChampionViewProps) {
@@ -119,6 +124,8 @@ export function ChampionView({
 
         <Text style={styles.section}>YOUR CHAMPIONS</Text>
         <LineupBoard team={game.home} players={entry.starters} compact />
+
+        <CollectionProgressStrip progressed={progressed} />
 
         <Pressable style={[styles.button, styles.primary]} onPress={() => void shareVictory(entry)}>
           <Text style={styles.primaryText}>SHARE</Text>
