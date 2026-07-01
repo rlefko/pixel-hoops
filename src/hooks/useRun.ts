@@ -163,9 +163,10 @@ export function useRun() {
               Date.now()
             )
           : undefined;
-      // Grant this cell's one-time bounty against the PRE-merge home (its ladderProgress is
-      // still the pre-clear frontier, which the first-clear test reads). Seeded off the run so
-      // a resumed settle reproduces the same grant; the merge below spreads the granted home.
+      // Grant this cell's one-time bounty against the PRE-merge home (its clearedCells set
+      // does not hold this cell yet, which the cell-exact first-clear test reads). Seeded off
+      // the run so a resumed settle reproduces the same grant; the merge spreads the granted
+      // home.
       const { home: withBounty, granted: bountyGrant } = claimRunBounty(
         next,
         model.difficulty,

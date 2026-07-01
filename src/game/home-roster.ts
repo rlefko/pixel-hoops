@@ -11,7 +11,8 @@ import {
   DIFFICULTIES,
   LADDER_CLASSES,
   advanceLadder,
-  isClassConquered,
+  cellKey,
+  frontierFromCells,
   isLadderClass,
   type Difficulty,
   type LadderClass,
@@ -93,11 +94,26 @@ export interface HomeRoster {
   settledRunId?: string;
   /** Cells whose one-time Championship Bounty has been materially granted, keyed by
    * bounties.bountyKey (`difficulty:ladderClass`). An explicit record + idempotency guard;
-   * crests derive from ladderProgress, not this, so a veteran save shows every past-clear
-   * crest while starting with an empty claimed set (no material windfall). See bounties.ts. */
+   * crests derive from clearedCells, not this. See bounties.ts. */
   claimedBounties: string[];
+  /** Every (difficulty x ladder class) cell ever CLEARED, keyed by cellKey
+   * (`difficulty:class`). The source of truth for crests, the bounty first-clear guard,
+   * court-theme unlocks, and (via the global max class) which ladder classes are
+   * selectable on every difficulty: a class cleared anywhere is open everywhere, so the
+   * grid is a 20-cell bounty board rather than four ladders to re-climb. Kept in sync
+   * with the per-difficulty `ladderProgress` frontier (which coach ranks and scout
+   * gates still read). */
+  clearedCells: string[];
 }
 
+// v16 adds the cleared-cell set (`clearedCells`): every (difficulty x class) cell ever
+// cleared, making ladder-class unlocks GLOBAL (a class cleared on any difficulty is
+// selectable on all of them) and bounty claims CELL-EXACT (a jumped-over cell's bounty
+// stays claimable later instead of being silently voided by the frontier). On load the
+// set is seeded from each difficulty's `ladderProgress` frontier (every cell at-or-below
+// it, historically exact since the pre-v16 ladder was strictly sequential), which also
+// keeps re-clears of pre-v16 conquered cells from farming their bounties (the claim
+// guard now tests cell membership, and seeded cells read as cleared).
 // v15 adds Championship Bounties (`claimedBounties`): a one-time reward on each (difficulty
 // x ladder class) cell, granted the first time that cell is cleared. The field defaults to
 // [] on older saves (no value migration). Crucially, crests derive from `ladderProgress`, so
@@ -134,7 +150,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 15;
+const HOME_ROSTER_VERSION = 16;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -250,6 +266,7 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     ownedCoaches: [STARTER_COACH_ID],
     selectedCoachId: STARTER_COACH_ID,
     claimedBounties: [],
+    clearedCells: [],
   };
 }
 
@@ -625,7 +642,12 @@ export function mergeRunGainsIntoHome(
   const ladderProgress = { ...home.ladderProgress };
   let selectedLadderClass = home.selectedLadderClass;
   let ownedCoaches = home.ownedCoaches;
+  let clearedCells = home.clearedCells ?? [];
   if (champion && clearedClass) {
+    // Stamp the cleared CELL (crests, bounty guards, theme unlocks, and global
+    // class unlocks all derive from the cell set).
+    const cell = cellKey(playedDifficulty, clearedClass);
+    if (!clearedCells.includes(cell)) clearedCells = [...clearedCells, cell];
     // Win any coaches this clear entitles (computed BEFORE the ladder write;
     // coachesWonByClear re-applies advanceLadder itself). Keeps the equipped coach.
     const won = coachesWonByClear(
@@ -655,6 +677,7 @@ export function mergeRunGainsIntoHome(
     // banks at run end (a terminal reward, forfeited if the run is abandoned).
     reputation: home.reputation + (rewards?.reputation ?? 0),
     ladderProgress,
+    clearedCells,
     selectedLadderClass,
     ownedCoaches,
     legendDryStreak: legendOffered ? 0 : home.legendDryStreak + 1,
@@ -686,11 +709,12 @@ export interface BountyGrant {
  * (foldPull) for player grants and addAbility for ability grants. Returns the updated home
  * plus a grant descriptor for the reveal, or `{ granted: null }` when nothing is owed.
  *
- * The "first clear" test is the pre-clear ladder frontier being BELOW this class, so a
- * veteran replaying an already-conquered cell never farms material (their crest still shows,
- * derived from ladderProgress) - this is what makes "crests-only for past clears" automatic,
- * with no migration. `claimedBounties` is a belt-and-suspenders record + explicit guard.
- * Call against the PRE-merge home (ladderProgress not yet advanced), inside the settle write.
+ * The "first clear" test is CELL-EXACT: the cell must not already be in `clearedCells`
+ * (nor `claimedBounties`). Cross-difficulty jumps can leave lower cells uncleared, and
+ * those cells' bounties stay claimable later (all 20 are collectible goals; the total is
+ * fixed, so there is no farm). Pre-v16 veterans never re-farm conquered cells because the
+ * load migration seeds `clearedCells` from each frontier. Call against the PRE-merge home
+ * (clearedCells not yet stamped), inside the settle write.
  */
 export function claimRunBounty(
   home: HomeRoster,
@@ -702,9 +726,9 @@ export function claimRunBounty(
   if (!champion) return { home, granted: null };
   const key = bountyKey(difficulty, ladderClass);
   if (home.claimedBounties.includes(key)) return { home, granted: null };
-  // First clear only: the pre-clear frontier must be BELOW this class (i.e. not yet
-  // conquered), so a veteran replaying an already-conquered cell never farms material.
-  if (isClassConquered(ladderClass, home.ladderProgress[difficulty])) return { home, granted: null };
+  // First clear only, cell-exact: a replay of an already-cleared cell never farms
+  // material, while a jumped-over cell (cleared above it, never on it) still pays.
+  if ((home.clearedCells ?? []).includes(key)) return { home, granted: null };
 
   const bounty = bountyFor(difficulty, ladderClass);
   const grant: BountyGrant = { key, bounty, isCapstone: key === GRANDMASTER_KEY };
@@ -878,6 +902,39 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
       ladderProgress[d] = v as LadderClass;
     }
   }
+
+  // v16: the cleared-cell set. Keep any well-formed saved cells (validated against the
+  // 20-cell bounty catalog, which shares the key format), then seed from each
+  // difficulty's frontier: every cell at-or-below it is cleared. Historically exact for
+  // pre-v16 saves (the old ladder was strictly sequential), and load-bearing for the
+  // bounty guard: seeded cells read as cleared, so re-clearing a pre-v16 conquered cell
+  // can never farm its bounty. Self-heal the frontier upward from the cells afterward,
+  // so the two representations can never disagree in the frontier's disfavor.
+  const cellSet = new Set<string>();
+  if (Array.isArray(data.clearedCells)) {
+    for (const k of data.clearedCells) {
+      if (typeof k === 'string' && k in BOUNTIES) cellSet.add(k);
+    }
+  }
+  for (const d of DIFFICULTIES) {
+    const frontier = ladderProgress[d];
+    if (!frontier) continue;
+    for (const cls of LADDER_CLASSES) {
+      cellSet.add(cellKey(d, cls));
+      if (cls === frontier) break;
+    }
+  }
+  const clearedCells = [...cellSet];
+  for (const d of DIFFICULTIES) {
+    const fromCells = frontierFromCells(clearedCells, d);
+    const saved = ladderProgress[d];
+    if (
+      fromCells &&
+      (saved == null || LADDER_CLASSES.indexOf(fromCells) > LADDER_CLASSES.indexOf(saved))
+    ) {
+      ladderProgress[d] = fromCells;
+    }
+  }
   const selectedDifficulty: Difficulty =
     typeof data.selectedDifficulty === 'string' &&
     (DIFFICULTIES as readonly string[]).includes(data.selectedDifficulty)
@@ -957,10 +1014,11 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     lastBankedRunId: typeof data.lastBankedRunId === 'string' ? data.lastBankedRunId : undefined,
     lastBankedCoins: typeof data.lastBankedCoins === 'number' ? data.lastBankedCoins : undefined,
     settledRunId: typeof data.settledRunId === 'string' ? data.settledRunId : undefined,
-    // v15: default to [] on older saves (no material retro-grant; crests derive from
-    // ladderProgress). Filter against the catalog so stale/garbage keys never linger.
+    // v15: default to [] on older saves (no material retro-grant; the seeded cleared
+    // cells block re-farming). Filter against the catalog so stale keys never linger.
     claimedBounties: Array.isArray(data.claimedBounties)
       ? data.claimedBounties.filter((k): k is string => typeof k === 'string' && k in BOUNTIES)
       : [],
+    clearedCells,
   };
 }

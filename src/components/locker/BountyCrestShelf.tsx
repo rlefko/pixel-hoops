@@ -4,7 +4,7 @@ import {
   DIFFICULTIES,
   LADDER_CLASSES,
   DIFFICULTY_LABELS,
-  isClassConquered,
+  isCellCleared,
   type Difficulty,
   type LadderClass,
 } from '@/game/difficulty-mode';
@@ -14,17 +14,14 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
  * A compact 4x5 grid of the (difficulty x ladder class) prestige crests, one per
- * Championship Bounty cell, earned by clearing that cell. Crests derive from ladder
- * progress (not the claimed-bounty set), so a veteran save shows every past-clear crest
- * immediately. The insane:S+ apex renders as the gold Grandmaster crown. Empty slots read
- * as a completionist checklist (the Balatro-sticker hook): "20 crests to collect."
+ * Championship Bounty cell, earned by clearing that exact cell (cross-difficulty jumps
+ * leave the skipped cells open as goals to come back for; a pre-v16 veteran's past
+ * clears are seeded on load). The insane:S+ apex renders as the gold Grandmaster crown.
+ * Empty slots read as a completionist checklist (the Balatro-sticker hook): "20 crests
+ * to collect."
  */
-export function BountyCrestShelf({
-  ladderProgress,
-}: {
-  ladderProgress: Record<Difficulty, LadderClass | null>;
-}) {
-  const conquered = (d: Difficulty, cls: LadderClass) => isClassConquered(cls, ladderProgress[d]);
+export function BountyCrestShelf({ clearedCells }: { clearedCells: readonly string[] }) {
+  const conquered = (d: Difficulty, cls: LadderClass) => isCellCleared(clearedCells, d, cls);
   const earned = DIFFICULTIES.reduce(
     (n, d) => n + LADDER_CLASSES.filter((cls) => conquered(d, cls)).length,
     0

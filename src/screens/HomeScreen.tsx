@@ -28,8 +28,8 @@ import {
   DIFFICULTIES,
   DIFFICULTY_LABELS,
   LADDER_CLASSES,
-  isClassConquered,
-  unlockedClasses,
+  isCellCleared,
+  unlockedClassesFromCells,
   type Difficulty,
   type LadderClass,
 } from '@/game/difficulty-mode';
@@ -64,25 +64,25 @@ export default function HomeScreen() {
     );
   }
 
-  const unlocked = homeRoster
-    ? unlockedClasses(homeRoster.ladderProgress[homeRoster.selectedDifficulty])
-    : [];
-  // A cell's crest derives from ladder progress (not claimedBounties), so past clears show
-  // their crests immediately. Drives the crest badges on the ladder chips + the reward teaser
-  // below, both for the currently selected difficulty.
-  const clearedThrough = homeRoster
-    ? homeRoster.ladderProgress[homeRoster.selectedDifficulty]
-    : null;
-  const isConquered = (cls: LadderClass) => isClassConquered(cls, clearedThrough);
+  // Ladder classes unlock GLOBALLY from the cleared-cell set: a class cleared on any
+  // difficulty is selectable on every difficulty, so the 4x5 grid is a bounty board
+  // to attack in any order rather than four ladders to re-climb.
+  const clearedCells = homeRoster?.clearedCells ?? [];
+  const unlocked = homeRoster ? unlockedClassesFromCells(clearedCells) : [];
+  // A chip's crest is CELL-exact (this class cleared on the selected difficulty), so
+  // jumped-over cells still read as open bounties. Drives the crest badges on the
+  // ladder chips + the reward teaser below.
+  const isConquered = (cls: LadderClass) =>
+    homeRoster != null && isCellCleared(clearedCells, homeRoster.selectedDifficulty, cls);
   const coach = homeRoster ? getCoach(homeRoster.selectedCoachId) : null;
 
   const setDifficulty = (d: Difficulty) => {
     if (!homeRoster) return;
-    // Keep the selected ladder class valid for the new difficulty's unlocks.
-    const nowUnlocked = unlockedClasses(homeRoster.ladderProgress[d]);
-    const cls = nowUnlocked.includes(homeRoster.selectedLadderClass)
+    // Unlocks are global, so the selection stays valid across difficulties; the clamp
+    // is a defensive no-op kept for safety.
+    const cls = unlocked.includes(homeRoster.selectedLadderClass)
       ? homeRoster.selectedLadderClass
-      : nowUnlocked[nowUnlocked.length - 1];
+      : unlocked[unlocked.length - 1];
     saveHomeRoster({
       ...homeRoster,
       selectedDifficulty: d,

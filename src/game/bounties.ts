@@ -1,4 +1,10 @@
-import { DIFFICULTIES, LADDER_CLASSES, type Difficulty, type LadderClass } from './difficulty-mode';
+import {
+  cellKey,
+  DIFFICULTIES,
+  LADDER_CLASSES,
+  type Difficulty,
+  type LadderClass,
+} from './difficulty-mode';
 import type { PlayerGachaTier } from './player-gacha';
 import type { Rarity } from './rarity';
 
@@ -36,9 +42,11 @@ export interface Bounty {
   blurb: string;
 }
 
-/** Stable per-cell key; the persisted claimed set uses exactly this. */
+/** Stable per-cell key; the persisted claimed set uses exactly this. Delegates to
+ * difficulty-mode's cellKey so the bounty table and the cleared-cell set share one
+ * key format by construction. */
 export function bountyKey(d: Difficulty, cls: LadderClass): string {
-  return `${d}:${cls}`;
+  return cellKey(d, cls);
 }
 
 /** The apex cell: clearing S+ on insane earns the Grandmaster crest. */

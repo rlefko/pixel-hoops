@@ -12,7 +12,8 @@ import { simulateGame } from './simulation';
 import { ownedRosterPlayers, resolveDraftRotation, type HomeRoster } from './home-roster';
 import {
   difficultyMods,
-  isClassConquered,
+  globalHighestCleared,
+  LADDER_CLASSES,
   type Difficulty,
   type DifficultyMods,
   type LadderClass,
@@ -229,10 +230,12 @@ export type RunAction =
   | { type: 'skipNode' }
   | { type: 'backToMap' };
 
-/** Whether the run's ladder class is beyond the cleared frontier (not yet conquered), so a
- * championship advances the ladder (drives the summary "unlocked" beat). */
-function isFrontierRun(home: HomeRoster, difficulty: Difficulty, ladderClass: LadderClass): boolean {
-  return !isClassConquered(ladderClass, home.ladderProgress[difficulty]);
+/** Whether a championship here would raise the GLOBAL highest-cleared class and so
+ * unlock a new ladder class (a class cleared on any difficulty is selectable on all
+ * of them). Drives the summary "ladder unlocked" beat and the loss nudge. */
+function isFrontierRun(home: HomeRoster, ladderClass: LadderClass): boolean {
+  const best = globalHighestCleared(home.clearedCells ?? []);
+  return best == null || LADDER_CLASSES.indexOf(ladderClass) > LADDER_CLASSES.indexOf(best);
 }
 
 /** Build a fresh run from a seed and the player's home roster. */
@@ -271,7 +274,7 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     ladderClass,
     coachId,
     mods,
-    atFrontier: isFrontierRun(homeRoster, difficulty, ladderClass),
+    atFrontier: isFrontierRun(homeRoster, ladderClass),
     boosts: [],
     bag: [],
     legend: { dryStreak: homeRoster.legendDryStreak ?? 0, offeredThisRun: false },

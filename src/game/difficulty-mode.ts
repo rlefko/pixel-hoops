@@ -149,6 +149,57 @@ function ladderIndex(cls: LadderClass): number {
   return LADDER_CLASSES.indexOf(cls);
 }
 
+// --- The cleared-cell set (the 20-cell bounty board) ---
+// A run clears a CELL of the 4x5 (difficulty x ladder class) grid. Cells are the
+// source of truth for crests, bounty first-clear guards, court-theme unlocks, and
+// (via the global max) which ladder classes are selectable: a class cleared on ANY
+// difficulty is open on ALL of them, so a veteran attacks the grid in any order
+// instead of re-climbing four separate ladders. The per-difficulty frontier
+// (`ladderProgress`) is still maintained alongside for coach ranks and scout gates.
+
+/** Stable key for one grid cell (`difficulty:class`). bounties.bountyKey re-exports
+ * this exact format, so the bounty table and the cell set can never drift. */
+export function cellKey(d: Difficulty, cls: LadderClass): string {
+  return `${d}:${cls}`;
+}
+
+/** Whether one exact cell has been cleared. */
+export function isCellCleared(
+  cells: readonly string[],
+  d: Difficulty,
+  cls: LadderClass
+): boolean {
+  return cells.includes(cellKey(d, cls));
+}
+
+/** Whether a class has been cleared on any difficulty. */
+export function clearedOnAnyDifficulty(cells: readonly string[], cls: LadderClass): boolean {
+  return DIFFICULTIES.some((d) => cells.includes(cellKey(d, cls)));
+}
+
+/** The highest class cleared anywhere on the grid (null = nothing cleared). The class
+ * dimension stays contiguous by induction: only the rung above the global max is ever
+ * selectable before it is cleared. */
+export function globalHighestCleared(cells: readonly string[]): LadderClass | null {
+  let best: LadderClass | null = null;
+  for (const cls of LADDER_CLASSES) if (clearedOnAnyDifficulty(cells, cls)) best = cls;
+  return best;
+}
+
+/** The ladder classes selectable on EVERY difficulty, given the cleared-cell set:
+ * everything up to the global max plus the one rung above it. */
+export function unlockedClassesFromCells(cells: readonly string[]): LadderClass[] {
+  return unlockedClasses(globalHighestCleared(cells));
+}
+
+/** The highest class cleared on ONE difficulty in the cell set (migration self-healing
+ * for the per-difficulty frontier). */
+export function frontierFromCells(cells: readonly string[], d: Difficulty): LadderClass | null {
+  let best: LadderClass | null = null;
+  for (const cls of LADDER_CLASSES) if (cells.includes(cellKey(d, cls))) best = cls;
+  return best;
+}
+
 /**
  * The ladder classes unlocked given the highest class cleared on a difficulty. C
  * is always available; clearing a rung unlocks the next one (per difficulty).

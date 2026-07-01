@@ -2,8 +2,14 @@ import { describe, it, expect } from 'vitest';
 import {
   DIFFICULTIES,
   LADDER_CLASSES,
+  cellKey,
+  clearedOnAnyDifficulty,
   difficultyMods,
+  frontierFromCells,
+  globalHighestCleared,
+  isCellCleared,
   unlockedClasses,
+  unlockedClassesFromCells,
   isClassUnlocked,
   isClassConquered,
   advanceLadder,
@@ -153,5 +159,36 @@ describe('ladder unlocks', () => {
     expect(isLadderClass('S+')).toBe(true);
     expect(isLadderClass('D')).toBe(false);
     expect(isLadderClass('S++')).toBe(false);
+  });
+});
+
+describe('the cleared-cell set (cross-difficulty unlocks)', () => {
+  it('cellKey matches the bounty key format', () => {
+    expect(cellKey('hard', 'S+')).toBe('hard:S+');
+  });
+
+  it('cell membership and per-class lookups are exact', () => {
+    const cells = [cellKey('easy', 'C'), cellKey('insane', 'B')];
+    expect(isCellCleared(cells, 'easy', 'C')).toBe(true);
+    expect(isCellCleared(cells, 'medium', 'C')).toBe(false);
+    expect(clearedOnAnyDifficulty(cells, 'B')).toBe(true);
+    expect(clearedOnAnyDifficulty(cells, 'A')).toBe(false);
+  });
+
+  it('a class cleared on ANY difficulty is selectable on ALL of them', () => {
+    // Clearing B on insane opens C, B, and the next rung (A) everywhere.
+    const cells = [cellKey('insane', 'C'), cellKey('insane', 'B')];
+    expect(globalHighestCleared(cells)).toBe('B');
+    expect(unlockedClassesFromCells(cells)).toEqual(['C', 'B', 'A']);
+    // Nothing cleared: only C is open.
+    expect(unlockedClassesFromCells([])).toEqual(['C']);
+    expect(globalHighestCleared([])).toBeNull();
+  });
+
+  it('frontierFromCells reads one difficulty column', () => {
+    const cells = [cellKey('easy', 'C'), cellKey('easy', 'B'), cellKey('hard', 'C')];
+    expect(frontierFromCells(cells, 'easy')).toBe('B');
+    expect(frontierFromCells(cells, 'hard')).toBe('C');
+    expect(frontierFromCells(cells, 'insane')).toBeNull();
   });
 });

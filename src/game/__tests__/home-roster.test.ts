@@ -345,10 +345,24 @@ describe('applyPlayerPull', () => {
 });
 
 describe('claimRunBounty: one-time championship bounties', () => {
+  // Mirrors the load migration: a frontier implies every cell at-or-below it is cleared
+  // (an in-memory home can never legitimately hold a frontier without its cells).
+  const cellsForProgress = (progress: Partial<HomeRoster['ladderProgress']>): string[] => {
+    const cells: string[] = [];
+    for (const [d, frontier] of Object.entries(progress)) {
+      if (!frontier) continue;
+      for (const cls of ['C', 'B', 'A', 'S', 'S+'] as const) {
+        cells.push(bountyKey(d as keyof HomeRoster['ladderProgress'], cls));
+        if (cls === frontier) break;
+      }
+    }
+    return cells;
+  };
   const withProgress = (seed: string, progress: Partial<HomeRoster['ladderProgress']>): HomeRoster => ({
     ...createRookieRoster(createRNG(seed)),
     coins: 1000,
     ladderProgress: { easy: null, medium: null, hard: null, insane: null, ...progress },
+    clearedCells: cellsForProgress(progress),
   });
 
   it('grants a coins bounty on a first clear, then nothing on a replay (idempotent)', () => {
@@ -363,15 +377,30 @@ describe('claimRunBounty: one-time championship bounties', () => {
     expect(second.home.coins).toBe(first.home.coins);
   });
 
-  it('never materially grants a cell the ladder already covers (crests-only for veterans)', () => {
-    // A veteran who has cleared S on easy replays easy:C. claimedBounties is empty, but the
-    // pre-clear frontier (S) is at/above C, so no material is granted (their crest still shows,
-    // derived from ladderProgress).
+  it('never materially grants a cell already cleared (crests-only for veterans)', () => {
+    // A veteran who climbed easy to S replays easy:C. claimedBounties is empty, but the
+    // cell is in clearedCells (seeded from the frontier on load), so no material is
+    // granted (their crest still shows, derived from the cell set).
     const veteran = withProgress('b-vet', { easy: 'S' });
     const res = claimRunBounty(veteran, 'easy', 'C', true, createRNG('gv'));
     expect(res.granted).toBeNull();
     expect(res.home.coins).toBe(veteran.coins);
     expect(res.home.claimedBounties).toEqual([]);
+  });
+
+  it('a jumped-over cell still pays: bounty claims are cell-exact, not frontier-based', () => {
+    // Cross-difficulty unlocks let a player clear insane:S without ever touching
+    // insane:C. The frontier reads S, but insane:C was never CLEARED, so its bounty
+    // (an A-tier player grant) is still owed when they come back for it.
+    const jumper: HomeRoster = {
+      ...createRookieRoster(createRNG('b-jump')),
+      coins: 1000,
+      ladderProgress: { easy: null, medium: null, hard: null, insane: 'S' },
+      clearedCells: [bountyKey('insane', 'S')],
+    };
+    const res = claimRunBounty(jumper, 'insane', 'C', true, createRNG('gj'));
+    expect(res.granted).not.toBeNull();
+    expect(res.home.claimedBounties).toContain(bountyKey('insane', 'C'));
   });
 
   it('grants nothing on a loss', () => {
@@ -454,6 +483,87 @@ describe('v15 bounties migration', () => {
     };
     const restored = deserializeHomeRoster(dirty)!;
     expect(restored.claimedBounties).toEqual([bountyKey('hard', 'A')]);
+  });
+});
+
+describe('v16 cleared-cells migration', () => {
+  it('seeds clearedCells from each frontier on a pre-v16 save', () => {
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('c-mig')),
+      ladderProgress: { easy: 'A', medium: 'C', hard: null, insane: null },
+    };
+    const serialized = serializeHomeRoster(home);
+    delete (serialized.data as Partial<HomeRoster>).clearedCells; // simulate pre-v16
+    const restored = deserializeHomeRoster(serialized)!;
+    expect([...restored.clearedCells].sort()).toEqual(
+      [
+        bountyKey('easy', 'C'),
+        bountyKey('easy', 'B'),
+        bountyKey('easy', 'A'),
+        bountyKey('medium', 'C'),
+      ].sort()
+    );
+  });
+
+  it('a migrated veteran cannot re-farm a conquered cell bounty', () => {
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('c-farm')),
+      coins: 0,
+      ladderProgress: { easy: 'S', medium: null, hard: null, insane: null },
+      claimedBounties: [], // pre-v15 veteran: cleared long ago, nothing recorded
+    };
+    const serialized = serializeHomeRoster(home);
+    delete (serialized.data as Partial<HomeRoster>).clearedCells;
+    const restored = deserializeHomeRoster(serialized)!;
+    const res = claimRunBounty(restored, 'easy', 'C', true, createRNG('cf'));
+    expect(res.granted).toBeNull();
+    expect(res.home.coins).toBe(0);
+  });
+
+  it('keeps saved cells, drops garbage, and self-heals the frontier upward', () => {
+    const home = createRookieRoster(createRNG('c-heal'));
+    const dirty = {
+      version: 16,
+      data: {
+        ...home,
+        // Cells say insane:S was cleared, but the saved frontier lags at null.
+        clearedCells: [bountyKey('insane', 'S'), 'garbage', 7, null],
+        ladderProgress: { easy: null, medium: null, hard: null, insane: null },
+      },
+    };
+    const restored = deserializeHomeRoster(dirty)!;
+    expect(restored.clearedCells).toEqual([bountyKey('insane', 'S')]);
+    expect(restored.ladderProgress.insane).toBe('S'); // healed from the cell set
+  });
+
+  it('round-trips clearedCells and unions frontier-derived cells', () => {
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('c-rt')),
+      ladderProgress: { easy: 'C', medium: null, hard: null, insane: null },
+      clearedCells: [bountyKey('hard', 'B')], // a jumped cell, no easy cells recorded
+    };
+    const restored = deserializeHomeRoster(serializeHomeRoster(home))!;
+    expect(restored.clearedCells).toContain(bountyKey('hard', 'B'));
+    expect(restored.clearedCells).toContain(bountyKey('easy', 'C')); // seeded from frontier
+    expect(restored.ladderProgress.hard).toBe('B'); // healed upward
+  });
+});
+
+describe('mergeRunGainsIntoHome: cleared cells', () => {
+  it('a championship stamps its exact cell; a loss stamps nothing', () => {
+    const { home, runRoster } = setup();
+    const won = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'hard');
+    expect(won.clearedCells).toContain(bountyKey('hard', 'C'));
+    expect(won.ladderProgress.hard).toBe('C'); // the frontier stays in sync
+    const lost = mergeRunGainsIntoHome(home, runRoster, rewards, false, false);
+    expect(lost.clearedCells).toEqual([]);
+  });
+
+  it('re-clearing a cell does not duplicate it', () => {
+    const { home, runRoster } = setup();
+    const once = mergeRunGainsIntoHome(home, runRoster, rewards, false, true, 'C', 'easy');
+    const twice = mergeRunGainsIntoHome(once, runRoster, rewards, false, true, 'C', 'easy');
+    expect(twice.clearedCells.filter((k) => k === bountyKey('easy', 'C'))).toHaveLength(1);
   });
 });
 
