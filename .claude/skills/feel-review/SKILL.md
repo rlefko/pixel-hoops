@@ -1,6 +1,6 @@
 ---
 name: feel-review
-description: Review a diff or feature against Pixel Hoops' feel conventions (the 8-bit presentation language; visual, audio, and haptic juice; celebration honesty; watch pacing; degradation semantics). Use for the pre-commit feel agent check, when the user asks for a "feel review" / "juice check" / "visual review" or whether something "lands" or "reads right", or before committing changes that touch screens, components, src/feel, src/components/fx, audio recipes or music tracks, the theme, or the watch's presentation. Reads docs/feel-conventions.md as the source of truth.
+description: Review a diff or feature against Pixel Hoops' feel conventions (the 8-bit presentation language; visual, audio, and haptic juice; celebration honesty; watch pacing; degradation semantics). Use for the pre-commit feel agent check, when the user asks for a "feel review" / "juice check" / "visual review" or whether something "lands" or "reads right", or before committing changes that touch screens, components, src/feel, src/components/fx, anything under src/audio or assets/audio (recipes, music tracks, the synth, baked WAVs), the audio baker (scripts/generate-sfx.ts), new sfx or haptics call sites, the theme, or the watch's presentation. Reads docs/feel-conventions.md as the source of truth.
 ---
 
 # Feel Review
@@ -20,7 +20,7 @@ In priority order:
 1. A target the user named (a PR number, branch, file, screen, or feature description).
 2. The current working diff: `git diff origin/main...HEAD`, plus `git diff HEAD` if there are uncommitted changes (pre-commit reviews usually run before the commit exists).
 
-If the diff is empty and no target was named, say so and stop. If the diff touches no presentation surface (pure game logic, tooling, data, docs), say so and stop: this check is only for changes the player can see, hear, or feel.
+If the diff is empty and no target was named, say so and stop. If the diff touches no presentation surface (pure game logic, tooling, data, docs), say so and stop: this check is only for changes the player can see, hear, or feel. Audio is a presentation surface even when no screen changes: diffs touching `src/audio`, `assets/audio`, `scripts/generate-sfx.ts`, or any sfx/haptics call site are always in scope. Documentation ABOUT audio is still docs.
 
 ## Step 3: Walk the review checklist
 
@@ -32,6 +32,8 @@ For each violation, report:
 - **The rule it breaks**, by section number from the doc.
 - **How it breaks the feel**: what the player would see, hear, or stop trusting (a flat beat, a stacked voice, a celebration on a loss, a badge that lies, a ceremony that replays).
 - **The compliant fix**, naming the existing primitive or pattern the doc prescribes (the rarity burst, the callout chain, a scaled() duration, a persisted one-shot guard, an imperative handle, and so on).
+
+Two audio cases deserve extra suspicion: diffs under `src/audio/` or `assets/audio/`, and new or reworked cues or beds. Hold both to the doc's audio checklist items at their strictest reading, and treat missing proof as a violation, not a gap: if the diff cannot show the evidence or accounting an item asks for, flag it as unproven. A shortfall there is a finding, not a convenience.
 
 ## Step 4: Report
 
