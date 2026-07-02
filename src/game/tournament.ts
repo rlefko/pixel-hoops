@@ -1,7 +1,7 @@
 import type { Archetype } from '@/types/player';
 import { createPlayer } from '@/types/player';
 import type { Roster, RosterPlayer, Position } from '@/types/roster';
-import { POSITIONS, POSITION_ARCHETYPE } from '@/types/roster';
+import { POSITIONS, POSITION_ARCHETYPE, nameKey } from '@/types/roster';
 import type { GamePlan, Focus, Pace } from '@/types/tactics';
 import type { RNG } from './rng';
 import { clamp, scaleStatsToLevel } from './stat-scaling';
@@ -329,15 +329,23 @@ export function generateOpponentTeam(
 
 /** Pick one untaken REAL player of a class, or null if that class pool is dry.
  * Recruits keep their real, class-banded ratings (they are not level-scaled): a
- * C-ladder recruit is a real C-class player. */
+ * C-ladder recruit is a real C-class player. Players the home ledger holds FAVOR for
+ * are weighted up (1 + points vs 1), the "they came looking for you" re-offer: run
+ * one's chance encounter seeds run two's reunion, so a favorite's meter can actually
+ * fill instead of stalling on a one-in-a-pool re-roll. */
 function pickRealOfClass(
   cls: PlayerClass,
   taken: Set<string>,
-  rng: RNG
+  rng: RNG,
+  favor: Readonly<Record<string, number>> = {}
 ): RosterPlayer | null {
   const available = poolByClass(cls).filter((p) => !taken.has(p.name));
   if (available.length === 0) return null;
-  return realPlayerToRosterPlayer(rng.pick(available));
+  const favorOf = (p: RealPlayer) => favor[nameKey(p.name, p.position)] ?? 0;
+  const chosen = available.some((p) => favorOf(p) > 0)
+    ? rng.weightedPick(available.map((p) => [p, 1 + favorOf(p)] as const))
+    : rng.pick(available);
+  return realPlayerToRosterPlayer(chosen);
 }
 
 /**
@@ -381,7 +389,8 @@ export function generateRecruitOffers(
   mapProgress: number,
   count: number,
   rng: RNG,
-  exclude: Set<string> = new Set()
+  exclude: Set<string> = new Set(),
+  favor: Readonly<Record<string, number>> = {}
 ): RosterPlayer[] {
   const weights = recruitClassWeights(ladderClass, difficulty);
   const taken = new Set(exclude);
@@ -389,8 +398,8 @@ export function generateRecruitOffers(
   for (let i = 0; i < count; i++) {
     const target = rng.weightedPick(weights);
     const chosen =
-      pickRealOfClass(target, taken, rng) ??
-      pickRealOfClass(ladderClass, taken, rng) ??
+      pickRealOfClass(target, taken, rng, favor) ??
+      pickRealOfClass(ladderClass, taken, rng, favor) ??
       pickAnyUntakenReal(taken, rng) ??
       generatePlayerOfClass(ladderClass, rng.pick(POSITIONS), rng);
     taken.add(chosen.player.name);

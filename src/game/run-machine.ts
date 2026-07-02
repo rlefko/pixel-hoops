@@ -41,7 +41,7 @@ import {
 } from './coaches';
 import { coachForTeamName } from './opponent-coach';
 import { recommendLineup, reorderForCoach, recMinDelta, type CoachRec } from './coach-reco';
-import { legendFavorSnapshot, legendRecruitFavored } from './player-pool';
+import { legendRecruitFavored } from './player-pool';
 import { FAVOR_CHAMPION_BONUS, FAVOR_WIN_POINTS, addFavor } from './favor';
 import {
   MAX_BOOSTS,
@@ -189,9 +189,11 @@ export interface RunModel {
    * end for the un-owned only (see home-roster settleFavor); bounded by the 12-man
    * roster. Optional: old suspended runs default to {}. */
   favor?: Record<string, number>;
-  /** Home favor snapshot filtered to legend keys at initRun, biasing WHICH un-owned
-   * legend the once-per-run reveal offers. Optional: old suspended runs default to {}. */
-  legendFavor?: Record<string, number>;
+  /** The home favor ledger snapshotted at initRun. Biases WHICH un-owned legend the
+   * once-per-run reveal offers and weights favored players up in recruit offers (the
+   * re-offer reunion). Small (un-owned players with favor only) and read-only for the
+   * whole run. Optional: old suspended runs default to {}. */
+  homeFavor?: Record<string, number>;
   /** Recruit nodes in a row without a specialist offered; pity forces one in once
    * it reaches RECRUIT_PITY_THRESHOLD so a specialist build is always reachable. */
   recruitDryStreak: number;
@@ -309,7 +311,7 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
       .filter((p) => (p.legendary ?? false) || p.originalClass === 'S+')
       .map((p) => nameKey(p.player.name, p.position)),
     favor: {},
-    legendFavor: legendFavorSnapshot(homeRoster.favor ?? {}),
+    homeFavor: { ...homeRoster.favor },
     recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
     forgivenLosses: 0,
@@ -736,7 +738,8 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
         mapProgress(core.currentMapIndex),
         RECRUIT_OFFER_COUNT,
         createRNG(deriveSeed(core.seed, `recruit-${nodeId}`)),
-        owned
+        owned,
+        model.homeFavor ?? {}
       );
       // Pity: if no specialist showed and the dry streak is long enough, force one
       // into the last slot so a specialist build is always reachable.
@@ -767,7 +770,7 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
             // gate above kept whether-and-when pure chance-and-pity.
             offer: legendRecruitFavored(
               model.ownedLegendKeys ?? [],
-              model.legendFavor ?? {},
+              model.homeFavor ?? {},
               gateRng
             ),
             fallback: offers,
@@ -1146,7 +1149,8 @@ export function runReducer(
         mapProgress(model.core.currentMapIndex),
         1,
         createRNG(deriveSeed(model.core.seed, `recruit-${nodeId}-reroll-${index}`)),
-        exclude
+        exclude,
+        model.homeFavor ?? {}
       )[0];
       if (!replacement) return model;
       return {

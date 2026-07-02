@@ -511,13 +511,41 @@ export function applyPlayerPull(
 ): { home: HomeRoster; result: PlayerPullResult } {
   const unlockedKeys = new Set(home.players.map(playerKey));
   const collectingCopies = collectingCopyMap(home);
-  const result = pullPlayer(tier, unlockedKeys, collectingCopies, rng);
+  const result = pullPlayer(tier, unlockedKeys, collectingCopies, rng, pullDirection(home, tier));
   // Locked behind ladder progress, or unaffordable: no-op (guarded here too, not just UI).
   if (!machineUnlocked(tier, home.ladderProgress) || home.coins < result.cost) {
     return { home, result };
   }
   // Charge the pull, then deposit the copy (foldPull credits any overflow bounty).
   return { home: foldPull({ ...home, coins: home.coins - result.cost }, result), result };
+}
+
+/** The favor ledger + pinned target a machine's pull steers by. One helper so every
+ * pull channel (paid scout, bounty grant, daily first-win) directs identically. */
+function pullDirection(home: HomeRoster, tier: PlayerGachaTier) {
+  return { favor: home.favor ?? {}, pinnedKey: home.scoutTargets?.[tier] };
+}
+
+/** Pin a scout machine's target: every pull of that machine feeds this player until
+ * owned. Guarded like selectCoach: the key must name an un-owned player in the
+ * machine's pool, else a no-op. */
+export function pinScoutTarget(
+  home: HomeRoster,
+  tier: PlayerGachaTier,
+  key: string
+): HomeRoster {
+  const owned = new Set(home.players.map(playerKey));
+  if (owned.has(key)) return home;
+  if (!tierPool(tier).some((p) => nameKey(p.name, p.position) === key)) return home;
+  return { ...home, scoutTargets: { ...home.scoutTargets, [tier]: key } };
+}
+
+/** Clear a machine's pinned target (falls back to the effective-progress leader). */
+export function clearScoutTarget(home: HomeRoster, tier: PlayerGachaTier): HomeRoster {
+  if (!home.scoutTargets?.[tier]) return home;
+  const scoutTargets = { ...home.scoutTargets };
+  delete scoutTargets[tier];
+  return { ...home, scoutTargets: Object.keys(scoutTargets).length ? scoutTargets : undefined };
 }
 
 /**
@@ -1071,7 +1099,8 @@ export function claimRunBounty(
         reward.tier,
         new Set(next.players.map(playerKey)),
         collectingCopyMap(next),
-        rng
+        rng,
+        pullDirection(next, reward.tier)
       );
       next = foldPull(next, result);
       grant.player = result.player;
@@ -1158,7 +1187,8 @@ export function settleDailyRewards(
       FIRST_WIN_SCOUT_TIER,
       new Set(next.players.map(playerKey)),
       collectingCopyMap(next),
-      rng
+      rng,
+      pullDirection(next, FIRST_WIN_SCOUT_TIER)
     );
     next = foldPull(next, result);
     coins += FIRST_WIN_COINS;

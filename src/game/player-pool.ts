@@ -56,20 +56,6 @@ export function legendRecruit(rng: RNG): RosterPlayer {
   return { ...realPlayerToRosterPlayer(rng.pick(NBA_PLAYERS)), onLoan: true };
 }
 
-/** The home favor ledger filtered to legend keys, snapshotted at run start to bias
- * the once-per-run reveal. Small (only legends with favor) and read-only. */
-export function legendFavorSnapshot(
-  favor: Readonly<Record<string, number>>
-): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const p of NBA_PLAYERS) {
-    const key = nameKey(p.name, p.position);
-    const points = favor[key];
-    if (typeof points === 'number' && points > 0) out[key] = points;
-  }
-  return out;
-}
-
 /**
  * The favor-steered legend reveal: the highest-favor UN-OWNED legend walks in, so the
  * legend a player ran (and maybe lost) with becomes their standing front-runner. When
