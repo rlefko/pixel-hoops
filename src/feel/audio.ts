@@ -4,6 +4,7 @@ import { SFX_SOURCES, SFX_POOL, type SfxName } from '@/audio/sfxManifest';
 import { ensureAudioMode, resolveAudioUri, createResolvedPlayer } from './audioPlayers';
 import { IS_WEB, bestEffort } from './bestEffort';
 import { duck as duckMusic } from './music';
+import { RAPID_CUE_COOLDOWN_MS } from './soundPolicy';
 
 /**
  * Semantic sound-effects wrapper, modeled on ./haptics. Call sites use intent names
@@ -28,12 +29,10 @@ interface Pool {
 }
 const pools = new Map<SfxName, Pool>();
 
-// Rapid UI taps get a short cooldown so fast navigation never machine-guns, plus a small
-// pitch jitter so repeats never sound identical (anti-fatigue). Count ticks share the
-// gate so a fast tally plays a musical stream instead of a machine gun.
-const RAPID_TAPS = new Set<SfxName>(['tapPrimary', 'tapSecondary', 'toggle', 'tick']);
-const TAP_COOLDOWN_MS = 45;
-const lastTapAt = new Map<SfxName, number>();
+// Rapid cues get per-name cooldowns (RAPID_CUE_COOLDOWN_MS in ./soundPolicy) so fast
+// navigation never machine-guns and count tallies stream musically, plus a small
+// pitch jitter so repeats never sound identical (anti-fatigue).
+const lastCueAt = new Map<SfxName, number>();
 let jitterTick = 0;
 
 /** Toggle all sound (wired to FeelSettings.soundEnabled). */
@@ -99,11 +98,12 @@ export async function initSfx(): Promise<void> {
 /** Play one SFX from the start. `rate` (default 1) shifts pitch for variation. */
 function trigger(name: SfxName, rate: number = 1): void {
   if (!enabled || !ready || IS_WEB) return;
-  if (RAPID_TAPS.has(name)) {
+  const cooldown = RAPID_CUE_COOLDOWN_MS[name];
+  if (cooldown !== undefined) {
     const now = Date.now();
-    if (now - (lastTapAt.get(name) ?? 0) < TAP_COOLDOWN_MS) return;
-    lastTapAt.set(name, now);
-    rate *= 0.97 + (jitterTick++ % 4) * 0.02; // subtle pitch variation per tap
+    if (now - (lastCueAt.get(name) ?? 0) < cooldown) return;
+    lastCueAt.set(name, now);
+    rate *= 0.97 + (jitterTick++ % 4) * 0.02; // subtle pitch variation per repeat
   }
   const pool = pools.get(name);
   if (!pool) return;
