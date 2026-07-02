@@ -11,7 +11,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.pixelhoops.app",
-      "buildNumber": "1"
+      "buildNumber": "1",
+      "icon": {
+        "light": "./assets/images/icon.png",
+        "dark": "./assets/images/icon-dark.png",
+        "tinted": "./assets/images/icon-tinted.png"
+      }
     },
     "android": {
       "package": "com.pixelhoops.app",
@@ -35,8 +40,13 @@
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-icon.png",
+          "imageWidth": 320,
           "resizeMode": "contain",
-          "backgroundColor": "#1A1A2E"
+          "backgroundColor": "#1A1A2E",
+          "android": {
+            "image": "./assets/images/splash-icon-android.png",
+            "imageWidth": 288
+          }
         }
       ],
       "expo-asset"
