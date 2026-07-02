@@ -116,7 +116,9 @@ export default function HomeScreen() {
   // can never drift from the tuning), plus ONE rotating goal nudge (coach or court
   // theme, alternating by day so the hub never stacks nudges) and the Daily Layer
   // card: the anticipation layer for climbing.
-  const perks = homeRoster ? difficultyPerks(homeRoster.selectedDifficulty).slice(0, 3) : [];
+  const perks = homeRoster
+    ? difficultyPerks(homeRoster.selectedDifficulty, homeRoster.selectedLadderClass).slice(0, 3)
+    : [];
   const coachNudge = homeRoster
     ? nextCoachNudge(homeRoster.ladderProgress, new Set(homeRoster.ownedCoaches))
     : null;

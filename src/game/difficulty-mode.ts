@@ -80,8 +80,16 @@ export interface DifficultyMods {
    * so harder runs are denser, not longer). */
   trainingBonus: { elite: number; boss: number };
   /** Collection copies deposited per new recruit on a championship. The collector's
-   * reason to climb: the same clear banks 2-4x the copies up-grid. */
+   * reason to climb: the same clear banks 2-4x the copies up-grid. Reach-up recruits
+   * (above the run's ladder class) are exempt: they deposit a single copy (see
+   * collection.REACH_UP_DEPOSIT_COPIES). */
   copiesMul: number;
+  /** Multiplier on the favor a run's wins settle to (see src/game/favor.ts). The
+   * collector's premium on the C/B ladders, where every copies threshold is 1 and the
+   * copies multiplier therefore has nothing to multiply. Kept modest (like coinMul)
+   * because favor accrues from wins as a run progresses; the real spike is the flat
+   * championship bonus, which only a finished run touches. */
+  favorMul: number;
   /** Boss Legend Signings: chance after a non-final boss win that the beaten franchise's
    * legend offers to join, as base + perMap * mapIndex. Zero disables the feature
    * (easy/medium); the reducer additionally gates it to the S / S+ ladders. */
@@ -105,7 +113,7 @@ export function difficultyMods(difficulty: Difficulty): DifficultyMods {
         injuryMul: 1, maxGamesOut: 2, coinMul: 1.0, clearBonus: 0, repMul: 1.0,
         eliteWeightBonus: 0, preBossRest: true,
         rarityBonus: 0, bossRarityBonus: 0, trainingBonus: { elite: 0, boss: 0 },
-        copiesMul: 1, legendSign: { base: 0, perMap: 0 }, milestoneBossWins: null,
+        copiesMul: 1, favorMul: 1.0, legendSign: { base: 0, perMap: 0 }, milestoneBossWins: null,
       };
     case 'medium':
       return {
@@ -114,7 +122,7 @@ export function difficultyMods(difficulty: Difficulty): DifficultyMods {
         injuryMul: 1, maxGamesOut: 2, coinMul: 1.25, clearBonus: 200, repMul: 1.5,
         eliteWeightBonus: 0, preBossRest: true,
         rarityBonus: 2, bossRarityBonus: 4, trainingBonus: { elite: 0, boss: 0 },
-        copiesMul: 2, legendSign: { base: 0, perMap: 0 }, milestoneBossWins: null,
+        copiesMul: 2, favorMul: 1.25, legendSign: { base: 0, perMap: 0 }, milestoneBossWins: null,
       };
     case 'hard':
       return {
@@ -123,7 +131,7 @@ export function difficultyMods(difficulty: Difficulty): DifficultyMods {
         injuryMul: 1.5, maxGamesOut: 3, coinMul: 1.5, clearBonus: 500, repMul: 2.5,
         eliteWeightBonus: 2, preBossRest: true,
         rarityBonus: 4, bossRarityBonus: 9, trainingBonus: { elite: 1, boss: 1 },
-        copiesMul: 3, legendSign: { base: 0.04, perMap: 0.015 }, milestoneBossWins: 4,
+        copiesMul: 3, favorMul: 1.5, legendSign: { base: 0.04, perMap: 0.015 }, milestoneBossWins: 4,
       };
     case 'insane':
       return {
@@ -132,17 +140,22 @@ export function difficultyMods(difficulty: Difficulty): DifficultyMods {
         injuryMul: 1.75, maxGamesOut: 3, coinMul: 1.8, clearBonus: 1000, repMul: 4.0,
         eliteWeightBonus: 3, preBossRest: false,
         rarityBonus: 6, bossRarityBonus: 15, trainingBonus: { elite: 2, boss: 2 },
-        copiesMul: 4, legendSign: { base: 0.06, perMap: 0.02 }, milestoneBossWins: 4,
+        copiesMul: 4, favorMul: 2.0, legendSign: { base: 0.06, perMap: 0.02 }, milestoneBossWins: 4,
       };
   }
 }
 
 /** Short perk tags for a difficulty (the selector chips and the victory step-up
- * pitch), derived from the mods so the UI can never drift from the tuning. */
-export function difficultyPerks(difficulty: Difficulty): string[] {
+ * pitch), derived from the mods so the UI can never drift from the tuning. Ladder-
+ * aware when a class is given: on the C/B ladders every copies threshold is 1 and
+ * reach-ups cap at one copy, so the copies multiplier is dead there and the honest
+ * collector chip is the favor multiplier instead. */
+export function difficultyPerks(difficulty: Difficulty, ladderClass?: LadderClass): string[] {
   const m = difficultyMods(difficulty);
   const perks: string[] = [];
-  if (m.copiesMul > 1) perks.push(`x${m.copiesMul} COPIES`);
+  const copiesMulDead = ladderClass === 'C' || ladderClass === 'B';
+  if (m.copiesMul > 1 && !copiesMulDead) perks.push(`x${m.copiesMul} COPIES`);
+  else if (m.favorMul > 1) perks.push(`x${m.favorMul} FAVOR`);
   if (m.rarityBonus > 0 || m.bossRarityBonus > 0) perks.push('RICHER DROPS');
   if (m.trainingBonus.boss > 0) perks.push('+TRAINING');
   if (m.legendSign.base > 0) perks.push('LEGEND SIGNINGS');
@@ -154,7 +167,7 @@ export function difficultyPerks(difficulty: Difficulty): string[] {
 export const DIFFICULTY_LABELS: Record<Difficulty, { name: string; blurb: string }> = {
   easy: { name: 'EASY', blurb: '8 draft points, 2 timeouts. The gentle climb.' },
   medium: { name: 'MEDIUM', blurb: '5 points, 1 timeout, elites from map 1.' },
-  hard: { name: 'HARD', blurb: '3 points, no timeouts, glass bones. Pays triple copies.' },
+  hard: { name: 'HARD', blurb: '3 points, no timeouts, glass bones. Pays richer copies and favor.' },
   insane: { name: 'INSANE', blurb: '2 points, no timeouts, peak opponents. The jackpot tier.' },
 };
 

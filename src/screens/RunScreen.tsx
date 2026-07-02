@@ -381,7 +381,7 @@ export default function RunScreen() {
         const stepUp = nextDifficulty
           ? {
               label: `RUN IT BACK ON ${DIFFICULTY_LABELS[nextDifficulty].name}`,
-              perks: difficultyPerks(nextDifficulty).slice(0, 3).join(' · '),
+              perks: difficultyPerks(nextDifficulty, model.ladderClass).slice(0, 3).join(' · '),
               onPress: () => actions.stepUpRun(nextDifficulty),
             }
           : undefined;
