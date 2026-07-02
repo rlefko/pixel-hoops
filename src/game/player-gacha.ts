@@ -4,6 +4,7 @@ import { nameKey, type RosterPlayer } from '@/types/roster';
 import { poolByClass, realPlayerToRosterPlayer } from './player-pool';
 import { CLASS_ORDER, type PlayerClass } from './ratings';
 import { copiesToOwn, overflowBounty } from './collection';
+import { FAVOR_PER_COPY } from './favor';
 import type { Difficulty, LadderClass } from './difficulty-mode';
 import type { RNG } from './rng';
 
@@ -17,11 +18,15 @@ import type { RNG } from './rng';
  * COPIES MODE: a pull grants ONE copy toward owning a player of that tier's class.
  * Rarer classes need more copies to unlock (see collection.copiesToOwn), so a single
  * pull is a step, not an instant sign. To keep a chase from scattering across the whole
- * tier, a pull always feeds the un-owned player CLOSEST to unlocking; the copy that
+ * tier, a pull feeds a PINNED scout target when one is set (the player's explicit
+ * chase, see home-roster.scoutTargets), else the un-owned player with the highest
+ * EFFECTIVE progress: copies plus the banked-favor fraction (src/game/favor.ts), which
+ * reduces to the classic closest-to-unlock rule when nobody has favor. The copy that
  * reaches the threshold unlocks (makes draftable). Once every player in a tier is owned,
  * further pulls OVERFLOW into a coin bounty (collection.overflowBounty), the successor to
- * the old flat half-refund. Pure and deterministic from the seeded RNG; the caller
- * charges coins, banks the bounty, and moves the copy into the collection.
+ * the old flat half-refund. Pure and deterministic from the seeded RNG plus the ledgers
+ * passed in; the caller charges coins, banks the bounty, and moves the copy into the
+ * collection.
  *
  * ACCESS GATE: high tiers are locked until you have climbed the ladder (see
  * machineUnlocked), so a flush wallet can never rush an S star on easy.
@@ -102,6 +107,17 @@ function realKey(rp: RealPlayer): string {
   return nameKey(rp.name, rp.position);
 }
 
+/** Whether a collection key names a player in a machine's pool (pin validation). */
+export function tierHasPlayer(tier: PlayerGachaTier, key: string): boolean {
+  return tierPool(tier).some((rp) => realKey(rp) === key);
+}
+
+/** The machine tier that scouts a class, derived from the machine table so the
+ * inverse map can never desync (null for the unscouted D / S++). */
+export function tierForClass(cls: PlayerClass): PlayerGachaTier | null {
+  return PLAYER_GACHA_TIERS.find((t) => PLAYER_MACHINES[t].cls === cls) ?? null;
+}
+
 export interface TierCounts {
   /** How many of the tier's players are fully OWNED (unlocked). */
   owned: number;
@@ -140,6 +156,66 @@ export function tierCounts(
   };
 }
 
+/** What the machine card's target chip shows: the exact player the next pull will
+ * feed, or null when the pull would tie-break on RNG (a fresh tier) or the tier is
+ * complete. RNG-free twin of pullPlayer's selection, so the chip can never lie. */
+export interface ScoutTarget {
+  player: RosterPlayer;
+  key: string;
+  copies: number;
+  threshold: number;
+  /** Banked favor points for the target (0 when none). */
+  favor: number;
+  /** Whether the target is an explicit pin (vs the effective-progress leader). */
+  pinned: boolean;
+}
+
+/** The co-leaders a pull selects among: the PINNED target alone when set and
+ * un-owned, else every un-owned player tied at the highest effective progress.
+ * The ONE selection rule shared by pullPlayer (which rng.picks a leader) and
+ * scoutTargetFor (which shows a target only when the leader is unique), so the
+ * card chip can never disagree with the machine by construction. */
+function pullLeaders(
+  tier: PlayerGachaTier,
+  unlockedKeys: ReadonlySet<string>,
+  collectingCopies: Readonly<Record<string, number>>,
+  favor: Readonly<Record<string, number>>,
+  pinnedKey?: string
+): { leaders: RealPlayer[]; pinned: boolean; best: number } {
+  const cls = PLAYER_MACHINES[tier].cls;
+  const unowned = tierPool(tier).filter((rp) => !unlockedKeys.has(realKey(rp)));
+  const pin = pinnedKey ? unowned.find((rp) => realKey(rp) === pinnedKey) : undefined;
+  if (pin) return { leaders: [pin], pinned: true, best: 0 };
+  const score = (rp: RealPlayer) =>
+    effectiveProgress(collectingCopies[realKey(rp)] ?? 0, favor[realKey(rp)] ?? 0, cls);
+  const best = unowned.length > 0 ? Math.max(...unowned.map(score)) : 0;
+  return { leaders: unowned.filter((rp) => score(rp) === best), pinned: false, best };
+}
+
+/** The player the next pull of this machine will deterministically feed (see
+ * ScoutTarget): the pin, or a UNIQUE effective-progress leader; null when the
+ * pull would tie-break on the RNG (a fresh tier) or the tier is complete. */
+export function scoutTargetFor(
+  tier: PlayerGachaTier,
+  unlockedKeys: ReadonlySet<string>,
+  collectingCopies: Readonly<Record<string, number>>,
+  favor: Readonly<Record<string, number>> = {},
+  pinnedKey?: string
+): ScoutTarget | null {
+  const { leaders, pinned, best } = pullLeaders(tier, unlockedKeys, collectingCopies, favor, pinnedKey);
+  if (leaders.length !== 1 || (!pinned && best <= 0)) return null;
+  const rp = leaders[0];
+  const key = realKey(rp);
+  return {
+    player: realPlayerToRosterPlayer(rp),
+    key,
+    copies: collectingCopies[key] ?? 0,
+    threshold: copiesToOwn(PLAYER_MACHINES[tier].cls),
+    favor: favor[key] ?? 0,
+    pinned,
+  };
+}
+
 export interface PlayerPullResult {
   /** The player who received the copy, wrapped as a deployable roster player. */
   player: RosterPlayer;
@@ -160,34 +236,64 @@ export interface PlayerPullResult {
   overflowCoins: number;
 }
 
+/** Optional favor direction for a pull: the home favor ledger and the machine's
+ * pinned target. Both default empty, which reproduces the classic behavior exactly. */
+export interface PullDirection {
+  favor?: Readonly<Record<string, number>>;
+  pinnedKey?: string;
+}
+
+/** A player's effective chase progress: whole copies plus the banked-favor fraction.
+ * For the legendary tier favor IS the progress (copies are always 0 and S+ never
+ * converts), so raw points order the queue there. */
+function effectiveProgress(
+  copies: number,
+  favorPoints: number,
+  cls: PlayerClass
+): number {
+  const perCopy = FAVOR_PER_COPY[cls] ?? 0;
+  return copies + (perCopy > 0 ? favorPoints / perCopy : favorPoints);
+}
+
 /**
- * Pull one copy from a machine (deterministic from the seeded RNG). Feeds the un-owned
- * player CLOSEST to unlocking (so a chase resolves in ~threshold pulls instead of
- * scattering); the copy that reaches the threshold unlocks. When every player in the
- * tier is owned, returns an OVERFLOW coin bounty and no new copy. Does NOT charge coins
- * or move the copy; the caller does both (see home-roster.applyPlayerPull).
+ * Pull one copy from a machine (deterministic from the seeded RNG plus the ledgers the
+ * caller passes). Selection among the un-owned: the PINNED target first (an explicit,
+ * player-chosen chase), else the highest EFFECTIVE progress (copies + banked favor
+ * fraction, a strict generalization of the classic closest-to-unlock rule: identical
+ * when nobody has favor), seeded-RNG tie-break. The copy that reaches the threshold
+ * unlocks. When every player in the tier is owned, returns an OVERFLOW coin bounty and
+ * no new copy. Does NOT charge coins or move the copy; the caller does both (see
+ * home-roster.applyPlayerPull).
  */
 export function pullPlayer(
   tier: PlayerGachaTier,
   unlockedKeys: ReadonlySet<string>,
   collectingCopies: Readonly<Record<string, number>>,
-  rng: RNG
+  rng: RNG,
+  direction: PullDirection = {}
 ): PlayerPullResult {
   const cost = PLAYER_MACHINES[tier].cost;
   const cls = PLAYER_MACHINES[tier].cls;
   const threshold = copiesToOwn(cls);
   const pool = tierPool(tier);
-  const unowned = pool.filter((rp) => !unlockedKeys.has(realKey(rp)));
-  if (unowned.length > 0) {
-    // Concentrate on the player nearest to unlocking (most copies so far); ties break
-    // on the seeded RNG so a fresh tier still starts somewhere reproducible.
-    const progress = unowned.map((rp) => ({ rp, copies: collectingCopies[realKey(rp)] ?? 0 }));
-    const best = Math.max(...progress.map((p) => p.copies));
-    const pick = rng.pick(progress.filter((p) => p.copies === best));
-    const newCopies = pick.copies + 1;
+  // A pinned target takes the copy outright; otherwise the copy lands on the highest
+  // effective progress, ties broken on the seeded RNG so a fresh tier still starts
+  // somewhere reproducible (see pullLeaders, shared with the card's target chip).
+  const { leaders } = pullLeaders(
+    tier,
+    unlockedKeys,
+    collectingCopies,
+    direction.favor ?? {},
+    direction.pinnedKey
+  );
+  if (leaders.length > 0) {
+    // Always one rng.pick (a singleton picks itself), so the draw count per pull is
+    // stable and downstream consumers of a shared RNG stay reproducible.
+    const pick = rng.pick(leaders);
+    const newCopies = (collectingCopies[realKey(pick)] ?? 0) + 1;
     return {
-      player: realPlayerToRosterPlayer(pick.rp),
-      targetKey: realKey(pick.rp),
+      player: realPlayerToRosterPlayer(pick),
+      targetKey: realKey(pick),
       cls,
       threshold,
       newCopies,

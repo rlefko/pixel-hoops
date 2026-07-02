@@ -74,6 +74,7 @@ export default function RunScreen() {
     wonPlayers,
     bountyGrant,
     dailyGrants,
+    favorRows,
     collectProgress,
     equippedCoachId,
   } = useRun();
@@ -381,7 +382,7 @@ export default function RunScreen() {
         const stepUp = nextDifficulty
           ? {
               label: `RUN IT BACK ON ${DIFFICULTY_LABELS[nextDifficulty].name}`,
-              perks: difficultyPerks(nextDifficulty).slice(0, 3).join(' · '),
+              perks: difficultyPerks(nextDifficulty, model.ladderClass).slice(0, 3).join(' · '),
               onPress: () => actions.stepUpRun(nextDifficulty),
             }
           : undefined;
@@ -393,6 +394,7 @@ export default function RunScreen() {
             wins={model.wins}
             unlockedClass={unlockedClass}
             progressed={progressed}
+            favorRows={favorRows}
             coinsBanked={model.core.rewards.coins}
             stepUp={stepUp}
             dailyGrants={dailyGrants}
@@ -423,6 +425,7 @@ export default function RunScreen() {
           coinsBanked={model.core.rewards.coins}
           unlockedClass={unlockedClass}
           progressed={progressed}
+          favorRows={favorRows}
           lossMargin={lossMargin}
           lossClock={lossClock}
           nextUnlockLabel={nextUnlockLabel}

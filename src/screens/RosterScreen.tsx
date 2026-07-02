@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
@@ -7,8 +7,19 @@ import { StaggerIn } from '@/components/fx';
 import { useHubBackdrop } from '@/feel';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
+import { FavorIcon } from '@/components/run/PixelIcons';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { collectingRosterPlayers, ownedRosterPlayers, totalUpgrades } from '@/game/home-roster';
+import {
+  clearScoutTarget,
+  collectingRosterPlayers,
+  ownedRosterPlayers,
+  pinScoutTarget,
+  playerKey,
+  totalUpgrades,
+} from '@/game/home-roster';
+import { FAVOR_PER_COPY } from '@/game/favor';
+import { tierForClass } from '@/game/player-gacha';
+import { playerDraftClass } from '@/game/draft';
 import { CLASS_ORDER, type PlayerClass } from '@/game/ratings';
 import {
   availableClasses,
@@ -44,6 +55,10 @@ const RosterRow = memo(function RosterRow({
   entering,
   expanded,
   onToggle,
+  pinnable,
+  pinned,
+  favorLabel,
+  onPin,
 }: {
   rp: RosterPlayer;
   collect?: { copies: number; threshold: number };
@@ -51,6 +66,12 @@ const RosterRow = memo(function RosterRow({
   entering: boolean;
   expanded: boolean;
   onToggle: (rp: RosterPlayer) => void;
+  /** In-progress rows only: this player can be pinned as their machine's scout target. */
+  pinnable?: boolean;
+  pinned?: boolean;
+  /** Banked favor toward the next copy (e.g. "23/40 FAVOR"), when any. */
+  favorLabel?: string | null;
+  onPin?: (rp: RosterPlayer) => void;
 }) {
   return (
     <StaggerIn index={index} enabled={entering} style={styles.row}>
@@ -61,6 +82,15 @@ const RosterRow = memo(function RosterRow({
         expanded={expanded}
         onToggleExpand={() => onToggle(rp)}
       />
+      {pinnable ? (
+        <Pressable onPress={() => onPin?.(rp)} style={styles.pinRow} hitSlop={space(1)}>
+          <FavorIcon size={10} color={pinned ? palette.gold : palette.inkDim} />
+          {favorLabel ? <Text style={styles.pinFavor}>{favorLabel}</Text> : null}
+          <Text style={[styles.pinText, pinned && styles.pinTextActive]}>
+            {pinned ? 'SCOUT TARGET' : 'SET SCOUT TARGET'}
+          </Text>
+        </Pressable>
+      ) : null}
     </StaggerIn>
   );
 });
@@ -70,7 +100,7 @@ type BrowseItem = { rp: RosterPlayer; collect?: { copies: number; threshold: num
 
 export default function RosterScreen() {
   const nav = useArcadeRouter();
-  const { homeRoster, loaded } = useHomeRoster();
+  const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const { screenProps } = useHubBackdrop();
   // Cascade the cards in once on first appearance, then snap recycled rows (no scroll strobe).
   const [entering, setEntering] = useState(true);
@@ -89,6 +119,28 @@ export default function RosterScreen() {
   // spread follows the player across re-sorts and filters (the collection can hold
   // duplicate name/position pairs, and ownedRosterPlayers returns stable instances).
   const [expanded, setExpanded] = useState<RosterPlayer | null>(null);
+  // Pin (or unpin) an in-progress player as their machine's scout target, so every
+  // pull of that machine feeds this exact chase (pin/clear are no-ops on invalid
+  // keys). The ref keeps the callback identity-stable across saves, so a pin tap
+  // only re-renders the rows whose pinned/favor props actually changed.
+  const homeRosterRef = useRef(homeRoster);
+  homeRosterRef.current = homeRoster;
+  const onPin = useCallback(
+    (rp: RosterPlayer) => {
+      const home = homeRosterRef.current;
+      if (!home) return;
+      const tier = tierForClass(playerDraftClass(rp));
+      if (!tier) return;
+      const key = playerKey(rp);
+      saveHomeRoster(
+        home.scoutTargets?.[tier] === key
+          ? clearScoutTarget(home, tier)
+          : pinScoutTarget(home, tier, key)
+      );
+    },
+    [saveHomeRoster]
+  );
+
   // Stable toggle so memoized rows only re-render when their own expanded flag flips.
   const onToggle = useCallback(
     (rp: RosterPlayer) => setExpanded((prev) => (prev === rp ? null : rp)),
@@ -217,16 +269,30 @@ export default function RosterScreen() {
         contentContainerStyle={styles.listContent}
         data={shown}
         keyExtractor={(item, i) => `${item.rp.player.name}-${item.rp.position}-${i}`}
-        renderItem={({ item, index }) => (
-          <RosterRow
-            rp={item.rp}
-            collect={item.collect}
-            index={index}
-            entering={entering}
-            expanded={expanded === item.rp}
-            onToggle={onToggle}
-          />
-        )}
+        renderItem={({ item, index }) => {
+          // Pin/favor props exist only on the in-progress tab: the favor ledger holds
+          // un-owned players only, so the owned tab would derive nulls per row.
+          const tier = showCollecting ? tierForClass(playerDraftClass(item.rp)) : null;
+          const key = tier ? playerKey(item.rp) : '';
+          const favorPoints = tier ? (homeRoster.favor[key] ?? 0) : 0;
+          const perCopy = tier ? (FAVOR_PER_COPY[playerDraftClass(item.rp)] ?? 0) : 0;
+          return (
+            <RosterRow
+              rp={item.rp}
+              collect={item.collect}
+              index={index}
+              entering={entering}
+              expanded={expanded === item.rp}
+              onToggle={onToggle}
+              pinnable={tier != null}
+              pinned={tier != null && homeRoster.scoutTargets?.[tier] === key}
+              favorLabel={
+                favorPoints > 0 && perCopy > 0 ? `${favorPoints}/${perCopy} FAVOR` : null
+              }
+              onPin={onPin}
+            />
+          );
+        }}
         extraData={expanded}
         windowSize={5}
         initialNumToRender={10}
@@ -292,6 +358,24 @@ const styles = StyleSheet.create({
   },
   list: { marginTop: space(2), alignSelf: 'stretch' },
   listContent: { gap: space(2), paddingBottom: space(4) },
+  pinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(1.5),
+    paddingVertical: space(1),
+    paddingHorizontal: space(1),
+  },
+  pinFavor: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.steelBlue,
+  },
+  pinText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
+  pinTextActive: { color: palette.gold },
   row: {
     borderBottomWidth: BORDER.thin,
     borderBottomColor: palette.bgPanel,

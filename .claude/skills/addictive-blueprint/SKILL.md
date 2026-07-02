@@ -11,7 +11,7 @@ This skill is a design tool, not a rubber stamp. Be honest and specific. A featu
 
 ## Step 1: Load the source of truth
 
-Read `docs/addictive-blueprint.md`. The 15-criterion checklist near the bottom is authoritative; if it has changed, use the changed version, not the list reproduced anywhere else. Also skim `docs/gameplay-redesign.md` for how the current game works (auto-sim 5-on-5, agency in roster, game plan, and the branching run map), so scoring is grounded in the real game, not a generic one.
+Read `docs/addictive-blueprint.md`. The checklist near the bottom (18 criteria as of the collection-pacing amendment) is authoritative; if it has changed, use the changed version, not the list reproduced anywhere else, and take the passing bar from the checklist's own intro line. Also skim `docs/gameplay-redesign.md` for how the current game works (auto-sim 5-on-5, agency in roster, game plan, and the branching run map), so scoring is grounded in the real game, not a generic one.
 
 ## Step 2: Identify the feature under review
 
@@ -25,12 +25,12 @@ If the feature is unclear or underspecified, ask one short clarifying question b
 
 ## Step 3: Score each criterion
 
-For each of the 15 criteria in the checklist, assign:
+For each criterion in the checklist, assign:
 
 - **pass**: the feature clearly satisfies the yes/no test.
 - **partial**: it satisfies the spirit but has a gap or depends on something not yet designed.
 - **fail**: it does not satisfy the test.
-- **n/a**: the criterion genuinely does not apply (use sparingly, and justify it). An n/a does not count against the feature but also does not count toward the 12-of-15 bar; say so.
+- **n/a**: the criterion genuinely does not apply (use sparingly, and justify it). An n/a does not count against the feature but also does not count toward the passing bar; say so.
 
 Judge against the real game. For example, "immediate feedback" should reference the juice systems the game actually has (count-up scores, screen shake, callouts, haptics). For each criterion give a one-sentence justification tied to the feature, not a restatement of the criterion.
 
@@ -38,7 +38,7 @@ Judge against the real game. For example, "immediate feedback" should reference 
 
 Output, in this order:
 
-1. **Verdict line:** the feature name, the score as `X / 15 passed` (count `pass` only; note partials and n/a separately), and whether it clears the **12-of-15** bar.
+1. **Verdict line:** the feature name, the score as `X / N passed` against the checklist's current criterion count (count `pass` only; note partials and n/a separately), and whether it clears the bar the checklist's intro line states (14 of 18 as of the collection-pacing amendment).
 2. **Scorecard table:** one row per criterion: number, short name, verdict, one-sentence justification.
 3. **Top gaps:** the 2 to 4 most important `fail` or `partial` items, each with a concrete, specific fix phrased as an action ("add a count-up on the recruit's stat reveal", not "improve feedback").
 4. **Strengths:** 1 to 3 things the feature does well, so they are preserved.

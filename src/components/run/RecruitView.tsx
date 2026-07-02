@@ -53,6 +53,9 @@ export function RecruitView({
           ? `Signed for this run. A clear banks x${copiesMul} collection copies.`
           : 'Signed for this run. Clear the run to keep them.'}
       </Text>
+      <Text style={styles.favorPitch}>
+        Un-owned recruits earn favor every game they win. Favor banks, win or lose.
+      </Text>
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
         {offers.map((rp, i) => {
@@ -128,6 +131,13 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
     color: palette.gold,
+    textAlign: 'center',
+    marginTop: space(1),
+  },
+  favorPitch: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.steelBlue,
     textAlign: 'center',
     marginTop: space(1),
   },
