@@ -322,6 +322,59 @@ describe('reorderForCoach position coherence', () => {
   });
 });
 
+describe('search cost properties', () => {
+  const counting = (): { build: (r: Roster) => Team; count: () => number } => {
+    let builds = 0;
+    return {
+      build: (r) => {
+        builds += 1;
+        return buildHome(r);
+      },
+      count: () => builds,
+    };
+  };
+
+  it('a hopeless bench never builds a single team (every candidate prunes on style)', () => {
+    const roster: Roster = {
+      starters: fiveAt(17, 'cost-strong'),
+      bench: [flatPlayer('cost-weak', 'PG', 7)],
+    };
+    const counter = counting();
+    reorderForCoach({
+      roster,
+      coach: getCoach('gregg-popovich'), // S+, smart: the expensive matchup branch
+      opponent,
+      buildHome: counter.build,
+    });
+    expect(counter.count()).toBe(0);
+  });
+
+  it('an S+ smart-coach search stays far below the exhaustive sweep', () => {
+    // Full 5+5 roster with real upgrades: pre-pruning this cost 5 steps x (1 baseline
+    // + up to 25 swap builds); pruning pays only for candidates that beat the running
+    // best, so the budget stays an order of magnitude lower.
+    const roster: Roster = {
+      starters: fiveAt(10, 'cost-s'),
+      bench: [
+        flatPlayer('cost-b0', 'PG', 16),
+        flatPlayer('cost-b1', 'SG', 15),
+        flatPlayer('cost-b2', 'SF', 14),
+        flatPlayer('cost-b3', 'PF', 16),
+        flatPlayer('cost-b4', 'C', 15),
+      ],
+    };
+    const counter = counting();
+    const result = reorderForCoach({
+      roster,
+      coach: getCoach('gregg-popovich'),
+      opponent,
+      buildHome: counter.build,
+    });
+    expect(result.changes).toBe(5); // the full reshape still happens
+    expect(counter.count()).toBeLessThanOrEqual(30);
+  });
+});
+
 describe('recMinDelta', () => {
   it('demands a bigger edge on easy than on insane, and less on bosses', () => {
     expect(recMinDelta('easy', 'game')).toBeGreaterThan(recMinDelta('insane', 'game'));

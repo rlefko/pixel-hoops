@@ -59,21 +59,25 @@ export interface RecommendArgs {
 
 // --- Matchup proxy ----------------------------------------------------------
 
-/** The matchup edge for the home side, in rating points (>0 favors home). Reuses the
- * sim's own off/def composites and the frozen archetype counter, so it correlates
- * with simulated outcomes by construction. */
-function matchupScore(home: Team, away: Team): number {
+/** A matchup scorer against a fixed away team: the home edge in rating points
+ * (>0 favors home). Reuses the sim's own off/def composites and the frozen archetype
+ * counter, so it correlates with simulated outcomes by construction. A factory
+ * because the away side is constant for a whole search: its composites and archetype
+ * are derived once here instead of on every candidate evaluation. */
+function makeMatchupScorer(away: Team): (home: Team) => number {
   // Unrounded composites (not teamStats.off/def, which are integer-rounded) so the
   // search can discriminate subtle, sub-one-point lineup edges.
-  const homeOff = offRaw(home.teamStats);
-  const homeDef = defRaw(home.teamStats);
   const awayOff = offRaw(away.teamStats);
   const awayDef = defRaw(away.teamStats);
-  const ratingEdge = homeOff - awayDef - (awayOff - homeDef);
-  const ha = deriveArchetype(home);
   const aa = deriveArchetype(away);
-  const counter = (counterEdge(ha, aa) - counterEdge(aa, ha)) * Q_TO_RATING;
-  return ratingEdge + counter;
+  return (home) => {
+    const homeOff = offRaw(home.teamStats);
+    const homeDef = defRaw(home.teamStats);
+    const ratingEdge = homeOff - awayDef - (awayOff - homeDef);
+    const ha = deriveArchetype(home);
+    const counter = (counterEdge(ha, aa) - counterEdge(aa, ha)) * Q_TO_RATING;
+    return ratingEdge + counter;
+  };
 }
 
 // --- Playstyle fit + coach strength -----------------------------------------
@@ -141,28 +145,13 @@ function injured(rp: RosterPlayer): boolean {
   return (rp.gamesOut ?? 0) > 0;
 }
 
-interface Swap {
-  roster: Roster;
-  out: RosterPlayer;
-  in: RosterPlayer;
-}
-
-/** Every single bench<->starter swap of healthy incoming players. */
-function singleSwaps(roster: Roster): Swap[] {
-  const swaps: Swap[] = [];
-  for (let s = 0; s < roster.starters.length; s++) {
-    for (let b = 0; b < roster.bench.length; b++) {
-      const incoming = roster.bench[b];
-      if (injured(incoming)) continue; // cannot start a hurt player
-      const outgoing = roster.starters[s];
-      const starters = roster.starters.slice();
-      const bench = roster.bench.slice();
-      starters[s] = incoming;
-      bench[b] = outgoing;
-      swaps.push({ roster: { starters, bench }, out: outgoing, in: incoming });
-    }
-  }
-  return swaps;
+/** The roster after swapping bench[b] into the five at starters[s]. */
+function swapRoster(roster: Roster, s: number, b: number): Roster {
+  const starters = roster.starters.slice();
+  const bench = roster.bench.slice();
+  starters[s] = roster.bench[b];
+  bench[b] = roster.starters[s];
+  return { starters, bench };
 }
 
 const GAIN_EPS = 1e-6;
@@ -223,47 +212,71 @@ export function reorderForCoach(args: ReorderArgs): ReorderResult {
   const { roster, coach, buildHome, opponent } = args;
   const budget = budgetForClass(coach.class);
   const matchupW = matchupWeightForIq(coach.iq);
+  // Only a smart coach with an opponent threads the matchup; the away side is fixed
+  // for the whole search, so its composites/archetype are derived once in the scorer.
+  const scoreMatchup = matchupW > 0 && opponent ? makeMatchupScorer(opponent) : null;
 
   // Value players by their EFFECTIVE line (item + ability + in-run training baked),
   // the same one the sim fields, so the coach never overlooks a trained-up or geared
-  // player by reading their base stats. Baked once, keyed by player identity.
+  // player by reading their base stats. Fit and class rank depend only on that line,
+  // the position, and the coach, so both are baked once per player up front.
   const all = [...roster.starters, ...roster.bench];
   const effList = effectivePlayers(all);
-  const effByRef = new Map<RosterPlayer, PlayerStats>();
-  all.forEach((rp, i) => effByRef.set(rp, effList[i].player.stats));
-  const eff = (rp: RosterPlayer): PlayerStats => effByRef.get(rp) ?? rp.player.stats;
-  const fit = (rp: RosterPlayer): number => playerFit(eff(rp), rp.position, coach);
-  const rank = (rp: RosterPlayer): number => classRank(eff(rp), rp.position);
+  const fitByRef = new Map<RosterPlayer, number>();
+  const rankByRef = new Map<RosterPlayer, number>();
+  all.forEach((rp, i) => {
+    const stats = effList[i].player.stats;
+    fitByRef.set(rp, playerFit(stats, rp.position, coach));
+    rankByRef.set(rp, classRank(stats, rp.position));
+  });
+  const fit = (rp: RosterPlayer): number =>
+    fitByRef.get(rp) ?? playerFit(rp.player.stats, rp.position, coach);
+  const rank = (rp: RosterPlayer): number =>
+    rankByRef.get(rp) ?? classRank(rp.player.stats, rp.position);
 
   let current = roster;
   let styleGain = 0;
 
   for (let step = 0; step < budget; step++) {
     if (current.bench.length === 0) break;
-    // Baseline matchup for this step (only a smart coach with an opponent threads it).
-    const baseMatchup =
-      matchupW > 0 && opponent ? matchupScore(buildHome(current), opponent) : 0;
-    let best: { swap: Swap; gain: number; styleGain: number } | null = null;
-    for (const swap of singleSwaps(current)) {
-      // Keep the team's guard/big balance: a big only replaces a big and a perimeter
-      // player only replaces a perimeter player, so the coach never discards a ball
-      // handler for another center or stacks the frontcourt.
-      if (isBig(swap.in.position) !== isBig(swap.out.position)) continue;
-      // Quality anchor: never trade a higher-class player out for a lower-class one
-      // just to fit the style.
-      if (rank(swap.in) < rank(swap.out)) continue;
-      const sGain = fit(swap.in) - fit(swap.out);
-      // A smarter coach is penalized for a style move that worsens the matchup (avoids
-      // a bad counter) but never chases the matchup over its style.
-      const mGain =
-        matchupW > 0 && opponent
-          ? matchupScore(buildHome(swap.roster), opponent) - baseMatchup
-          : 0;
-      const gain = sGain + matchupW * Math.min(0, mGain);
-      if (gain > GAIN_EPS && (!best || gain > best.gain)) best = { swap, gain, styleGain: sGain };
+    // Baseline matchup for this step, computed lazily on the first candidate that
+    // survives the style pruning below: a step whose candidates all prune costs no
+    // team builds at all (and then breaks the search).
+    let baseMatchup: number | null = null;
+    let best: { starter: number; bench: number; gain: number; styleGain: number } | null = null;
+    for (let s = 0; s < current.starters.length; s++) {
+      for (let b = 0; b < current.bench.length; b++) {
+        const incoming = current.bench[b];
+        if (injured(incoming)) continue; // cannot start a hurt player
+        const outgoing = current.starters[s];
+        // Keep the team's guard/big balance: a big only replaces a big and a perimeter
+        // player only replaces a perimeter player, so the coach never discards a ball
+        // handler for another center or stacks the frontcourt.
+        if (isBig(incoming.position) !== isBig(outgoing.position)) continue;
+        // Quality anchor: never trade a higher-class player out for a lower-class one
+        // just to fit the style.
+        if (rank(incoming) < rank(outgoing)) continue;
+        const sGain = fit(incoming) - fit(outgoing);
+        // The matchup term below only ever subtracts (min(0, ...)), so a swap whose
+        // style gain cannot already clear the bar or the current best can never win.
+        // Skip it before paying for the team build; acceptance is strict (>), so a
+        // swap that could at most tie loses either way, and the pick is unchanged.
+        if (sGain <= GAIN_EPS || (best !== null && sGain <= best.gain)) continue;
+        // A smarter coach is penalized for a style move that worsens the matchup
+        // (avoids a bad counter) but never chases the matchup over its style.
+        let mGain = 0;
+        if (scoreMatchup) {
+          baseMatchup ??= scoreMatchup(buildHome(current));
+          mGain = scoreMatchup(buildHome(swapRoster(current, s, b))) - baseMatchup;
+        }
+        const gain = sGain + matchupW * Math.min(0, mGain);
+        if (gain > GAIN_EPS && (!best || gain > best.gain)) {
+          best = { starter: s, bench: b, gain, styleGain: sGain };
+        }
+      }
     }
     if (!best) break;
-    current = best.swap.roster;
+    current = swapRoster(current, best.starter, best.bench);
     styleGain += Math.max(0, best.styleGain);
   }
 
