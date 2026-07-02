@@ -32,7 +32,8 @@ Before committing any change:
 1. Run a **reuse** subagent: check if existing utilities, hooks, or components can be reused rather than rewritten.
 2. Run a **simplification** subagent: ensure the code is not needlessly complex.
 3. Run a **readability** subagent: confirm the code is clear and consistent with surrounding patterns.
-4. Apply any findings from the above agents before committing.
+4. Run a **performance** subagent: check the change against the performance conventions in `docs/performance-conventions.md` (the `perf-review` skill runs this check end to end).
+5. Apply any findings from the above agents before committing.
 
 ## Documentation
 
