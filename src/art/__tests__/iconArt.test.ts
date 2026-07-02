@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { hexToRgba, type Canvas, type RGBA } from '@/art/pixelCanvas';
+import {
+  hexToRgba,
+  opaqueBounds,
+  toGrayscale,
+  type Canvas,
+  type RGBA,
+} from '@/art/pixelCanvas';
 import {
   buildMaster,
   buildMark,
@@ -7,8 +13,6 @@ import {
   buildBackground,
   buildSplash,
   LOGICAL,
-  SPLASH_W,
-  SPLASH_H,
 } from '@/art/iconArt';
 import { palette } from '@/theme/palette';
 
@@ -86,6 +90,21 @@ describe('iconArt', () => {
     expect(hasColor(c, ORANGE)).toBe(true);
   });
 
+  it('mark art stays within 13px of center (Android splash circle safety)', () => {
+    // The baker insets the mark to 75% of the Android splash canvas; that is
+    // only mask-safe (192dp visible circle of 288dp) while every opaque pixel
+    // sits within radius 13 of the 32-grid center. See generate-icon.ts.
+    const c = buildMark();
+    for (let y = 0; y < c.h; y++) {
+      for (let x = 0; x < c.w; x++) {
+        if (c.data[(y * c.w + x) * 4 + 3] === 0) continue;
+        const dx = x + 0.5 - LOGICAL / 2;
+        const dy = y + 0.5 - LOGICAL / 2;
+        expect(Math.hypot(dx, dy)).toBeLessThanOrEqual(13);
+      }
+    }
+  });
+
   it('background is fully opaque (Android requires it)', () => {
     expect(isFullyOpaque(buildBackground())).toBe(true);
   });
@@ -102,10 +121,30 @@ describe('iconArt', () => {
     }
   });
 
-  it('splash carries the two-tone wordmark', () => {
+  it('splash carries the two-tone wordmark with no dead padding', () => {
     const c = buildSplash();
-    expect([c.w, c.h]).toEqual([SPLASH_W, SPLASH_H]);
     expect(hasColor(c, INK)).toBe(true); // "PIXEL"
     expect(hasColor(c, ORANGE)).toBe(true); // "HOOPS" + ball
+    // The canvas hugs its content so expo-splash-screen's imageWidth maps to
+    // visible logo: at most the authored 2px of breathing room on every side.
+    const b = opaqueBounds(c);
+    expect(b.x0).toBeLessThanOrEqual(2);
+    expect(b.y0).toBeLessThanOrEqual(2);
+    expect(c.w - 1 - b.x1).toBeLessThanOrEqual(2);
+    expect(c.h - 1 - b.y1).toBeLessThanOrEqual(2);
+  });
+
+  it('grayscale mark (iOS tinted icon) is neutral and alpha-preserving', () => {
+    const mark = buildMark();
+    const c = toGrayscale(mark);
+    let sawGray = false;
+    for (let i = 0; i < c.data.length; i += 4) {
+      expect(c.data[i + 3]).toBe(mark.data[i + 3]);
+      if (c.data[i + 3] === 0) continue;
+      expect(c.data[i]).toBe(c.data[i + 1]);
+      expect(c.data[i + 1]).toBe(c.data[i + 2]);
+      sawGray = true;
+    }
+    expect(sawGray).toBe(true);
   });
 });

@@ -17,7 +17,7 @@ import { mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Jimp, ResizeStrategy } from 'jimp';
-import { Canvas } from '../src/art/pixelCanvas';
+import { Canvas, toGrayscale } from '../src/art/pixelCanvas';
 import {
   buildMark,
   buildMaster,
@@ -32,6 +32,16 @@ const FG_CANVAS = 512;
 const FG_ART = 320; // 0.625 of 512, comfortably inside the 66% circle
 const MONO_CANVAS = 432;
 const MONO_ART = 256; // 0.59 of 432, inside the 72dp safe zone
+
+// Android 12+ shows the splash image masked to a centered circle: the icon
+// canvas is 288dp and only the middle 192dp circle is visible. The Android
+// splash is therefore the square mark alone, inset so every drawn pixel stays
+// inside that circle (the mark's art spans ~0.72 of its logical canvas).
+const SPLASH_ANDROID_CANVAS = 1024;
+// 0.75 of 1024. Safe because the mark's farthest opaque pixel sits within 13 of
+// the 32-grid center (unit-tested), and 13/16 * 768/2 = 312 < the 341px mask
+// radius (192dp of 288dp).
+const SPLASH_ANDROID_ART = 768;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = join(here, '..', 'assets', 'images');
@@ -49,6 +59,20 @@ function toJimp(c: Canvas): JimpImage {
 function rendered(c: Canvas, px: number): JimpImage {
   const img = toJimp(c);
   img.resize({ w: px, h: px, mode: ResizeStrategy.NEAREST_NEIGHBOR });
+  return img;
+}
+
+/** A fresh jimp image of `c` (any aspect), nearest-neighbor scaled by an integer
+ * factor so its longest side lands at or just above `minLongSide`. Keeping the
+ * factor integral keeps every logical pixel an even block. */
+function renderedTall(c: Canvas, minLongSide: number): JimpImage {
+  const factor = Math.ceil(minLongSide / Math.max(c.w, c.h));
+  const img = toJimp(c);
+  img.resize({
+    w: c.w * factor,
+    h: c.h * factor,
+    mode: ResizeStrategy.NEAREST_NEIGHBOR,
+  });
   return img;
 }
 
@@ -79,20 +103,37 @@ function centered(art: JimpImage, size: number): JimpImage {
 async function main(): Promise<void> {
   mkdirSync(outDir, { recursive: true });
 
-  // iOS + base icon: opaque navy master, 1024.
-  const icon = rendered(buildMaster(), 1024);
+  const master = buildMaster();
+  const mark = buildMark();
+
+  // iOS light + base icon: opaque navy master, 1024.
+  const icon = rendered(master, 1024);
   assertOpaque(icon, 'icon.png');
   await write(icon, 'icon.png');
 
-  // Web favicon: same master, tiny.
-  await write(rendered(buildMaster(), 48), 'favicon.png');
+  // iOS 18 appearance variants: dark keeps the mark on transparency (the system
+  // paints its own dark backdrop); tinted is the same art collapsed to grayscale
+  // for the system to recolor. Alpha is allowed (and expected) in both.
+  await write(rendered(mark, 1024), 'icon-dark.png');
+  await write(rendered(toGrayscale(mark), 1024), 'icon-tinted.png');
 
-  // Splash: mark + wordmark on transparent (splash bg paints the navy).
-  await write(rendered(buildSplash(), 1024), 'splash-icon.png');
+  // Web favicon: same master at an integer 2x of the logical grid, so the tiny
+  // PNG keeps even pixel blocks instead of 1.5x mush.
+  await write(rendered(master, 64), 'favicon.png');
+
+  // Splash lockup (iOS): mark + wordmark on transparent, canvas cropped tight to
+  // the art (the splash bg paints the navy).
+  await write(renderedTall(buildSplash(), 1024), 'splash-icon.png');
+
+  // Splash (Android): square mark only, inset for the 12+ circular splash mask.
+  await write(
+    centered(rendered(mark, SPLASH_ANDROID_ART), SPLASH_ANDROID_CANVAS),
+    'splash-icon-android.png'
+  );
 
   // Android adaptive foreground: transparent, mark inside the safe zone.
   await write(
-    centered(rendered(buildMark(), FG_ART), FG_CANVAS),
+    centered(rendered(mark, FG_ART), FG_CANVAS),
     'android-icon-foreground.png'
   );
 
@@ -105,7 +146,7 @@ async function main(): Promise<void> {
     'android-icon-monochrome.png'
   );
 
-  console.log(`\nWrote 6 icon assets to ${outDir}`);
+  console.log(`\nWrote 9 icon assets to ${outDir}`);
   console.log('Verify by eye before committing:');
   console.log('  qlmanage -t -s 512 -o /tmp assets/images/icon.png && open /tmp/icon.png.png');
 }
