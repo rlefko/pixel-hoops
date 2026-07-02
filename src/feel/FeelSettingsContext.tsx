@@ -12,13 +12,7 @@ import { AppState } from 'react-native';
 import { useLowPowerMode } from './useLowPowerMode';
 import { setHapticsEnabled } from './haptics';
 import { setSoundEnabled, setSoundVolume, setAudioActive, initSfx } from './audio';
-import {
-  setMusicEnabled,
-  setMusicVolume,
-  setMusicActive,
-  initMusic,
-  playMusicContext,
-} from './music';
+import { setMusicEnabled, setMusicVolume, setMusicActive, playMusicContext } from './music';
 import { isSoundEffective, isMusicEffective } from './soundPolicy';
 import { getJSON } from '@/storage/storage';
 import { createDebouncedWriter, type DebouncedWriter } from '@/storage/debouncedWriter';
@@ -170,24 +164,24 @@ export function FeelSettingsProvider({ children }: { children: ReactNode }) {
     if (soundEffective) void initSfx();
   }, [soundEffective]);
 
-  // Background music mirrors the SFX wiring exactly (enabled gate above lazy init, live
-  // volume, lazy build only once effective), with its own enabled/volume settings.
+  // Background music mirrors the SFX wiring, except the module loads its beds lazily per
+  // declared context, so the effective flag IS the init: no separate build step, and a
+  // player who keeps music off (or boots in Low Power Mode) never loads a single bed.
+  // The flag must include hydration, since the module gates all loading on it.
   const musicEffective = isMusicEffective(hydrated, settings.musicEnabled, lowPowerMode);
   useEffect(() => {
-    setMusicEnabled(settings.musicEnabled && !lowPowerMode);
-  }, [settings.musicEnabled, lowPowerMode]);
+    setMusicEnabled(musicEffective);
+  }, [musicEffective]);
   useEffect(() => {
     setMusicVolume(settings.musicVolume);
   }, [settings.musicVolume]);
+  // The baseline context, declared once: hubs and the run map play the calm menu bed
+  // without each screen having to ask. Screens override it (RunScreen declares 'run'),
+  // and re-declaring here on every effective flip would stomp that override mid-run
+  // (e.g. Low Power Mode lifting during a game), so this is mount-only.
   useEffect(() => {
-    if (musicEffective) void initMusic();
-  }, [musicEffective]);
-  // Default to the calm menu/hub bed once music is effective. Screens override the context
-  // (RunScreen switches to the game bed during the watch); this is just the baseline so
-  // hubs and the run map play music without each screen having to ask.
-  useEffect(() => {
-    if (musicEffective) playMusicContext('menu');
-  }, [musicEffective]);
+    playMusicContext('menu');
+  }, []);
 
   // Latest effective-sound, read by the AppState handler below without re-subscribing.
   const soundEffectiveRef = useRef(soundEffective);
