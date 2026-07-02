@@ -1,12 +1,7 @@
-import { Asset } from 'expo-asset';
-import {
-  createAudioPlayer,
-  setAudioModeAsync,
-  setIsAudioActiveAsync,
-  type AudioPlayer,
-} from 'expo-audio';
+import { setIsAudioActiveAsync, type AudioPlayer } from 'expo-audio';
 import type { Rarity } from '@/game/rarity';
 import { SFX_SOURCES, SFX_POOL, type SfxName } from '@/audio/sfxManifest';
+import { ensureAudioMode, resolveAudioUri, createResolvedPlayer } from './audioPlayers';
 import { IS_WEB, bestEffort } from './bestEffort';
 import { duck as duckMusic } from './music';
 
@@ -70,36 +65,23 @@ export function setAudioActive(active: boolean): void {
 
 /**
  * Build the audio session and preload every SFX once. Called at app boot. Safe to call
- * more than once. The audio mode MUST be set before any player is created so iOS does
- * not deactivate the user's music and Android does not grab exclusive focus.
+ * more than once.
  */
 export async function initSfx(): Promise<void> {
   if (initStarted || IS_WEB) return;
   initStarted = true;
 
-  try {
-    await setAudioModeAsync({
-      playsInSilentMode: false, // respect the iOS ringer switch (settings copy says so)
-      interruptionMode: 'mixWithOthers', // never pause the user's Spotify; fixes Android self-pause
-      shouldPlayInBackground: false,
-      allowsRecording: false,
-    });
-  } catch {
-    /* sound is best-effort */
-  }
+  await ensureAudioMode();
 
   const names = Object.keys(SFX_SOURCES) as SfxName[];
   await Promise.all(
     names.map(async (name) => {
       try {
-        // Resolve to a local file URI first: a bare require() into createAudioPlayer can
-        // fail silently in release builds (expo/expo#40448). This also warms first play.
-        const [asset] = await Asset.loadAsync(SFX_SOURCES[name]);
-        const uri = asset?.localUri ?? asset?.uri;
+        const uri = await resolveAudioUri(SFX_SOURCES[name]);
         if (!uri) return;
         const size = SFX_POOL[name] ?? 1;
         const players = Array.from({ length: size }, () => {
-          const player = createAudioPlayer({ uri });
+          const player = createResolvedPlayer(uri);
           player.shouldCorrectPitch = false; // let playbackRate detune the pitch (chiptune jitter)
           return player;
         });

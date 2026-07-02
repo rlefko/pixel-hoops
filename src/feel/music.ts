@@ -1,6 +1,6 @@
-import { Asset } from 'expo-asset';
-import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
+import type { AudioPlayer } from 'expo-audio';
 import { MUSIC_SOURCES, type MusicName } from '@/audio/musicManifest';
+import { createLoadedPlayer, ensureAudioMode } from './audioPlayers';
 import { IS_WEB, bestEffort } from './bestEffort';
 
 /**
@@ -17,8 +17,8 @@ import { IS_WEB, bestEffort } from './bestEffort';
  * Volume is a single source of truth: each player's volume = masterVolume * its own factor
  * (crossfade for a main bed, energy for the layer) * duckFactor. Tweens animate the
  * FACTORS, never the player volume directly, so crossfade, duck, and the live slider never
- * fight. It does NOT configure the audio session: initSfx owns the one shared
- * setAudioModeAsync; background pause/resume is driven by setMusicActive.
+ * fight. The audio session itself is owned by ./audioPlayers (ensureAudioMode); background
+ * pause/resume is driven by setMusicActive.
  */
 
 export type MusicContext = 'menu' | 'run';
@@ -233,13 +233,12 @@ export function playMusicContext(ctx: MusicContext): void {
 export async function initMusic(): Promise<void> {
   if (initStarted || IS_WEB) return;
   initStarted = true;
+  await ensureAudioMode();
   await Promise.all(
     [...MAIN_TRACKS, ENERGY_TRACK].map(async (name) => {
       try {
-        const [asset] = await Asset.loadAsync(MUSIC_SOURCES[name]);
-        const uri = asset?.localUri ?? asset?.uri;
-        if (!uri) return;
-        const player = createAudioPlayer({ uri });
+        const player = await createLoadedPlayer(MUSIC_SOURCES[name]);
+        if (!player) return;
         player.loop = true;
         player.volume = 0; // start silent; fades bring it in
         if (name === ENERGY_TRACK) {
