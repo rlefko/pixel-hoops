@@ -8,6 +8,8 @@ import {
   type ShakeViewHandle,
   FlashOverlay,
   type FlashOverlayHandle,
+  CrowdPulse,
+  type CrowdPulseHandle,
   Scanlines,
   Counter,
   Callout,
@@ -16,7 +18,8 @@ import {
 } from '@/components/fx';
 import { CourtView } from '@/components/game/CourtView';
 import { eventGapMs } from '@/components/game/possession';
-import { computeMomentum } from '@/game/momentum';
+import { computeCrowdPulses, type CrowdPulsePlan } from '@/game/crowd-pulse';
+import { computeMomentum, type MomentumInfo } from '@/game/momentum';
 import { computeHotState } from '@/game/streaks';
 import {
   haptics,
@@ -51,6 +54,28 @@ function colorForEvent(e: SimEvent): string {
 }
 
 const isWinner = (e: SimEvent): boolean => e.callout === 'BUZZER BEATER!';
+
+/** The edge-pulse color for a planned crowd beat: gold for the walk-off, the
+ * scorer's color for a big play, the NEW leader's color on a lead change, and
+ * the chapter marker's steel blue on a quarter break. */
+function pulseColorFor(
+  plan: CrowdPulsePlan,
+  e: SimEvent,
+  m: MomentumInfo | undefined,
+  homeTeam: Team,
+  awayTeam: Team
+): string {
+  switch (plan.kind) {
+    case 'winner':
+      return palette.gold;
+    case 'bigPlay':
+      return e.team === 'home' ? homeTeam.colorHex : awayTeam.colorHex;
+    case 'leadChange':
+      return (m?.margin ?? 0) > 0 ? homeTeam.colorHex : awayTeam.colorHex;
+    case 'quarterBreak':
+      return palette.steelBlue;
+  }
+}
 
 /**
  * Playback-rate (and thus pitch) for a made-shot sound. A golden-ratio walk off the
@@ -113,6 +138,7 @@ export function PlayByPlayFeed({
   const [landed, setLanded] = useState<SimEvent | null>(null);
   const shakeRef = useRef<ShakeViewHandle>(null);
   const flashRef = useRef<FlashOverlayHandle>(null);
+  const crowdPulseRef = useRef<CrowdPulseHandle>(null);
   const completedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
@@ -132,10 +158,11 @@ export function PlayByPlayFeed({
   // (presentation only, no sim changes): per-event momentum (runs, lead changes,
   // crunch, the clincher), the one beat where crunch begins ("CRUNCH TIME!"),
   // the events that get game-winner cinema (the buzzer-beater or the clincher;
-  // at most one per game), and the quarter chapter markers ("END Q1 · 18-12",
-  // riding the first QUARTER_NOTE_EVENTS events of the new quarter). Purely
-  // derived, so there are no timers to clean up.
-  const { momentum, crunchStartSeq, cinemaSeqs, quarterNotes } = useMemo(() => {
+  // at most one per game), the quarter chapter markers ("END Q1 · 18-12",
+  // riding the first QUARTER_NOTE_EVENTS events of the new quarter), and the
+  // crowd plan (which beats pulse the edges / stir the apron crowd, budget-capped
+  // in computeCrowdPulses). Purely derived, so there are no timers to clean up.
+  const { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan } = useMemo(() => {
     const momentum = computeMomentum(timeline);
     let crunchStartSeq = -1;
     const cinemaSeqs = new Set<number>();
@@ -154,7 +181,8 @@ export function PlayByPlayFeed({
         }
       }
     }
-    return { momentum, crunchStartSeq, cinemaSeqs, quarterNotes };
+    const crowdPlan = computeCrowdPulses(timeline, momentum);
+    return { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan };
   }, [timeline]);
 
   // Outcome feedback, tiered so routine plays stay quiet and only special moments
@@ -267,13 +295,30 @@ export function PlayByPlayFeed({
     [momentum, quarterNotes, crunchStartSeq, hotState, homeTeam, awayTeam]
   );
 
+  // The planned crowd beat (edge pulse), landing with the same arrival as the
+  // play's own juice. Quarter breaks stay silent in highlights mode, matching
+  // the chapter markers they accompany.
+  const applyCrowdBeat = useCallback(
+    (e: SimEvent) => {
+      const plan = crowdPlan.get(e.seq);
+      if (!plan) return;
+      if (plan.kind === 'quarterBreak' && pacingRef.current.highlightsOnly) return;
+      crowdPulseRef.current?.pulse(
+        plan.tier,
+        pulseColorFor(plan, e, momentum.get(e.seq), homeTeam, awayTeam)
+      );
+    },
+    [crowdPlan, momentum, homeTeam, awayTeam]
+  );
+
   const handleArrival = useCallback(
     (e: SimEvent) => {
       setLanded(e);
       applyOutcomeJuice(e);
       applyNarrativeJuice(e);
+      applyCrowdBeat(e);
     },
-    [applyOutcomeJuice, applyNarrativeJuice]
+    [applyOutcomeJuice, applyNarrativeJuice, applyCrowdBeat]
   );
 
   // Scheduler: reveal the next event after a possession-length delay so the ball
@@ -433,6 +478,8 @@ export function PlayByPlayFeed({
           />
         ) : null}
         {crunchLive && arcadeExtras ? <CrunchVignette /> : null}
+        {/* Always mounted, gated inside pulse() (the FlashOverlay convention). */}
+        <CrowdPulse ref={crowdPulseRef} />
         <Scanlines />
         <FlashOverlay ref={flashRef} />
       </ShakeView>

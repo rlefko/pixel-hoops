@@ -5,6 +5,7 @@ export { StaggerIn } from './StaggerIn';
 export { LiveChip } from './LiveChip';
 export { ArcadeBackdrop } from './ArcadeBackdrop';
 export { CrtVignette } from './CrtVignette';
+export { CrowdPulse, type CrowdPulseHandle } from './CrowdPulse';
 export { CrunchVignette } from './CrunchVignette';
 export { FlashOverlay, type FlashOverlayHandle } from './FlashOverlay';
 export { ShakeView, type ShakeViewHandle } from './ShakeView';
