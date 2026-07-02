@@ -11,6 +11,7 @@ export { ShakeView, type ShakeViewHandle } from './ShakeView';
 export { Scanlines } from './Scanlines';
 export { Callout } from './Callout';
 export { SvgCourt } from './SvgCourt';
+export { PixelCrowd, type PixelCrowdHandle } from './PixelCrowd';
 export { PixelPlayer } from './PixelPlayer';
 export { ParticleBurst, type BurstVariant } from './ParticleBurst';
 export { BallFlight } from './BallFlight';
