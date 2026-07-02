@@ -148,8 +148,21 @@ export interface HomeRoster {
    * to the highest effective progress (copies + favor), i.e. the classic
    * closest-to-unlock rule. */
   scoutTargets?: Partial<Record<PlayerGachaTier, string>>;
+  /** Hub "since you left" ledger (v19): the values the player last ACKNOWLEDGED by
+   * viewing the surface that owns them. A hub focus stamps `coins`; a Hall of Fame
+   * mount stamps `crestCells` (an exact cell set, which is also the crest-shelf
+   * celebration's one-shot guard); a roster-browser mount stamps `copyTotal`
+   * (threshold-weighted, see hubCopyTotal). Deltas derive as current minus seen,
+   * clamped to gains, so a badge can never fabricate or invert a rise. */
+  hubSeen?: HubSeen;
 }
 
+// v19 adds the hub "since you left" ledger (`hubSeen`): the coin/crest/copy values the
+// player last acknowledged on the hub, the Hall of Fame, and the roster browser (the
+// gold delta chips and the crest-shelf pop-in derive from it, so it doubles as the
+// celebration's one-shot guard). On older saves every field backfills to the CURRENT
+// (post-migration) values — never zero — so a veteran's first launch after the update
+// shows no retroactive delta and replays no crest ceremony.
 // v18 adds the favor ledger (`favor`, playerKey -> points for un-owned players) and
 // the pinned scout targets (`scoutTargets`). Older saves default to an empty ledger
 // and no pins (no value migration), with ONE goodwill exception: in-progress A-class
@@ -207,7 +220,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 18;
+const HOME_ROSTER_VERSION = 19;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -305,8 +318,9 @@ export function resolveDraftRotation(
 
 /** A fresh home roster: the starting twelve (5 D + 5 C + 2 B), nothing unlocked. */
 export function createRookieRoster(rng: RNG): HomeRoster {
+  const players = buildStartingTwelve(rng);
   return {
-    players: buildStartingTwelve(rng),
+    players,
     collecting: [],
     coins: 0,
     reputation: 0,
@@ -326,6 +340,8 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     clearedCells: [],
     courtTheme: DEFAULT_COURT_THEME_ID,
     favor: {},
+    // A fresh install (and the Settings reset) starts fully acknowledged: no deltas.
+    hubSeen: { coins: 0, crestCells: [], copyTotal: hubCopyTotal({ players, collecting: [] }) },
   };
 }
 
@@ -1215,6 +1231,102 @@ export function settleDailyRewards(
   return { home: next, granted };
 }
 
+// --- The hub "since you left" ledger ------------------------------------------------
+// Returning to the hub should close the last session's reward loop: surfaces whose
+// numbers rose since the player last LOOKED wear a small gold delta chip that clears
+// on viewing the owning screen (never on tapping the badge). The ledger records what
+// was acknowledged; deltas derive as current minus seen, clamped to gains, so a chip
+// only ever reports a real, earned rise (the honest-engagement contract: a badge that
+// points at nothing new spends trust the whole system runs on).
+
+export interface HubSeen {
+  coins: number;
+  /** Crest cells acknowledged (cellKey strings). An exact set rather than a count, so
+   * the shelf pops exactly the NEW cells with no reliance on clearedCells ordering. */
+  crestCells: string[];
+  /** Threshold-weighted collection total acknowledged (see hubCopyTotal). */
+  copyTotal: number;
+}
+
+/** Milestone counts the crest shelf celebrates with a full burst. */
+export const CREST_MILESTONES = [5, 10, 15, 20];
+
+/**
+ * Monotonic collection progress: every in-progress copy counts 1 and every OWNED
+ * player counts its full class threshold. Each deposited copy — scout pull, favor
+ * conversion, settle deposit — raises this by exactly the copies deposited,
+ * INCLUDING the copy that graduates a player (collecting loses threshold-1 while
+ * players gains threshold: net +1). A raw copy sum is non-monotonic at graduation,
+ * which would read as a negative delta on the hub.
+ */
+export function hubCopyTotal(home: Pick<HomeRoster, 'players' | 'collecting'>): number {
+  return (
+    (home.collecting ?? []).reduce((n, c) => n + c.copies, 0) +
+    home.players.reduce((n, p) => n + copiesToOwn(playerDraftClass(p)), 0)
+  );
+}
+
+/** The snapshot that means "everything acknowledged right now". */
+export function currentHubSeen(home: HomeRoster): HubSeen {
+  return {
+    coins: home.coins,
+    crestCells: [...(home.clearedCells ?? [])],
+    copyTotal: hubCopyTotal(home),
+  };
+}
+
+/** Clamped gains since the ledger was stamped. A missing ledger reads as fully
+ * acknowledged (zero deltas) — the safe default for any unexpected state. */
+export function hubDeltas(home: HomeRoster): { coins: number; crests: number; copies: number } {
+  const seen = home.hubSeen;
+  if (!seen) return { coins: 0, crests: 0, copies: 0 };
+  return {
+    coins: Math.max(0, home.coins - seen.coins),
+    crests: newCrestCells(home).length,
+    copies: Math.max(0, hubCopyTotal(home) - seen.copyTotal),
+  };
+}
+
+/** The cleared cells not yet acknowledged, in clearedCells order (drives the
+ * crest-shelf pop-in). Empty when the ledger is missing: never replay a ceremony. */
+export function newCrestCells(home: HomeRoster): string[] {
+  if (!home.hubSeen) return [];
+  const seen = new Set(home.hubSeen.crestCells);
+  return (home.clearedCells ?? []).filter((c) => !seen.has(c));
+}
+
+/**
+ * Re-stamp part of the ledger (each surface stamps only what it owns). Returns the
+ * SAME reference when nothing changes, so a mount effect can call it unconditionally
+ * without triggering a save loop.
+ */
+export function stampHubSeen(home: HomeRoster, patch: Partial<HubSeen>): HomeRoster {
+  const base = home.hubSeen ?? currentHubSeen(home);
+  const next: HubSeen = {
+    coins: patch.coins ?? base.coins,
+    crestCells: patch.crestCells ?? base.crestCells,
+    copyTotal: patch.copyTotal ?? base.copyTotal,
+  };
+  const sameCells =
+    next.crestCells === base.crestCells ||
+    (next.crestCells.length === base.crestCells.length &&
+      next.crestCells.every((c, i) => c === base.crestCells[i]));
+  if (
+    home.hubSeen != null &&
+    next.coins === base.coins &&
+    next.copyTotal === base.copyTotal &&
+    sameCells
+  ) {
+    return home;
+  }
+  return { ...home, hubSeen: next };
+}
+
+/** Crest milestones crossed moving seen -> total, ascending (5/10/15/20). */
+export function crestMilestonesCrossed(seenCount: number, totalCount: number): number[] {
+  return CREST_MILESTONES.filter((m) => seenCount < m && totalCount >= m);
+}
+
 export function serializeHomeRoster(home: HomeRoster): SerializedHomeRoster {
   return { version: HOME_ROSTER_VERSION, data: home };
 }
@@ -1453,10 +1565,14 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     }
   }
 
+  // The final wallet includes the pre-v10 ability refund; the hubSeen backfill must
+  // see this same value or a veteran's refund would masquerade as a fresh delta.
+  const coins = (typeof data.coins === 'number' ? data.coins : 0) + abilities.refund;
+
   return {
     players,
     collecting,
-    coins: (typeof data.coins === 'number' ? data.coins : 0) + abilities.refund,
+    coins,
     reputation: typeof data.reputation === 'number' ? data.reputation : 0,
     upgrades: savedUpgrades,
     abilityInventory: abilities.inventory,
@@ -1491,6 +1607,41 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     weekly: sanitizeWeekly(data.weekly),
     favor,
     scoutTargets: sanitizeScoutTargets(data.scoutTargets, ownedNow),
+    // v19: the hub since-you-left ledger. Missing/garbage fields backfill to the
+    // CURRENT (post-migration) values, never zero: silencing a delta is safe,
+    // fabricating one (or replaying the crest ceremony) is not.
+    hubSeen: sanitizeHubSeen(data.hubSeen, { coins, clearedCells, players, collecting }),
+  };
+}
+
+/** Field-wise validation for the hub ledger: each invalid field falls back to the
+ * current value (fully acknowledged), mirroring how clearedCells drops bad keys. */
+function sanitizeHubSeen(
+  raw: unknown,
+  current: {
+    coins: number;
+    clearedCells: string[];
+    players: RosterPlayer[];
+    collecting: CollectingPlayer[];
+  }
+): HubSeen {
+  const fallback: HubSeen = {
+    coins: current.coins,
+    crestCells: [...current.clearedCells],
+    copyTotal: hubCopyTotal(current),
+  };
+  if (!raw || typeof raw !== 'object') return fallback;
+  const { coins, crestCells, copyTotal } = raw as Record<string, unknown>;
+  return {
+    coins:
+      typeof coins === 'number' && Number.isFinite(coins) ? Math.floor(coins) : fallback.coins,
+    crestCells: Array.isArray(crestCells)
+      ? crestCells.filter((k): k is string => typeof k === 'string' && k in BOUNTIES)
+      : fallback.crestCells,
+    copyTotal:
+      typeof copyTotal === 'number' && Number.isFinite(copyTotal)
+        ? Math.floor(copyTotal)
+        : fallback.copyTotal,
   };
 }
 
