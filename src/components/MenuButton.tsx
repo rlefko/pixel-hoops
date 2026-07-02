@@ -20,13 +20,13 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
  * border, thicker bottom edge, and an optional idle attract glow) that physically
  * presses down on touch (translate + squish) and fires a haptic plus a quick
  * accent flash. The repo had no shared button before this; the home screen uses
- * it to build a clear NEW RUN > tiles > small-row hierarchy through `variant`,
- * `color`, and `attract`. Every effect degrades under reduced motion (no
- * transform, no glow, a static dim-on-press instead), so it stays accessible.
+ * it to build a clear NEW RUN > wide rows > tile grid hierarchy through
+ * `variant`, `color`, and `attract`. Every effect degrades under reduced motion
+ * (no transform, no glow, a static dim-on-press instead), so it stays accessible.
  */
 
-type MenuButtonVariant = 'hero' | 'wide' | 'tile' | 'small';
-type MenuHaptic = 'selection' | 'success' | 'light';
+type MenuButtonVariant = 'hero' | 'wide' | 'tile';
+type MenuHaptic = 'selection' | 'success';
 
 interface MenuButtonProps {
   label: string;
@@ -78,14 +78,9 @@ const VARIANTS: Record<MenuButtonVariant, VariantConfig> = {
     haptic: 'selection', flash: false,
   },
   tile: {
-    minHeight: space(22), padV: space(3), padH: space(2), border: BORDER.chunkier, bottom: 5,
-    font: FONT_SIZE.body, direction: 'column', gap: space(2), depth: 3, tint: '22',
+    minHeight: space(16), padV: space(1.5), padH: space(2), border: BORDER.chunkier, bottom: 5,
+    font: FONT_SIZE.small, direction: 'column', gap: space(1), depth: 3, tint: '22',
     haptic: 'selection', flash: true,
-  },
-  small: {
-    minHeight: space(12), padV: space(1.5), padH: space(2), border: BORDER.thin, bottom: 2,
-    font: FONT_SIZE.micro, direction: 'column', gap: space(1), depth: 1, tint: '14',
-    haptic: 'light', flash: false,
   },
 };
 
