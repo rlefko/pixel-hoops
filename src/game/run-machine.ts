@@ -943,7 +943,7 @@ export function runReducer(
 
     case 'setCoachRec': {
       // Lands the async coach scout. Applies only to the pregame it was computed for,
-      // and only while that pregame has never resolved a rec (undefined = not computed;
+      // and only while that pregame has never resolved a rec (undefined = not computed yet;
       // null = computed/cleared), so a late result can never land on a different node,
       // a replay, or a roster the player already edited.
       if (model.phase.kind !== 'pregame') return model;

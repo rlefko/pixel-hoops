@@ -104,7 +104,7 @@ export function useRun() {
   // frame's interactions settle, landing it via setCoachRec. The reducer guards a late
   // result (same pregame, same node, still unresolved), and any dispatch changes
   // `model`, which cancels a pending task and re-evaluates: a stale model can never be
-  // searched. undefined = not computed; null = resolved (accepted/edited/replay/below
+  // searched. undefined = not computed yet; null = resolved (accepted/edited/replay/below
   // the bar), so resolved pregames and resumed saves never recompute.
   useEffect(() => {
     if (!model || model.phase.kind !== 'pregame' || model.phase.coachRec !== undefined) return;
@@ -238,7 +238,10 @@ export function useRun() {
     if (isSummary) clearActiveRun();
   }, [model, homeRoster, saveHomeRoster, clearActiveRun]);
 
-  const actions = useMemo(
+  // Dispatch-only actions, memoized once: dispatch from useReducer is identity-stable,
+  // so these callbacks never change and memoized children (the run-map tiles) keep
+  // their props across win-banks and settles instead of re-rendering on every save.
+  const dispatchActions = useMemo(
     () => ({
       chooseNode: (nodeId: string) => dispatch({ type: 'chooseNode', nodeId }),
       confirmDraft: (starters: RosterPlayer[], bench: RosterPlayer[]) =>
@@ -249,9 +252,6 @@ export function useRun() {
         dispatch({ type: 'setLineup', starters, bench }),
       cancelLineup: () => dispatch({ type: 'cancelLineup' }),
       acceptCoachRec: () => dispatch({ type: 'acceptCoachRec' }),
-      // Equip a newly-won coach for the next run (a home mutation, not a run action),
-      // straight from the unlock reveal so it feeds the next run.
-      equipCoach: (id: string) => homeRoster && saveHomeRoster(selectCoach(homeRoster, id)),
       enterGame: () => dispatch({ type: 'enterGame' }),
       finishReplay: () => dispatch({ type: 'finishReplay' }),
       resolveGameResult: () => dispatch({ type: 'resolveGameResult' }),
@@ -282,6 +282,16 @@ export function useRun() {
       declineLegendSign: () => dispatch({ type: 'declineLegendSign' }),
       skipNode: () => dispatch({ type: 'skipNode' }),
       backToMap: () => dispatch({ type: 'backToMap' }),
+    }),
+    []
+  );
+
+  // Home-roster actions carry their live snapshot, so only these re-memoize on saves.
+  const homeActions = useMemo(
+    () => ({
+      // Equip a newly-won coach for the next run (a home mutation, not a run action),
+      // straight from the unlock reveal so it feeds the next run.
+      equipCoach: (id: string) => homeRoster && saveHomeRoster(selectCoach(homeRoster, id)),
       // Start a fresh run from the summary. The finished run already settled, so drop its
       // saved slot before the new run's first auto-save takes it over.
       newRun: () => {
@@ -301,6 +311,11 @@ export function useRun() {
       },
     }),
     [homeRoster, saveHomeRoster, clearActiveRun]
+  );
+
+  const actions = useMemo(
+    () => ({ ...dispatchActions, ...homeActions }),
+    [dispatchActions, homeActions]
   );
 
   // Per-offer collection status for the recruit node + drop screen: OWNED (recruiting is

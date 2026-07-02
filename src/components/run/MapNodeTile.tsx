@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
@@ -45,7 +45,11 @@ interface MapNodeTileProps {
   paused?: boolean;
 }
 
-export function MapNodeTile({
+// Memoized: a win stamps 2-3 node objects (traverseTo + the result), but the map
+// re-renders wholesale (banked coins, idle flips, settings sheets); memo keeps the
+// other ~11 SVG tiles from re-rendering with it. All props are primitives or
+// identity-stable (RunMapView passes stable callbacks and per-tile paused).
+export const MapNodeTile = memo(function MapNodeTile({
   node,
   index,
   count,
@@ -178,7 +182,7 @@ export function MapNodeTile({
       </Text>
     </View>
   );
-}
+});
 
 const GLOW_PAD = 5;
 // Logos read a touch larger than the old basketball glyph (NODE_SIZE * 0.46).
