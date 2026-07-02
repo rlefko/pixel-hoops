@@ -40,6 +40,20 @@ function hrefToPath(href: Href): string {
 }
 
 /**
+ * Resolves after the next frame paints. The action's React commit flushes in a
+ * scheduled task that runs BEFORE the next frame's rAF, so a heavy destination
+ * mount (an elite tip-off's game screen, a dense hub) delays that frame and the
+ * first rAF fires only once the commit has landed; the second gives the mount a
+ * frame to paint. Waiting here keeps the reveal from racing the commit and
+ * dissolving over the outgoing screen while the UI thread stalls mid-animation.
+ */
+function afterCommit(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
+/**
  * Build the wipe config for a navigation. The run variant is its own boot. A menu
  * navigation themes by destination and sweeps forward, while any return to home
  * (back, or replace('/')) mirrors backward with no label.
@@ -86,6 +100,7 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
     try {
       await wipe.cover(config); // screen now fully covered
       action(); // the real router nav, invisible behind the cover
+      await afterCommit(); // hold the cover until the destination's commit paints
       await wipe.reveal(config); // new screen mosaics in
     } finally {
       transitioning.current = false;
