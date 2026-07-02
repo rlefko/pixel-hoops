@@ -46,6 +46,57 @@ export function mix(a: RGBA, b: RGBA, t: number): RGBA {
   return [lerp(a[0], b[0]), lerp(a[1], b[1]), lerp(a[2], b[2]), 255];
 }
 
+/**
+ * A new canvas where every pixel keeps its alpha but its color collapses to
+ * Rec. 601 luma. Used for the iOS tinted-icon variant, which Apple recolors
+ * from a grayscale source; preserving relative brightness keeps the ball
+ * lighter than its outline after the system tint.
+ */
+export function toGrayscale(src: Canvas): Canvas {
+  const out = new Canvas(src.w, src.h);
+  for (let i = 0; i < src.data.length; i += 4) {
+    const a = src.data[i + 3];
+    if (a === 0) continue;
+    const y = Math.round(
+      0.299 * src.data[i] + 0.587 * src.data[i + 1] + 0.114 * src.data[i + 2]
+    );
+    out.data[i] = y;
+    out.data[i + 1] = y;
+    out.data[i + 2] = y;
+    out.data[i + 3] = a;
+  }
+  return out;
+}
+
+/**
+ * Inclusive bounding box of all non-transparent pixels, so a composition can
+ * crop a source canvas to just its drawn art (the splash lockup does this to
+ * kill dead padding). Throws on a fully transparent canvas: that is always an
+ * authoring bug.
+ */
+export function opaqueBounds(c: Canvas): {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+} {
+  let x0 = c.w;
+  let y0 = c.h;
+  let x1 = -1;
+  let y1 = -1;
+  for (let y = 0; y < c.h; y++) {
+    for (let x = 0; x < c.w; x++) {
+      if (c.data[(y * c.w + x) * 4 + 3] === 0) continue;
+      if (x < x0) x0 = x;
+      if (y < y0) y0 = y;
+      if (x > x1) x1 = x;
+      if (y > y1) y1 = y;
+    }
+  }
+  if (x1 < 0) throw new Error('opaqueBounds: canvas has no opaque pixels');
+  return { x0, y0, x1, y1 };
+}
+
 export class Canvas {
   readonly w: number;
   readonly h: number;
