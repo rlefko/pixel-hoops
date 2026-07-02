@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -20,6 +20,7 @@ import {
   ParticleBurst,
   type BurstVariant,
 } from '@/components/fx';
+import { ApronCrowd, type ApronCrowdHandle } from '@/components/game/ApronCrowd';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { COURT } from '@/components/game/courtDimensions';
@@ -33,6 +34,8 @@ import {
 } from '@/components/game/possession';
 import { useFeelSettings, useBobPulse, useGlowPulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
 import { FLIGHT_DURATION_MAX } from '@/feel/useBallFlight';
+import type { ArenaTier } from '@/game/arena-tier';
+import type { CrowdPulsePlan } from '@/game/crowd-pulse';
 import { palette, FONT, FONT_SIZE } from '@/theme';
 import { courtThemeFor } from '@/theme/courtTheme';
 import { useCourtTheme } from '@/hooks/useCourtTheme';
@@ -61,6 +64,11 @@ interface CourtViewProps {
   ignite?: boolean;
   /** The current play is the game-deciding shot: slow-mo flight + court zoom. */
   cinema?: boolean;
+  /** The arena's stakes tier; elite and up seat a crowd in the apron. */
+  arenaTier?: ArenaTier;
+  /** The precomputed crowd plan (undefined on routine games, so the memo holds);
+   * big/peak beats stir the apron crowd's cheer on home plays. */
+  crowdPlan?: Map<number, CrowdPulsePlan>;
   /** Fired when the ball reaches the rim (synced make/miss feedback). */
   onArrival?: (e: SimEvent) => void;
 }
@@ -330,9 +338,11 @@ function CourtViewImpl({
   warmKeys = NO_HOT_KEYS,
   ignite = false,
   cinema = false,
+  arenaTier = 'routine',
+  crowdPlan,
   onArrival,
 }: CourtViewProps) {
-  const { reducedMotion, simSpeed } = useFeelSettings();
+  const { reducedMotion, simSpeed, arcadeExtras } = useFeelSettings();
   // Every game is hosted in the opponent's arena, so the floor takes their colors,
   // tinted over the player's unlocked home-court theme.
   const courtBase = useCourtTheme();
@@ -362,12 +372,21 @@ function CourtViewImpl({
   // The landed event: drives the rim flourish and particles so they fire when
   // the ball arrives, not when the play is first revealed.
   const [arrival, setArrival] = useState<SimEvent | null>(null);
+  // The apron crowd (mounted only on elite+ games; the ref stays null on routine
+  // games, so the whole per-event cost there is this null check). Honest crowd:
+  // it reacts only to the HOME side — silence on opponent plays is the read.
+  const crowdRef = useRef<ApronCrowdHandle>(null);
   const handleArrival = useCallback(
     (e: SimEvent) => {
       setArrival(e);
+      if (crowdRef.current && e.team === 'home') {
+        const plan = crowdPlan?.get(e.seq);
+        if (plan && plan.tier !== 'small') crowdRef.current.react('cheer');
+        else if (isMadeShot(e)) crowdRef.current.react('bob');
+      }
       onArrival?.(e);
     },
-    [onArrival]
+    [onArrival, crowdPlan]
   );
 
   const burst = useMemo(
@@ -419,6 +438,17 @@ function CourtViewImpl({
 
   return (
     <View style={styles.wrap} onLayout={onLayout}>
+      {arenaTier !== 'routine' && arcadeExtras && avail.width > 0 ? (
+        <ApronCrowd
+          ref={crowdRef}
+          availWidth={avail.width}
+          availHeight={avail.height}
+          courtWidth={size.width}
+          courtHeight={size.height}
+          tier={arenaTier}
+          seed={awayTeam.name}
+        />
+      ) : null}
       <Animated.View
         style={[styles.courtBox, { width: size.width, height: size.height }, zoomStyle]}
       >

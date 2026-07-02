@@ -18,6 +18,7 @@ import {
 } from '@/components/fx';
 import { CourtView } from '@/components/game/CourtView';
 import { eventGapMs } from '@/components/game/possession';
+import type { ArenaTier } from '@/game/arena-tier';
 import { computeCrowdPulses, type CrowdPulsePlan } from '@/game/crowd-pulse';
 import { computeMomentum, type MomentumInfo } from '@/game/momentum';
 import { computeHotState } from '@/game/streaks';
@@ -116,6 +117,8 @@ interface PlayByPlayFeedProps {
   timeline: SimEvent[];
   homeTeam: Team;
   awayTeam: Team;
+  /** The arena's stakes tier (from arenaTierFor); elite+ seats the apron crowd. */
+  arenaTier?: ArenaTier;
   onComplete: () => void;
 }
 
@@ -123,6 +126,7 @@ export function PlayByPlayFeed({
   timeline,
   homeTeam,
   awayTeam,
+  arenaTier = 'routine',
   onComplete,
 }: PlayByPlayFeedProps) {
   const { reducedMotion, simSpeed, highlightsOnly, arcadeExtras, update } = useFeelSettings();
@@ -446,6 +450,8 @@ export function PlayByPlayFeed({
           warmKeys={landedHot?.warmKeys}
           ignite={landedHot?.igniting ?? false}
           cinema={current != null && cinemaSeqs.has(current.seq)}
+          arenaTier={arenaTier}
+          crowdPlan={arenaTier !== 'routine' ? crowdPlan : undefined}
           onArrival={handleArrival}
         />
         <View style={styles.feed}>
