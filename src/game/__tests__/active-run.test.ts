@@ -53,6 +53,30 @@ describe('active-run serialize/deserialize', () => {
     ).toBeNull();
   });
 
+  it('round-trips the pregame coachRec sentinel states', () => {
+    const model = snapshot();
+    // A resolved-empty scout (null) survives storage, so a resumed pregame stays quiet
+    // instead of recomputing; an unresolved scout (undefined) drops out of JSON, so a
+    // resumed pregame recomputes the identical rec.
+    const resolved: RunModel = {
+      ...model,
+      phase: { kind: 'pregame', nodeId: model.core.map.bossNodeId, coachRec: null },
+    };
+    const restored = deserializeActiveRun(throughStorage(serializeActiveRun(resolved)));
+    expect(restored?.phase).toEqual(resolved.phase);
+    const unresolved: RunModel = {
+      ...model,
+      phase: { kind: 'pregame', nodeId: model.core.map.bossNodeId },
+    };
+    const restoredUnresolved = deserializeActiveRun(
+      throughStorage(serializeActiveRun(unresolved))
+    );
+    expect(restoredUnresolved?.phase.kind).toBe('pregame');
+    expect(
+      restoredUnresolved?.phase.kind === 'pregame' && restoredUnresolved.phase.coachRec
+    ).toBeUndefined();
+  });
+
   it('recomputes mods from difficulty (ignores any stale persisted mods)', () => {
     const model = snapshot();
     const raw = throughStorage(serializeActiveRun(model)) as { data: { mods: unknown } };
