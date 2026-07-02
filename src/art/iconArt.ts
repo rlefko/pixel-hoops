@@ -7,12 +7,13 @@
  * Node, so it is deterministic and unit-tested (see scripts/generate-icon.ts for
  * the PNG baking).
  *
- * Composition, back to front: the rim's back arc, the net lattice (drawn once,
- * fully opaque), the ball, then the rim's front arc over the ball's crown. The
- * ball face stays clean (no strands cross it) so the mark reads at launcher
- * sizes; the net hugs the ball's flanks and drapes below it. All tunables live
- * in the constant block below so the art can be nudged and re-rendered (the team
- * verifies icons by eye, never by arc math).
+ * Composition, back to front: the rim's back arc, the net hanging behind the
+ * ball (knotted to the back arc, visible in the hoop window's flank gaps), the
+ * ball, the net's front cords across the whole ball below the rim plane (the
+ * ball is inside the net, seen through the diamond holes; over-ball cords render
+ * in a softer warm tone so the sphere stays readable), then the rim's front arc.
+ * All tunables live in the constant block below so the art can be nudged and
+ * re-rendered (the team verifies icons by eye, never by arc math).
  */
 import {
   Canvas,
@@ -38,13 +39,20 @@ const BALL_HI: RGBA = mix(
 ); // warm gleam
 const RIM: RGBA = hexToRgba(palette.epicRed); // #FF2D55 arcade-red hoop rim
 const RIM_HI: RGBA = mix(hexToRgba(palette.epicRed), hexToRgba(palette.ink), 0.4);
-const SEAM: RGBA = hexToRgba(palette.bgPanel); // #0E0E1A ball seams
+// Ball seams: a deep warm brown instead of near-black. Under the front net
+// cords, black seams read as armor plating; a warm dark tone keeps the seam
+// grid legible while letting the ball stay one cohesive sphere.
+const SEAM: RGBA = mix(hexToRgba(palette.courtLine), hexToRgba(palette.shadow), 0.55);
 const OUTLINE: RGBA = hexToRgba(palette.shadow); // #000000 crisp silhouette edge
 const INK: RGBA = hexToRgba(palette.ink); // wordmark + monochrome silhouette
 // Net cord: a light neutral, fully opaque. Translucent strands used to blend
 // into checker noise over the ball and rim; an opaque cord color reads as string
 // on the navy master, the transparent Android layer, and the splash alike.
 const NET: RGBA = mix(hexToRgba(palette.ink), hexToRgba(palette.inkDim), 0.45);
+// Front cords crossing the ball render in this softer warm tone instead of the
+// full cord gray, so the ball reads as one orange sphere seen through the net
+// rather than shattering into gray-fenced fragments.
+const NET_OVER_BALL: RGBA = mix(NET, hexToRgba(palette.orange), 0.4);
 const ARC: RGBA = mix(BG, hexToRgba(palette.courtLine), 0.22); // faint court line
 
 // Hoop rim: a shallow open ellipse near the top; the ball falls through it.
@@ -54,19 +62,21 @@ const RIM_RX = 11;
 const RIM_RY = 4;
 const RIM_T = 2;
 
-// Net: a tapering lattice knotted to the hoop. The top row starts at the rim's
-// mid-plane, so the cords visibly hang off the back arc inside the hoop window
-// and emerge from under the ring's sides; the mesh is wider than the ball at its
-// equator so the cords hug its flanks before draping below it.
-const NET_TOP = 9;
-const NET_BOT = 26;
-const NET_TOP_HW = 10;
+// Net: a tapering lattice knotted to the hoop. The top row starts at the back
+// arc's underside, so cords visibly hang off the back of the rim through the
+// hoop window's flank gaps and emerge from under the ring's sides; the mesh is
+// wider than the ball at its equator so the cords hug its flanks.
+const NET_TOP = 8;
+const NET_BOT = 25;
+const NET_TOP_HW = 9.5;
 const NET_BOT_HW = 6;
 
 // Ball: the hero, mid-drop, its crown bulging up through the hoop's window.
+// Sized so the window keeps open flanks beside the crown where the back-arc
+// cords show.
 const BALL_CX = 16;
-const BALL_CY = 15.5;
-const BALL_R = 7.5;
+const BALL_CY = 15;
+const BALL_R = 7;
 
 // The rim's front bar crosses the ball around here; seams start below it so the
 // crown poking through the hoop window stays a clean orange dome.
@@ -133,15 +143,13 @@ function drawBall(c: Canvas): void {
 // Net mesh resolution: columns of cells, each crossed by both diagonals, so
 // adjacent cells share strands and the mesh reads as woven diamonds that taper
 // downward into deliberate scallop points.
-const NET_ROWS = 4;
-const NET_COLS = 4;
-// Everything below this lattice boundary is re-composited in front of the ball,
-// so the cords visibly wrap its lower third: the ball is inside the net, not
-// floating on top of it. The crown and equator stay clean so the ball still
-// reads at launcher sizes.
-const NET_FRONT_ROW = 2;
-const NET_FRONT_Y =
-  NET_TOP + (NET_FRONT_ROW * (NET_BOT - NET_TOP)) / NET_ROWS;
+const NET_ROWS = 3;
+const NET_COLS = 3;
+// Everything below the rim's front bar is re-composited in front of the ball:
+// the whole ball below the rim plane is inside the net, seen through the
+// diamond holes. The rim front draws last and hides the junction, so the front
+// cords read as hanging from the front lip.
+const NET_FRONT_Y = 12;
 
 /** Edge x of the net at vertical fraction `f` (0 at the rim, 1 at the bottom). */
 function netEdgeX(f: number, sign: number): number {
@@ -190,6 +198,22 @@ function compositeBand(
   }
 }
 
+/** Stamp the net's opaque pixels from `yStart` down in front of the ball,
+ * softening any cord pixel strictly inside the ball's face to the warm
+ * NET_OVER_BALL tone so the sphere stays readable through the mesh. Cords
+ * crossing the black outline ring stay full cord gray, so the net visibly
+ * grabs the ball's silhouette. */
+function compositeNetFront(dst: Canvas, net: Canvas, yStart: number): void {
+  for (let y = yStart; y < net.h; y++) {
+    for (let x = 0; x < net.w; x++) {
+      if (net.data[(y * net.w + x) * 4 + 3] === 0) continue;
+      const dx = x + 0.5 - BALL_CX;
+      const dy = y + 0.5 - BALL_CY;
+      dst.plot(x, y, dx * dx + dy * dy <= BALL_R * BALL_R ? NET_OVER_BALL : NET);
+    }
+  }
+}
+
 /** The rim ring with a lit top lip, so the hoop reads as a solid metal ring
  * instead of a flat blob. */
 function buildRim(): Canvas {
@@ -205,9 +229,10 @@ function buildRim(): Canvas {
 }
 
 /** Compose the full mark into a 32x32 canvas. Z-order, back to front: the rim's
- * back arc, the net behind the ball, the ball, the net's bottom diamonds again
- * over the ball's lower quarter (the ball is inside the net, so the front drape
- * crosses it), then the rim's front arc over the ball's crown. */
+ * back arc, the net hanging behind the ball (its knots on the back arc show in
+ * the hoop window's flank gaps), the ball, the net's front cords over the whole
+ * ball below the rim plane (the ball is inside the net), then the rim's front
+ * arc over the ball's crown and the cord junctions. */
 function composeMark(c: Canvas): void {
   const rim = buildRim();
   const net = new Canvas(LOGICAL, LOGICAL);
@@ -216,7 +241,7 @@ function composeMark(c: Canvas): void {
   compositeBand(c, rim, 0, RIM_CY); // back of the rim, behind the ball
   c.composite(net, 0, 0); // net hanging behind the ball
   drawBall(c);
-  compositeBand(c, net, Math.round(NET_FRONT_Y), LOGICAL); // front drape
+  compositeNetFront(c, net, NET_FRONT_Y); // front of the net, over the ball
   compositeBand(c, rim, RIM_CY, LOGICAL); // front of the rim, over the ball
 }
 
