@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useMemo, useRef } from 'react';
+import { InteractionManager } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { runReducer } from '@/game/run-machine';
+import { runReducer, computeCoachRec } from '@/game/run-machine';
 import { withSlowActionWarning } from '@/game/dev-timing';
 import {
   mergeRunGainsIntoHome,
@@ -97,6 +98,22 @@ export function useRun() {
     }
     saveActiveRun(model);
   }, [model, saveActiveRun]);
+
+  // Compute the coach's pregame scout OFF the node tap: enterNode only flips the phase
+  // (so the tap paints immediately), and this effect runs the lineup search after that
+  // frame's interactions settle, landing it via setCoachRec. The reducer guards a late
+  // result (same pregame, same node, still unresolved), and any dispatch changes
+  // `model`, which cancels a pending task and re-evaluates: a stale model can never be
+  // searched. undefined = not computed; null = resolved (accepted/edited/replay/below
+  // the bar), so resolved pregames and resumed saves never recompute.
+  useEffect(() => {
+    if (!model || model.phase.kind !== 'pregame' || model.phase.coachRec !== undefined) return;
+    const { nodeId } = model.phase;
+    const task = InteractionManager.runAfterInteractions(() => {
+      dispatch({ type: 'setCoachRec', nodeId, rec: computeCoachRec(model, nodeId) });
+    });
+    return () => task.cancel();
+  }, [model]);
 
   // When the run leaves the draft (the player confirmed a five), remember that exact
   // drafted rotation for this run's (difficulty, ladder class), so re-entering the same

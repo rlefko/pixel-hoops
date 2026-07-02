@@ -527,12 +527,16 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
         dense
       />
       {coachRec && !recDismissed ? (
-        <CoachRecBanner
-          coach={getCoach(model.coachId)}
-          rec={coachRec}
-          onAccept={actions.acceptCoachRec}
-          onDismiss={() => setRecDismissed(true)}
-        />
+        // The scout computes off the tap and lands a beat after the screen appears
+        // (see useRun), so the banner pops on arrival: the coach speaking up.
+        <Pop popOnMount>
+          <CoachRecBanner
+            coach={getCoach(model.coachId)}
+            rec={coachRec}
+            onAccept={actions.acceptCoachRec}
+            onDismiss={() => setRecDismissed(true)}
+          />
+        </Pop>
       ) : null}
       <Pressable onPress={actions.openLineupBuilder}>
         <Text style={styles.link}>Change Lineup</Text>
