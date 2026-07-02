@@ -85,3 +85,29 @@ describe('active-run serialize/deserialize', () => {
     expect(restored?.mods).toEqual(difficultyMods(model.difficulty));
   });
 });
+
+describe('favor across suspend/resume', () => {
+  it('round-trips the run favor ledger and the home favor snapshot', () => {
+    const model = {
+      ...snapshot(),
+      favor: { 'Some Recruit|PG': 7 },
+      homeFavor: { 'Some Legend|C': 12 },
+    };
+    const restored = deserializeActiveRun(throughStorage(serializeActiveRun(model)));
+    expect(restored?.favor).toEqual({ 'Some Recruit|PG': 7 });
+    expect(restored?.homeFavor).toEqual({ 'Some Legend|C': 12 });
+  });
+
+  it('a pre-favor suspended run resumes with the fields absent (defaults apply)', () => {
+    const model = snapshot();
+    const raw = throughStorage(serializeActiveRun(model)) as {
+      data: { favor?: unknown; homeFavor?: unknown };
+    };
+    delete raw.data.favor;
+    delete raw.data.homeFavor;
+    const restored = deserializeActiveRun(raw);
+    expect(restored).not.toBeNull();
+    expect(restored?.favor).toBeUndefined();
+    expect(restored?.homeFavor).toBeUndefined();
+  });
+});

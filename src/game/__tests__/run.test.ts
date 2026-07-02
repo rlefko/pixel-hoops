@@ -11,7 +11,13 @@ import {
   deserializeHomeRoster,
   type HomeRoster,
 } from '@/game/home-roster';
-import { legendRecruit, realPlayerToRosterPlayer } from '@/game/player-pool';
+import {
+  legendRecruit,
+  legendRecruitFavored,
+  poolByClass,
+  realPlayerToRosterPlayer,
+} from '@/game/player-pool';
+import { FAVOR_CHAMPION_BONUS, FAVOR_WIN_POINTS } from '@/game/favor';
 import { NBA_LEGENDS, NBA_POOL } from '@/data/nba';
 import {
   runReducer,
@@ -1431,5 +1437,139 @@ describe('boss legend signings (hard/insane, S and S+ ladders)', () => {
         throw new Error(`offered ${phase.offer.player.name} despite full ownership`);
       }
     }
+  });
+});
+
+describe('favor accrual (win-earned, fielded-only)', () => {
+  /** Play g1 for real from pregame so the box score carries minutes. */
+  const playedPostgame = (m: RunModel, nodeId: string, won: boolean): RunModel => {
+    const game = runReducer({ ...m, phase: { kind: 'pregame', nodeId } }, { type: 'enterGame' })!;
+    return { ...game, phase: { kind: 'postgame', nodeId, won } };
+  };
+  const combat = (over: Partial<MapNode>): MapNode => ({
+    id: 'g1', type: 'game', layer: 1, next: [], round: 1, visited: true, cleared: false, ...over,
+  });
+  const inject = (m: RunModel, n: MapNode): RunModel => ({
+    ...m,
+    core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
+  });
+  const rosterKeys = (m: RunModel) =>
+    new Set(
+      [...m.core.roster.starters, ...m.core.roster.bench].map(
+        (p) => `${p.player.name}|${p.position}`
+      )
+    );
+
+  it('a won game banks base points for every player who logged minutes', () => {
+    const pre = inject(started('fav-1'), combat({}));
+    const won = runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!;
+    const favor = won.favor ?? {};
+    const keys = Object.keys(favor);
+    expect(keys.length).toBeGreaterThanOrEqual(5); // the starting five always play
+    const valid = rosterKeys(won);
+    for (const key of keys) {
+      expect(valid.has(key)).toBe(true);
+      expect(favor[key]).toBe(FAVOR_WIN_POINTS.game);
+    }
+  });
+
+  it('elite and boss wins bank escalating points', () => {
+    const elitePre = inject(started('fav-2'), combat({ type: 'elite' }));
+    const eliteWon = runReducer(playedPostgame(elitePre, 'g1', true), {
+      type: 'resolveGameResult',
+    })!;
+    expect(Object.values(eliteWon.favor ?? {})[0]).toBe(FAVOR_WIN_POINTS.elite);
+
+    const bossPre = inject(started('fav-3'), combat({ type: 'boss' }));
+    const bossWon = runReducer(playedPostgame(bossPre, 'g1', true), {
+      type: 'resolveGameResult',
+    })!;
+    expect(Object.values(bossWon.favor ?? {})[0]).toBe(FAVOR_WIN_POINTS.boss);
+  });
+
+  it('the championship win adds the flat bonus on top of boss points', () => {
+    const base = inject(started('fav-4'), combat({ type: 'boss' }));
+    const finale = {
+      ...base,
+      core: { ...base.core, currentMapIndex: TOTAL_MAPS - 1 },
+    };
+    const crowned = runReducer(playedPostgame(finale, 'g1', true), {
+      type: 'resolveGameResult',
+    })!;
+    expect(crowned.phase).toEqual({ kind: 'summary', champion: true });
+    expect(Object.values(crowned.favor ?? {})[0]).toBe(
+      FAVOR_WIN_POINTS.boss + FAVOR_CHAMPION_BONUS
+    );
+  });
+
+  it('losses and timeout replays bank nothing', () => {
+    const pre = inject(started('fav-5'), combat({}));
+    // No timeouts left: the loss ends the run; the ledger stays empty.
+    const lost = runReducer(
+      { ...playedPostgame(pre, 'g1', false), secondChancesRemaining: 0 },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(lost.phase).toEqual({ kind: 'summary', champion: false });
+    expect(Object.keys(lost.favor ?? {})).toHaveLength(0);
+    // A forgiven loss replays the game; still nothing accrues.
+    const forgiven = runReducer(
+      { ...playedPostgame(pre, 'g1', false), secondChancesRemaining: 1 },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(forgiven.phase.kind).toBe('pregame');
+    expect(Object.keys(forgiven.favor ?? {})).toHaveLength(0);
+  });
+
+  it('accrual is deterministic from the run seed', () => {
+    const play = () => {
+      const pre = inject(started('fav-6'), combat({}));
+      return runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!.favor;
+    };
+    expect(play()).toEqual(play());
+  });
+});
+
+describe('favor-steered legend reveal and re-offers', () => {
+  it('legendRecruitFavored offers the highest-favor un-owned legend', () => {
+    const fav = realPlayerToRosterPlayer(NBA_LEGENDS[3]);
+    const key = `${fav.player.name}|${fav.position}`;
+    for (const seed of ['a', 'b', 'c']) {
+      const offer = legendRecruitFavored([], { [key]: 12 }, createRNG(seed));
+      expect(offer.player.name).toBe(fav.player.name);
+      expect(offer.onLoan).toBe(true);
+    }
+  });
+
+  it('an owned favorite falls out of the reveal pool', () => {
+    const fav = realPlayerToRosterPlayer(NBA_LEGENDS[3]);
+    const key = `${fav.player.name}|${fav.position}`;
+    const offer = legendRecruitFavored([key], { [key]: 12 }, createRNG('a'));
+    expect(offer.player.name).not.toBe(fav.player.name);
+  });
+
+  it('zero favor reduces to a deterministic uniform pick', () => {
+    const a = legendRecruitFavored([], {}, createRNG('same'));
+    const b = legendRecruitFavored([], {}, createRNG('same'));
+    expect(a.player.name).toBe(b.player.name);
+  });
+
+  it('recruit offers weight a favored player up inside their class bucket', () => {
+    // A C-ladder favorite with heavy favor should show up in offers far more often
+    // than base rate (one specific C in a ~211 pool is otherwise a rounding error).
+    const target = poolByClass('C')[7];
+    const key = `${target.name}|${target.position}`;
+    let withFavor = 0;
+    let without = 0;
+    for (let i = 0; i < 60; i++) {
+      const hitA = generateRecruitOffers('C', 'easy', 0, 3, createRNG(`w-${i}`), new Set(), {
+        [key]: 200,
+      }).some((o) => o.player.name === target.name);
+      const hitB = generateRecruitOffers('C', 'easy', 0, 3, createRNG(`w-${i}`)).some(
+        (o) => o.player.name === target.name
+      );
+      if (hitA) withFavor += 1;
+      if (hitB) without += 1;
+    }
+    expect(withFavor).toBeGreaterThan(without + 10);
   });
 });

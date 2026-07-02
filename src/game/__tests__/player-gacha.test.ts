@@ -7,6 +7,7 @@ import {
   pullPlayer,
   machineUnlocked,
   machineGate,
+  scoutTargetFor,
 } from '@/game/player-gacha';
 import { copiesToOwn, overflowBounty } from '@/game/collection';
 import { createRNG } from '@/game/rng';
@@ -124,5 +125,109 @@ describe('machine access gate', () => {
     expect(machineUnlocked('legendary', throughA)).toBe(false);
 
     expect(machineUnlocked('legendary', ladder('S'))).toBe(true);
+  });
+});
+
+describe('favor-directed pulls (pin > effective progress > seeded tie-break)', () => {
+  it('an empty direction reproduces the classic pull exactly', () => {
+    const pool = tierPool('A');
+    const copies = { [keyRP(pool[2])]: 2 };
+    const bare = pullPlayer('A', new Set(), copies, createRNG('dir'));
+    const directed = pullPlayer('A', new Set(), copies, createRNG('dir'), {});
+    expect(directed).toEqual(bare);
+  });
+
+  it('banked favor outranks fewer copies via effective progress', () => {
+    const pool = tierPool('A');
+    const behind = pool[0]; // 1 whole copy
+    const favored = pool[1]; // 0 copies but 60 favor = 1.5 effective copies
+    const result = pullPlayer(
+      'A',
+      new Set(),
+      { [keyRP(behind)]: 1 },
+      createRNG('fav'),
+      { favor: { [keyRP(favored)]: 60 } }
+    );
+    expect(result.targetKey).toBe(keyRP(favored));
+  });
+
+  it('a pinned target takes the copy over everyone', () => {
+    const pool = tierPool('S');
+    const leader = pool[0];
+    const pinned = pool[4];
+    const result = pullPlayer(
+      'S',
+      new Set(),
+      { [keyRP(leader)]: 4 },
+      createRNG('pin'),
+      { favor: { [keyRP(leader)]: 50 }, pinnedKey: keyRP(pinned) }
+    );
+    expect(result.targetKey).toBe(keyRP(pinned));
+  });
+
+  it('an owned or bogus pin falls back to the effective-progress leader', () => {
+    const pool = tierPool('A');
+    const leader = pool[3];
+    const result = pullPlayer(
+      'A',
+      new Set([keyRP(pool[0])]),
+      { [keyRP(leader)]: 2 },
+      createRNG('stale'),
+      { pinnedKey: keyRP(pool[0]) } // owned: not in the un-owned pool
+    );
+    expect(result.targetKey).toBe(keyRP(leader));
+  });
+
+  it('legendary-tier favor orders the queue by raw points', () => {
+    const pool = tierPool('legendary');
+    const favored = pool[5];
+    const result = pullPlayer('legendary', new Set(), {}, createRNG('leg'), {
+      favor: { [keyRP(favored)]: 8 },
+    });
+    expect(result.targetKey).toBe(keyRP(favored));
+  });
+
+  it('is deterministic from (inputs, seed) with a favor ledger', () => {
+    const pool = tierPool('B');
+    const favor = { [keyRP(pool[9])]: 15 };
+    const a = pullPlayer('B', new Set(), {}, createRNG('det'), { favor });
+    const b = pullPlayer('B', new Set(), {}, createRNG('det'), { favor });
+    expect(a).toEqual(b);
+  });
+});
+
+describe('scoutTargetFor (the RNG-free card chip)', () => {
+  it('returns null on a fresh tier (the pull would tie-break on RNG)', () => {
+    expect(scoutTargetFor('A', new Set(), {})).toBeNull();
+  });
+
+  it('names the unique effective-progress leader', () => {
+    const pool = tierPool('A');
+    const leader = pool[6];
+    const target = scoutTargetFor('A', new Set(), { [keyRP(leader)]: 2 }, { [keyRP(leader)]: 10 });
+    expect(target).toMatchObject({
+      key: keyRP(leader),
+      copies: 2,
+      threshold: copiesToOwn('A'),
+      favor: 10,
+      pinned: false,
+    });
+  });
+
+  it('a pin is always the target and mirrors the pull', () => {
+    const pool = tierPool('S');
+    const pinnedKey = keyRP(pool[2]);
+    const target = scoutTargetFor('S', new Set(), { [keyRP(pool[0])]: 3 }, {}, pinnedKey);
+    expect(target?.pinned).toBe(true);
+    expect(target?.key).toBe(pinnedKey);
+    const pull = pullPlayer('S', new Set(), { [keyRP(pool[0])]: 3 }, createRNG('x'), {
+      pinnedKey,
+    });
+    expect(pull.targetKey).toBe(pinnedKey);
+  });
+
+  it('returns null when the whole tier is owned', () => {
+    const owned = new Set(tierPool('C').map(keyRP));
+    expect(scoutTargetFor('C', owned, {})).toBeNull();
   });
 });

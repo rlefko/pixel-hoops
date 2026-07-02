@@ -5,6 +5,7 @@ import {
   cellKey,
   clearedOnAnyDifficulty,
   difficultyMods,
+  difficultyPerks,
   frontierFromCells,
   globalHighestCleared,
   isCellCleared,
@@ -190,5 +191,22 @@ describe('the cleared-cell set (cross-difficulty unlocks)', () => {
     expect(frontierFromCells(cells, 'easy')).toBe('B');
     expect(frontierFromCells(cells, 'hard')).toBe('C');
     expect(frontierFromCells(cells, 'insane')).toBeNull();
+  });
+});
+
+describe('ladder-aware perk chips', () => {
+  it('C/B ladders swap the dead copies chip for the favor multiplier', () => {
+    // Every copies threshold on the C/B ladders is 1 (and reach-ups cap at one copy),
+    // so "x3 COPIES" would be false advertising there; the honest chip is favor.
+    expect(difficultyPerks('hard', 'B')).toContain('x1.5 FAVOR');
+    expect(difficultyPerks('hard', 'B')).not.toContain('x3 COPIES');
+    expect(difficultyPerks('insane', 'C')).toContain('x2 FAVOR');
+  });
+
+  it('A and above (and the legacy no-ladder call) keep the copies chip', () => {
+    expect(difficultyPerks('hard', 'A')).toContain('x3 COPIES');
+    expect(difficultyPerks('insane', 'S')).toContain('x4 COPIES');
+    expect(difficultyPerks('hard')).toContain('x3 COPIES');
+    expect(difficultyPerks('easy', 'C')).not.toContain('x1 FAVOR'); // easy has no premium
   });
 });

@@ -5,6 +5,8 @@ import {
   previewRunAcquisitions,
   applyPlayerPull,
   claimRunBounty,
+  clearScoutTarget,
+  pinScoutTarget,
   playerKey,
   rememberDraftRotation,
   resolveDraftRotation,
@@ -20,6 +22,7 @@ import {
 import { STARTER_COACH_ID, earnedCoachIds, coachesByClass } from '@/game/coaches';
 import { poolByClass, realPlayerToRosterPlayer } from '@/game/player-pool';
 import { tierPool } from '@/game/player-gacha';
+import { FAVOR_RESIDUAL_COIN_RATE } from '@/game/favor';
 import { overflowBounty } from '@/game/collection';
 import { GRANDMASTER_KEY, bountyKey } from '@/game/bounties';
 import { DAILY_BOUNTY_COINS, FIRST_WIN_COINS, WEEKLY_TIERS, spotlightCell } from '@/game/daily';
@@ -918,5 +921,210 @@ describe('v17 daily/weekly migration', () => {
     };
     const healed = deserializeHomeRoster(partial)!;
     expect(healed.weekly).toEqual({ week: '2026-06-29', gameWins: 0, claimedTiers: [0] });
+  });
+});
+
+describe('favor settle (banked win or lose, converted through the deposit path)', () => {
+  const keyOf = (rp: RosterPlayer) => playerKey(rp);
+
+  it('banks a loss run wins favor at the difficulty multiplier', () => {
+    const { home, runRoster, recruit } = setup();
+    const lost = mergeRunGainsIntoHome(home, runRoster, {
+      playedDifficulty: 'easy',
+      ladderClass: 'A',
+      runFavor: { [keyOf(recruit)]: 12 },
+    });
+    expect(lost.favor[keyOf(recruit)]).toBe(12); // easy x1.0
+    const hard = mergeRunGainsIntoHome(home, runRoster, {
+      playedDifficulty: 'hard',
+      ladderClass: 'A',
+      runFavor: { [keyOf(recruit)]: 12 },
+    });
+    expect(hard.favor[keyOf(recruit)]).toBe(18); // hard x1.5
+  });
+
+  it('damps a reach-up recruit favor by half', () => {
+    const { home, runRoster, recruit } = setup(); // A recruit
+    const next = mergeRunGainsIntoHome(home, runRoster, {
+      playedDifficulty: 'hard',
+      ladderClass: 'B', // A is a reach-up on the B ladder
+      runFavor: { [keyOf(recruit)]: 12 },
+    });
+    expect(next.favor[keyOf(recruit)]).toBe(9); // round(12 x 1.5 x 0.5)
+  });
+
+  it('owned players and mid-run cuts earn nothing', () => {
+    const { home, runRoster } = setup();
+    const ownedKey = playerKey(home.players[0]); // fielded, already owned
+    const ghostKey = 'Cut Player|PG'; // accrued, then dropped before run end
+    const next = mergeRunGainsIntoHome(home, runRoster, {
+      playedDifficulty: 'easy',
+      ladderClass: 'A',
+      runFavor: { [ownedKey]: 30, [ghostKey]: 30 },
+    });
+    expect(next.favor[ownedKey]).toBeUndefined();
+    expect(next.favor[ghostKey]).toBeUndefined();
+  });
+
+  it('converts whole copies at the class threshold and keeps the remainder', () => {
+    const base = setup();
+    const key = keyOf(base.recruit);
+    const home = { ...base.home, favor: { [key]: 35 } };
+    const next = mergeRunGainsIntoHome(home, base.runRoster, {
+      playedDifficulty: 'easy',
+      ladderClass: 'A',
+      runFavor: { [key]: 10 }, // 35 + 10 = 45 = 1 copy (40) + 5
+    });
+    const entry = next.collecting.find((c) => playerKey(c.player) === key);
+    expect(entry?.copies).toBe(1);
+    expect(next.favor[key]).toBe(5);
+  });
+
+  it('a favor conversion can unlock on a LOSS, paying residual as coins', () => {
+    const base = setup();
+    const key = keyOf(base.recruit);
+    const home = {
+      ...base.home,
+      favor: { [key]: 35 },
+      collecting: [{ player: base.recruit, copies: 3 }], // 3/4, one favor copy away
+    };
+    const next = mergeRunGainsIntoHome(home, base.runRoster, {
+      playedDifficulty: 'easy',
+      ladderClass: 'A',
+      runFavor: { [key]: 10 }, // 45 = 1 copy + 5 residual
+    });
+    expect(next.players.some((p) => playerKey(p) === key)).toBe(true);
+    expect(next.collecting.some((c) => playerKey(c.player) === key)).toBe(false);
+    expect(next.favor[key]).toBeUndefined();
+    expect(next.coins).toBe(home.coins + 5 * FAVOR_RESIDUAL_COIN_RATE);
+  });
+
+  it('a deposit-signed recruit keeps no favor; the bank pays out as coins', () => {
+    const home = createRookieRoster(createRNG('fav-signed'));
+    const ownedKeys = new Set(home.players.map(playerKey));
+    const bRecruit = poolByClass('B')
+      .map(realPlayerToRosterPlayer)
+      .find((rp) => !ownedKeys.has(playerKey(rp)))!;
+    const key = playerKey(bRecruit);
+    const seeded = { ...home, favor: { [key]: 12 } };
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [bRecruit] };
+    const next = mergeRunGainsIntoHome(seeded, runRoster, {
+      champion: true,
+      clearedClass: 'B',
+      playedDifficulty: 'easy',
+      ladderClass: 'B',
+      runFavor: { [key]: 20 }, // ignored: the clear signs them outright (B owns at 1)
+    });
+    expect(next.players.some((p) => playerKey(p) === key)).toBe(true);
+    expect(next.favor[key]).toBeUndefined();
+    expect(next.coins).toBe(seeded.coins + 12 * FAVOR_RESIDUAL_COIN_RATE);
+  });
+
+  it('the preview favor delta mirrors what the merge banks', () => {
+    const base = setup();
+    const key = keyOf(base.recruit);
+    const home = { ...base.home, favor: { [key]: 35 } };
+    const settle = {
+      playedDifficulty: 'easy' as const,
+      ladderClass: 'A' as const,
+      runFavor: { [key]: 10 },
+    };
+    const preview = previewRunAcquisitions(home, base.runRoster, settle);
+    const merged = mergeRunGainsIntoHome(home, base.runRoster, settle);
+    const row = preview.favorDelta.find((r) => playerKey(r.player) === key)!;
+    expect(row).toMatchObject({ before: 35, earned: 10, copiesGranted: 1, after: 5 });
+    expect(merged.favor[key]).toBe(row.after);
+  });
+});
+
+describe('home roster v18 (favor ledger + scout targets)', () => {
+  it('older saves default to an empty ledger with a goodwill grant for in-progress A entries', () => {
+    const home = createRookieRoster(createRNG('mig-fav'));
+    const ownedKeys = new Set(home.players.map(playerKey));
+    const aRecruit = realPlayerToRosterPlayer(poolByClass('A')[0]);
+    const bRecruit = poolByClass('B')
+      .map(realPlayerToRosterPlayer)
+      .find((rp) => !ownedKeys.has(playerKey(rp)))!;
+    const legacy = {
+      version: 17,
+      data: {
+        ...home,
+        collecting: [
+          { player: aRecruit, copies: 2 },
+          // A pre-v14-style in-progress S would also survive; only A gets goodwill.
+        ],
+        favor: undefined,
+        scoutTargets: undefined,
+      },
+    };
+    const restored = deserializeHomeRoster(legacy)!;
+    // The A threshold moved 3 -> 4 in the same version; the meter moves FORWARD.
+    expect(restored.favor[playerKey(aRecruit)]).toBe(20);
+    expect(restored.favor[playerKey(bRecruit)]).toBeUndefined();
+  });
+
+  it('drops garbage favor and entries for owned players on load', () => {
+    const home = createRookieRoster(createRNG('mig-fav2'));
+    const ownedKey = playerKey(home.players[0]);
+    const dirty = serializeHomeRoster({
+      ...home,
+      favor: {
+        [ownedKey]: 25,
+        'Real Chase|PG': 12.7,
+        'Bad Value|SG': Number.NaN,
+        'Negative|C': -4,
+      },
+    });
+    const restored = deserializeHomeRoster(dirty)!;
+    expect(restored.favor[ownedKey]).toBeUndefined();
+    expect(restored.favor['Real Chase|PG']).toBe(12);
+    expect(restored.favor['Bad Value|SG']).toBeUndefined();
+    expect(restored.favor['Negative|C']).toBeUndefined();
+  });
+
+  it('round-trips a valid pin and unpins invalid or owned targets', () => {
+    const home = createRookieRoster(createRNG('mig-pin'));
+    const ownedKeys = new Set(home.players.map(playerKey));
+    const target = tierPool('A')
+      .map((p) => `${p.name}|${p.position}`)
+      .find((k) => !ownedKeys.has(k))!;
+    const pinned = pinScoutTarget(home, 'A', target);
+    expect(pinned.scoutTargets?.A).toBe(target);
+    const restored = deserializeHomeRoster(serializeHomeRoster(pinned))!;
+    expect(restored.scoutTargets?.A).toBe(target);
+    // An invalid pin (wrong pool) and an owned pin sanitize away.
+    const dirty = serializeHomeRoster({
+      ...home,
+      scoutTargets: { A: 'Not A Player|PG', C: playerKey(home.players[0]) },
+    });
+    expect(deserializeHomeRoster(dirty)!.scoutTargets).toBeUndefined();
+  });
+
+  it('pinScoutTarget guards owned keys and wrong pools; clearScoutTarget unpins', () => {
+    const home = createRookieRoster(createRNG('pin-guard'));
+    expect(pinScoutTarget(home, 'A', playerKey(home.players[0]))).toBe(home);
+    expect(pinScoutTarget(home, 'A', 'Nobody|PG')).toBe(home);
+    const ownedKeys = new Set(home.players.map(playerKey));
+    const target = tierPool('S')
+      .map((p) => `${p.name}|${p.position}`)
+      .find((k) => !ownedKeys.has(k))!;
+    const pinned = pinScoutTarget(home, 'S', target);
+    expect(pinned.scoutTargets?.S).toBe(target);
+    expect(clearScoutTarget(pinned, 'S').scoutTargets).toBeUndefined();
+    expect(clearScoutTarget(home, 'S')).toBe(home);
+  });
+
+  it('a pull that completes a favored chase pays the residual favor as coins', () => {
+    const home = createRookieRoster(createRNG('pull-residual'));
+    const ownedKeys = new Set(home.players.map(playerKey));
+    const target = tierPool('C')
+      .map((p) => `${p.name}|${p.position}`)
+      .find((k) => !ownedKeys.has(k))!;
+    const seeded = pinScoutTarget({ ...home, coins: 250, favor: { [target]: 10 } }, 'C', target);
+    const { home: after, result } = applyPlayerPull(seeded, 'C', createRNG('pr'));
+    expect(result.targetKey).toBe(target);
+    expect(result.unlockedNow).toBe(true); // C owns at one copy
+    expect(after.favor[target]).toBeUndefined();
+    expect(after.coins).toBe(0 + 10 * FAVOR_RESIDUAL_COIN_RATE);
   });
 });
