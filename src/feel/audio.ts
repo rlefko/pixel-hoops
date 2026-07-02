@@ -35,6 +35,11 @@ const pools = new Map<SfxName, Pool>();
 const lastCueAt = new Map<SfxName, number>();
 let jitterTick = 0;
 
+// The master volume each player last received (mirrors music.ts's lastVolume cache):
+// volume only changes via the settings slider, so after a pool player's first play the
+// native volume write is skipped, trimming a call from every rapid tick's hot path.
+const lastVolume = new WeakMap<AudioPlayer, number>();
+
 /** Toggle all sound (wired to FeelSettings.soundEnabled). */
 export function setSoundEnabled(value: boolean): void {
   enabled = value;
@@ -110,7 +115,12 @@ function trigger(name: SfxName, rate: number = 1): void {
   bestEffort(() => {
     const player = pool.players[pool.next];
     pool.next = (pool.next + 1) % pool.players.length;
-    player.volume = volume; // master volume, read live so the slider applies instantly
+    // Master volume, read live so the slider applies on the very next shot; the write
+    // is skipped when the player already carries it.
+    if (lastVolume.get(player) !== volume) {
+      player.volume = volume;
+      lastVolume.set(player, volume);
+    }
     // Use the method, not the `playbackRate` property: the property is getter-only in the
     // native module (a no-op assignment on iOS), so the pitch variation needs setPlaybackRate.
     player.setPlaybackRate(rate);
