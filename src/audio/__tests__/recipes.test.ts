@@ -32,3 +32,36 @@ describe('the high-frequency-of-fire sounds stay gentle', () => {
     expect(recipes.win.gain).toBeLessThanOrEqual(0.3);
   });
 });
+
+describe('the crowd swells stay honest air, under the stings they answer', () => {
+  const SWELLS = ['crowdCheer', 'crowdRoar', 'crowdMurmur'] as const;
+
+  it('is pure unpitched noise: no tonal voice can ever sit out of key', () => {
+    for (const name of SWELLS) {
+      for (const voice of recipes[name].voices) {
+        expect(voice.osc).toBe('noise');
+        expect(voice.freqTo).toBeUndefined();
+      }
+    }
+  });
+
+  it('swells slowly, unlike every chiptune sting', () => {
+    for (const name of SWELLS) {
+      expect(recipes[name].voices[0].env?.attackMs ?? 0).toBeGreaterThanOrEqual(80);
+    }
+  });
+
+  it('mixes well under the event SFX it answers, tiered cheer < roar', () => {
+    expect(recipes.crowdCheer.gain).toBeLessThanOrEqual(0.35);
+    expect(recipes.crowdRoar.gain).toBeLessThanOrEqual(0.45);
+    expect(recipes.crowdMurmur.gain).toBeLessThanOrEqual(0.2);
+    expect(recipes.crowdCheer.gain).toBeLessThan(recipes.dunk.gain!);
+    expect(recipes.crowdRoar.gain).toBeLessThan(recipes.buzzerBeater.gain!);
+  });
+
+  it('stays inside the swell-tier duration bands', () => {
+    expect(totalMs('crowdCheer')).toBeLessThanOrEqual(1500);
+    expect(totalMs('crowdRoar')).toBeLessThanOrEqual(2500);
+    expect(totalMs('crowdMurmur')).toBeLessThanOrEqual(800);
+  });
+});

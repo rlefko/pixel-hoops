@@ -95,6 +95,65 @@ export const RECIPES = {
     ],
   },
 
+  // --- The crowd (discrete swells answering the HOME side's plays, never a bed) ---
+  // All three are pure long-cycle LFSR air: no pitched voice, so they can never sit
+  // out of key with any music track, and their slow 90-220ms attacks (no chiptune
+  // sting attacks that slowly) read as a building roomful of people rather than a
+  // cue. Two offset noise voices fake source multiplicity — two sections of the
+  // crowd, never in lockstep. They start ~90ms after the play's own sting (see
+  // audio.ts crowd()) and never duck the music: the swell IS the bed answering.
+  crowdCheer: {
+    // A big home play (dunk, and-one, clutch or heat-check three). One swell at
+    // a time by construction: the 2.2s cooldown (longer than the ~1.6s bake)
+    // coalesces a scoring flurry into a single answer, so no second player is
+    // ever reachable.
+    pool: 1,
+    gain: 0.32,
+    voices: [
+      {
+        osc: 'noise', freq: 5200, durMs: 1200, noiseSeed: 51,
+        filter: { baseHz: 500, peakHz: 3000, q: 1.2, attackMs: 140, decayMs: 500, sustain: 0.35, releaseMs: 380 },
+        env: { attackMs: 100, decayMs: 480, sustain: 0.3, releaseMs: 420 },
+      },
+      {
+        osc: 'noise', freq: 3400, durMs: 950, delayMs: 130, gain: 0.55, noiseSeed: 57,
+        filter: { baseHz: 420, peakHz: 1900, q: 0.9, attackMs: 200, decayMs: 400, sustain: 0.3, releaseMs: 300 },
+        env: { attackMs: 150, decayMs: 350, sustain: 0.3, releaseMs: 350 },
+      },
+    ],
+  },
+  crowdRoar: {
+    // The home walk-off (buzzer-beater or clincher) and the championship: the full
+    // building roar with a long release so the arena hangs in the air after the horn.
+    pool: 1,
+    gain: 0.42,
+    voices: [
+      {
+        osc: 'noise', freq: 6000, durMs: 2300, noiseSeed: 61,
+        filter: { baseHz: 550, peakHz: 3400, q: 1.4, attackMs: 180, decayMs: 900, sustain: 0.45, releaseMs: 900 },
+        env: { attackMs: 120, decayMs: 800, sustain: 0.5, releaseMs: 1000 },
+      },
+      {
+        osc: 'noise', freq: 3000, durMs: 2000, delayMs: 180, gain: 0.6, noiseSeed: 67,
+        filter: { baseHz: 400, peakHz: 2200, q: 0.9, attackMs: 300, decayMs: 800, sustain: 0.4, releaseMs: 700 },
+        env: { attackMs: 220, decayMs: 700, sustain: 0.45, releaseMs: 800 },
+      },
+    ],
+  },
+  crowdMurmur: {
+    // Crunch time opening (once per game, neutral): the arena rising to its feet,
+    // a low dark rustle that keeps the filter closed — tension, not celebration.
+    pool: 1,
+    gain: 0.18,
+    voices: [
+      {
+        osc: 'noise', freq: 2200, durMs: 650, noiseSeed: 71,
+        filter: { baseHz: 380, peakHz: 900, q: 0.9, attackMs: 120, decayMs: 300, sustain: 0.3, releaseMs: 200 },
+        env: { attackMs: 90, decayMs: 280, sustain: 0.35, releaseMs: 240 },
+      },
+    ],
+  },
+
   // --- Run-flow beats ---
   tipoff: {
     pool: 1,
@@ -102,7 +161,9 @@ export const RECIPES = {
     voices: [
       // Whistle dropped to A6 and low-passed, with a gentler vibrato, so it calls without shrieking.
       { osc: 'square', duty: 0.25, freq: 1760, durMs: 240, vibrato: { semitones: 0.35, rateHz: 14 }, filter: { baseHz: 1400, peakHz: 2800, q: 0.7, sustain: 1 }, env: { attackMs: 15, sustain: 1, releaseMs: 70 } },
-      { osc: 'noise', freq: 900, durMs: 320, gain: 0.24, srReduce: 4, filter: { baseHz: 500, peakHz: 2200, q: 0.7, sustain: 1 }, env: { attackMs: 220, sustain: 1, releaseMs: 100 }, noiseSeed: 31 },
+      // The proto-crowd wash stretched into a second of arena air, so every game
+      // opens in a building without any resident ambient player.
+      { osc: 'noise', freq: 900, durMs: 1100, gain: 0.24, srReduce: 4, filter: { baseHz: 500, peakHz: 2200, q: 0.7, attackMs: 250, decayMs: 500, sustain: 0.4 }, env: { attackMs: 250, decayMs: 450, sustain: 0.3, releaseMs: 300 }, noiseSeed: 31 },
     ],
   },
   buzzerBeater: {

@@ -23,6 +23,7 @@ import {
   DIFFICULTY_LABELS,
   difficultyPerks,
 } from '@/game/difficulty-mode';
+import { arenaTierFor } from '@/game/arena-tier';
 import { getCoach } from '@/game/coaches';
 import { coachForTeamName } from '@/game/opponent-coach';
 import { CoachRecBanner } from '@/components/run/CoachRecBanner';
@@ -238,6 +239,11 @@ export default function RunScreen() {
           timeline={model.game.result.events}
           homeTeam={model.game.home}
           awayTeam={model.game.away}
+          arenaTier={arenaTierFor(
+            model.core.map.nodes[model.phase.nodeId],
+            model.core.currentMapIndex,
+            TOTAL_MAPS
+          )}
           onComplete={actions.finishReplay}
         />
       );
@@ -478,17 +484,17 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const homeIdentity = useMemo(() => deriveTeamIdentity(home), [home]);
   // Peak games tip off through a stake-themed ceremony wipe; routine games keep
   // the instant cut. The contrast IS the escalation (3-4 wipes per run at most).
+  // The tier is the same derivation the watch uses for its apron crowd.
   const node = model.core.map.nodes[nodeId];
-  const championship =
-    node?.type === 'boss' && model.core.currentMapIndex >= TOTAL_MAPS - 1;
+  const tier = arenaTierFor(node, model.core.currentMapIndex, TOTAL_MAPS);
   const stakes =
-    node?.type === 'boss'
-      ? championship
-        ? { color: palette.gold, label: 'CHAMPIONSHIP' }
-        : { color: away.colorHex, label: 'BOSS GAME' }
-      : node?.type === 'elite'
-        ? { color: palette.flame, label: 'ELITE GAME' }
-        : null;
+    tier === 'championship'
+      ? { color: palette.gold, label: 'CHAMPIONSHIP' }
+      : tier === 'boss'
+        ? { color: away.colorHex, label: 'BOSS GAME' }
+        : tier === 'elite'
+          ? { color: palette.flame, label: 'ELITE GAME' }
+          : null;
   const tipOff = () => {
     sfx.tipoff();
     if (stakes) {

@@ -18,6 +18,7 @@ import {
   type LadderClass,
 } from '@/game/difficulty-mode';
 import { useHomeRoster } from '@/context/HomeRosterContext';
+import { crowdDensityFor } from '@/components/fx/pixelCrowdLayout';
 import { useIdle, HUB_IDLE_MS } from '@/feel';
 import { useCourtTheme } from '@/hooks/useCourtTheme';
 import { RosterStrip } from './RosterStrip';
@@ -111,6 +112,8 @@ export function RunMapView({
   }, [core.map, core.currentNodeId]);
 
   const height = boardHeight(core.map.layers.length);
+  // The last map is the championship stage: packed stands and a gold frame.
+  const finale = core.currentMapIndex >= TOTAL_MAPS - 1;
   const currentLayer =
     core.currentNodeId != null
       ? (core.map.nodes[core.currentNodeId]?.layer ?? null)
@@ -171,13 +174,21 @@ export function RunMapView({
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.board, { width: BOARD_WIDTH, height }]}>
+          {/* The stands scale with the bracket: seats fill in as the run climbs and
+              the final map seats a second row under a gold frame. */}
           <ArenaBackdrop
             width={BOARD_WIDTH}
             height={height}
             paused={idle}
             floorColor={courtTheme.floor}
             plankColor={courtTheme.plank}
-            frameColor={courtTheme.line}
+            frameColor={finale ? palette.gold : courtTheme.line}
+            crowdDensity={crowdDensityFor(core.currentMapIndex, TOTAL_MAPS)}
+            // One seed for the whole run: the density bar rises over the SAME
+            // hash stream, so the stands visibly fill in map over map (the
+            // monotone-superset property) instead of reseating a new crowd.
+            crowdSeed={`${core.seed}-crowd`}
+            crowdRows={finale ? 2 : 1}
           />
 
           {edges.map((edge) => (
