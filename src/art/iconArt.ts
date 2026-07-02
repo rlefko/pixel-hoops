@@ -42,7 +42,7 @@ const RIM_HI: RGBA = mix(hexToRgba(palette.epicRed), hexToRgba(palette.ink), 0.4
 // Ball seams: a deep warm brown instead of near-black. Under the front net
 // cords, black seams read as armor plating; a warm dark tone keeps the seam
 // grid legible while letting the ball stay one cohesive sphere.
-const SEAM: RGBA = mix(hexToRgba(palette.courtLine), hexToRgba(palette.shadow), 0.55);
+const SEAM: RGBA = mix(hexToRgba(palette.courtLine), hexToRgba(palette.shadow), 0.72);
 const OUTLINE: RGBA = hexToRgba(palette.shadow); // #000000 crisp silhouette edge
 const INK: RGBA = hexToRgba(palette.ink); // wordmark + monochrome silhouette
 // Net cord: a light neutral, fully opaque. Translucent strands used to blend
@@ -78,9 +78,8 @@ const BALL_CX = 16;
 const BALL_CY = 15;
 const BALL_R = 7;
 
-// The rim's front bar crosses the ball around here; seams start below it so the
-// crown poking through the hoop window stays a clean orange dome.
-const SEAM_TOP = 13;
+// The gleam sits just below the rim's front bar, on the ball's upper-left face.
+const GLEAM_Y = 13;
 
 /** Stamp the opaque pixels of `src` onto `dst`, but only where they fall inside
  * the disc, so the seams land solely on the ball's orange face. */
@@ -128,15 +127,16 @@ function drawBall(c: Canvas): void {
   c.disc(BALL_CX, BALL_CY, BALL_R, BALL);
   shadeCrescent(c);
   // Small upper-left gleam for roundness: a 2x2 block, the pixel-art idiom.
-  c.fillRect(BALL_CX - 3, SEAM_TOP, 2, 2, BALL_HI);
+  c.fillRect(BALL_CX - 3, GLEAM_Y, 2, 2, BALL_HI);
 
+  // Seams run the full ball, so the threading stays continuous on the crown
+  // poking through the hoop window; the rim's front bar occludes them mid-ball.
   const seams = new Canvas(LOGICAL, LOGICAL);
   seams.line(BALL_CX, BALL_CY - BALL_R, BALL_CX, BALL_CY + BALL_R, SEAM);
   seams.line(BALL_CX - BALL_R, BALL_CY, BALL_CX + BALL_R, BALL_CY, SEAM);
   const seamRx = BALL_R * 0.58;
   seams.ellipseArc(BALL_CX - BALL_R, BALL_CY, seamRx, BALL_R, SEAM, 'right');
   seams.ellipseArc(BALL_CX + BALL_R, BALL_CY, seamRx, BALL_R, SEAM, 'left');
-  seams.fillRect(0, 0, LOGICAL, SEAM_TOP, [0, 0, 0, 0]); // keep the crown clean
   stampWithinDisc(c, seams, BALL_CX, BALL_CY, BALL_R);
 }
 
