@@ -53,7 +53,7 @@ Battery, CPU, and tap-to-paint responsiveness are first-class product constraint
 
 ## 6. Known debts
 
-- `PlayerCard` legendary-name and zenith-badge glow loops run unpaused on long-lived screens (roster, locker, lineup builder); fixing needs a `paused` prop threaded through ~20 mount sites (flagged in #112).
+- `PlayerCard` glow loops on LEGENDARY and zenith cards run with no idle pause on long-lived screens (roster, locker, lineup builder). Ordinary cards are already paused (`paused: !legendaryGlow` on the name glow, `paused: !animated` on the tier badge), so this bites only when a legendary or zenith card is visible; fixing it properly needs a `paused` prop threaded through ~20 mount sites (recorded as future work in #112).
 
 ## Review checklist
 
