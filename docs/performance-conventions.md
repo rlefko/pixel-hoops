@@ -1,6 +1,6 @@
 # Performance Conventions
 
-The hard-won rules from eight performance passes (#80, #81, #88, #90, #109, #111, #112, #114). Every rule below was earned by a real, verified defect: the "why" lines describe mechanics confirmed in this codebase or in native library source, not folklore. Treat this file as the source of truth for performance review; the `perf-review` skill walks it, and the pre-commit performance agent checks every change against it.
+The hard-won rules from eight performance passes (#80, #81, #88, #90, #109, #111, #112, #114). Every rule below was earned by a real, verified defect: the "why" lines describe mechanics confirmed in this codebase or in native library source, not folklore. Treat this file as the source of truth for performance review; the `perf-review` skill walks it, and the pre-commit performance agent checks every change against it. This doc owns the battery, CPU, and responsiveness mechanics; how a change should look, sound, and land lives in `docs/feel-conventions.md` (the `feel-review` skill).
 
 ## Prime directive
 
