@@ -33,14 +33,6 @@ For each violation, report:
 - **How it breaks the feel**: what the player would see, hear, or stop trusting (a flat beat, a stacked voice, a celebration on a loss, a badge that lies, a ceremony that replays).
 - **The compliant fix**, naming the existing primitive or pattern the doc prescribes (the rarity burst, the callout chain, a scaled() duration, a persisted one-shot guard, an imperative handle, and so on).
 
-Five cases deserve extra suspicion:
-
-- Anything that adds duration to the watch outside the two budgeted peaks.
-- Any celebration or feedback beat without a magnitude tier.
-- Any channel that speaks for the opponent (crowd, confetti, triumphant audio on a loss).
-- Any ceremony or badge without a persisted one-shot or real-delta guard.
-- Anything meaning-carrying gated behind `arcadeExtras` or lost under reduced motion.
-
 ## Step 4: Report
 
 Output, in this order:

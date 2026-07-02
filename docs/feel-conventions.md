@@ -7,7 +7,7 @@ The presentation rulebook: how a change should look, sound, and land. Every rule
 Pixel Hoops presents like an 8-bit arcade broadcast: every beat fast, every celebration proportional and honest, every channel degradable without losing meaning. Presentation READS the sim; it never bends outcomes. Two standing consequences:
 
 1. Celebration is information. A beat that fires when nothing was earned, or that stays uniform across magnitudes, teaches the player to ignore every beat.
-2. The watch's average duration is sacred. Juice rides existing gaps as overlays and one-shots; only a named, budgeted peak may spend time.
+2. The watch's average duration is sacred; only a named, budgeted peak may spend time.
 
 Boundaries: `docs/performance-conventions.md` owns the battery, CPU, and responsiveness mechanics (loop gating, audio player lifecycle, persistence, render hygiene); `docs/addictive-blueprint.md` owns design-level scoring (whether a feature earns its place at all). This doc owns how the built thing looks, sounds, and lands. Cross-reference them; never duplicate their rules here.
 
@@ -16,15 +16,15 @@ Boundaries: `docs/performance-conventions.md` owns the battery, CPU, and respons
 - **Colors come from the palette.** `src/theme/palette.ts` is the single named source; a diff adds no new hex literals outside `src/theme/` (legacy hex migrates as components are touched, per the palette header). Alpha via suffix concatenation on palette entries (`palette.gold + '22'`) is the sanctioned pattern.
 - **Everything sits on the pixel grid.** 4px spacing unit, hard borders, square or barely rounded corners (`src/theme/metrics.ts`). This is what keeps new UI reading as 8-bit rather than smooth and modern.
 - **Motion moves in whole pixels.** Snap transforms with `snapPx` or step them by integer offsets: the screen shake rattles like a CRT (`src/feel/useScreenShake.ts`), the crowd bob steps exactly 1px (`src/components/fx/PixelCrowd.tsx`). Stepped reads 8-bit; floaty sub-pixel motion breaks the fiction.
-- **Art is procedural.** Plain Views, SVG, and `PixelIcons`; no bitmap sprite sheets, and never OS emoji in-app. The single emoji exception is the share-text path (`src/game/victory-share-text.ts` and the share emoji field in `victory-tier.ts`), which leaves the app.
+- **Art is procedural.** Plain Views, SVG, and `PixelIcons`; no bitmap sprite sheets, and never OS emoji in-app. The single emoji exception is the share-text path and its tests (`src/game/victory-share-text.ts` and the share emoji field in `victory-tier.ts`), which leaves the app.
 - **Audio is baked procedural chiptune.** SFX and music come from the deterministic synth via `npm run gen:sfx` (`src/audio/recipes.ts`, `musicTracks.ts`); never recorded samples. Music may opt into the richer synthesis; SFX stay chip-simple.
 
 ## 2. Beats and pacing
 
-- **Every beat lands inside the DUR window** (80-260ms tokens in `src/feel/timings.ts`). The old card game locked the screen for 1600ms per resolution; those tokens exist so that never returns.
-- **Pace scales, sync holds.** Every per-event duration AND gap on the watch flows through `scaled(ms, speed)` (60ms floor), and a slow-mo peak stretches animation and scheduler by ONE shared constant (`WINNER_TIME_SCALE` in `src/components/game/possession.ts`), so the ball and the clock can never drift apart at any speed. Ambient loops (glow, bob, shimmer, scanlines) are never scaled. Pinned by `src/feel/__tests__/timings.test.ts`.
-- **Juice the peaks, compress the routine.** Roughly 80 percent of plays are routine and whip by (`LINGER`: winner 420 / big 120 / make 30 / other 16, possession.ts); hit-stop (100ms, 140 for the winner) folds into `eventGapMs` and is zero under reduced motion.
-- **The backdrop holds still; only the focal element moves** (the ball and the active player). A floor that shuffles or a camera that cuts adds motion without meaning and reads as jumpy.
+- **Every pacing beat lands inside the DUR window** (80-260ms tokens in `src/feel/timings.ts`). The old card game locked the screen for 1600ms per resolution; those tokens exist so that never returns. Non-blocking overlay one-shots that ride an existing gap (a crowd bob, a camera-flash twinkle) may run longer: they are governed by the no-added-duration rule below, not the window.
+- **Pace scales, sync holds.** Every scheduler-held duration and gap on the watch flows through `scaled(ms, speed)` (60ms floor), and a slow-mo peak stretches animation and scheduler by ONE shared constant (`WINNER_TIME_SCALE` in `src/components/game/possession.ts`), so the ball and the clock can never drift apart at any speed. Two named exceptions stay fixed: ambient loops (glow, bob, shimmer, scanlines) are never scaled, and perceptual constants (the ~90ms crowd answer delay, the haptic burst offsets) are deliberately speed-independent because they model reaction time, not pacing. Pinned by `src/feel/__tests__/timings.test.ts`.
+- **Juice the peaks, compress the routine** (the blueprint's watch-pacing rule, grounded here in code): roughly 80 percent of plays are routine and whip by (`LINGER`: winner 420 / big 120 / make 30 / other 16, possession.ts); hit-stop (100ms, 140 for the winner) folds into `eventGapMs` and is zero under reduced motion.
+- **The backdrop holds still; only the focal element moves** (the ball and the active player; the blueprint's stable-backdrop rule). A floor that shuffles or a camera that cuts adds motion without meaning and reads as jumpy.
 - **The watch never gains average duration.** New juice rides existing gaps as overlays and one-shots. The only budgeted spends are the game-winner cinema (~250ms, at most once per game, close finishes only) and the pregame ceremony wipe (the 3-4 peak games per run). Anything else that adds milliseconds to the watch is a finding.
 - **Always skippable, and skip pays off.** Skip jumps to the final beat and the ball still lands the payoff. Ceremonies never block input: buttons live immediately, reveals are tap-through.
 
@@ -42,14 +42,14 @@ Boundaries: `docs/performance-conventions.md` owns the battery, CPU, and respons
 
 - **Call sites speak intent** (`sfx.dunk()`, `haptics.bigPlay()`), never player plumbing; haptics map to event semantics (selection / light / medium / success / bigPlay).
 - **Tier by layers, not duration** (`TickCounter`): small is ticks only, medium adds the coin clink and a pop, large adds the success haptic. A bigger reward gets more channels, not a longer animation.
-- **Repeatable cues carry pitch jitter** so repeats never sound identical (`src/feel/audio.ts`), and count ticks pace at 80ms so a capped tally sings about eight notes, coupled to TickCounter's pitch ladder. Pinned by `src/feel/__tests__/soundPolicy.test.ts`.
+- **Repeatable cues carry pitch jitter** so repeats never sound identical; every cooldown-listed cue inherits the jitter automatically inside `trigger()` (`src/feel/audio.ts`), so listing a cue in `RAPID_CUE_COOLDOWN_MS` is how a new repeatable sound gets both its pacing and its variation. The tick cadence numbers and their TickCounter coupling are performance-conventions section 2 rules; this doc adds only the anti-fatigue intent. Pinned by `src/feel/__tests__/soundPolicy.test.ts`.
 - **The crowd answers; it never leads.** Swells start ~90ms after the play's own sting, coalesce through 2.2-2.5s cooldowns so a flurry answers once, and never duck the music. Big stings duck with a hold scaled to their size; the quiet win cue never ducks (`src/feel/audio.ts`).
 - **Ambience is unpitched noise with slow attacks** (80-220ms), so it can never sit out of key with any bed and never reads as a cue. Pinned by the gentleness pins in `src/audio/__tests__/recipes.test.ts`.
 
 ## 5. Degradation preserves semantics
 
 - **Reduced motion changes HOW a beat lands, never WHETHER.** Under effective reduced motion (user setting or Low Power Mode): values snap, glows hold steady-lit, holds and flights are skipped, but every semantic beat still resolves (counts land, settle beats play, arrivals fire synchronously: `useCountUp`, `useFlash`, `useStagedReveal`, possession.ts's no-flight branch). Walk a change's reduced-motion path explicitly before shipping it.
-- **`arcadeExtras` gates pure atmosphere only** (CrowdPulse, the crowds, the vignettes). If removing an element would lose information, it must not sit behind arcadeExtras; the play's own flash, haptics, and sfx carry the semantics.
+- **`arcadeExtras` gates pure atmosphere only** (CrowdPulse, the crowds, the vignettes); the play's own flash, haptics, and sfx carry the semantics.
 - **Low Power Mode silences sound and music** the same way it reduces motion (`src/feel/soundPolicy.ts`). No feature may be legible ONLY through a gated channel: every meaning has a path that survives all gates.
 - The mechanics of loop gating (effective reducedMotion AND a runtime pause; the pulse helpers) are performance-conventions rules. This doc adds the semantic half: the paused and steady states must still read correctly.
 
@@ -64,15 +64,15 @@ Boundaries: `docs/performance-conventions.md` owns the battery, CPU, and respons
 
 ## Review checklist
 
-For any presentation-touching diff, check in order:
+For any presentation-touching diff, check in order. In the commands, `<range>` is `origin/main...` for a working-tree review or the PR's commit range for a named target.
 
-1. New colors: palette-only? `git diff origin/main... -- src ':!src/theme' | grep -E "^\+.*'#[0-9A-Fa-f]{3,8}'"` should return nothing (legacy hex migrates only when its component is touched).
-2. New emoji: `rg -n "[\x{1F300}-\x{1FAFF}]" src/` hits only the share-text path.
-3. New beats inside the DUR window, and every watch-path duration and gap through `scaled()`?
+1. New colors: palette-only? `git diff <range> -- src ':!src/theme' | grep -E "^\+.*'#[0-9A-Fa-f]{3,8}'"` should return nothing (legacy hex migrates only when its component is touched).
+2. New emoji: `rg -n "\p{Emoji_Presentation}" src/` hits only the share-text path and its tests (a whole-tree invariant, not a diff check).
+3. New pacing beats inside the DUR window, every scheduler-held duration and gap through `scaled()` (perceptual constants are the named exception), and zero milliseconds added to the watch outside the two budgeted peaks?
 4. Celebration tiered by magnitude, and nothing celebrating a loss?
 5. New callouts or banners slotted into the one-voice precedence chain, not stacked beside it?
 6. Honesty gates intact: crowd channels home-only, badges only on real rises and cleared on view, ceremonies one-shot in persisted state?
 7. Reduced motion: does every semantic beat in the change still land, just faster and stiller?
 8. `arcadeExtras`: everything behind it pure atmosphere, nothing semantic?
-9. New cues: intent-named, cooldown-bounded, pitch-jittered if repeatable, and ducking (or deliberately not ducking) per the hierarchy?
+9. New cues: intent-named, listed for cooldown + jitter if repeatable, and ducking (or deliberately not ducking) per the hierarchy?
 10. New presentation derivations: pure, computed once per timeline, budget-capped in the plan, mutating nothing?

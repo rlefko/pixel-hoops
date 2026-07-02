@@ -55,4 +55,4 @@ Keep the report tight and skimmable. Favor specific, buildable suggestions over 
 ## Notes
 
 - The checklist is the contract. If the user wants to add or change a criterion, edit `docs/addictive-blueprint.md` (the source of truth), not this skill.
-- Implementation-level feel review lives in the `feel-review` skill (source of truth: `docs/feel-conventions.md`): it audits how a built screen or diff looks, sounds, and lands. This skill stays at the design level; when a request is about a shipped change's feel rather than a feature's design, use `feel-review` instead.
+- Implementation-level feel review lives in the `feel-review` skill (source of truth: `docs/feel-conventions.md`); this skill stays at the design level, so when a request is about a built change's feel rather than a feature's design, use `feel-review` instead.
