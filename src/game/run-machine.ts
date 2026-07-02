@@ -41,7 +41,8 @@ import {
 } from './coaches';
 import { coachForTeamName } from './opponent-coach';
 import { recommendLineup, reorderForCoach, recMinDelta, type CoachRec } from './coach-reco';
-import { legendRecruit } from './player-pool';
+import { legendFavorSnapshot, legendRecruitFavored } from './player-pool';
+import { FAVOR_CHAMPION_BONUS, FAVOR_WIN_POINTS, addFavor } from './favor';
 import {
   MAX_BOOSTS,
   BOOST_BY_ID,
@@ -183,6 +184,14 @@ export interface RunModel {
   /** Owned S+ player keys snapshotted at initRun, so a boss signing never offers a
    * legend already in the collection. Optional: old suspended runs default to []. */
   ownedLegendKeys?: string[];
+  /** Base favor points accrued this run, per playerKey of every player who logged
+   * minutes in a WON game (losses earn nothing). Settled into the home ledger at run
+   * end for the un-owned only (see home-roster settleFavor); bounded by the 12-man
+   * roster. Optional: old suspended runs default to {}. */
+  favor?: Record<string, number>;
+  /** Home favor snapshot filtered to legend keys at initRun, biasing WHICH un-owned
+   * legend the once-per-run reveal offers. Optional: old suspended runs default to {}. */
+  legendFavor?: Record<string, number>;
   /** Recruit nodes in a row without a specialist offered; pity forces one in once
    * it reaches RECRUIT_PITY_THRESHOLD so a specialist build is always reachable. */
   recruitDryStreak: number;
@@ -299,6 +308,8 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     ownedLegendKeys: homeRoster.players
       .filter((p) => (p.legendary ?? false) || p.originalClass === 'S+')
       .map((p) => nameKey(p.player.name, p.position)),
+    favor: {},
+    legendFavor: legendFavorSnapshot(homeRoster.favor ?? {}),
     recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
     forgivenLosses: 0,
@@ -390,6 +401,18 @@ function applyRecruitPity(
   const forced = pickSpecialistOfClass(ladderClass, taken, rng);
   if (!forced) return { offers: rolled, recruitDryStreak: next }; // none left; keep trying
   return { offers: [...rolled.slice(0, -1), forced], recruitDryStreak: 0 };
+}
+
+/** playerKeys of roster players who logged minutes in the just-simmed game. Favor
+ * accrues to players who actually took the floor in a WIN, never benched spectators
+ * (a parked recruit earning passive trust would gut the field-them-or-not tradeoff).
+ * No box (defensive) = no favor. */
+function fieldedFavorKeys(roster: RunState['roster'], box: BoxLine[] | undefined): string[] {
+  if (!box) return [];
+  const played = new Set(box.filter((line) => line.seconds > 0).map((line) => line.name));
+  return [...roster.starters, ...roster.bench]
+    .filter((p) => played.has(p.player.name))
+    .map((p) => nameKey(p.player.name, p.position));
 }
 
 /** Apply a per-player transform across the combined roster, re-split at five. */
@@ -737,7 +760,18 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
           core,
           recruitDryStreak,
           legend: { ...model.legend, offeredThisRun: true },
-          phase: { kind: 'legendReveal', nodeId, offer: legendRecruit(gateRng), fallback: offers },
+          phase: {
+            kind: 'legendReveal',
+            nodeId,
+            // Favor steers WHO walks in (the highest-favor un-owned legend); the
+            // gate above kept whether-and-when pure chance-and-pity.
+            offer: legendRecruitFavored(
+              model.ownedLegendKeys ?? [],
+              model.legendFavor ?? {},
+              gateRng
+            ),
+            fallback: offers,
+          },
         };
       }
       return {
@@ -1024,8 +1058,23 @@ export function runReducer(
         : model.core.roster;
       const core = { ...model.core, rewards, roster };
       const wins = model.wins + 1;
+      const isChampionship = isBoss && core.currentMapIndex >= TOTAL_MAPS - 1;
+      // Favor accrues to every player who logged minutes in this WIN: base points by
+      // opponent tier, plus the flat championship bonus on the title game. Losses and
+      // timeout replays never touch the ledger (accrue-on-wins is what keeps a thrown
+      // run worth zero favor); the whole run's ledger banks at settle, win or lose.
+      const winPoints = isBoss
+        ? FAVOR_WIN_POINTS.boss
+        : node.type === 'elite'
+          ? FAVOR_WIN_POINTS.elite
+          : FAVOR_WIN_POINTS.game;
+      const favor = addFavor(
+        model.favor ?? {},
+        fieldedFavorKeys(roster, model.game?.result.box.home),
+        winPoints + (isChampionship ? FAVOR_CHAMPION_BONUS : 0)
+      );
       if (isBoss) {
-        if (core.currentMapIndex >= TOTAL_MAPS - 1) {
+        if (isChampionship) {
           // The championship clear bonus banks with the final win's coins (as-earned,
           // like every payout), so only a FINISHED run ever touches the difficulty's
           // coin premium; partial runs cannot farm it.
@@ -1033,7 +1082,7 @@ export function runReducer(
             ...core,
             rewards: { ...rewards, coins: rewards.coins + model.mods.clearBonus },
           };
-          return { ...model, core: crowned, wins, phase: { kind: 'summary', champion: true } };
+          return { ...model, core: crowned, wins, favor, phase: { kind: 'summary', champion: true } };
         }
         // Boss Legend Signings roll BEFORE the map advances (the chance ramps on the
         // map index just beaten); an offered signing counts as the run's one legend
@@ -1043,6 +1092,7 @@ export function runReducer(
           ...model,
           core,
           wins,
+          favor,
           legend: signOffer ? { ...model.legend, offeredThisRun: true } : model.legend,
         });
         // A boss always drops gear (rare / epic / legendary, never common). Beat order:
@@ -1070,7 +1120,7 @@ export function runReducer(
             away: model.game.result.finalAway,
           })
         : core;
-      return { ...model, core: stamped, wins, phase: { kind: 'map' }, game: null };
+      return { ...model, core: stamped, wins, favor, phase: { kind: 'map' }, game: null };
     }
 
     case 'recruit': {

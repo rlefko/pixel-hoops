@@ -1,7 +1,7 @@
 import { NBA_PLAYERS, NBA_LEGENDS, NBA_POOL, NBA_TEAMS } from '@/data/nba';
 import type { NbaTeam, RealPlayer } from '@/types/nba';
 import type { Player } from '@/types/player';
-import { POSITION_ARCHETYPE, type RosterPlayer } from '@/types/roster';
+import { POSITION_ARCHETYPE, nameKey, type RosterPlayer } from '@/types/roster';
 import { classForOvr, ovr, type PlayerClass } from './ratings';
 import { tendencyFromBaked } from './playstyle';
 import type { RNG } from './rng';
@@ -54,6 +54,42 @@ export function pickRealTeam(rng: RNG): NbaTeam {
  */
 export function legendRecruit(rng: RNG): RosterPlayer {
   return { ...realPlayerToRosterPlayer(rng.pick(NBA_PLAYERS)), onLoan: true };
+}
+
+/** The home favor ledger filtered to legend keys, snapshotted at run start to bias
+ * the once-per-run reveal. Small (only legends with favor) and read-only. */
+export function legendFavorSnapshot(
+  favor: Readonly<Record<string, number>>
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const p of NBA_PLAYERS) {
+    const key = nameKey(p.name, p.position);
+    const points = favor[key];
+    if (typeof points === 'number' && points > 0) out[key] = points;
+  }
+  return out;
+}
+
+/**
+ * The favor-steered legend reveal: the highest-favor UN-OWNED legend walks in, so the
+ * legend a player ran (and maybe lost) with becomes their standing front-runner. When
+ * the reveal fires stays chance-and-pity (run-machine's gate); only WHO is earned.
+ * Zero favor everywhere reduces to today's uniform pick among the un-owned (a single
+ * seeded draw either way, so replays and resumes stay stable).
+ */
+export function legendRecruitFavored(
+  ownedLegendKeys: readonly string[],
+  legendFavor: Readonly<Record<string, number>>,
+  rng: RNG
+): RosterPlayer {
+  const owned = new Set(ownedLegendKeys);
+  const unowned = NBA_PLAYERS.filter((p) => !owned.has(nameKey(p.name, p.position)));
+  const pool = unowned.length > 0 ? unowned : NBA_PLAYERS;
+  let best = 0;
+  for (const p of pool) best = Math.max(best, legendFavor[nameKey(p.name, p.position)] ?? 0);
+  const top =
+    best > 0 ? pool.filter((p) => (legendFavor[nameKey(p.name, p.position)] ?? 0) === best) : pool;
+  return { ...realPlayerToRosterPlayer(rng.pick(top)), onLoan: true };
 }
 
 /**
