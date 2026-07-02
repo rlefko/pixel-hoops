@@ -191,7 +191,9 @@ function sync(): void {
     audibleBed = current;
     crossfadeTo(current);
   }
-  if (energyPlayer && energyApplied !== energyOn) {
+  // The energy layer only ever rides on top of an audible bed: if the bed is still
+  // loading (it is far larger than the layer), the layer waits and both fade in together.
+  if (energyPlayer && audibleBed === current && energyApplied !== energyOn) {
     energyApplied = energyOn;
     fadeEnergy(energyOn);
   }
