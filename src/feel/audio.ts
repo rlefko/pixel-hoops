@@ -35,9 +35,10 @@ const pools = new Map<SfxName, Pool>();
 const lastCueAt = new Map<SfxName, number>();
 let jitterTick = 0;
 
-// The master volume each player last received (mirrors music.ts's lastVolume cache):
-// volume only changes via the settings slider, so after a pool player's first play the
-// native volume write is skipped, trimming a call from every rapid tick's hot path.
+// The master volume each player last received (same skip-unchanged-writes pattern as
+// music.ts's lastVolume, keyed by player object here since pools share names): volume
+// only changes via the settings slider, so after a pool player's first play the native
+// volume write is skipped, trimming a call from every rapid tick's hot path.
 const lastVolume = new WeakMap<AudioPlayer, number>();
 
 /** Toggle all sound (wired to FeelSettings.soundEnabled). */
