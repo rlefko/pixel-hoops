@@ -65,7 +65,8 @@ export function setAudioActive(active: boolean): void {
 
 /**
  * Build the audio session and preload every SFX once. Called at app boot. Safe to call
- * more than once.
+ * more than once. ensureAudioMode MUST complete before any player is created (see
+ * ./audioPlayers for why), which is why the pools wait on it.
  */
 export async function initSfx(): Promise<void> {
   if (initStarted || IS_WEB) return;
