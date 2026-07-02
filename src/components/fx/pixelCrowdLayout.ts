@@ -1,15 +1,16 @@
+import { hashSeed } from '@/game/rng';
 import { palette } from '@/theme/palette';
 
 /**
  * Seat layout math for PixelCrowd, kept pure (this module must not import
  * react-native — it is unit-tested in node, the courtDimensions convention).
  *
- * Density is FULLNESS: a seat exists when its hash clears the density bar, and
- * because the bar test is monotone the packed late-run crowd is a strict
- * superset of the sparse early crowd — seats fill in as the bracket climbs,
- * they never reshuffle. Colors cycle the hue-shifted silhouette trio (never
- * pure black) so adjacent seats never match, with sparse gold accents that
- * double as the camera-flash anchors.
+ * Density is FULLNESS: a seat exists when its hash falls UNDER the density
+ * bar, and because the bar only rises with density the packed late-run crowd
+ * is a strict superset of the sparse early crowd (for the same seed) — seats
+ * fill in as the bracket climbs, they never reshuffle. Colors cycle the
+ * hue-shifted silhouette trio (never pure black) so adjacent seats never
+ * match, with sparse gold accents that double as the camera-flash anchors.
  */
 
 export const SEAT_SIZE = 5;
@@ -36,15 +37,10 @@ export function seatCount(lengthPx: number): number {
   return Math.max(0, Math.floor(lengthPx / SEAT_PITCH));
 }
 
-/** Deterministic 0..1 hash (FNV-1a), stable across sessions and platforms. */
-export function hash01(seed: string | number, i: number): number {
-  const s = `${seed}:${i}`;
-  let h = 2166136261 >>> 0;
-  for (let j = 0; j < s.length; j++) {
-    h ^= s.charCodeAt(j);
-    h = Math.imul(h, 16777619) >>> 0;
-  }
-  return h / 4294967296;
+/** Deterministic 0..1 hash over the shared FNV-1a (src/game/rng.ts), stable
+ * across sessions and platforms. */
+function hash01(seed: string | number, i: number): number {
+  return hashSeed(`${seed}:${i}`) / 4294967296;
 }
 
 export function crowdSeats(
@@ -57,6 +53,8 @@ export function crowdSeats(
   const seats: CrowdSeat[] = [];
   for (let row = 0; row < rows; row++) {
     for (let i = 0; i < perRow; i++) {
+      // Disjoint hash stream per row (safe: a row would need a ~32k-px strip
+      // before its seat indexes reached the next row's stream).
       const idx = row * 4096 + i;
       if (hash01(`${seed}:p`, idx) >= density) continue;
       const accent = hash01(`${seed}:a`, idx) < ACCENT_RATE;

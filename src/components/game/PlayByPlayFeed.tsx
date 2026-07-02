@@ -468,7 +468,7 @@ export function PlayByPlayFeed({
           ignite={landedHot?.igniting ?? false}
           cinema={current != null && cinemaSeqs.has(current.seq)}
           arenaTier={arenaTier}
-          crowdPlan={arenaTier !== 'routine' ? crowdPlan : undefined}
+          crowdPlan={crowdPlan}
           onArrival={handleArrival}
         />
         <View style={styles.feed}>

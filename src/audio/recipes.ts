@@ -103,9 +103,11 @@ export const RECIPES = {
   // crowd, never in lockstep. They start ~90ms after the play's own sting (see
   // audio.ts crowd()) and never duck the music: the swell IS the bed answering.
   crowdCheer: {
-    // A big home play (dunk, and-one, clutch or heat-check three). Pooled so a
-    // hot stretch can overlap; the 2.2s cooldown coalesces a flurry into one swell.
-    pool: 2,
+    // A big home play (dunk, and-one, clutch or heat-check three). One swell at
+    // a time by construction: the 2.2s cooldown (longer than the ~1.6s bake)
+    // coalesces a scoring flurry into a single answer, so no second player is
+    // ever reachable.
+    pool: 1,
     gain: 0.32,
     voices: [
       {

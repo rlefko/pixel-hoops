@@ -88,7 +88,9 @@ export function BountyCrestShelf({
     const timers = newCells.map((_, i) =>
       setTimeout(() => {
         setRevealedCount(i + 1);
-        sfx.tick(1 + i * TICK_STEP);
+        // Clamped: iOS caps playback rate at 2.0, and a long-hoarded ledger can
+        // reveal a dozen-plus crests in one visit.
+        sfx.tick(Math.min(2, 1 + i * TICK_STEP));
         if (i === 0) haptics.light();
       }, REVEAL_START_MS + i * REVEAL_STEP_MS)
     );

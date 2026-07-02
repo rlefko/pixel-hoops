@@ -1266,8 +1266,12 @@ export function hubCopyTotal(home: Pick<HomeRoster, 'players' | 'collecting'>): 
   );
 }
 
-/** The snapshot that means "everything acknowledged right now". */
-export function currentHubSeen(home: HomeRoster): HubSeen {
+/** The snapshot that means "everything acknowledged right now". Takes only the
+ * fields it reads, so the deserializer's migration fallback shares it and the
+ * two definitions of "fully acknowledged" can never drift. */
+export function currentHubSeen(
+  home: Pick<HomeRoster, 'coins' | 'clearedCells' | 'players' | 'collecting'>
+): HubSeen {
   return {
     coins: home.coins,
     crestCells: [...(home.clearedCells ?? [])],
@@ -1625,11 +1629,7 @@ function sanitizeHubSeen(
     collecting: CollectingPlayer[];
   }
 ): HubSeen {
-  const fallback: HubSeen = {
-    coins: current.coins,
-    crestCells: [...current.clearedCells],
-    copyTotal: hubCopyTotal(current),
-  };
+  const fallback = currentHubSeen(current);
   if (!raw || typeof raw !== 'object') return fallback;
   const { coins, crestCells, copyTotal } = raw as Record<string, unknown>;
   return {

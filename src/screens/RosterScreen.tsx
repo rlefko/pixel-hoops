@@ -16,9 +16,9 @@ import {
   ownedRosterPlayers,
   pinScoutTarget,
   playerKey,
-  stampHubSeen,
   totalUpgrades,
 } from '@/game/home-roster';
+import { useAcknowledgeHubSeen } from '@/hooks/useAcknowledgeHubSeen';
 import { FAVOR_PER_COPY } from '@/game/favor';
 import { tierForClass } from '@/game/player-gacha';
 import { playerDraftClass } from '@/game/draft';
@@ -112,14 +112,8 @@ export default function RosterScreen() {
   }, []);
   // Viewing the roster browser acknowledges the collection's copy progress in the
   // hubSeen ledger (the copy meters are on the cards here), clearing the hub's
-  // ROSTER delta chip. Once per mount; the same-reference guard makes re-runs no-ops.
-  const stampedRef = useRef(false);
-  useEffect(() => {
-    if (stampedRef.current || !loaded || !homeRoster) return;
-    stampedRef.current = true;
-    const stamped = stampHubSeen(homeRoster, { copyTotal: hubCopyTotal(homeRoster) });
-    if (stamped !== homeRoster) saveHomeRoster(stamped);
-  }, [loaded, homeRoster, saveHomeRoster]);
+  // ROSTER delta chip.
+  useAcknowledgeHubSeen((h) => ({ copyTotal: hubCopyTotal(h) }));
   const [query, setQuery] = useState('');
   const [classes, setClasses] = useState<Set<PlayerClass>>(new Set());
   const [positions, setPositions] = useState<Set<Position>>(new Set());

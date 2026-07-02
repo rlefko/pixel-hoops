@@ -184,8 +184,11 @@ export function RunMapView({
             plankColor={courtTheme.plank}
             frameColor={finale ? palette.gold : courtTheme.line}
             crowdDensity={crowdDensityFor(core.currentMapIndex, TOTAL_MAPS)}
+            // One seed for the whole run: the density bar rises over the SAME
+            // hash stream, so the stands visibly fill in map over map (the
+            // monotone-superset property) instead of reseating a new crowd.
+            crowdSeed={`${core.seed}-crowd`}
             crowdRows={finale ? 2 : 1}
-            crowdSeed={`${core.seed}-crowd-${core.currentMapIndex}`}
           />
 
           {edges.map((edge) => (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
@@ -10,7 +10,8 @@ import { BountyCrestShelf } from '@/components/locker/BountyCrestShelf';
 import { RewardConfetti } from '@/components/run/reward-fx';
 import { useRewardBurst } from '@/components/run/useRewardBurst';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { newCrestCells, stampHubSeen } from '@/game/home-roster';
+import { newCrestCells } from '@/game/home-roster';
+import { useAcknowledgeHubSeen } from '@/hooks/useAcknowledgeHubSeen';
 import { palette, FONT, FONT_SIZE, space } from '@/theme';
 
 /**
@@ -25,22 +26,18 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
  */
 export default function HallOfFameScreen() {
   const nav = useArcadeRouter();
-  const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
+  const { homeRoster, loaded } = useHomeRoster();
   const { screenProps } = useHubBackdrop();
   const { shakeRef, flashRef, fire, confettiTrigger } = useRewardBurst();
 
-  // This visit's ceremony, captured ONCE before the stamp below clears the
-  // ledger (the initializer is immune to the stamp's own re-render).
-  const [newCells] = useState(() => (homeRoster ? newCrestCells(homeRoster) : []));
-  const stampedRef = useRef(false);
-  useEffect(() => {
-    if (stampedRef.current || !loaded || !homeRoster) return;
-    stampedRef.current = true;
-    const stamped = stampHubSeen(homeRoster, {
-      crestCells: [...(homeRoster.clearedCells ?? [])],
-    });
-    if (stamped !== homeRoster) saveHomeRoster(stamped);
-  }, [loaded, homeRoster, saveHomeRoster]);
+  // Viewing this screen acknowledges the crests; `seenAt` is the roster as it
+  // was BEFORE the stamp (and null until hydration), so this visit's ceremony
+  // is derived from it and the shelf mounts only once it is known — a
+  // pre-hydration mount can never swallow the ceremony.
+  const seenAt = useAcknowledgeHubSeen((h) => ({
+    crestCells: [...(h.clearedCells ?? [])],
+  }));
+  const newCells = useMemo(() => (seenAt ? newCrestCells(seenAt) : []), [seenAt]);
 
   if (!loaded || !homeRoster) {
     return (
@@ -67,11 +64,15 @@ export default function HallOfFameScreen() {
           </Text>
         </View>
 
-        <BountyCrestShelf
-          clearedCells={homeRoster.clearedCells}
-          newCells={newCells}
-          onMilestone={(m) => fire(m === 20 ? 'legendary' : 'epic')}
-        />
+        {/* Mounted only once the acknowledgment landed: the shelf's ceremony
+            captures `newCells` on ITS mount, so it must see the final list. */}
+        {seenAt ? (
+          <BountyCrestShelf
+            clearedCells={homeRoster.clearedCells}
+            newCells={newCells}
+            onMilestone={(m) => fire(m === 20 ? 'legendary' : 'epic')}
+          />
+        ) : null}
 
         {entries.length === 0 ? (
           <Text style={styles.empty}>

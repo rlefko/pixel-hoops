@@ -44,7 +44,7 @@ export const SFX_POOL: Record<SfxName, number> = {
   block: 1,
   steal: 1,
   miss: 1,
-  crowdCheer: 2,
+  crowdCheer: 1,
   crowdRoar: 1,
   crowdMurmur: 1,
   tipoff: 1,

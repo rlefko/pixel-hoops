@@ -66,8 +66,10 @@ interface CourtViewProps {
   cinema?: boolean;
   /** The arena's stakes tier; elite and up seat a crowd in the apron. */
   arenaTier?: ArenaTier;
-  /** The precomputed crowd plan (undefined on routine games, so the memo holds);
-   * big/peak beats stir the apron crowd's cheer on home plays. */
+  /** The precomputed crowd plan (one stable Map per timeline): picks whether a
+   * home arrival stirs the apron crowd's cheer (big/peak beats) or just a bob.
+   * Routine games pay nothing for it — no ApronCrowd mounts, so the ref stays
+   * null and the lookup is dead. */
   crowdPlan?: Map<number, CrowdPulsePlan>;
   /** Fired when the ball reaches the rim (synced make/miss feedback). */
   onArrival?: (e: SimEvent) => void;

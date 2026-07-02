@@ -19,9 +19,8 @@ import type { ArenaTier } from '@/game/arena-tier';
  * the opponent.
  */
 
-export interface ApronCrowdHandle {
-  react: (kind: 'bob' | 'cheer') => void;
-}
+/** The fan-out handle mirrors the strip primitive's contract exactly. */
+export type ApronCrowdHandle = PixelCrowdHandle;
 
 interface ApronCrowdProps {
   /** CourtView's measured container. */
