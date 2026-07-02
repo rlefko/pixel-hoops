@@ -33,7 +33,8 @@ Before committing any change:
 2. Run a **simplification** subagent: ensure the code is not needlessly complex.
 3. Run a **readability** subagent: confirm the code is clear and consistent with surrounding patterns.
 4. Run a **performance** subagent: check the change against the performance conventions in `docs/performance-conventions.md` (the `perf-review` skill runs this check end to end).
-5. Apply any findings from the above agents before committing.
+5. Run a **feel** subagent when the change touches anything the player sees, hears, or feels (screens, components, `src/feel`, `src/components/fx`, audio recipes, the theme, watch pacing): check it against the feel conventions in `docs/feel-conventions.md` (the `feel-review` skill runs this check end to end).
+6. Apply any findings from the above agents before committing.
 
 ## Documentation
 
