@@ -1,6 +1,9 @@
+import type { SfxName } from '@/audio/sfxManifest'; // type-only: erased, keeps node tests RN-free
+
 /**
- * Pure sound-effect gating policy, kept free of React Native and expo-audio so it
- * can be unit-tested under vitest's node environment and reasoned about in one place.
+ * Pure sound policy: when audio is effectively on, and how rapid-fire cues are paced.
+ * Kept free of React Native and expo-audio so it can be unit-tested under vitest's
+ * node environment and reasoned about in one place.
  *
  * Sound is effectively on only when the player has it on AND the device is not in
  * Low Power Mode (iOS) / battery saver (Android). The Low Power gate mirrors the
@@ -25,3 +28,16 @@ export function isMusicEffective(
 ): boolean {
   return hydrated && musicEnabled && !lowPowerMode;
 }
+
+/**
+ * Cooldown per rapid-fire cue, in ms; cues not listed play ungated. Taps and toggles
+ * guard against machine-gunning at 45ms. Count ticks breathe at 80ms so a tally's
+ * climb (capped at 600ms in useCountUp) sings ~8 notes, matching TickCounter's
+ * 8-step pitch ladder, and each skipped note also skips its native audio calls.
+ */
+export const RAPID_CUE_COOLDOWN_MS: Partial<Record<SfxName, number>> = {
+  tapPrimary: 45,
+  tapSecondary: 45,
+  toggle: 45,
+  tick: 80,
+};
