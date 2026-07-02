@@ -381,7 +381,9 @@ export function pickSpecialistOfClass(
  * because recruits are kept only on a clear, better odds on a brutal run are pure risk/reward,
  * not a farm. If a class pool is exhausted the pick falls back to the ladder class, then any
  * untaken real, then a procedural player. The map-progress argument is retained for
- * signature/back-compat; offers no longer ramp by map.
+ * signature/back-compat; offers no longer ramp by map. Players the HOME favor ledger
+ * (`favor`, snapshotted as RunModel.homeFavor) holds favor for are weighted up inside
+ * their class bucket: the re-offer reunion (see pickRealOfClass).
  */
 export function generateRecruitOffers(
   ladderClass: LadderClass,

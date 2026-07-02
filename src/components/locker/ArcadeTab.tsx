@@ -87,6 +87,26 @@ export function ArcadeTab() {
     () => (homeRoster ? collectingCopyMap(homeRoster) : {}),
     [homeRoster]
   );
+  // The exact player each machine's next pull feeds (pin > favor/copies leader), so
+  // the card can never promise differently than the machine delivers. Memoized on the
+  // collection snapshot: five tier-pool scans that should not re-run per keystroke of
+  // the loadout search below.
+  const machineTargets = useMemo(() => {
+    const out: Partial<Record<PlayerGachaTier, ReturnType<typeof scoutTargetFor>>> = {};
+    if (!homeRoster) return out;
+    for (const tier of PLAYER_GACHA_TIERS) {
+      out[tier] = machineUnlocked(tier, homeRoster.ladderProgress)
+        ? scoutTargetFor(
+            tier,
+            ownedKeys,
+            collectingCopies,
+            homeRoster.favor,
+            homeRoster.scoutTargets?.[tier]
+          )
+        : null;
+    }
+    return out;
+  }, [homeRoster, ownedKeys, collectingCopies]);
   // One shared breathe for legendary ability chips (top-tier only); lower rarities stay flat.
   // Paused (no loop) when no legendary ability is owned.
   const hasLegendaryAbility = ownedAbilities.some((a) => a.rarity === 'legendary');
@@ -166,18 +186,8 @@ export function ArcadeTab() {
           const gate = machineGate(tier);
           const color = m.legendary ? palette.gold : CLASS_COLOR[m.cls];
           const disabled = !unlocked || coins < m.cost || counts.complete;
-          // The exact player the next pull feeds (pin > favor/copies leader), so the
-          // card can never promise differently than the machine delivers. Null on a
-          // fresh tier (the pull tie-breaks on RNG) and on a locked machine.
-          const target = unlocked
-            ? scoutTargetFor(
-                tier,
-                ownedKeys,
-                collectingCopies,
-                homeRoster.favor ?? {},
-                homeRoster.scoutTargets?.[tier]
-              )
-            : null;
+          // Null on a fresh tier (the pull tie-breaks on RNG) and on a locked machine.
+          const target = machineTargets[tier] ?? null;
           const closest =
             !target && counts.closest && counts.closest.copies > 0
               ? ` · next ${counts.closest.copies}/${counts.closest.threshold}`

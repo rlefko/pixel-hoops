@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
@@ -120,20 +120,25 @@ export default function RosterScreen() {
   // duplicate name/position pairs, and ownedRosterPlayers returns stable instances).
   const [expanded, setExpanded] = useState<RosterPlayer | null>(null);
   // Pin (or unpin) an in-progress player as their machine's scout target, so every
-  // pull of that machine feeds this exact chase (pin/clear are no-ops on invalid keys).
+  // pull of that machine feeds this exact chase (pin/clear are no-ops on invalid
+  // keys). The ref keeps the callback identity-stable across saves, so a pin tap
+  // only re-renders the rows whose pinned/favor props actually changed.
+  const homeRosterRef = useRef(homeRoster);
+  homeRosterRef.current = homeRoster;
   const onPin = useCallback(
     (rp: RosterPlayer) => {
-      if (!homeRoster) return;
+      const home = homeRosterRef.current;
+      if (!home) return;
       const tier = tierForClass(playerDraftClass(rp));
       if (!tier) return;
       const key = playerKey(rp);
       saveHomeRoster(
-        homeRoster.scoutTargets?.[tier] === key
-          ? clearScoutTarget(homeRoster, tier)
-          : pinScoutTarget(homeRoster, tier, key)
+        home.scoutTargets?.[tier] === key
+          ? clearScoutTarget(home, tier)
+          : pinScoutTarget(home, tier, key)
       );
     },
-    [homeRoster, saveHomeRoster]
+    [saveHomeRoster]
   );
 
   // Stable toggle so memoized rows only re-render when their own expanded flag flips.
@@ -265,10 +270,12 @@ export default function RosterScreen() {
         data={shown}
         keyExtractor={(item, i) => `${item.rp.player.name}-${item.rp.position}-${i}`}
         renderItem={({ item, index }) => {
-          const key = playerKey(item.rp);
+          // Pin/favor props exist only on the in-progress tab: the favor ledger holds
+          // un-owned players only, so the owned tab would derive nulls per row.
           const tier = showCollecting ? tierForClass(playerDraftClass(item.rp)) : null;
-          const favorPoints = homeRoster.favor?.[key] ?? 0;
-          const perCopy = FAVOR_PER_COPY[playerDraftClass(item.rp)] ?? 0;
+          const key = tier ? playerKey(item.rp) : '';
+          const favorPoints = tier ? (homeRoster.favor[key] ?? 0) : 0;
+          const perCopy = tier ? (FAVOR_PER_COPY[playerDraftClass(item.rp)] ?? 0) : 0;
           return (
             <RosterRow
               rp={item.rp}

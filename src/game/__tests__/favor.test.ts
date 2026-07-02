@@ -3,10 +3,11 @@ import {
   FAVOR_CHAMPION_BONUS,
   FAVOR_PER_COPY,
   FAVOR_REACH_UP_DAMP,
+  FAVOR_RESIDUAL_COIN_RATE,
   FAVOR_WIN_POINTS,
   addFavor,
+  cashOutFavor,
   favorConvertible,
-  favorFraction,
   favorToCopies,
   settleFavorEarned,
 } from '@/game/favor';
@@ -89,11 +90,12 @@ describe('favor math', () => {
     expect(favorToCopies(500, 'S+')).toEqual({ copies: 0, remainder: 500 });
   });
 
-  it('favorFraction reads as progress toward the next copy', () => {
-    expect(favorFraction(0, 'S')).toBe(0);
-    expect(favorFraction(30, 'S')).toBeCloseTo(0.5);
-    expect(favorFraction(90, 'S')).toBe(1); // clamped; the settle converts before display
-    expect(favorFraction(50, 'S+')).toBe(0);
+  it('cashOutFavor drops the entry in place and pays coins at the residual rate', () => {
+    const ledger = { 'Signed Chase|PG': 12, 'Other Chase|SG': 5 };
+    expect(cashOutFavor(ledger, 'Signed Chase|PG')).toBe(12 * FAVOR_RESIDUAL_COIN_RATE);
+    expect(ledger['Signed Chase|PG']).toBeUndefined();
+    expect(ledger['Other Chase|SG']).toBe(5);
+    expect(cashOutFavor(ledger, 'Nobody|C')).toBe(0);
   });
 
   it('addFavor is immutable and a no-op reference on empty input', () => {

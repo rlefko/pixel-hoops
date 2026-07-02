@@ -14,9 +14,11 @@ import type { PlayerClass } from './ratings';
  * single source of truth for the numbers, mirroring collection.ts.
  */
 
-/** Favor points banked per WON game the player logged minutes in, by opponent tier.
- * The championship pays a flat bonus on top (the "they saw you lift the trophy" beat). */
+/** Favor points banked per WON game the player logged minutes in, by opponent tier. */
 export const FAVOR_WIN_POINTS = { game: 1, elite: 2, boss: 3 } as const;
+
+/** Flat bonus on the championship win, on top of the boss points (the "they saw you
+ * lift the trophy" beat). */
 export const FAVOR_CHAMPION_BONUS = 5;
 
 /** Reach-up damp: an above-ladder guest earns half trust, mirroring the one-copy
@@ -52,14 +54,6 @@ export function favorToCopies(favor: number, cls: PlayerClass): { copies: number
   return { copies: Math.floor(favor / perCopy), remainder: favor % perCopy };
 }
 
-/** Progress toward the NEXT favor copy, 0..1, for meters. A settled ledger always
- * holds less than one copy's worth, so this reads as the visible fraction. */
-export function favorFraction(favor: number, cls: PlayerClass): number {
-  const perCopy = FAVOR_PER_COPY[cls] ?? 0;
-  if (perCopy <= 0 || favor <= 0) return 0;
-  return Math.min(1, favor / perCopy);
-}
-
 /** The favor a run's accrued base points settle to: scaled by the difficulty's favor
  * multiplier and damped for a reach-up (above-ladder) player. Rounded to keep the
  * ledger in integers. */
@@ -72,6 +66,15 @@ export function settleFavorEarned(base: number, favorMul: number, reachUp: boole
  * deposit or a scout pull signs the player first). A meter the game asked the player
  * to fill never evaporates; a full A copy's worth of favor refunds a modest 200. */
 export const FAVOR_RESIDUAL_COIN_RATE = 5;
+
+/** Cash out a completed chase's ledger entry IN PLACE (the caller owns a mutable
+ * copy), returning the coins its banked points pay. Zero and a no-op when empty. */
+export function cashOutFavor(ledger: Record<string, number>, key: string): number {
+  const banked = ledger[key] ?? 0;
+  if (banked <= 0) return 0;
+  delete ledger[key];
+  return banked * FAVOR_RESIDUAL_COIN_RATE;
+}
 
 /** Add `points` to every key's entry, immutably. A no-op (same reference) when there
  * is nothing to add, so reducer states never churn on empty wins. */

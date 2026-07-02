@@ -64,7 +64,7 @@ export function ChampionView({
   wins,
   unlockedClass,
   progressed = [],
-  favorRows,
+  favorRows = [],
   coinsBanked,
   stepUp,
   dailyGrants = null,

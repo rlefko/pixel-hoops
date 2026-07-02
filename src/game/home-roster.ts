@@ -22,7 +22,7 @@ import {
   PLAYER_GACHA_TIERS,
   pullPlayer,
   machineUnlocked,
-  tierPool,
+  tierHasPlayer,
   type PlayerGachaTier,
   type PlayerPullResult,
 } from './player-gacha';
@@ -30,7 +30,7 @@ import { REACH_UP_DEPOSIT_COPIES, copiesToOwn, type CollectingPlayer } from './c
 import {
   FAVOR_PER_COPY,
   FAVOR_RESIDUAL_COIN_RATE,
-  favorToCopies,
+  cashOutFavor,
   settleFavorEarned,
 } from './favor';
 import { playerDraftClass } from './draft';
@@ -523,7 +523,7 @@ export function applyPlayerPull(
 /** The favor ledger + pinned target a machine's pull steers by. One helper so every
  * pull channel (paid scout, bounty grant, daily first-win) directs identically. */
 function pullDirection(home: HomeRoster, tier: PlayerGachaTier) {
-  return { favor: home.favor ?? {}, pinnedKey: home.scoutTargets?.[tier] };
+  return { favor: home.favor, pinnedKey: home.scoutTargets?.[tier] };
 }
 
 /** Pin a scout machine's target: every pull of that machine feeds this player until
@@ -536,7 +536,7 @@ export function pinScoutTarget(
 ): HomeRoster {
   const owned = new Set(home.players.map(playerKey));
   if (owned.has(key)) return home;
-  if (!tierPool(tier).some((p) => nameKey(p.name, p.position) === key)) return home;
+  if (!tierHasPlayer(tier, key)) return home;
   return { ...home, scoutTargets: { ...home.scoutTargets, [tier]: key } };
 }
 
@@ -562,15 +562,11 @@ function foldPull(home: HomeRoster, result: PlayerPullResult): HomeRoster {
     const collecting = home.collecting.filter((c) => playerKey(c.player) !== result.targetKey);
     // The chase completed at the machine: banked favor pays out as coins and the
     // entry drops, so a meter the player was told to fill never evaporates.
-    const banked = home.favor?.[result.targetKey] ?? 0;
-    let favor = home.favor ?? {};
-    if (banked > 0) {
-      favor = { ...favor };
-      delete favor[result.targetKey];
-    }
+    const favor = { ...home.favor };
+    const residualCoins = cashOutFavor(favor, result.targetKey);
     return {
       ...home,
-      coins: coins + banked * FAVOR_RESIDUAL_COIN_RATE,
+      coins: coins + residualCoins,
       players: [result.player, ...home.players],
       collecting,
       favor,
@@ -771,12 +767,11 @@ export interface FavorDelta {
  * never disagree with what actually banks. */
 function settleDeposits(
   home: HomeRoster,
-  runRoster: Roster,
+  candidates: RosterPlayer[],
   settle: RunSettle
 ): { collecting: CollectingPlayer[] } & AcquisitionDelta {
   const { champion = false, bossWins = 0, ladderClass } = settle;
   const mods = difficultyMods(settle.playedDifficulty ?? home.selectedDifficulty);
-  const candidates = runRecruitCandidates(home, runRoster);
   if (champion) {
     return depositRecruitCopies(home.collecting ?? [], candidates, mods.copiesMul, ladderClass);
   }
@@ -812,36 +807,37 @@ function settleCollection(
   settle: RunSettle
 ): CollectionSettle {
   const mods = difficultyMods(settle.playedDifficulty ?? home.selectedDifficulty);
-  const deposits = settleDeposits(home, runRoster, settle);
+  const candidates = runRecruitCandidates(home, runRoster);
+  const deposits = settleDeposits(home, candidates, settle);
   const unlocked = [...deposits.unlocked];
   let progressed = [...deposits.progressed];
   let collecting = deposits.collecting;
   const favor: Record<string, number> = { ...home.favor };
   const favorDelta: FavorDelta[] = [];
   let favorCoins = 0;
-  const ownedAfter = new Set([...home.players.map(playerKey), ...unlocked.map(playerKey)]);
-  const candidates = new Map(
-    runRecruitCandidates(home, runRoster).map((p) => [playerKey(p), p] as const)
-  );
+  // Everything unlocked BY THIS SETTLE so far. Home-owned players need no entry:
+  // runRecruitCandidates already excludes them, so the candidate lookup below is the
+  // owned filter.
+  const unlockedKeys = new Set(unlocked.map(playerKey));
+  const candidateByKey = new Map(candidates.map((p) => [playerKey(p), p] as const));
 
   // Chases the deposits just completed: banked favor converts to coins and drops.
   for (const rp of deposits.unlocked) {
     const key = playerKey(rp);
-    const banked = favor[key] ?? 0;
-    if (banked <= 0) continue;
-    delete favor[key];
-    const residualCoins = banked * FAVOR_RESIDUAL_COIN_RATE;
+    const before = favor[key] ?? 0;
+    const residualCoins = cashOutFavor(favor, key);
+    if (residualCoins <= 0) continue;
     favorCoins += residualCoins;
     favorDelta.push({
-      player: rp, before: banked, after: 0, earned: 0,
+      player: rp, before, after: 0, earned: 0,
       copiesGranted: 0, unlockedNow: false, residualCoins,
     });
   }
 
   // The favor pass: bank, convert, and (rarely) unlock.
   for (const [key, base] of Object.entries(settle.runFavor ?? {})) {
-    const candidate = candidates.get(key);
-    if (!candidate || ownedAfter.has(key)) continue; // owned, just signed, or cut mid-run
+    const candidate = candidateByKey.get(key);
+    if (!candidate || unlockedKeys.has(key)) continue; // owned, just signed, or cut mid-run
     const earned = settleFavorEarned(
       base,
       mods.favorMul,
@@ -851,7 +847,8 @@ function settleCollection(
     const before = favor[key] ?? 0;
     const total = before + earned;
     const cls = playerDraftClass(candidate);
-    const wholeCopies = favorToCopies(total, cls).copies;
+    const perCopy = FAVOR_PER_COPY[cls] ?? 0;
+    const wholeCopies = perCopy > 0 ? Math.floor(total / perCopy) : 0;
     if (wholeCopies <= 0) {
       favor[key] = total;
       favorDelta.push({
@@ -860,21 +857,21 @@ function settleCollection(
       });
       continue;
     }
-    // Whole copies convert through the shared deposit function (copiesMul = the
-    // grant, capped at need inside), so unlock semantics are byte-identical.
-    const threshold = copiesToOwn(cls);
+    // Whole copies convert through the shared deposit function, so unlock semantics
+    // are byte-identical. The grant is pre-capped at the copies still needed because
+    // `leftover` must reflect the ACTUAL grant (un-granted whole copies stay favor).
     const copiesBefore = collecting.find((c) => playerKey(c.player) === key)?.copies ?? 0;
-    const granted = Math.min(wholeCopies, threshold - copiesBefore);
+    const granted = Math.min(wholeCopies, copiesToOwn(cls) - copiesBefore);
     const grant = depositRecruitCopies(collecting, [candidate], granted);
     collecting = grant.collecting;
     progressed.push(...grant.progressed);
     const unlockedNow = grant.unlocked.length > 0;
-    const leftover = total - granted * (FAVOR_PER_COPY[cls] ?? 0);
+    const leftover = total - granted * perCopy;
     let after = leftover;
     let residualCoins = 0;
     if (unlockedNow) {
       unlocked.push(...grant.unlocked);
-      ownedAfter.add(key);
+      unlockedKeys.add(key);
       residualCoins = leftover * FAVOR_RESIDUAL_COIN_RATE;
       favorCoins += residualCoins;
       after = 0;
@@ -891,7 +888,6 @@ function settleCollection(
   // Coalesce progress rows (a champion deposit + a favor conversion touch the same
   // player twice): keep the earliest `before` and the latest `after`, and drop rows
   // for players the settle ended up unlocking.
-  const unlockedKeys = new Set(unlocked.map(playerKey));
   const byKey = new Map<string, ProgressedCopy>();
   for (const row of progressed) {
     const key = playerKey(row.player);
@@ -1524,7 +1520,7 @@ function sanitizeScoutTargets(
   for (const tier of PLAYER_GACHA_TIERS) {
     const key = (raw as Record<string, unknown>)[tier];
     if (typeof key !== 'string' || owned.has(key)) continue;
-    if (!tierPool(tier).some((p) => nameKey(p.name, p.position) === key)) continue;
+    if (!tierHasPlayer(tier, key)) continue;
     out[tier] = key;
     any = true;
   }

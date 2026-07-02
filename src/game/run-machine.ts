@@ -186,8 +186,8 @@ export interface RunModel {
   ownedLegendKeys?: string[];
   /** Base favor points accrued this run, per playerKey of every player who logged
    * minutes in a WON game (losses earn nothing). Settled into the home ledger at run
-   * end for the un-owned only (see home-roster settleFavor); bounded by the 12-man
-   * roster. Optional: old suspended runs default to {}. */
+   * end for the un-owned only (see home-roster settleCollection); bounded by the
+   * 12-man roster. Optional: old suspended runs default to {}. */
   favor?: Record<string, number>;
   /** The home favor ledger snapshotted at initRun. Biases WHICH un-owned legend the
    * once-per-run reveal offers and weights favored players up in recruit offers (the

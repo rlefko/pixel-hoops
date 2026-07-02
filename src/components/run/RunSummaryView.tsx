@@ -104,7 +104,7 @@ export function RunSummaryView({
   coinsBanked,
   unlockedClass,
   progressed = [],
-  favorRows,
+  favorRows = [],
   lossMargin,
   lossClock,
   nextUnlockLabel,

@@ -50,18 +50,21 @@ export function pickRealTeam(rng: RNG): NbaTeam {
 
 /**
  * A random legend (any position/team) as an on-loan recruit offer: unscaled and
- * flagged `onLoan`, so it is usable for the rest of the run but never kept.
+ * flagged `onLoan`, so it is usable for the rest of the run but never kept. The
+ * unbiased form of legendRecruitFavored.
  */
 export function legendRecruit(rng: RNG): RosterPlayer {
-  return { ...realPlayerToRosterPlayer(rng.pick(NBA_PLAYERS)), onLoan: true };
+  return legendRecruitFavored([], {}, rng);
 }
 
 /**
  * The favor-steered legend reveal: the highest-favor UN-OWNED legend walks in, so the
  * legend a player ran (and maybe lost) with becomes their standing front-runner. When
  * the reveal fires stays chance-and-pity (run-machine's gate); only WHO is earned.
- * Zero favor everywhere reduces to today's uniform pick among the un-owned (a single
- * seeded draw either way, so replays and resumes stay stable).
+ * `legendFavor` is the run's snapshot of the whole home favor ledger
+ * (RunModel.homeFavor); non-legend entries are simply never looked up. Zero favor
+ * everywhere reduces to a uniform pick among the un-owned (a single seeded draw
+ * either way, so replays and resumes stay stable).
  */
 export function legendRecruitFavored(
   ownedLegendKeys: readonly string[],

@@ -107,11 +107,15 @@ function realKey(rp: RealPlayer): string {
   return nameKey(rp.name, rp.position);
 }
 
-/** The machine tier that scouts a class (null for the unscouted D / S++). */
+/** Whether a collection key names a player in a machine's pool (pin validation). */
+export function tierHasPlayer(tier: PlayerGachaTier, key: string): boolean {
+  return tierPool(tier).some((rp) => realKey(rp) === key);
+}
+
+/** The machine tier that scouts a class, derived from the machine table so the
+ * inverse map can never desync (null for the unscouted D / S++). */
 export function tierForClass(cls: PlayerClass): PlayerGachaTier | null {
-  if (cls === 'S+') return 'legendary';
-  if (cls === 'C' || cls === 'B' || cls === 'A' || cls === 'S') return cls;
-  return null;
+  return PLAYER_GACHA_TIERS.find((t) => PLAYER_MACHINES[t].cls === cls) ?? null;
 }
 
 export interface TierCounts {
@@ -166,9 +170,31 @@ export interface ScoutTarget {
   pinned: boolean;
 }
 
+/** The co-leaders a pull selects among: the PINNED target alone when set and
+ * un-owned, else every un-owned player tied at the highest effective progress.
+ * The ONE selection rule shared by pullPlayer (which rng.picks a leader) and
+ * scoutTargetFor (which shows a target only when the leader is unique), so the
+ * card chip can never disagree with the machine by construction. */
+function pullLeaders(
+  tier: PlayerGachaTier,
+  unlockedKeys: ReadonlySet<string>,
+  collectingCopies: Readonly<Record<string, number>>,
+  favor: Readonly<Record<string, number>>,
+  pinnedKey?: string
+): { leaders: RealPlayer[]; pinned: boolean; best: number } {
+  const cls = PLAYER_MACHINES[tier].cls;
+  const unowned = tierPool(tier).filter((rp) => !unlockedKeys.has(realKey(rp)));
+  const pin = pinnedKey ? unowned.find((rp) => realKey(rp) === pinnedKey) : undefined;
+  if (pin) return { leaders: [pin], pinned: true, best: 0 };
+  const score = (rp: RealPlayer) =>
+    effectiveProgress(collectingCopies[realKey(rp)] ?? 0, favor[realKey(rp)] ?? 0, cls);
+  const best = unowned.length > 0 ? Math.max(...unowned.map(score)) : 0;
+  return { leaders: unowned.filter((rp) => score(rp) === best), pinned: false, best };
+}
+
 /** The player the next pull of this machine will deterministically feed (see
- * ScoutTarget). Mirrors pullPlayer's precedence: pin > highest effective progress >
- * null on an RNG tie. */
+ * ScoutTarget): the pin, or a UNIQUE effective-progress leader; null when the
+ * pull would tie-break on the RNG (a fresh tier) or the tier is complete. */
 export function scoutTargetFor(
   tier: PlayerGachaTier,
   unlockedKeys: ReadonlySet<string>,
@@ -176,40 +202,18 @@ export function scoutTargetFor(
   favor: Readonly<Record<string, number>> = {},
   pinnedKey?: string
 ): ScoutTarget | null {
-  const cls = PLAYER_MACHINES[tier].cls;
-  const threshold = copiesToOwn(cls);
-  const unowned = tierPool(tier).filter((rp) => !unlockedKeys.has(realKey(rp)));
-  if (unowned.length === 0) return null;
-  const describe = (rp: RealPlayer, pinned: boolean): ScoutTarget => {
-    const key = realKey(rp);
-    return {
-      player: realPlayerToRosterPlayer(rp),
-      key,
-      copies: collectingCopies[key] ?? 0,
-      threshold,
-      favor: favor[key] ?? 0,
-      pinned,
-    };
+  const { leaders, pinned, best } = pullLeaders(tier, unlockedKeys, collectingCopies, favor, pinnedKey);
+  if (leaders.length !== 1 || (!pinned && best <= 0)) return null;
+  const rp = leaders[0];
+  const key = realKey(rp);
+  return {
+    player: realPlayerToRosterPlayer(rp),
+    key,
+    copies: collectingCopies[key] ?? 0,
+    threshold: copiesToOwn(PLAYER_MACHINES[tier].cls),
+    favor: favor[key] ?? 0,
+    pinned,
   };
-  const pinned = pinnedKey ? unowned.find((rp) => realKey(rp) === pinnedKey) : undefined;
-  if (pinned) return describe(pinned, true);
-  const score = (rp: RealPlayer) =>
-    effectiveProgress(collectingCopies[realKey(rp)] ?? 0, favor[realKey(rp)] ?? 0, cls);
-  let leader: RealPlayer | null = null;
-  let best = -1;
-  let tied = false;
-  for (const rp of unowned) {
-    const s = score(rp);
-    if (s > best) {
-      best = s;
-      leader = rp;
-      tied = false;
-    } else if (s === best) {
-      tied = true;
-    }
-  }
-  if (!leader || tied || best <= 0) return null; // a fresh tier tie-breaks on the RNG
-  return describe(leader, false);
 }
 
 export interface PlayerPullResult {
@@ -272,27 +276,24 @@ export function pullPlayer(
   const cls = PLAYER_MACHINES[tier].cls;
   const threshold = copiesToOwn(cls);
   const pool = tierPool(tier);
-  const unowned = pool.filter((rp) => !unlockedKeys.has(realKey(rp)));
-  if (unowned.length > 0) {
-    const favor = direction.favor ?? {};
-    const progress = unowned.map((rp) => ({ rp, copies: collectingCopies[realKey(rp)] ?? 0 }));
-    const pinned = direction.pinnedKey
-      ? progress.find((p) => realKey(p.rp) === direction.pinnedKey)
-      : undefined;
-    // A pinned target takes the copy outright; otherwise concentrate on the highest
-    // effective progress, ties broken on the seeded RNG so a fresh tier still starts
-    // somewhere reproducible.
-    let pick = pinned;
-    if (!pick) {
-      const score = (p: { rp: RealPlayer; copies: number }) =>
-        effectiveProgress(p.copies, favor[realKey(p.rp)] ?? 0, cls);
-      const best = Math.max(...progress.map(score));
-      pick = rng.pick(progress.filter((p) => score(p) === best));
-    }
-    const newCopies = pick.copies + 1;
+  // A pinned target takes the copy outright; otherwise the copy lands on the highest
+  // effective progress, ties broken on the seeded RNG so a fresh tier still starts
+  // somewhere reproducible (see pullLeaders, shared with the card's target chip).
+  const { leaders } = pullLeaders(
+    tier,
+    unlockedKeys,
+    collectingCopies,
+    direction.favor ?? {},
+    direction.pinnedKey
+  );
+  if (leaders.length > 0) {
+    // Always one rng.pick (a singleton picks itself), so the draw count per pull is
+    // stable and downstream consumers of a shared RNG stay reproducible.
+    const pick = rng.pick(leaders);
+    const newCopies = (collectingCopies[realKey(pick)] ?? 0) + 1;
     return {
-      player: realPlayerToRosterPlayer(pick.rp),
-      targetKey: realKey(pick.rp),
+      player: realPlayerToRosterPlayer(pick),
+      targetKey: realKey(pick),
       cls,
       threshold,
       newCopies,

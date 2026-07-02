@@ -25,8 +25,8 @@ function rowRank(r: FavorDelta): number {
   return 1;
 }
 
-export function FavorStrip({ rows }: { rows?: FavorDelta[] }) {
-  const visible = (rows ?? []).filter((r) => !r.unlockedNow);
+export function FavorStrip({ rows }: { rows: FavorDelta[] }) {
+  const visible = rows.filter((r) => !r.unlockedNow);
   if (visible.length === 0) return null;
   const sorted = [...visible].sort(
     (a, b) => rowRank(b) - rowRank(a) || b.earned - a.earned || b.after - a.after

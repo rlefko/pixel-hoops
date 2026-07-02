@@ -927,7 +927,7 @@ describe('v17 daily/weekly migration', () => {
 describe('favor settle (banked win or lose, converted through the deposit path)', () => {
   const keyOf = (rp: RosterPlayer) => playerKey(rp);
 
-  it('banks a loss run wins favor at the difficulty multiplier', () => {
+  it("banks a lost run's win favor at the difficulty multiplier", () => {
     const { home, runRoster, recruit } = setup();
     const lost = mergeRunGainsIntoHome(home, runRoster, {
       playedDifficulty: 'easy',
@@ -943,7 +943,7 @@ describe('favor settle (banked win or lose, converted through the deposit path)'
     expect(hard.favor[keyOf(recruit)]).toBe(18); // hard x1.5
   });
 
-  it('damps a reach-up recruit favor by half', () => {
+  it("damps a reach-up recruit's favor by half", () => {
     const { home, runRoster, recruit } = setup(); // A recruit
     const next = mergeRunGainsIntoHome(home, runRoster, {
       playedDifficulty: 'hard',
