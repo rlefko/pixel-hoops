@@ -40,7 +40,9 @@ import { getCoach, nextCoachNudge } from '@/game/coaches';
 import { COURT_THEMES, courtThemeUnlocked, courtThemeUnlockHint } from '@/game/court-themes';
 import { DAILY_BOUNTY_COINS, spotlightCell, weeklyProgress } from '@/game/daily';
 import { DailyPanel } from '@/components/home/DailyPanel';
+import { DeltaChip } from '@/components/home/DeltaChip';
 import { useDayKey } from '@/hooks/useDayKey';
+import { useHubDeltas } from '@/hooks/useHubDeltas';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** A quiet icon-chip button for the screen's corner chrome, with the standard
@@ -90,6 +92,9 @@ export default function HomeScreen() {
   // The Daily Layer's calendar keys (recomputed on foreground/focus, never in render).
   // Called before the welcome early-return so the hook order is stable.
   const { day, week } = useDayKey();
+  // Since-you-left deltas: captured per focus, revealed after a short hold so the
+  // hub lands static and tappable first. See useHubDeltas for the ledger contract.
+  const { deltas, baselineCoins, revealed } = useHubDeltas();
 
   // First launch: welcome the player with their starting free agents, once.
   if (loaded && homeRoster && !homeRoster.seenWelcome) {
@@ -179,7 +184,12 @@ export default function HomeScreen() {
       </View>
       {loaded && homeRoster ? (
         <View style={[styles.cornerCluster, styles.cornerRight]}>
-          <CoinPill coins={homeRoster.coins} />
+          {/* The earned-coins chip grows the corner cluster LEFTWARD into free
+              space (the cluster is right-anchored), so it costs zero height and
+              moves nothing; the pill holds the old balance through the reveal
+              hold, then climbs to the new total while the chip states the rise. */}
+          <DeltaChip amount={deltas.coins} index={0} visible={revealed} paused={idle} />
+          <CoinPill coins={revealed ? homeRoster.coins : baselineCoins} tick />
         </View>
       ) : null}
       <View style={styles.titleBlock}>
@@ -369,6 +379,11 @@ export default function HomeScreen() {
             label="ROSTER"
             color={palette.steelBlue}
             icon={<RecruitIcon size={24} color={palette.steelBlue} />}
+            // Collection copies gained since the roster browser was last opened
+            // (a real count: "N meters moved, go look"). Clears on viewing it.
+            badge={
+              <DeltaChip amount={deltas.copies} index={1} visible={revealed} paused={idle} />
+            }
             onPress={() => nav.push('/roster')}
           />
           <MenuButton
@@ -377,6 +392,16 @@ export default function HomeScreen() {
             label="HALL OF FAME"
             color={palette.gold}
             icon={<CrownIcon size={24} color={palette.gold} />}
+            // A dot, not a number: "something new on the shelf" is the message.
+            badge={
+              <DeltaChip
+                amount={deltas.crests}
+                variant="dot"
+                index={2}
+                visible={revealed}
+                paused={idle}
+              />
+            }
             onPress={() => nav.push('/hall-of-fame')}
           />
         </View>

@@ -46,6 +46,10 @@ interface MenuButtonProps {
   haptic?: MenuHaptic;
   /** Quick accent flash on press. Defaults on for hero/tile, off for wide/small. */
   flashOnPress?: boolean;
+  /** A small overlay hung off the top-right corner (e.g. a since-you-left delta
+   * chip). Lives on the OUTER pressable — the face clips (overflow hidden) —
+   * and never intercepts the tap. Zero layout height. */
+  badge?: ReactNode;
   /** Caller sets flex:1 for side-by-side tiles, or a width cap. */
   style?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
@@ -95,6 +99,7 @@ export function MenuButton({
   attractDelayMs = 0,
   haptic,
   flashOnPress,
+  badge,
   style,
   accessibilityLabel,
 }: MenuButtonProps) {
@@ -183,6 +188,11 @@ export function MenuButton({
           style={[StyleSheet.absoluteFill, { backgroundColor: flashColor }, flashStyle]}
         />
       </Animated.View>
+      {badge ? (
+        <View pointerEvents="none" style={styles.badge}>
+          {badge}
+        </View>
+      ) : null}
     </Pressable>
   );
 }
@@ -193,6 +203,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressedStatic: { opacity: 0.6 },
+  badge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    zIndex: 1,
+  },
   glow: {
     position: 'absolute',
     top: -3,
