@@ -11,7 +11,9 @@ but they only join your permanent collection if you **clear the run** (win the f
 
 - **Clear a run:** every recruit you fielded comes home (run scoped state such as items,
   training, and injuries is stripped, as before).
-- **Lose a run:** the recruits evaporate. Your owned collection is never reduced, and you
+- **Lose a run:** the recruits evaporate, but not their FAVOR: every un-owned player who
+  logged minutes in the run's wins banked favor toward owning them (see
+  [favor-system.md](favor-system.md)). Your owned collection is never reduced, and you
   still **bank all coins and reputation** earned during the run, so every run moves you
   forward even in defeat.
 
@@ -35,21 +37,34 @@ Five coin machines in the Arcade, one per tier. Each draws a real player from th
 | S Scout          | 2,500   | every S-class real player (~17)   |
 | Legendary Scout  | 10,000  | every all-time great / S+ (~40)   |
 
-### Collection mode
+### Copies mode and the directed chase
 
-While a tier still has players you do **not** own, a pull always returns a **new** one
-(uniform among the un-owned) at full price. A "collected N/N" counter on each machine keeps the
-odds transparent. Once a tier is fully collected, the machine shows `COLLECTED N/N` and is
-disabled in the Arcade, so in normal play you never spend on a guaranteed repeat.
+A pull grants **one copy** toward owning a player of the tier's class. Rarer classes need
+more copies (`collection.COPIES_TO_OWN`: C 1 / B 1 / A 4 / S 6 / legends 1), so a single
+pull is a step, not an instant sign. To keep a chase from scattering across the whole
+tier, the copy lands on ONE player, chosen by a strict precedence:
 
-The half-price **repeat refund** is the safety net underneath that: `pullPlayer` returns a
-repeat with half the price refunded when the tier is exhausted. The Arcade prevents reaching it
-(the disabled machine), so it exists mainly as the defined behavior for a completed tier rather
-than a routine player-facing outcome.
+1. **The pinned scout target**, when one is set for the machine (from the roster
+   browser's in-progress rows). Every pull feeds that exact chase until owned.
+2. **The highest effective progress** otherwise: collected copies plus the banked-favor
+   fraction (see [favor-system.md](favor-system.md)). With no favor anywhere this is the
+   classic closest-to-unlock rule.
+3. **A seeded tie-break** on a fresh tier.
+
+The machine card shows the exact next target (the RNG-free `scoutTargetFor`), a
+"collected N/N" counter, and the target's copies and favor, so the odds are transparent
+and the card can never promise a player the pull would not deliver. Once a tier is fully
+collected, the machine shows `COLLECTED N/N` and is disabled in the Arcade; a pull that
+somehow lands on a completed tier overflows into a coin bounty
+(`collection.OVERFLOW_BOUNTY`, half the machine price), so a duplicate is always progress
+or currency, never a dead drop. When a chase completes through the machine, any banked
+favor for that player also pays out as coins (nothing the game asked you to fill ever
+evaporates).
 
 This is implemented in `pullPlayer` (`src/game/player-gacha.ts`); `applyPlayerPull`
-(`src/game/home-roster.ts`) charges coins, credits any refund, and prepends a new signing to the
-collection (recency first). Both are pure and deterministic from a seeded RNG.
+(`src/game/home-roster.ts`) charges coins, folds the copy in, credits any bounty or favor
+residual, and prepends a new signing to the collection (recency first). Both are pure and
+deterministic from a seeded RNG plus the ledgers passed in.
 
 ### Economy fit
 
@@ -60,6 +75,9 @@ gacha is the dependable growth path now that mid-run recruits are provisional.
 
 ### Notes
 
-- Legends (S+) become permanently ownable for the first time, only via the Legendary Scout.
-  Existing draft gating still applies, so a high-tier signing cannot trivially stomp low ladders.
-- No save migration is required: scouted players join the existing owned-collection array.
+- Legends (S+) become permanently ownable via the Legendary Scout or by winning a run
+  with an on-loan legend. Existing draft gating still applies, so a high-tier signing
+  cannot trivially stomp low ladders.
+- The once-per-run legend reveal offers the highest-FAVOR un-owned legend (uniform when
+  nobody has favor), so the legend you lost a run with becomes the standing front-runner;
+  the reveal's rate and pity are untouched.

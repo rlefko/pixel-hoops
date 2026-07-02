@@ -38,6 +38,20 @@ A run should fit a commute or a coffee break and should feel complete when it en
 
 Unpredictable rewards condition behavior more strongly than predictable ones. Recruit offers, gear drops, and synergy payoffs should vary run to run so the player keeps pulling the lever. Reward *magnitudes* vary too: most stat pickups are a textured +1 to +3 rather than a uniform notch, rares trade a small downside for a sharper upside, and a small chance rolls one rarity band higher (a "hot" jackpot), so the size of the next reward is never fully predictable and a high roll lands as a genuine spike. Near-misses matter: losing a close game in the final quarter should feel "so close," which drives an immediate retry, as long as the loss is legible as a beatable mistake and not unfair RNG. Several dynamic systems feed this directly: snowball boosts and items grow each win (the "one more game so it ticks up" pull), comeback hooks make a trailing team surge in the clutch, and a run-scoped pity biases the draft toward epic+ after a drought so a long dry streak still pays off (the honest jackpot floor), and a free, hard-capped banish lets the player drop a boost from the rest of the run to steer toward a synergy.
 
+Variable rewards also need a budget for their opposite: see "Collection pacing and the directed chase" below for how much determinism (pity, favor, chosen targets) a chase can absorb before the anticipation phase dies, and which half of a reward (identity vs timing) should stay uncertain.
+
+## Collection pacing and the directed chase
+
+The collection is the medium-term game: runs are the short loop, and owning the next player is the chase that strings runs together. Five rules keep that chase honest, drawn from the games that got it right (Hades) and wrong (Dragalia Lost), and from the pity-system literature.
+
+- **Structural no-leak.** A class's real chase is completed only by content of its own tier. Below-tier content may grant a taste (a single copy, a provisional loan), never the full chase at full speed, no matter what multipliers are active. Brawl Stars applies the blunt form (top rarities are simply absent from low-tier drops); ours is the floored form: reach-up rewards are hard-capped at one copy and reach-up favor earns at half rate. Consolation channels (milestone banking, loss floors) obey the same rule and must stay strictly weaker than clearing, or they become the optimal farm.
+- **The excitement window.** A directed chase should resolve in a tuned band of dedicated runs: roughly four to eight for a class-above target, eight to twenty for a top-tier star, with the full-tier completionist arc measured in dozens. Faster devalues the reward and burns the content (Dragalia Lost died partly on over-generous pacing); slower reads as a wall and churns the player. When a chase resolves too fast, the fix is to slow the leak, not to add a new grind.
+- **Deterministic floors under variable surfaces.** Every variable chase carries a visible floor the player can state in one sentence: pity that rises, favor that is earned by winning with the player you want (the Hades keepsake pattern: deterministic, effort-priced, legible). Floors are earned by winning, never by time spent or by losing on purpose; a floor that accrues on losses pays the player for playing badly.
+- **The certainty budget.** A reward system can afford only so much determinism before anticipation dies. Spend certainty on IDENTITY (who the chase resolves to: a chosen scout target, a favored legend) and keep chance on TIMING and TEXTURE (whether the run clears, when the reveal fires, which recruits appear). A system that is certain in both dimensions is a spreadsheet; a system certain in neither is a slot machine. Every deterministic guarantee added must leave at least one variable surface on the same reward.
+- **Overflow converts.** Any meter or duplicate that passes its threshold converts to visible value (coins, progress on the next target), never evaporates. A meter the game asked the player to fill must pay out even when the chase resolves another way.
+
+See [favor-system.md](favor-system.md) for the shipped implementation (favor, scout targets, the reach-up cap) and the pacing simulation that locks the bands.
+
 ## Game feel: concrete juice techniques
 
 Drawn from Vlambeer's "Art of Screenshake" and the "Juice it or lose it" talk. Layer these; do not rely on any one alone.
@@ -75,7 +89,7 @@ A watched sim lives or dies on pacing. Research across roguelikes, auto-battlers
 
 ## The checklist
 
-A feature should satisfy at least **12 of these 15**. The skill scores each as pass, partial, or fail, and flags the gaps. Phrase every new criterion as a yes/no test.
+A feature should satisfy at least **14 of these 18**. The skill scores each as pass, partial, or fail, and flags the gaps. Phrase every new criterion as a yes/no test.
 
 **Core loop and feedback**
 
@@ -107,6 +121,12 @@ A feature should satisfy at least **12 of these 15**. The skill scores each as p
 14. **Anticipation and pacing.** The feature builds toward its payoff and avoids dead time. It juices the peaks and compresses the routine, and its default speed is fast enough that skipping is rare.
 15. **Clear agency.** The player understands why they won or lost; failure teaches.
 
+**Collection and chase pacing**
+
+16. **Honest floor.** Any variable reward chase the feature touches has a visible, win-earned deterministic floor the player can state in one sentence.
+17. **No leak-through.** The feature cannot complete a higher tier's chase at full speed from lower-tier or consolation content; clearing strictly dominates every alternative channel to the same reward.
+18. **Overflow converts.** Any meter, duplicate, or progress the feature grants converts to visible value past its threshold rather than evaporating.
+
 ## Sources
 
 - pokelike.xyz, a Pokemon roguelike autobattler: branching map, team-building as the strategic core, automatic combat, permadeath, meta-progression.
@@ -118,6 +138,9 @@ A feature should satisfy at least **12 of these 15**. The skill scores each as p
 - Daniel Cook, "The Chemistry of Game Design"; Raph Koster, "A Theory of Fun": the loop and mastery psychology.
 - Compulsion-loop and variable-ratio-reward literature: the structure underneath "one more run."
 - Auto-battlers (TFT, Super Auto Pets) and Football Manager: keeping a watched simulation engaging through consequential pre-game decisions.
+- Supergiant, Hades: keepsakes and gifting as deterministic, earned favor; the legible floor under a variable run.
+- Dragalia Lost postmortems: over-generous acquisition pacing devalues the chase and starves the content treadmill.
+- Brawl Stars odds disclosures and mainstream pity systems (guaranteed-progress meters): structural rarity gating and deterministic floors as perceived fairness, with identity guaranteed and timing left variable.
 
 On pacing the watch (default-fast, juice the peaks, do not thrash the backdrop):
 
