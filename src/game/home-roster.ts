@@ -19,12 +19,15 @@ import {
   type LadderClass,
 } from './difficulty-mode';
 import {
+  PLAYER_GACHA_TIERS,
   pullPlayer,
   machineUnlocked,
+  tierPool,
   type PlayerGachaTier,
   type PlayerPullResult,
 } from './player-gacha';
 import { REACH_UP_DEPOSIT_COPIES, copiesToOwn, type CollectingPlayer } from './collection';
+import { FAVOR_PER_COPY } from './favor';
 import { playerDraftClass } from './draft';
 import { GACHA_MACHINES, getGachaAbility, pickAbilityOfRarity } from './abilities-gacha';
 import { BOUNTIES, GRANDMASTER_KEY, bountyFor, bountyKey, type Bounty } from './bounties';
@@ -129,8 +132,26 @@ export interface HomeRoster {
    * lost runs (weekly progress is anti-frustration by design); claimedTiers records
    * paid tier indexes so a resumed settle or a rolled-back clock can never re-pay. */
   weekly?: WeeklyLedger;
+  /** FAVOR ledger: win-earned progress toward owning specific players, keyed by
+   * playerKey and held only for UN-OWNED players (entries are dropped on unlock and
+   * on load). Fielding an un-owned player banks favor for every won game they logged
+   * minutes in; it survives a lost run and converts to collection copies at run end
+   * (see src/game/favor.ts and docs/favor-system.md). */
+  favor: Record<string, number>;
+  /** Pinned scout target per machine tier (playerKey). A pinned un-owned player
+   * receives every one of that machine's copies until owned; absent tiers fall back
+   * to the highest effective progress (copies + favor), i.e. the classic
+   * closest-to-unlock rule. */
+  scoutTargets?: Partial<Record<PlayerGachaTier, string>>;
 }
 
+// v18 adds the favor ledger (`favor`, playerKey -> points for un-owned players) and
+// the pinned scout targets (`scoutTargets`). Older saves default to an empty ledger
+// and no pins (no value migration), with ONE goodwill exception: in-progress A-class
+// entries are granted a half-copy of favor on the bump, since v18 also raises the
+// A-class copies threshold from three to four (collection.ts) and the bar should
+// visibly move forward, not back, on update day. Entries for owned players are
+// dropped on load, so the ledger can never leak a completed chase.
 // v17 adds the Daily Layer ledgers (`daily`/`weekly`): per-day claim stamps for the
 // Spotlight bounty and the first-win bonus (each records the dayKey it paid, so a
 // claim is a comparison rather than a reset), plus the weekly-goal counters (week
@@ -181,7 +202,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 17;
+const HOME_ROSTER_VERSION = 18;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -299,6 +320,7 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     claimedBounties: [],
     clearedCells: [],
     courtTheme: DEFAULT_COURT_THEME_ID,
+    favor: {},
   };
 }
 
@@ -1226,6 +1248,20 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
       ? data.selectedCoachId
       : STARTER_COACH_ID;
 
+  // v18: the favor ledger. Owned players' entries are dropped (their chase is
+  // complete) and garbage degrades to an empty ledger. On the one-time bump from an
+  // older save, every in-progress A-class entry receives a half-copy of goodwill
+  // favor, offsetting the A threshold moving 3 -> 4 in the same version: a veteran's
+  // meter visibly moves forward on update day, never back.
+  const favor = sanitizeFavor(data.favor, ownedNow);
+  if (version < 18) {
+    for (const c of collecting) {
+      if (playerDraftClass(c.player) !== 'A') continue;
+      const key = playerKey(c.player);
+      favor[key] = (favor[key] ?? 0) + Math.round(FAVOR_PER_COPY.A / 2);
+    }
+  }
+
   return {
     players,
     collecting,
@@ -1262,7 +1298,42 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     // the safe default (a bad stamp can only re-open a day, never void a grant).
     daily: sanitizeDaily(data.daily),
     weekly: sanitizeWeekly(data.weekly),
+    favor,
+    scoutTargets: sanitizeScoutTargets(data.scoutTargets, ownedNow),
   };
+}
+
+/** Keep only well-formed, positive favor entries for un-owned players; garbage
+ * degrades to an empty ledger (favor is grant-or-noop, never destructive). */
+function sanitizeFavor(raw: unknown, owned: ReadonlySet<string>): Record<string, number> {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) continue;
+    const points = Math.floor(value);
+    if (points <= 0 || owned.has(key)) continue;
+    out[key] = points;
+  }
+  return out;
+}
+
+/** Keep pins that name a real, un-owned player in their machine's pool; anything
+ * else silently unpins (the machine falls back to the closest-to-unlock rule). */
+function sanitizeScoutTargets(
+  raw: unknown,
+  owned: ReadonlySet<string>
+): HomeRoster['scoutTargets'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: NonNullable<HomeRoster['scoutTargets']> = {};
+  let any = false;
+  for (const tier of PLAYER_GACHA_TIERS) {
+    const key = (raw as Record<string, unknown>)[tier];
+    if (typeof key !== 'string' || owned.has(key)) continue;
+    if (!tierPool(tier).some((p) => nameKey(p.name, p.position) === key)) continue;
+    out[tier] = key;
+    any = true;
+  }
+  return any ? out : undefined;
 }
 
 /** Keep only well-formed day stamps; undefined when nothing valid remains. */
