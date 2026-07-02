@@ -41,7 +41,6 @@ export function DailyPanel({
 
   return (
     <View style={styles.panel}>
-      <Text style={styles.label}>DAILY</Text>
       <MenuButton
         variant="wide"
         label={claimedToday ? 'SPOTLIGHT WON TODAY' : "TODAY'S SPOTLIGHT"}
@@ -69,18 +68,12 @@ export function DailyPanel({
 }
 
 const styles = StyleSheet.create({
-  panel: { alignItems: 'center', alignSelf: 'stretch', marginTop: space(2) },
-  label: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    color: palette.inkDim,
-    marginBottom: space(1),
-  },
+  panel: { alignItems: 'center', alignSelf: 'stretch', marginTop: space(1) },
   weekly: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
     color: palette.gold,
-    marginTop: space(2),
+    marginTop: space(1),
     textAlign: 'center',
   },
 });

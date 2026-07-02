@@ -1,14 +1,14 @@
+import { type ReactNode } from 'react';
 import { StyleSheet, View, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useArcadeRouter } from '@/navigation';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { Pop } from '@/components/fx';
+import { CoinPill } from '@/components/CoinPill';
 import { MenuButton } from '@/components/MenuButton';
 import {
   BasketballIcon,
-  CoinIcon,
   CrownIcon,
   FlameIcon,
   GearIcon,
@@ -22,7 +22,7 @@ import {
 } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
 import { CLASS_COLOR } from '@/components/run/class-ui';
-import { useGlowPulse, useBobPulse, useHubBackdrop } from '@/feel';
+import { haptics, sfx, useGlowPulse, useBobPulse, useHubBackdrop } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import {
@@ -43,6 +43,34 @@ import { DailyPanel } from '@/components/home/DailyPanel';
 import { useDayKey } from '@/hooks/useDayKey';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
+/** A quiet icon-chip button for the screen's corner chrome, with the standard
+ * secondary tap feedback baked in. */
+function CornerButton({
+  label,
+  icon,
+  onPress,
+}: {
+  label: string;
+  icon: ReactNode;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      style={styles.cornerButton}
+      hitSlop={space(3)}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPress={() => {
+        haptics.light();
+        sfx.tap('secondary');
+        onPress();
+      }}
+    >
+      {icon}
+    </Pressable>
+  );
+}
+
 /** Main menu screen: the arcade lobby and entry point for the game. */
 export default function HomeScreen() {
   // Plain router for the How to Play modal so it keeps its native slide-up; the
@@ -54,9 +82,9 @@ export default function HomeScreen() {
   // Pause every menu attract loop after a stretch of no touch; the hub backdrop bundle
   // wires the touch-wake (onTouchStart) for us, and `idle` also gates the title glow/bob.
   const { idle, screenProps } = useHubBackdrop();
-  // One idle "breathe" loop drives the title: a glow behind the gold word and a
-  // gentle bob on the pixel basketball. Slower than the default so it reads as a
-  // title, not a flicker. Held steady under reduced motion or while idle.
+  // One idle "breathe" loop drives the title: a gold glow behind the orange word
+  // and a gentle bob on the pixel basketball. Slower than the default so it reads
+  // as a title, not a flicker. Held steady under reduced motion or while idle.
   const glowStyle = useGlowPulse(1300, { paused: idle });
   const bobStyle = useBobPulse(1300, { bobAmplitude: 4, paused: idle });
   // The Daily Layer's calendar keys (recomputed on foreground/focus, never in render).
@@ -132,31 +160,45 @@ export default function HomeScreen() {
       {...screenProps}
       contentContainerStyle={styles.container}
     >
+      {/* Corner chrome, like an arcade cabinet's service panel: help and settings
+          buttons top-left, the coin pill top-right (where every hub screen keeps
+          it). All three cost the menu column zero height. */}
+      <View style={[styles.cornerCluster, styles.cornerLeft]}>
+        <CornerButton
+          label="How to Play"
+          icon={<HelpIcon size={16} color={palette.inkDim} />}
+          onPress={() => router.push('/modal')}
+        />
+        <CornerButton
+          label="Settings"
+          icon={<GearIcon size={16} color={palette.inkDim} />}
+          onPress={() => nav.push('/settings')}
+        />
+      </View>
+      {loaded && homeRoster ? (
+        <View style={[styles.cornerCluster, styles.cornerRight]}>
+          <CoinPill coins={homeRoster.coins} />
+        </View>
+      ) : null}
       <View style={styles.titleBlock}>
         <Animated.View style={bobStyle}>
           <BasketballIcon size={22} color={palette.courtLine} />
         </Animated.View>
-        <Text style={styles.title}>PIXEL</Text>
-        <View style={styles.hoopsWrap}>
-          <Animated.View
-            pointerEvents="none"
-            style={[styles.hoopsGlow, glowStyle]}
-          />
-          <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>PIXEL</Text>
+          <View style={styles.hoopsWrap}>
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.hoopsGlow, glowStyle]}
+            />
+            <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
+          </View>
         </View>
         <Text style={styles.subtitle}>8-Bit Basketball Roguelike</Text>
       </View>
 
       {loaded && homeRoster ? (
-        <Pop trigger={homeRoster.coins} style={styles.coinRow}>
-          <CoinIcon size={14} color={palette.gold} />
-          <Text style={styles.coinText}>{homeRoster.coins}</Text>
-        </Pop>
-      ) : null}
-
-      {loaded && homeRoster ? (
         <View style={styles.selectBox}>
-          <Text style={styles.selectLabel}>DIFFICULTY</Text>
           <View style={styles.chipRow}>
             {DIFFICULTIES.map((d) => {
               const active = homeRoster.selectedDifficulty === d;
@@ -175,7 +217,7 @@ export default function HomeScreen() {
               );
             })}
           </View>
-          <Text style={styles.selectBlurb}>
+          <Text style={styles.selectBlurb} numberOfLines={2}>
             {DIFFICULTY_LABELS[homeRoster.selectedDifficulty].blurb}
           </Text>
           {perks.length > 0 ? (
@@ -223,12 +265,11 @@ export default function HomeScreen() {
               );
             })}
           </View>
-          <Text style={styles.bountyTeaser}>
+          <Text style={styles.bountyTeaser} numberOfLines={1}>
             {isConquered(homeRoster.selectedLadderClass)
               ? `${homeRoster.selectedLadderClass} BOUNTY CLAIMED`
               : `BOUNTY: ${bountyFor(homeRoster.selectedDifficulty, homeRoster.selectedLadderClass).label}`}
           </Text>
-          <Text style={styles.selectLabel}>COACH</Text>
           {coach ? (
             <Pressable
               style={styles.coachRow}
@@ -244,7 +285,11 @@ export default function HomeScreen() {
               <Text style={styles.coachChange}>CHANGE ›</Text>
             </Pressable>
           ) : null}
-          {goalNudge ? <Text style={styles.goalNudge}>{goalNudge}</Text> : null}
+          {goalNudge ? (
+            <Text style={styles.goalNudge} numberOfLines={1}>
+              {goalNudge}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -301,7 +346,7 @@ export default function HomeScreen() {
             style={styles.tile}
             label="LOCKER ROOM"
             color={palette.makeGreen}
-            icon={<LockerIcon size={32} color={palette.makeGreen} />}
+            icon={<LockerIcon size={24} color={palette.makeGreen} />}
             attract={!idle}
             attractDelayMs={150}
             onPress={() => nav.push('/locker')}
@@ -311,70 +356,67 @@ export default function HomeScreen() {
             style={styles.tile}
             label="ARCADE"
             color={palette.flame}
-            icon={<JoystickIcon size={32} color={palette.flame} />}
+            icon={<JoystickIcon size={24} color={palette.flame} />}
             attract={!idle}
             attractDelayMs={300}
             onPress={() => nav.push('/arcade')}
           />
         </View>
-        <MenuButton
-          variant="wide"
-          label="ROSTER"
-          color={palette.steelBlue}
-          icon={<RecruitIcon size={22} color={palette.steelBlue} />}
-          onPress={() => nav.push('/roster')}
-        />
-        <MenuButton
-          variant="wide"
-          label="COACHES"
-          color={palette.chrome}
-          icon={<WhistleIcon size={22} color={palette.chrome} />}
-          onPress={() => nav.push('/coaches')}
-        />
-        <View style={styles.smallRow}>
+        <View style={styles.tileRow}>
           <MenuButton
-            variant="small"
-            style={styles.smallBtn}
+            variant="tile"
+            style={styles.tile}
+            label="ROSTER"
+            color={palette.steelBlue}
+            icon={<RecruitIcon size={24} color={palette.steelBlue} />}
+            onPress={() => nav.push('/roster')}
+          />
+          <MenuButton
+            variant="tile"
+            style={styles.tile}
             label="HALL OF FAME"
             color={palette.gold}
-            icon={<CrownIcon size={16} color={palette.gold} />}
+            icon={<CrownIcon size={24} color={palette.gold} />}
             onPress={() => nav.push('/hall-of-fame')}
-          />
-          <MenuButton
-            variant="small"
-            style={styles.smallBtn}
-            label="SETTINGS"
-            color={palette.inkDim}
-            icon={<GearIcon size={16} color={palette.inkDim} />}
-            onPress={() => nav.push('/settings')}
-          />
-          <MenuButton
-            variant="small"
-            style={styles.smallBtn}
-            label="HOW TO PLAY"
-            color={palette.inkDim}
-            icon={<HelpIcon size={16} color={palette.inkDim} />}
-            onPress={() => router.push('/modal')}
           />
         </View>
       </View>
-
-      <Text style={styles.tagline}>Auto-sim 5-on-5. Your team compounds.</Text>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  // Top-aligned and centered so nothing overflows a short phone viewport; grows
-  // downward and scrolls when it does not all fit.
+  // Sized to fit a whole phone viewport with no scrolling, down to an iPhone SE
+  // in the tallest state (saved run + perks + nudge). Spare height on big phones
+  // centers the column; the Screen scroll shell stays on only as a safety valve.
   container: {
     alignItems: 'center',
-    paddingTop: space(4),
+    justifyContent: 'center',
     paddingHorizontal: space(4),
+  },
+  cornerCluster: {
+    position: 'absolute',
+    top: space(2),
+    flexDirection: 'row',
+    gap: space(2),
+  },
+  cornerLeft: { left: space(4) },
+  cornerRight: { right: space(4) },
+  cornerButton: {
+    padding: space(2),
+    borderWidth: BORDER.thin,
+    borderColor: palette.inkDim + '66',
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.bgPanel,
   },
   titleBlock: {
     alignItems: 'center',
-    marginBottom: space(2),
+    marginBottom: space(1),
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space(2),
   },
   title: {
     fontFamily: FONT.display,
@@ -406,30 +448,19 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,
     color: palette.inkDim,
-    marginTop: space(2),
     letterSpacing: 1,
-  },
-  coinRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space(2),
-    marginTop: space(3),
-  },
-  coinText: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.label,
-    color: palette.gold,
+    marginTop: space(2),
   },
   selectBox: {
     alignItems: 'center',
-    marginTop: space(3),
+    marginTop: space(2),
     maxWidth: 320,
   },
   selectLabel: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
     color: palette.inkDim,
-    marginTop: space(3),
+    marginTop: space(2),
     marginBottom: space(1),
   },
   chipRow: {
@@ -461,7 +492,7 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     textAlign: 'center',
     marginTop: space(2),
-    maxWidth: 260,
+    maxWidth: 300,
   },
   classChip: {
     position: 'relative',
@@ -488,7 +519,7 @@ const styles = StyleSheet.create({
     color: palette.gold,
     textAlign: 'center',
     marginTop: space(2),
-    maxWidth: 280,
+    maxWidth: 300,
   },
   perkRow: {
     flexDirection: 'row',
@@ -514,12 +545,13 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     textAlign: 'center',
     marginTop: space(2),
-    maxWidth: 280,
+    maxWidth: 300,
   },
   coachRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space(2),
+    marginTop: space(2),
     paddingHorizontal: space(3),
     paddingVertical: space(1.5),
     borderWidth: BORDER.thin,
@@ -541,27 +573,12 @@ const styles = StyleSheet.create({
   menu: {
     width: '100%',
     maxWidth: 360,
-    marginTop: space(4),
-    gap: space(3),
+    marginTop: space(1),
+    gap: space(2),
   },
   tileRow: {
     flexDirection: 'row',
-    gap: space(3),
-  },
-  tile: { flex: 1 },
-  smallRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
     gap: space(2),
   },
-  smallBtn: { flex: 1, minWidth: 90 },
-  tagline: {
-    fontFamily: FONT.body,
-    fontSize: FONT_SIZE.small,
-    color: palette.inkDim,
-    marginTop: space(5),
-    marginBottom: space(4),
-    letterSpacing: 1,
-  },
+  tile: { flex: 1 },
 });

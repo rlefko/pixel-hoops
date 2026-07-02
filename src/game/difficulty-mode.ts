@@ -146,7 +146,7 @@ export function difficultyPerks(difficulty: Difficulty): string[] {
   if (m.rarityBonus > 0 || m.bossRarityBonus > 0) perks.push('RICHER DROPS');
   if (m.trainingBonus.boss > 0) perks.push('+TRAINING');
   if (m.legendSign.base > 0) perks.push('LEGEND SIGNINGS');
-  if (m.clearBonus > 0) perks.push(`+${m.clearBonus} CLEAR BONUS`);
+  if (m.clearBonus > 0) perks.push(`+${m.clearBonus} CLEAR`);
   return perks;
 }
 
