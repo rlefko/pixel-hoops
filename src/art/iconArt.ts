@@ -54,11 +54,11 @@ const RIM_RX = 11;
 const RIM_RY = 4;
 const RIM_T = 2;
 
-// Net: a tapering lattice hanging from the rim's underside. The top row starts
-// inside the ring's under-edge so the cords read as knotted to the hoop, and the
-// mesh is wider than the ball at its equator so the cords hug its flanks before
-// draping below it.
-const NET_TOP = 11;
+// Net: a tapering lattice knotted to the hoop. The top row starts at the rim's
+// mid-plane, so the cords visibly hang off the back arc inside the hoop window
+// and emerge from under the ring's sides; the mesh is wider than the ball at its
+// equator so the cords hug its flanks before draping below it.
+const NET_TOP = 9;
 const NET_BOT = 26;
 const NET_TOP_HW = 10;
 const NET_BOT_HW = 6;
@@ -133,12 +133,15 @@ function drawBall(c: Canvas): void {
 // Net mesh resolution: columns of cells, each crossed by both diagonals, so
 // adjacent cells share strands and the mesh reads as woven diamonds that taper
 // downward into deliberate scallop points.
-const NET_ROWS = 3;
+const NET_ROWS = 4;
 const NET_COLS = 4;
-// The lattice's last row starts here; that slice is re-composited in front of
-// the ball so its lower quarter sits inside the net instead of floating on it.
+// Everything below this lattice boundary is re-composited in front of the ball,
+// so the cords visibly wrap its lower third: the ball is inside the net, not
+// floating on top of it. The crown and equator stay clean so the ball still
+// reads at launcher sizes.
+const NET_FRONT_ROW = 2;
 const NET_FRONT_Y =
-  NET_TOP + ((NET_BOT - NET_TOP) * (NET_ROWS - 1)) / NET_ROWS;
+  NET_TOP + (NET_FRONT_ROW * (NET_BOT - NET_TOP)) / NET_ROWS;
 
 /** Edge x of the net at vertical fraction `f` (0 at the rim, 1 at the bottom). */
 function netEdgeX(f: number, sign: number): number {
