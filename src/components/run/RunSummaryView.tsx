@@ -6,9 +6,10 @@ import { Screen } from '@/components/Screen';
 import { Pop, LiveChip, StaggerIn, TickCounter } from '@/components/fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
 import { DailyRewardStrip } from './DailyRewardStrip';
+import { FavorStrip } from './FavorStrip';
 import { CoinIcon } from './PixelIcons';
 import { sfx, useIdle, useGlowPulse, HUB_IDLE_MS } from '@/feel';
-import type { DailyGrants, ProgressedCopy } from '@/game/home-roster';
+import type { DailyGrants, FavorDelta, ProgressedCopy } from '@/game/home-roster';
 import {
   DIFFICULTY_LABELS,
   type Difficulty,
@@ -35,6 +36,8 @@ interface RunSummaryViewProps {
   unlockedClass?: PlayerClass;
   /** Players this run advanced a copy toward but did not unlock (compact progress strip). */
   progressed?: ProgressedCopy[];
+  /** The favor this run's wins banked (win or lose): the "no run is wasted" strip. */
+  favorRows?: FavorDelta[];
   /** On a loss: the final deficit, for the "so close" near-miss line (shown only when small). */
   lossMargin?: number;
   /** On a loss: the trimmed clock when the game ended (e.g. "0:48"). */
@@ -101,6 +104,7 @@ export function RunSummaryView({
   coinsBanked,
   unlockedClass,
   progressed = [],
+  favorRows,
   lossMargin,
   lossClock,
   nextUnlockLabel,
@@ -214,6 +218,7 @@ export function RunSummaryView({
         </Pop>
       ) : null}
       <CollectionProgressStrip progressed={progressed} />
+      <FavorStrip rows={favorRows} />
       <DailyRewardStrip grants={dailyGrants} />
       <LiveChip active={glowNewRun} color={palette.gold} paused={idle} style={styles.newRunWrap}>
         <Pressable style={[styles.button, styles.primary]} onPress={onNewRun}>

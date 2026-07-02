@@ -9,13 +9,14 @@ import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
 import { DailyRewardStrip } from './DailyRewardStrip';
+import { FavorStrip } from './FavorStrip';
 import { CoinIcon, CrownIcon, VictoryTierIcon } from './PixelIcons';
 import { buildHallOfFameEntry, type ChampionGame } from '@/game/hall-of-fame';
 import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
-import type { DailyGrants, ProgressedCopy } from '@/game/home-roster';
+import type { DailyGrants, FavorDelta, ProgressedCopy } from '@/game/home-roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -36,6 +37,8 @@ interface ChampionViewProps {
   unlockedClass?: PlayerClass;
   /** Players this run advanced a copy toward but did not unlock (compact progress strip). */
   progressed?: ProgressedCopy[];
+  /** The favor this run's wins banked (the directed-chase strip). */
+  favorRows?: FavorDelta[];
   /** Coins the run banked (including the clear bonus): the haul tally beat. */
   coinsBanked?: number;
   /** The victory step-up: run it back one difficulty up, pitched at the confidence
@@ -61,6 +64,7 @@ export function ChampionView({
   wins,
   unlockedClass,
   progressed = [],
+  favorRows,
   coinsBanked,
   stepUp,
   dailyGrants = null,
@@ -180,6 +184,7 @@ export function ChampionView({
         <LineupBoard team={game.home} players={entry.starters} compact />
 
         <CollectionProgressStrip progressed={progressed} />
+        <FavorStrip rows={favorRows} />
         <DailyRewardStrip grants={dailyGrants} />
 
         {stepUp ? (

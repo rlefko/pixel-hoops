@@ -74,6 +74,7 @@ export default function RunScreen() {
     wonPlayers,
     bountyGrant,
     dailyGrants,
+    favorRows,
     collectProgress,
     equippedCoachId,
   } = useRun();
@@ -393,6 +394,7 @@ export default function RunScreen() {
             wins={model.wins}
             unlockedClass={unlockedClass}
             progressed={progressed}
+            favorRows={favorRows}
             coinsBanked={model.core.rewards.coins}
             stepUp={stepUp}
             dailyGrants={dailyGrants}
@@ -423,6 +425,7 @@ export default function RunScreen() {
           coinsBanked={model.core.rewards.coins}
           unlockedClass={unlockedClass}
           progressed={progressed}
+          favorRows={favorRows}
           lossMargin={lossMargin}
           lossClock={lossClock}
           nextUnlockLabel={nextUnlockLabel}

@@ -309,6 +309,31 @@ export function StarIcon({ size, color }: IconProps) {
   );
 }
 
+/** favor: a fan pennant (pole + flag), the "earned their respect" glyph. */
+export function FavorIcon({ size, color }: IconProps) {
+  const pole = Math.max(1, Math.round(size * 0.14));
+  const flagH = size * 0.56;
+  return (
+    <View style={box(size)}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', height: size * 0.92 }}>
+        <View style={{ width: pole, height: size * 0.92, backgroundColor: color }} />
+        <View
+          style={{
+            width: 0,
+            height: 0,
+            borderTopWidth: flagH / 2,
+            borderBottomWidth: flagH / 2,
+            borderLeftWidth: size * 0.6,
+            borderTopColor: 'transparent',
+            borderBottomColor: 'transparent',
+            borderLeftColor: color,
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
 /** timeout: a clock face (a ring with two hands), the run's "second chance" glyph. */
 export function ClockIcon({ size, color }: IconProps) {
   const hand = Math.max(1, Math.round(size * 0.1));

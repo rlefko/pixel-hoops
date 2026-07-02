@@ -34,9 +34,11 @@ import {
   tierCounts,
   machineUnlocked,
   machineGate,
+  scoutTargetFor,
   type PlayerGachaTier,
   type PlayerPullResult,
 } from '@/game/player-gacha';
+import { FavorIcon } from '@/components/run/PixelIcons';
 import { CLASS_COLOR } from '@/components/run/class-ui';
 import { createRNG } from '@/game/rng';
 import type { Rarity } from '@/game/rarity';
@@ -164,8 +166,20 @@ export function ArcadeTab() {
           const gate = machineGate(tier);
           const color = m.legendary ? palette.gold : CLASS_COLOR[m.cls];
           const disabled = !unlocked || coins < m.cost || counts.complete;
+          // The exact player the next pull feeds (pin > favor/copies leader), so the
+          // card can never promise differently than the machine delivers. Null on a
+          // fresh tier (the pull tie-breaks on RNG) and on a locked machine.
+          const target = unlocked
+            ? scoutTargetFor(
+                tier,
+                ownedKeys,
+                collectingCopies,
+                homeRoster.favor ?? {},
+                homeRoster.scoutTargets?.[tier]
+              )
+            : null;
           const closest =
-            counts.closest && counts.closest.copies > 0
+            !target && counts.closest && counts.closest.copies > 0
               ? ` · next ${counts.closest.copies}/${counts.closest.threshold}`
               : '';
           const label = !unlocked
@@ -185,6 +199,19 @@ export function ArcadeTab() {
               <Text style={styles.machineBlurb}>
                 {unlocked ? m.blurb : `Locked until you clear the ${gate} ladder.`}
               </Text>
+              {target && !counts.complete ? (
+                <View style={styles.targetRow}>
+                  <FavorIcon size={10} color={target.pinned ? palette.gold : color} />
+                  <Text
+                    style={[styles.targetText, target.pinned && styles.targetPinned]}
+                    numberOfLines={1}
+                  >
+                    {target.pinned ? 'PINNED' : 'NEXT'} · {target.player.player.name.toUpperCase()}{' '}
+                    {target.copies}/{target.threshold}
+                    {target.favor > 0 ? ` · ${target.favor} FAVOR` : ''}
+                  </Text>
+                </View>
+              ) : null}
               <Pressable
                 onPress={() => scout(tier)}
                 disabled={disabled}
@@ -360,6 +387,9 @@ const styles = StyleSheet.create({
   machineName: { fontFamily: FONT.display, fontSize: FONT_SIZE.body },
   collected: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
   machineBlurb: { fontFamily: FONT.body, fontSize: FONT_SIZE.small, color: palette.inkDim, marginTop: space(1) },
+  targetRow: { flexDirection: 'row', alignItems: 'center', gap: space(1.5), marginTop: space(1.5) },
+  targetText: { flex: 1, fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
+  targetPinned: { color: palette.gold },
   pullBtn: {
     marginTop: space(2),
     alignSelf: 'flex-start',

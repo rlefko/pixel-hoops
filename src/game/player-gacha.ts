@@ -107,6 +107,13 @@ function realKey(rp: RealPlayer): string {
   return nameKey(rp.name, rp.position);
 }
 
+/** The machine tier that scouts a class (null for the unscouted D / S++). */
+export function tierForClass(cls: PlayerClass): PlayerGachaTier | null {
+  if (cls === 'S+') return 'legendary';
+  if (cls === 'C' || cls === 'B' || cls === 'A' || cls === 'S') return cls;
+  return null;
+}
+
 export interface TierCounts {
   /** How many of the tier's players are fully OWNED (unlocked). */
   owned: number;
