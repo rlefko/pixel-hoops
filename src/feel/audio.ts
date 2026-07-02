@@ -133,6 +133,19 @@ function trigger(name: SfxName, rate: number = 1): void {
 export type TapVariant = 'primary' | 'secondary';
 export type WhooshDirection = 'forward' | 'backward';
 
+/**
+ * The crowd answers the play: a swell starts this long after the event's own sting,
+ * so it reads as the arena reacting rather than part of the cue. A perceptual
+ * constant (reaction time), deliberately NOT scaled by sim speed — the precedent is
+ * haptics.bigPlay's fixed 60/120ms burst offsets. Fire-and-forget is safe: trigger()
+ * re-checks enabled/ready at fire time and every failure is swallowed.
+ */
+const CROWD_ANSWER_DELAY_MS = 90;
+function crowd(name: SfxName): void {
+  if (!enabled || !ready || IS_WEB) return;
+  setTimeout(() => trigger(name), CROWD_ANSWER_DELAY_MS);
+}
+
 function rewardName(rarity: Rarity): SfxName {
   if (rarity === 'legendary') return 'rewardLegendary';
   if (rarity === 'epic') return 'rewardEpic';
@@ -154,6 +167,14 @@ export const sfx = {
   block: () => trigger('block'),
   steal: () => trigger('steal'),
   miss: () => trigger('miss'),
+  // The home crowd answering the play (see crowd() above): a cheer on big plays,
+  // the full roar on a home walk-off or the championship, a low murmur as crunch
+  // time opens. No music duck — the swell is the bed answering the sting, not a
+  // sting cutting through it (the co-firing dunk/buzzerBeater ducks stay
+  // authoritative, so there is no double-duck fight).
+  crowdCheer: () => crowd('crowdCheer'),
+  crowdRoar: () => crowd('crowdRoar'),
+  crowdMurmur: () => crowd('crowdMurmur'),
   // Run-flow beats.
   tipoff: () => trigger('tipoff'),
   buzzerBeater: () => {

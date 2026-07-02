@@ -37,4 +37,11 @@ describe('RAPID_CUE_COOLDOWN_MS', () => {
     expect(RAPID_CUE_COOLDOWN_MS.coin).toBeUndefined();
     expect(RAPID_CUE_COOLDOWN_MS.dupe).toBeUndefined();
   });
+
+  it('coalesces crowd swells so a scoring flurry answers with ONE swell', () => {
+    expect(RAPID_CUE_COOLDOWN_MS.crowdCheer).toBeGreaterThanOrEqual(2000);
+    expect(RAPID_CUE_COOLDOWN_MS.crowdRoar).toBeGreaterThanOrEqual(2000);
+    // The murmur fires once per game by construction (crunch entry), so it stays unlisted.
+    expect(RAPID_CUE_COOLDOWN_MS.crowdMurmur).toBeUndefined();
+  });
 });

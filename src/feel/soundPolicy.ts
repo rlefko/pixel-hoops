@@ -34,10 +34,15 @@ export function isMusicEffective(
  * guard against machine-gunning at 45ms. Count ticks breathe at 80ms so a tally's
  * climb (capped at 600ms in useCountUp) sings ~8 notes, matching TickCounter's
  * 8-step pitch ladder, and each skipped note also skips its native audio calls.
+ * Crowd swells cool for seconds, not milliseconds: a scoring flurry coalesces into
+ * ONE swell, so the crowd stays an answer and never becomes a wall (crowdMurmur
+ * fires once per game by construction and stays unlisted).
  */
 export const RAPID_CUE_COOLDOWN_MS: Partial<Record<SfxName, number>> = {
   tapPrimary: 45,
   tapSecondary: 45,
   toggle: 45,
   tick: 80,
+  crowdCheer: 2200,
+  crowdRoar: 2500,
 };

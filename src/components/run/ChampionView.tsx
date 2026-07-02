@@ -100,6 +100,9 @@ export function ChampionView({
       silent: true,
     });
     sfx.champion();
+    // The arena answers the fanfare (always a player win here; the roar never
+    // ducks, so it stacks cleanly under the championship sting).
+    sfx.crowdRoar();
     setBurst((n) => n + 1);
     const scoreTimer = setTimeout(() => setScoreShown(game.result.finalHome), SCORE_DELAY_MS);
     const legendTimer = tier.legend

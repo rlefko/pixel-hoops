@@ -214,11 +214,15 @@ export function PlayByPlayFeed({
 
       const hot = hotState.get(e.seq);
 
+      // The crowd is the PLAYER's crowd: it answers home plays and stays silent on
+      // the opponent's — including an opponent buzzer-beater (the sim awards those
+      // too), where the quiet after the horn IS the honest read of the loss.
       if (isWinner(e)) {
         shakeRef.current?.shake('heavy');
         flashRef.current?.flash(palette.gold, { peak: 0.3 });
         haptics.bigPlay();
         sfx.buzzerBeater();
+        if (e.team === 'home') sfx.crowdRoar();
         return;
       }
       if (e.result === 'and-one') {
@@ -226,6 +230,7 @@ export function PlayByPlayFeed({
         flashRef.current?.flash(palette.gold, { peak: 0.22 });
         haptics.success();
         sfx.andOne();
+        if (e.team === 'home') sfx.crowdCheer();
         return;
       }
       if (e.action === 'three') {
@@ -235,6 +240,11 @@ export function PlayByPlayFeed({
         if (hot?.igniting) haptics.medium();
         else haptics.light();
         sfx.three(pitchFor(e, hot));
+        // Only clutch and heat-check threes stir the crowd: a cheer on every
+        // home three becomes wallpaper, and silence must stay information.
+        if (e.team === 'home' && (e.isBigPlay || hot?.heating || hot?.igniting)) {
+          sfx.crowdCheer();
+        }
         return;
       }
       if (e.action === 'dunk') {
@@ -242,6 +252,7 @@ export function PlayByPlayFeed({
         shakeRef.current?.shake('heavy');
         haptics.bigPlay();
         sfx.dunk();
+        if (e.team === 'home') sfx.crowdCheer();
         return;
       }
       if (e.isBigPlay) {
@@ -277,9 +288,15 @@ export function PlayByPlayFeed({
         shakeRef.current?.shake('medium');
         flashRef.current?.flash(palette.gold, { peak: 0.2 });
         haptics.success();
+        if (e.team === 'home') sfx.crowdRoar();
         return;
       }
-      if (e.seq === crunchStartSeq) haptics.medium();
+      if (e.seq === crunchStartSeq) {
+        // Crunch opens with the arena rising to its feet: a neutral state read
+        // (tension, not celebration), so it is deliberately not team-gated.
+        haptics.medium();
+        sfx.crowdMurmur();
+      }
       if (m.leadChange) {
         setLeadPopSeq(e.seq);
         const leaderColor = m.margin > 0 ? homeTeam.colorHex : awayTeam.colorHex;
