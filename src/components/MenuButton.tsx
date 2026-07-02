@@ -78,7 +78,7 @@ const VARIANTS: Record<MenuButtonVariant, VariantConfig> = {
     haptic: 'selection', flash: false,
   },
   tile: {
-    minHeight: space(16), padV: space(1.5), padH: space(2), border: BORDER.chunkier, bottom: 5,
+    minHeight: space(15), padV: space(1.5), padH: space(2), border: BORDER.chunkier, bottom: 5,
     font: FONT_SIZE.small, direction: 'column', gap: space(1), depth: 3, tint: '22',
     haptic: 'selection', flash: true,
   },
@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
   },
   labelStack: {
     alignItems: 'center',
-    gap: space(1),
+    gap: space(0.5),
   },
   sublabel: {
     fontFamily: FONT.display,
