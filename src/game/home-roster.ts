@@ -24,7 +24,7 @@ import {
   type PlayerGachaTier,
   type PlayerPullResult,
 } from './player-gacha';
-import { copiesToOwn, type CollectingPlayer } from './collection';
+import { REACH_UP_DEPOSIT_COPIES, copiesToOwn, type CollectingPlayer } from './collection';
 import { playerDraftClass } from './draft';
 import { GACHA_MACHINES, getGachaAbility, pickAbilityOfRarity } from './abilities-gacha';
 import { BOUNTIES, GRANDMASTER_KEY, bountyFor, bountyKey, type Bounty } from './bounties';
@@ -580,13 +580,28 @@ function isLegendRecruit(rp: RosterPlayer): boolean {
   return (rp.legendary ?? false) || playerDraftClass(rp) === 'S+';
 }
 
+/** Whether a recruit's class sits strictly ABOVE the run's ladder class (a "reach-up"
+ * signing). Reach-ups deposit a fixed single copy on a clear (never the difficulty
+ * multiplier) and never milestone-bank, so below-ladder content can taste the class
+ * above without completing its chase. No ladder class = no cap (defensive default). */
+function isReachUpRecruit(rp: RosterPlayer, ladderClass?: LadderClass): boolean {
+  if (!ladderClass) return false;
+  return CLASS_ORDER.indexOf(playerDraftClass(rp)) > CLASS_ORDER.indexOf(ladderClass);
+}
+
 /** The single best milestone-bankable recruit (highest class, then raw OVR), as a
  * deposit list. Legends are excluded: an on-loan legend owns at one copy, so banking it
- * from a loss would bypass the clear requirement entirely. */
-function bestBankableRecruit(candidates: RosterPlayer[]): RosterPlayer[] {
+ * from a loss would bypass the clear requirement entirely. Reach-ups are excluded too:
+ * with their clear deposit capped at one copy, banking the same copy from a loss after
+ * four boss wins would make dying the fastest above-class farm (clearing must strictly
+ * dominate every other channel to the same reward). */
+function bestBankableRecruit(
+  candidates: RosterPlayer[],
+  ladderClass?: LadderClass
+): RosterPlayer[] {
   const rank = (rp: RosterPlayer) => CLASS_ORDER.indexOf(playerDraftClass(rp));
   const best = candidates
-    .filter((rp) => !isLegendRecruit(rp))
+    .filter((rp) => !isLegendRecruit(rp) && !isReachUpRecruit(rp, ladderClass))
     .sort(
       (a, b) =>
         rank(b) - rank(a) ||
@@ -600,13 +615,16 @@ function bestBankableRecruit(candidates: RosterPlayer[]): RosterPlayer[] {
  * acquisition delta (which recruits crossed the threshold to UNLOCK, and which only
  * PROGRESSED). `copiesMul` is the difficulty's championship multiplier, capped per
  * recruit at exactly the copies still needed (a deposit tops a player up, it never
- * mints overflow coins) and exempt for legends (always one copy). Pure; the single
+ * mints overflow coins), exempt for legends (always one copy), and capped at
+ * REACH_UP_DEPOSIT_COPIES for recruits above the run's `ladderClass` (below-ladder
+ * content never completes an above-class chase in one clear). Pure; the single
  * source of truth for both the merge and the reveal preview.
  */
 function depositRecruitCopies(
   collecting: CollectingPlayer[],
   recruits: RosterPlayer[],
-  copiesMul = 1
+  copiesMul = 1,
+  ladderClass?: LadderClass
 ): { collecting: CollectingPlayer[] } & AcquisitionDelta {
   let next = collecting;
   const unlocked: RosterPlayer[] = [];
@@ -615,9 +633,12 @@ function depositRecruitCopies(
     const key = playerKey(rp);
     const threshold = copiesToOwn(playerDraftClass(rp));
     const before = next.find((c) => playerKey(c.player) === key)?.copies ?? 0;
+    const mul = isReachUpRecruit(rp, ladderClass)
+      ? Math.min(copiesMul, REACH_UP_DEPOSIT_COPIES)
+      : copiesMul;
     const copies = isLegendRecruit(rp)
       ? 1
-      : Math.max(1, Math.min(copiesMul, threshold - before));
+      : Math.max(1, Math.min(mul, threshold - before));
     const after = before + copies;
     if (after >= threshold) {
       unlocked.push(rp);
@@ -649,6 +670,9 @@ export interface RunSettle {
    * loss at or past the difficulty's milestone, the best non-legend recruit still
    * deposits one copy ("he stays in touch"). */
   bossWins?: number;
+  /** The ladder class the run was PLAYED on (model.ladderClass). Drives the reach-up
+   * deposit cap and the milestone-bank filter; absent (legacy callers) = uncapped. */
+  ladderClass?: LadderClass;
 }
 
 /** The recruit deposits a settle performs: every candidate x the difficulty's copies
@@ -660,14 +684,16 @@ function settleDeposits(
   runRoster: Roster,
   settle: RunSettle
 ): { collecting: CollectingPlayer[] } & AcquisitionDelta {
-  const { champion = false, bossWins = 0 } = settle;
+  const { champion = false, bossWins = 0, ladderClass } = settle;
   const mods = difficultyMods(settle.playedDifficulty ?? home.selectedDifficulty);
   const candidates = runRecruitCandidates(home, runRoster);
-  if (champion) return depositRecruitCopies(home.collecting ?? [], candidates, mods.copiesMul);
+  if (champion) {
+    return depositRecruitCopies(home.collecting ?? [], candidates, mods.copiesMul, ladderClass);
+  }
   const milestone = mods.milestoneBossWins != null && bossWins >= mods.milestoneBossWins;
   return depositRecruitCopies(
     home.collecting ?? [],
-    milestone ? bestBankableRecruit(candidates) : []
+    milestone ? bestBankableRecruit(candidates, ladderClass) : []
   );
 }
 

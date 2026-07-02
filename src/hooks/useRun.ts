@@ -185,6 +185,7 @@ export function useRun() {
         champion,
         playedDifficulty: model.difficulty,
         bossWins: model.core.currentMapIndex,
+        ladderClass: model.ladderClass,
       });
       // A championship banks a Hall of Fame snapshot of the final game. Date.now() lives
       // here (the hook), keeping the merge and the entry builder clock-free.
@@ -228,6 +229,7 @@ export function useRun() {
           playedDifficulty: model.difficulty,
           championEntry,
           bossWins: model.core.currentMapIndex,
+          ladderClass: model.ladderClass,
         }),
         settledRunId: runId,
       };

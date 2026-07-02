@@ -14,7 +14,7 @@ describe('collection copies-to-own', () => {
     // the chase lives at A and especially S (tiny pool, so the biggest copy count).
     expect(copiesToOwn('C')).toBe(1);
     expect(copiesToOwn('B')).toBe(1);
-    expect(copiesToOwn('A')).toBe(3);
+    expect(copiesToOwn('A')).toBe(4);
     expect(copiesToOwn('S')).toBe(6);
     const pool = ['C', 'B', 'A', 'S'] as const;
     for (let i = 1; i < pool.length; i++) {
@@ -32,10 +32,17 @@ describe('collection copies-to-own', () => {
   });
 
   it('isCollected crosses exactly at the threshold', () => {
-    expect(isCollected(2, 'A')).toBe(false);
-    expect(isCollected(3, 'A')).toBe(true);
+    expect(isCollected(3, 'A')).toBe(false);
     expect(isCollected(4, 'A')).toBe(true);
+    expect(isCollected(5, 'A')).toBe(true);
     expect(isCollected(1, 'C')).toBe(true);
+  });
+
+  it('the A threshold sits above hard\'s championship copies multiplier', () => {
+    // The A chase must survive the clear that started it: at 3 copies a hard clear
+    // (x3 multiplier) insta-owned every new at-class A recruit. Insane (x4) still
+    // finishes an early-fielded A at the buzzer, which is the earned exception.
+    expect(copiesToOwn('A')).toBeGreaterThan(3);
   });
 
   it('overflow bounty is half the class scout price for scoutable classes', () => {

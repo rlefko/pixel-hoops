@@ -41,12 +41,12 @@ function setup(): { home: HomeRoster; runRoster: Roster; recruit: RosterPlayer }
 }
 
 describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
-  it('deposits a copy toward a new recruit on a clear (A owns at three copies)', () => {
+  it('deposits a copy toward a new recruit on a clear (A owns at four copies)', () => {
     const { home, runRoster, recruit } = setup();
     expect(home.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
 
     const next = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
-    // An A-class recruit needs three copies, so one clear leaves it collecting (1/3), not
+    // An A-class recruit needs four copies, so one clear leaves it collecting (1/4), not
     // yet owned or draftable.
     expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
     expect(next.players.length).toBe(home.players.length);
@@ -67,10 +67,10 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     expect(next.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
   });
 
-  it('unlocks a recruit once enough clears deposit its copies (A at three)', () => {
+  it('unlocks a recruit once enough clears deposit its copies (A at four)', () => {
     const { home, recruit } = setup();
     let cur = home;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 4; i++) {
       const runRoster: Roster = { starters: cur.players.slice(0, 5), bench: [recruit] };
       cur = mergeRunGainsIntoHome(cur, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
     }
@@ -252,11 +252,11 @@ describe('previewRunAcquisitions', () => {
     const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [cRecruit, aRecruit] };
 
     const won = previewRunAcquisitions(home, runRoster, { champion: true });
-    // C owns at one copy -> unlocked; A owns at three -> progressed 0->1.
+    // C owns at one copy -> unlocked; A owns at four -> progressed 0->1.
     expect(won.unlocked.some((p) => playerKey(p) === playerKey(cRecruit))).toBe(true);
     expect(won.unlocked.some((p) => playerKey(p) === playerKey(aRecruit))).toBe(false);
     expect(won.progressed.find((p) => playerKey(p.player) === playerKey(aRecruit))).toEqual(
-      expect.objectContaining({ before: 0, after: 1, threshold: 3 })
+      expect.objectContaining({ before: 0, after: 1, threshold: 4 })
     );
 
     const lost = previewRunAcquisitions(home, runRoster, {});
@@ -553,23 +553,44 @@ describe('v16 cleared-cells migration', () => {
 });
 
 describe('the copies multiplier (harder clears bank more of every recruit)', () => {
-  it('a hard clear (x3) owns an A recruit in ONE championship', () => {
-    const { home, runRoster, recruit } = setup(); // recruit is A-class (threshold 3)
+  it('a hard clear (x3) leaves an at-class A recruit at 3/4, one copy shy', () => {
+    // A owns at FOUR copies, one above the biggest sub-insane multiplier, so no single
+    // clear insta-owns an A: the chase always survives the championship that started it.
+    const { home, runRoster, recruit } = setup(); // recruit is A-class (threshold 4)
     const next = mergeRunGainsIntoHome(home, runRoster, {
       champion: true,
-      clearedClass: 'C',
+      clearedClass: 'A',
       playedDifficulty: 'hard',
+      ladderClass: 'A',
     });
-    expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(true);
-    expect(next.collecting.some((c) => playerKey(c.player) === playerKey(recruit))).toBe(false);
+    expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
+    const entry = next.collecting.find((c) => playerKey(c.player) === playerKey(recruit));
+    expect(entry?.copies).toBe(3);
   });
 
-  it('a medium clear (x2) leaves the same A recruit at 2/3', () => {
+  it('a reach-up recruit deposits exactly ONE copy, ignoring the multiplier', () => {
+    // The structural no-leak rule: an A-class recruit signed on the B ladder is a
+    // taste of the class above, never a full signing. Without the cap, hard's x3
+    // multiplier would own A players from below-ladder content.
+    const { home, runRoster, recruit } = setup(); // A-class recruit
+    const next = mergeRunGainsIntoHome(home, runRoster, {
+      champion: true,
+      clearedClass: 'B',
+      playedDifficulty: 'insane', // x4, the worst case
+      ladderClass: 'B',
+    });
+    expect(next.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(false);
+    const entry = next.collecting.find((c) => playerKey(c.player) === playerKey(recruit));
+    expect(entry?.copies).toBe(1);
+  });
+
+  it('a medium clear (x2) leaves the same at-class A recruit at 2/4', () => {
     const { home, runRoster, recruit } = setup();
     const next = mergeRunGainsIntoHome(home, runRoster, {
       champion: true,
-      clearedClass: 'C',
+      clearedClass: 'A',
       playedDifficulty: 'medium',
+      ladderClass: 'A',
     });
     const entry = next.collecting.find((c) => playerKey(c.player) === playerKey(recruit));
     expect(entry?.copies).toBe(2);
@@ -612,15 +633,17 @@ describe('the copies multiplier (harder clears bank more of every recruit)', () 
 
   it('the preview mirrors the merge under the multiplier', () => {
     const { home, runRoster, recruit } = setup();
-    const settle = { champion: true, playedDifficulty: 'hard' as const };
+    const settle = { champion: true, playedDifficulty: 'hard' as const, ladderClass: 'A' as const };
     const preview = previewRunAcquisitions(home, runRoster, settle);
     const merged = mergeRunGainsIntoHome(home, runRoster, {
       ...settle,
-      clearedClass: 'C' as const,
+      clearedClass: 'A' as const,
     });
-    expect(preview.unlocked.map(playerKey)).toContain(playerKey(recruit));
-    expect(merged.players.some((p) => playerKey(p) === playerKey(recruit))).toBe(true);
-    expect(preview.progressed).toEqual([]);
+    const progressed = preview.progressed.find((p) => playerKey(p.player) === playerKey(recruit));
+    expect(progressed).toMatchObject({ before: 0, after: 3, threshold: 4 });
+    const entry = merged.collecting.find((c) => playerKey(c.player) === playerKey(recruit));
+    expect(entry?.copies).toBe(3);
+    expect(preview.unlocked).toEqual([]);
   });
 });
 
@@ -667,6 +690,32 @@ describe('milestone banking (a deep hard/insane loss still pays one copy)', () =
     expect(next.collecting.some((c) => playerKey(c.player) === playerKey(legend))).toBe(false);
     expect(next.collecting.some((c) => playerKey(c.player) === playerKey(aRecruit))).toBe(true);
     expect(next.collecting.some((c) => playerKey(c.player) === playerKey(cRecruit))).toBe(false);
+  });
+
+  it('never milestone-banks a reach-up recruit (dying must not out-farm clearing)', () => {
+    // On the B ladder a reach-up A's clear deposit is capped at one copy, the same as a
+    // milestone bank, so banking it from a loss would make a 4-boss suicide the fastest
+    // A farm. The at-class B banks instead; a lone reach-up candidate banks nothing.
+    const home = createRookieRoster(createRNG('bank-reach'));
+    const ownedKeys = new Set(home.players.map(playerKey));
+    const aRecruit = realPlayerToRosterPlayer(poolByClass('A')[0]);
+    const bRecruit = poolByClass('B')
+      .map(realPlayerToRosterPlayer)
+      .find((rp) => !ownedKeys.has(playerKey(rp)))!;
+    const both = mergeRunGainsIntoHome(
+      home,
+      { starters: home.players.slice(0, 5), bench: [aRecruit, bRecruit] },
+      { playedDifficulty: 'hard', bossWins: 4, ladderClass: 'B' }
+    );
+    expect(both.collecting.some((c) => playerKey(c.player) === playerKey(aRecruit))).toBe(false);
+    expect(both.players.some((p) => playerKey(p) === playerKey(bRecruit))).toBe(true); // B owns at 1
+
+    const only = mergeRunGainsIntoHome(
+      home,
+      { starters: home.players.slice(0, 5), bench: [aRecruit] },
+      { playedDifficulty: 'hard', bossWins: 4, ladderClass: 'B' }
+    );
+    expect(only.collecting.some((c) => playerKey(c.player) === playerKey(aRecruit))).toBe(false);
   });
 
   it('the preview mirrors a milestone-banked loss', () => {

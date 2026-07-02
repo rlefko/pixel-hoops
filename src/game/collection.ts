@@ -26,11 +26,19 @@ export const COPIES_TO_OWN: Record<PlayerClass, number> = {
   D: 1, // the rookie/streetball floor is always instantly owned
   C: 1,
   B: 1, // the 243-deep B pool already makes a specific B rare; a 2nd copy only orphans them
-  A: 3,
+  A: 4, // above every championship copies multiplier, so no single clear insta-owns an A
   S: 6, // the tiny 35-player pool completes fast, so the chase lives in the copy count
   'S+': 1, // legends: a rare on-loan reveal you win with, or the 10k scout, so one copy owns
   'S++': 1, // emergent-only; never actually collected, kept for totality
 };
+
+/**
+ * Copies a REACH-UP recruit (class strictly above the run's ladder) deposits on a
+ * championship, regardless of the difficulty copies multiplier. Below-ladder content
+ * grants a taste of the class above, never the full signing: without this cap, a hard
+ * B-ladder clear (x3 copies) would insta-own every A-class reach-up recruit.
+ */
+export const REACH_UP_DEPOSIT_COPIES = 1;
 
 /** Copies required to own (unlock) a player of `cls`. */
 export function copiesToOwn(cls: PlayerClass): number {
