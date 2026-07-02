@@ -27,7 +27,12 @@ import {
   type PlayerPullResult,
 } from './player-gacha';
 import { REACH_UP_DEPOSIT_COPIES, copiesToOwn, type CollectingPlayer } from './collection';
-import { FAVOR_PER_COPY } from './favor';
+import {
+  FAVOR_PER_COPY,
+  FAVOR_RESIDUAL_COIN_RATE,
+  favorToCopies,
+  settleFavorEarned,
+} from './favor';
 import { playerDraftClass } from './draft';
 import { GACHA_MACHINES, getGachaAbility, pickAbilityOfRarity } from './abilities-gacha';
 import { BOUNTIES, GRANDMASTER_KEY, bountyFor, bountyKey, type Bounty } from './bounties';
@@ -527,7 +532,21 @@ function foldPull(home: HomeRoster, result: PlayerPullResult): HomeRoster {
   if (result.unlockedNow) {
     // Graduate into the owned collection (front = recency); drop the in-progress entry.
     const collecting = home.collecting.filter((c) => playerKey(c.player) !== result.targetKey);
-    return { ...home, coins, players: [result.player, ...home.players], collecting };
+    // The chase completed at the machine: banked favor pays out as coins and the
+    // entry drops, so a meter the player was told to fill never evaporates.
+    const banked = home.favor?.[result.targetKey] ?? 0;
+    let favor = home.favor ?? {};
+    if (banked > 0) {
+      favor = { ...favor };
+      delete favor[result.targetKey];
+    }
+    return {
+      ...home,
+      coins: coins + banked * FAVOR_RESIDUAL_COIN_RATE,
+      players: [result.player, ...home.players],
+      collecting,
+      favor,
+    };
   }
   // Still collecting: upsert the in-progress entry with the new copy count.
   const collecting = upsertCollecting(home.collecting, result.player, result.newCopies);
@@ -693,8 +712,29 @@ export interface RunSettle {
    * deposits one copy ("he stays in touch"). */
   bossWins?: number;
   /** The ladder class the run was PLAYED on (model.ladderClass). Drives the reach-up
-   * deposit cap and the milestone-bank filter; absent (legacy callers) = uncapped. */
+   * deposit cap, the milestone-bank filter, and the favor reach-up damp; absent
+   * (legacy callers) = uncapped. */
   ladderClass?: LadderClass;
+  /** Base favor points this run's wins accrued per fielded playerKey (model.favor).
+   * The settle banks them for the still-un-owned who finished the run on the squad,
+   * scaled by the difficulty's favorMul, WIN OR LOSE. */
+  runFavor?: Record<string, number>;
+}
+
+/** One player's favor movement at a settle, for the run-summary favor strip. */
+export interface FavorDelta {
+  player: RosterPlayer;
+  /** Banked ledger points before the settle and after (post-conversion remainder). */
+  before: number;
+  after: number;
+  /** Points this run earned (after the difficulty multiplier and any reach-up damp). */
+  earned: number;
+  /** Whole collection copies the conversion granted (capped at the copies needed). */
+  copiesGranted: number;
+  /** Whether the favor conversion itself crossed the ownership threshold. */
+  unlockedNow: boolean;
+  /** Coins paid out for residual favor once the chase completed. */
+  residualCoins: number;
 }
 
 /** The recruit deposits a settle performs: every candidate x the difficulty's copies
@@ -719,19 +759,135 @@ function settleDeposits(
   );
 }
 
+/** The full collection movement of one settle (deposits + favor), shared by the merge
+ * and the preview so the reveal can never disagree with what actually banks. */
+interface CollectionSettle extends AcquisitionDelta {
+  collecting: CollectingPlayer[];
+  favor: Record<string, number>;
+  favorDelta: FavorDelta[];
+  /** Coins paid for residual favor on chases the settle completed. */
+  favorCoins: number;
+}
+
+/**
+ * Deposits first, then the FAVOR pass against the post-deposit owned set (the
+ * anti-double-count rule: a recruit the clear just signed keeps no favor; their banked
+ * points pay out as coins instead). Favor banks on EVERY terminal settle, champion or
+ * not: points this run's wins earned join the home ledger for the still-un-owned who
+ * finished the run on the squad (cutting a player mid-run forfeits their favor),
+ * convert to whole copies at the class threshold through the same deposit function
+ * (identical unlock semantics), and the remainder stays visible on the meter.
+ */
+function settleCollection(
+  home: HomeRoster,
+  runRoster: Roster,
+  settle: RunSettle
+): CollectionSettle {
+  const mods = difficultyMods(settle.playedDifficulty ?? home.selectedDifficulty);
+  const deposits = settleDeposits(home, runRoster, settle);
+  const unlocked = [...deposits.unlocked];
+  let progressed = [...deposits.progressed];
+  let collecting = deposits.collecting;
+  const favor: Record<string, number> = { ...home.favor };
+  const favorDelta: FavorDelta[] = [];
+  let favorCoins = 0;
+  const ownedAfter = new Set([...home.players.map(playerKey), ...unlocked.map(playerKey)]);
+  const candidates = new Map(
+    runRecruitCandidates(home, runRoster).map((p) => [playerKey(p), p] as const)
+  );
+
+  // Chases the deposits just completed: banked favor converts to coins and drops.
+  for (const rp of deposits.unlocked) {
+    const key = playerKey(rp);
+    const banked = favor[key] ?? 0;
+    if (banked <= 0) continue;
+    delete favor[key];
+    const residualCoins = banked * FAVOR_RESIDUAL_COIN_RATE;
+    favorCoins += residualCoins;
+    favorDelta.push({
+      player: rp, before: banked, after: 0, earned: 0,
+      copiesGranted: 0, unlockedNow: false, residualCoins,
+    });
+  }
+
+  // The favor pass: bank, convert, and (rarely) unlock.
+  for (const [key, base] of Object.entries(settle.runFavor ?? {})) {
+    const candidate = candidates.get(key);
+    if (!candidate || ownedAfter.has(key)) continue; // owned, just signed, or cut mid-run
+    const earned = settleFavorEarned(
+      base,
+      mods.favorMul,
+      isReachUpRecruit(candidate, settle.ladderClass)
+    );
+    if (earned <= 0) continue;
+    const before = favor[key] ?? 0;
+    const total = before + earned;
+    const cls = playerDraftClass(candidate);
+    const wholeCopies = favorToCopies(total, cls).copies;
+    if (wholeCopies <= 0) {
+      favor[key] = total;
+      favorDelta.push({
+        player: candidate, before, after: total, earned,
+        copiesGranted: 0, unlockedNow: false, residualCoins: 0,
+      });
+      continue;
+    }
+    // Whole copies convert through the shared deposit function (copiesMul = the
+    // grant, capped at need inside), so unlock semantics are byte-identical.
+    const threshold = copiesToOwn(cls);
+    const copiesBefore = collecting.find((c) => playerKey(c.player) === key)?.copies ?? 0;
+    const granted = Math.min(wholeCopies, threshold - copiesBefore);
+    const grant = depositRecruitCopies(collecting, [candidate], granted);
+    collecting = grant.collecting;
+    progressed.push(...grant.progressed);
+    const unlockedNow = grant.unlocked.length > 0;
+    const leftover = total - granted * (FAVOR_PER_COPY[cls] ?? 0);
+    let after = leftover;
+    let residualCoins = 0;
+    if (unlockedNow) {
+      unlocked.push(...grant.unlocked);
+      ownedAfter.add(key);
+      residualCoins = leftover * FAVOR_RESIDUAL_COIN_RATE;
+      favorCoins += residualCoins;
+      after = 0;
+      delete favor[key];
+    } else {
+      favor[key] = after;
+    }
+    favorDelta.push({
+      player: candidate, before, after, earned,
+      copiesGranted: granted, unlockedNow, residualCoins,
+    });
+  }
+
+  // Coalesce progress rows (a champion deposit + a favor conversion touch the same
+  // player twice): keep the earliest `before` and the latest `after`, and drop rows
+  // for players the settle ended up unlocking.
+  const unlockedKeys = new Set(unlocked.map(playerKey));
+  const byKey = new Map<string, ProgressedCopy>();
+  for (const row of progressed) {
+    const key = playerKey(row.player);
+    const prior = byKey.get(key);
+    byKey.set(key, prior ? { ...row, before: prior.before } : row);
+  }
+  progressed = [...byKey.values()].filter((row) => !unlockedKeys.has(playerKey(row.player)));
+
+  return { collecting, unlocked, progressed, favor, favorDelta, favorCoins };
+}
+
 /**
  * The players a run's settle would UNLOCK vs PROGRESS, for the end-of-run reveal + strip
- * (including a milestone-banked loss). Pure and read-only (does not mutate the home
- * roster). Mirrors the deposit the merge performs, so the reveal always matches what
- * actually banks.
+ * (including a milestone-banked loss), plus the favor movement for the favor strip.
+ * Pure and read-only (does not mutate the home roster). Mirrors settleCollection
+ * exactly (same chooser), so the reveal always matches what actually banks.
  */
 export function previewRunAcquisitions(
   home: HomeRoster,
   runRoster: Roster,
   settle: RunSettle
-): AcquisitionDelta {
-  const { unlocked, progressed } = settleDeposits(home, runRoster, settle);
-  return { unlocked, progressed };
+): AcquisitionDelta & { favorDelta: FavorDelta[]; favorCoins: number } {
+  const { unlocked, progressed, favorDelta, favorCoins } = settleCollection(home, runRoster, settle);
+  return { unlocked, progressed, favorDelta, favorCoins };
 }
 
 /**
@@ -777,11 +933,17 @@ export function mergeRunGainsIntoHome(
   const fieldedOwned = fieldedOwnedKeys.map((k) => homeByKey.get(k)!);
   const restOwned = home.players.filter((p) => !seenF.has(playerKey(p)));
 
-  // The settle's recruit deposits: crossing the class threshold unlocks the player into
-  // the collection now (front = recency); the rest advance their in-progress copy count
-  // in `collecting`. An ordinary loss deposits nothing (prior in-progress copies, banked
-  // on earlier wins, are untouched).
-  const { collecting, unlocked: unlockedRecruits } = settleDeposits(home, runRoster, settle);
+  // The settle's collection movement: recruit deposits (crossing the class threshold
+  // unlocks the player into the collection now, front = recency; the rest advance
+  // their in-progress copy count in `collecting`), then the favor pass (banked win or
+  // lose, converting to copies and occasionally unlocking). An ordinary loss deposits
+  // nothing, but its wins' favor still banks.
+  const {
+    collecting,
+    unlocked: unlockedRecruits,
+    favor,
+    favorCoins,
+  } = settleCollection(home, runRoster, settle);
   const players = [...fieldedOwned, ...unlockedRecruits, ...restOwned];
 
   // The draft rotation to restore next run is captured at draft-confirm time into
@@ -820,9 +982,12 @@ export function mergeRunGainsIntoHome(
     ...home,
     players,
     collecting,
-    // Coins are NOT banked here: they bank into the wallet as each game is won (the
-    // as-earned ledger in useRun), so `...home` already holds them. Reputation still
-    // banks at run end (a terminal reward, forfeited if the run is abandoned).
+    favor,
+    // Win coins are NOT banked here: they bank into the wallet as each game is won
+    // (the as-earned ledger in useRun), so `...home` already holds them. Residual
+    // favor coins (a chase this settle completed) and reputation are terminal
+    // rewards, banked here and forfeited if the run is abandoned.
+    coins: home.coins + favorCoins,
     reputation: home.reputation + (rewards?.reputation ?? 0),
     ladderProgress,
     clearedCells,

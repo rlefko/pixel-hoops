@@ -15,6 +15,7 @@ import {
   type AcquisitionDelta,
   type BountyGrant,
   type DailyGrants,
+  type FavorDelta,
 } from '@/game/home-roster';
 import { dayKey, weekKey } from '@/game/daily';
 import { createRNG, deriveSeed } from '@/game/rng';
@@ -68,6 +69,8 @@ export function useRun() {
   // surfaced as the headline "harder difficulty paid off" reveal beat.
   const bountyGrantRef = useRef<BountyGrant | null>(null);
   const dailyGrantsRef = useRef<DailyGrants | null>(null);
+  // The favor this run's settle banked/converted (win or lose), for the summary strip.
+  const favorDeltaRef = useRef<FavorDelta[]>([]);
 
   // Start the run once, after both the home roster and the saved-run slot have hydrated.
   // The home screen passes `mode` 'new' or 'resume'; only 'resume' (with a saved run)
@@ -154,6 +157,7 @@ export function useRun() {
       wonPlayersRef.current = { unlocked: [], progressed: [] };
       bountyGrantRef.current = null;
       dailyGrantsRef.current = null;
+      favorDeltaRef.current = [];
     }
 
     const earned = model.core.rewards.coins;
@@ -178,15 +182,18 @@ export function useRun() {
             new Set(next.ownedCoaches)
           )
         : [];
-      // The players this settle unlocks/progresses (a milestone-banked loss included),
-      // captured against the PRE-merge collection (the merge below deposits them), for
-      // the scouted-player reveal + the summary strips.
-      wonPlayersRef.current = previewRunAcquisitions(next, model.core.roster, {
+      // The players this settle unlocks/progresses (a milestone-banked loss included)
+      // and its favor movement, captured against the PRE-merge collection (the merge
+      // below deposits them), for the scouted-player reveal + the summary strips.
+      const preview = previewRunAcquisitions(next, model.core.roster, {
         champion,
         playedDifficulty: model.difficulty,
         bossWins: model.core.currentMapIndex,
         ladderClass: model.ladderClass,
+        runFavor: model.favor ?? {},
       });
+      wonPlayersRef.current = { unlocked: preview.unlocked, progressed: preview.progressed };
+      favorDeltaRef.current = preview.favorDelta;
       // A championship banks a Hall of Fame snapshot of the final game. Date.now() lives
       // here (the hook), keeping the merge and the entry builder clock-free.
       const now = Date.now();
@@ -230,6 +237,7 @@ export function useRun() {
           championEntry,
           bossWins: model.core.currentMapIndex,
           ladderClass: model.ladderClass,
+          runFavor: model.favor ?? {},
         }),
         settledRunId: runId,
       };
@@ -344,6 +352,7 @@ export function useRun() {
     wonPlayers: wonPlayersRef.current,
     bountyGrant: bountyGrantRef.current,
     dailyGrants: dailyGrantsRef.current,
+    favorRows: favorDeltaRef.current,
     collectProgress,
     equippedCoachId: homeRoster?.selectedCoachId,
   };

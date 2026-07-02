@@ -68,6 +68,11 @@ export function settleFavorEarned(base: number, favorMul: number, reachUp: boole
   return Math.round(base * favorMul * (reachUp ? FAVOR_REACH_UP_DAMP : 1));
 }
 
+/** Coins paid per residual favor point when a chase completes some other way (a
+ * deposit or a scout pull signs the player first). A meter the game asked the player
+ * to fill never evaporates; a full A copy's worth of favor refunds a modest 200. */
+export const FAVOR_RESIDUAL_COIN_RATE = 5;
+
 /** Add `points` to every key's entry, immutably. A no-op (same reference) when there
  * is nothing to add, so reducer states never churn on empty wins. */
 export function addFavor(
