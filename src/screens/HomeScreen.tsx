@@ -184,15 +184,13 @@ export default function HomeScreen() {
         <Animated.View style={bobStyle}>
           <BasketballIcon size={22} color={palette.courtLine} />
         </Animated.View>
-        <View style={styles.titleRow}>
-          <Text style={styles.title}>PIXEL</Text>
-          <View style={styles.hoopsWrap}>
-            <Animated.View
-              pointerEvents="none"
-              style={[styles.hoopsGlow, glowStyle]}
-            />
-            <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
-          </View>
+        <Text style={styles.title}>PIXEL</Text>
+        <View style={styles.hoopsWrap}>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.hoopsGlow, glowStyle]}
+          />
+          <Text style={[styles.title, styles.highlight]}>HOOPS</Text>
         </View>
         <Text style={styles.subtitle}>8-Bit Basketball Roguelike</Text>
       </View>
@@ -411,19 +409,15 @@ const styles = StyleSheet.create({
   },
   titleBlock: {
     alignItems: 'center',
-    marginBottom: space(1),
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space(2),
   },
   title: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.h2,
     color: palette.ink,
     letterSpacing: 2,
-    lineHeight: FONT_SIZE.h2 + 8,
+    // Tight leading so the stacked words read as one lockup; Press Start 2P caps
+    // have no descenders, so 4pt of air never clips.
+    lineHeight: FONT_SIZE.h2 + 4,
     // letterSpacing adds its advance after the last glyph too; pull the box edge
     // back flush so centered words and the HOOPS glow stay symmetric.
     marginRight: -2,
@@ -449,11 +443,11 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.body,
     color: palette.inkDim,
     letterSpacing: 1,
-    marginTop: space(2),
+    marginTop: space(1),
   },
   selectBox: {
     alignItems: 'center',
-    marginTop: space(2),
+    marginTop: space(1.5),
     maxWidth: 320,
   },
   selectLabel: {

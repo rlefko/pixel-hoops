@@ -68,7 +68,7 @@ export function DailyPanel({
 }
 
 const styles = StyleSheet.create({
-  panel: { alignItems: 'center', alignSelf: 'stretch', marginTop: space(1) },
+  panel: { alignItems: 'center', alignSelf: 'stretch', marginTop: space(0.5) },
   weekly: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
