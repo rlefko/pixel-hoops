@@ -59,22 +59,32 @@ const cfFactor = new Map<MusicName, number>(); // crossfade factor per main bed,
 let energyFactor = 0; // 0..1 crossfade of the game-energy layer
 let duckFactor = 1;
 const cancels = new Map<string, () => void>(); // active tween/timer cancels by key
+const lastVolume = new Map<MusicName, number>(); // last volume written per player
 
-/** The single writer for a main bed. */
+/**
+ * The single writer for a main bed. Skips the native call when the computed volume has
+ * not changed, so a silent bed costs zero bridge traffic while a duck or crossfade
+ * tweens the audible ones at 30 Hz.
+ */
 function applyMain(name: MusicName): void {
   const player = mains.get(name);
   if (!player) return;
-  const cf = cfFactor.get(name) ?? 0;
+  const volume = masterVolume * (cfFactor.get(name) ?? 0) * duckFactor;
+  if (lastVolume.get(name) === volume) return;
   bestEffort(() => {
-    player.volume = masterVolume * cf * duckFactor;
+    player.volume = volume;
+    lastVolume.set(name, volume);
   });
 }
 
 function applyEnergy(): void {
-  if (!energyPlayer) return;
   const p = energyPlayer;
+  if (!p) return;
+  const volume = masterVolume * energyFactor * ENERGY_LEVEL * duckFactor;
+  if (lastVolume.get(ENERGY_TRACK) === volume) return;
   bestEffort(() => {
-    p.volume = masterVolume * energyFactor * ENERGY_LEVEL * duckFactor;
+    p.volume = volume;
+    lastVolume.set(ENERGY_TRACK, volume);
   });
 }
 
@@ -154,6 +164,7 @@ async function ensureBed(name: MusicName): Promise<void> {
     if (!player) return;
     player.loop = true;
     player.volume = 0; // start silent; fades bring it in
+    lastVolume.set(name, 0);
     if (name === ENERGY_TRACK) {
       energyPlayer = player;
     } else {
@@ -186,8 +197,16 @@ function sync(): void {
   }
 }
 
-/** Pause every loaded player and forget what was applied, so sync() re-applies on resume. */
-function pauseAll(): void {
+/**
+ * Pause every loaded player, cancel every tween and timer, and forget what was applied,
+ * so nothing ticks while halted and sync() re-applies cleanly on resume. Resetting
+ * duckFactor here means a duck interrupted mid-dip can never leave the music
+ * permanently quieter after a resume.
+ */
+function haltPlayback(): void {
+  for (const cancel of cancels.values()) cancel();
+  cancels.clear();
+  duckFactor = 1;
   for (const player of mains.values()) bestEffort(() => player.pause());
   const p = energyPlayer;
   if (p) bestEffort(() => p.pause());
@@ -197,9 +216,7 @@ function pauseAll(): void {
 
 /** Stop for real (music toggled off): silence everything so re-enabling fades in fresh. */
 function stopAll(): void {
-  for (const cancel of cancels.values()) cancel();
-  cancels.clear();
-  pauseAll();
+  haltPlayback();
   for (const name of mains.keys()) cfFactor.set(name, 0);
   energyFactor = 0;
 }
@@ -218,11 +235,11 @@ export function setMusicVolume(value: number): void {
   applyAll();
 }
 
-/** Foreground gate: false pauses everything, true resumes the declared bed (+ energy). */
+/** Foreground gate: false pauses everything and stops all tweens, true resumes the bed. */
 export function setMusicActive(value: boolean): void {
   active = value;
   if (IS_WEB) return;
-  if (!value) pauseAll();
+  if (!value) haltPlayback();
   else sync();
 }
 
