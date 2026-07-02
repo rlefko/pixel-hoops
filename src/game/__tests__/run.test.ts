@@ -19,6 +19,7 @@ import {
   buildHomeTeam,
   buildOpponentTeam,
   coachReorderRoster,
+  computeCoachRec,
   pendingWinRewards,
   steppingInSubs,
   TOTAL_MAPS,
@@ -699,7 +700,9 @@ describe('run reducer', () => {
       { ...m, game: null, phase: { kind: 'postgame', nodeId: 'g1', won: false } },
       { type: 'resolveGameResult' }
     )!;
-    expect(forgiven.phase).toEqual({ kind: 'pregame', nodeId: 'g1', timeoutUsed: true });
+    // coachRec resolves to null on a replay: the banner stays quiet and the async
+    // scout (which only fills undefined) never recomputes for it.
+    expect(forgiven.phase).toEqual({ kind: 'pregame', nodeId: 'g1', timeoutUsed: true, coachRec: null });
     expect(forgiven.secondChancesRemaining).toBe(m.secondChancesRemaining - 1);
     expect(forgiven.forgivenLosses).toBe(1);
   });
@@ -1213,7 +1216,8 @@ describe('coaches in a run', () => {
     const accepted = runReducer(withRec, { type: 'acceptCoachRec' })!;
     expect(accepted.core.roster.starters[0]).toBe(original.starters[4]);
     expect(accepted.phase.kind).toBe('pregame');
-    expect(accepted.phase.kind === 'pregame' && accepted.phase.coachRec).toBeUndefined();
+    // Resolved to null (not undefined): the async scout never recomputes for this pregame.
+    expect(accepted.phase.kind === 'pregame' && accepted.phase.coachRec).toBeNull();
   });
 
   it('acceptCoachRec is a no-op when there is no suggestion', () => {
@@ -1222,6 +1226,61 @@ describe('coaches in a run', () => {
     const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
     const after = runReducer(pregame, { type: 'acceptCoachRec' })!;
     expect(after.core.roster).toEqual(pregame.core.roster);
+  });
+
+  it('the node tap defers the scout; computeCoachRec + setCoachRec land it once', () => {
+    const m = atMap('coach-async');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    // The tap no longer computes anything: the scout starts unresolved.
+    expect(pregame.phase.kind === 'pregame' && pregame.phase.coachRec).toBeUndefined();
+    // The deferred compute derives the identical rec from the model alone (the same
+    // seeded opponent and counters the inline path used) and lands it.
+    const rec = computeCoachRec(pregame, bossId);
+    const landed = runReducer(pregame, { type: 'setCoachRec', nodeId: bossId, rec })!;
+    expect(landed.phase.kind === 'pregame' && landed.phase.coachRec).toBe(rec);
+    // A second landing is a no-op: the first result (even null) resolves the pregame.
+    const stale = {
+      starters: pregame.core.roster.starters,
+      bench: pregame.core.roster.bench,
+      edge: 'minor' as const,
+      changes: 1,
+      summary: 'stale',
+    };
+    expect(runReducer(landed, { type: 'setCoachRec', nodeId: bossId, rec: stale })).toBe(landed);
+  });
+
+  it('setCoachRec refuses a result for another node or phase', () => {
+    const m = atMap('coach-stale');
+    const bossId = m.core.map.bossNodeId;
+    const rec = {
+      starters: m.core.roster.starters,
+      bench: m.core.roster.bench,
+      edge: 'minor' as const,
+      changes: 1,
+      summary: 'stale',
+    };
+    expect(runReducer(m, { type: 'setCoachRec', nodeId: bossId, rec })).toBe(m); // map phase
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    expect(runReducer(pregame, { type: 'setCoachRec', nodeId: 'not-this-node', rec })).toBe(pregame);
+  });
+
+  it('a manual lineup edit resolves the scout so a late result cannot land', () => {
+    const m = atMap('coach-edit');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    const lineup = runReducer(pregame, { type: 'openLineupBuilder' })!;
+    const { starters, bench } = pregame.core.roster;
+    const back = runReducer(lineup, { type: 'setLineup', starters, bench })!;
+    expect(back.phase.kind === 'pregame' && back.phase.coachRec).toBeNull();
+    const rec = {
+      starters,
+      bench,
+      edge: 'minor' as const,
+      changes: 1,
+      summary: 'late',
+    };
+    expect(runReducer(back, { type: 'setCoachRec', nodeId: bossId, rec })).toBe(back);
   });
 
   it('coachReorderRoster slots a position-scrambled lineup back into PG..C order', () => {

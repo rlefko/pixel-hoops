@@ -194,7 +194,10 @@ export function RunMapView({
                   isReachable={reachable.has(id)}
                   isCurrent={core.currentNodeId === id}
                   onChoose={onChoose}
-                  paused={idle}
+                  // Unreachable tiles never animate, so folding reachability in here
+                  // keeps their prop a constant `true`: idle wake-ups (which race the
+                  // very tap they precede) re-render only the 2-3 breathing tiles.
+                  paused={idle || !reachable.has(id)}
                 />
               );
             })

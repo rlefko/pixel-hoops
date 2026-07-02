@@ -117,8 +117,10 @@ export type RunPhase =
   // `timeoutUsed` is set when this pregame was re-entered after a forgiven loss, so
   // the pregame scouting screen can flag the spent timeout and that this is a replay.
   // `coachRec` is the equipped coach's optional one-click lineup suggestion for this
-  // matchup (absent when the coach has nothing worth surfacing, e.g. on easy).
-  | { kind: 'pregame'; nodeId: string; timeoutUsed?: boolean; coachRec?: CoachRec }
+  // matchup. Sentinel semantics keep the async compute (see computeCoachRec) honest:
+  // `undefined` = not computed yet (useRun schedules the search off the tap), `null` =
+  // resolved with nothing to show (below the bar, accepted, edited, or a replay).
+  | { kind: 'pregame'; nodeId: string; timeoutUsed?: boolean; coachRec?: CoachRec | null }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
   | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[]; rerolled: boolean[] }
@@ -215,6 +217,9 @@ export type RunAction =
   | { type: 'setLineup'; starters: RosterPlayer[]; bench: RosterPlayer[] }
   | { type: 'cancelLineup' }
   | { type: 'acceptCoachRec' }
+  // Lands the asynchronously computed coach suggestion on its pregame (see
+  // computeCoachRec); `rec: null` records "nothing worth surfacing" so it computes once.
+  | { type: 'setCoachRec'; nodeId: string; rec: CoachRec | null }
   | { type: 'enterGame' }
   | { type: 'finishReplay' }
   | { type: 'resolveGameResult' }
@@ -604,6 +609,36 @@ export function buildOpponentTeam(core: RunState, nodeId: string, mods: Difficul
 }
 
 /**
+ * The equipped coach's optional lineup suggestion for a combat node's pregame: it
+ * surfaces only when the edge clears the difficulty-scaled bar, so easy runs stay
+ * quiet and hard runs get adjustments often. This is the heavy part of entering a
+ * node (a lineup search over full team builds), so the reducer does NOT run it
+ * inline: useRun calls it after the pregame frame commits and lands the result via
+ * the setCoachRec action. Pure and deterministic from the model (seeded opponent,
+ * RNG-free search), so a resumed or replayed pregame recomputes the identical rec.
+ */
+export function computeCoachRec(model: RunModel, nodeId: string): CoachRec | null {
+  const node = model.core.map.nodes[nodeId];
+  if (!node || (node.type !== 'game' && node.type !== 'elite' && node.type !== 'boss')) return null;
+  const coach = getCoach(model.coachId);
+  const away = buildOpponentTeam(model.core, nodeId, model.mods);
+  // Same counters the game will use, so candidate lineups are scored with the run's
+  // live snowball stacks and set/duo synergies (a swap that completes a duo counts).
+  const counters: RunCounters = {
+    wins: model.wins,
+    mapIndex: model.core.currentMapIndex,
+    forgivenLosses: model.forgivenLosses,
+  };
+  return recommendLineup({
+    roster: model.core.roster,
+    coach,
+    opponent: away,
+    buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts, counters),
+    minDelta: recMinDelta(model.difficulty, node.type),
+  });
+}
+
+/**
  * After a game, recover everyone one game (decrement gamesOut) and roll fresh
  * injuries for the players who dressed. Risk rises with accumulated load and falls
  * with durability. Deterministic from the game's derived seed.
@@ -663,30 +698,11 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
   switch (node.type) {
     case 'game':
     case 'elite':
-    case 'boss': {
-      // The equipped coach scouts the matchup and may offer a one-click lineup tweak.
-      // It surfaces only when the edge clears the difficulty-scaled bar, so easy runs
-      // stay quiet and hard runs get adjustments often (the opponent ramp dominates).
-      const coach = getCoach(model.coachId);
-      const away = buildOpponentTeam(core, nodeId, model.mods);
-      // Same counters the game will use, so candidate lineups are scored with the run's
-      // live snowball stacks and set/duo synergies (a swap that completes a duo counts).
-      const counters: RunCounters = {
-        wins: model.wins,
-        mapIndex: core.currentMapIndex,
-        forgivenLosses: model.forgivenLosses,
-      };
-      const coachRec =
-        recommendLineup({
-          roster: core.roster,
-          coach,
-          opponent: away,
-          buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts, counters),
-          // node.type is narrowed to 'game' | 'elite' | 'boss' in this case block.
-          minDelta: recMinDelta(model.difficulty, node.type),
-        }) ?? undefined;
-      return { ...model, core, phase: { kind: 'pregame', nodeId, coachRec } };
-    }
+    case 'boss':
+      // Just the phase flip: the coach's matchup scout (computeCoachRec) is heavy, so
+      // useRun schedules it after this tap's frame commits and lands it via
+      // setCoachRec. `coachRec` stays undefined here, meaning "not computed yet".
+      return { ...model, core, phase: { kind: 'pregame', nodeId } };
     case 'recruit': {
       const owned = new Set(
         [...core.roster.starters, ...core.roster.bench].map((p) => p.player.name)
@@ -896,10 +912,12 @@ export function runReducer(
       if (model.phase.kind !== 'lineup') return model;
       if (!validateLineup(action.starters).ok) return model;
       const roster = { starters: action.starters, bench: action.bench };
-      // A manual edit makes any pending coach suggestion stale, so drop it on return.
+      // A manual edit makes any coach suggestion stale (shown OR still computing),
+      // so resolve it to null: the pregame's scout stays permanently quiet, and the
+      // async compute can never land a rec against the roster the player just set.
       let returnTo = model.phase.returnTo;
-      if (returnTo.kind === 'pregame' && returnTo.coachRec) {
-        returnTo = { ...returnTo, coachRec: undefined };
+      if (returnTo.kind === 'pregame') {
+        returnTo = { ...returnTo, coachRec: null };
       }
       return { ...model, core: { ...model.core, roster }, phase: returnTo };
     }
@@ -919,8 +937,19 @@ export function runReducer(
       return {
         ...model,
         core: { ...model.core, roster },
-        phase: { ...model.phase, coachRec: undefined },
+        phase: { ...model.phase, coachRec: null },
       };
+    }
+
+    case 'setCoachRec': {
+      // Lands the async coach scout. Applies only to the pregame it was computed for,
+      // and only while that pregame has never resolved a rec (undefined = not computed yet;
+      // null = computed/cleared), so a late result can never land on a different node,
+      // a replay, or a roster the player already edited.
+      if (model.phase.kind !== 'pregame') return model;
+      if (model.phase.nodeId !== action.nodeId) return model;
+      if (model.phase.coachRec !== undefined) return model;
+      return { ...model, phase: { ...model.phase, coachRec: action.rec } };
     }
 
     case 'enterGame': {
@@ -964,7 +993,9 @@ export function runReducer(
             secondChancesRemaining: model.secondChancesRemaining - 1,
             forgivenLosses: model.forgivenLosses + 1,
             game: null,
-            phase: { kind: 'pregame', nodeId, timeoutUsed: true },
+            // coachRec resolves to null: a replay pregame never shows the banner
+            // (same as before the scout went async), so nothing recomputes here.
+            phase: { kind: 'pregame', nodeId, timeoutUsed: true, coachRec: null },
           };
         }
         const rewards = { ...model.core.rewards, coins: model.core.rewards.coins + LOSS_COINS };

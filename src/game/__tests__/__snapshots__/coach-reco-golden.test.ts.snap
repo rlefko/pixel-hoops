@@ -1,0 +1,158 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`recommendLineup golden master > full pregame rec digest (banner content) on the full varied roster 1`] = `
+{
+  "bench": "banner-b3@PF,banner-S-PF@PF,banner-b1@SG,banner-b0@PG,banner-b6@PF,banner-b2@SF,banner-S-SF@SF",
+  "changes": 2,
+  "edge": "solid",
+  "starters": "banner-S-PG@PG,banner-S-SG@SG,banner-b5@SG,banner-b4@C,banner-S-C@C",
+  "summary": "Reshape the rotation: start banner-b4 and 1 more vs their Balanced",
+}
+`;
+
+exports[`recommendLineup golden master > the minDelta gate: the same reshape surfaces on hard and stays quiet on easy 1`] = `
+{
+  "quiet": null,
+  "surfaced": {
+    "bench": "gate-a-s-SG-1@SG",
+    "changes": 1,
+    "edge": "minor",
+    "starters": "gate-a-s-PG-0@PG,gate-a-up@SG,gate-a-s-SF-2@SF,gate-a-s-PF-3@PF,gate-a-s-C-4@C",
+    "summary": "Start gate-a-up over gate-a-s-SG-1 vs their Balanced",
+  },
+}
+`;
+
+exports[`reorderForCoach golden master > flat-stat ties pin the first-best tie-break order 1`] = `
+{
+  "bench": "tie-s-PG-0@PG,tie-s-SG-1@SG,tie-s-PF-3@PF,tie-s-C-4@C",
+  "changes": 4,
+  "starters": "tie-b0@SG,tie-b1@SG,tie-s-SF-2@SF,tie-b2@PF,tie-b3@PF",
+  "styleGain": 16,
+}
+`;
+
+exports[`reorderForCoach golden master > full varied roster vs opponent: erik-spoelstra 1`] = `
+{
+  "bench": "grid-erik-spoelstra-S-PF@PF,grid-erik-spoelstra-b3@PF,grid-erik-spoelstra-b6@PF,grid-erik-spoelstra-b2@SF,grid-erik-spoelstra-S-PG@PG,grid-erik-spoelstra-b0@PG,grid-erik-spoelstra-b5@SG",
+  "changes": 2,
+  "starters": "grid-erik-spoelstra-b1@SG,grid-erik-spoelstra-S-SG@SG,grid-erik-spoelstra-S-SF@SF,grid-erik-spoelstra-b4@C,grid-erik-spoelstra-S-C@C",
+  "styleGain": 2.9577380952380956,
+}
+`;
+
+exports[`reorderForCoach golden master > full varied roster vs opponent: george-karl 1`] = `
+{
+  "bench": "grid-george-karl-b5@SG,grid-george-karl-b2@SF,grid-george-karl-b6@PF,grid-george-karl-b4@C,grid-george-karl-b3@PF,grid-george-karl-b0@PG,grid-george-karl-S-PG@PG",
+  "changes": 1,
+  "starters": "grid-george-karl-b1@SG,grid-george-karl-S-SG@SG,grid-george-karl-S-SF@SF,grid-george-karl-S-PF@PF,grid-george-karl-S-C@C",
+  "styleGain": 5.368749999999999,
+}
+`;
+
+exports[`reorderForCoach golden master > full varied roster vs opponent: gregg-popovich 1`] = `
+{
+  "bench": "grid-gregg-popovich-b6@PF,grid-gregg-popovich-S-PF@PF,grid-gregg-popovich-b0@PG,grid-gregg-popovich-b2@SF,grid-gregg-popovich-b3@PF,grid-gregg-popovich-S-PG@PG,grid-gregg-popovich-S-SG@SG",
+  "changes": 3,
+  "starters": "grid-gregg-popovich-b1@SG,grid-gregg-popovich-b5@SG,grid-gregg-popovich-S-SF@SF,grid-gregg-popovich-b4@C,grid-gregg-popovich-S-C@C",
+  "styleGain": 4.091964285714285,
+}
+`;
+
+exports[`reorderForCoach golden master > full varied roster vs opponent: jerry-sloan 1`] = `
+{
+  "bench": "grid-jerry-sloan-b6@PF,grid-jerry-sloan-b3@PF,grid-jerry-sloan-S-PF@PF,grid-jerry-sloan-b1@SG,grid-jerry-sloan-b2@SF,grid-jerry-sloan-b5@SG,grid-jerry-sloan-b0@PG",
+  "changes": 1,
+  "starters": "grid-jerry-sloan-S-PG@PG,grid-jerry-sloan-S-SG@SG,grid-jerry-sloan-S-SF@SF,grid-jerry-sloan-b4@C,grid-jerry-sloan-S-C@C",
+  "styleGain": 4.002976190476192,
+}
+`;
+
+exports[`reorderForCoach golden master > full varied roster vs opponent: mike-budenholzer 1`] = `
+{
+  "bench": "grid-mike-budenholzer-S-SF@SF,grid-mike-budenholzer-b6@PF,grid-mike-budenholzer-b2@SF,grid-mike-budenholzer-S-PG@PG,grid-mike-budenholzer-b4@C,grid-mike-budenholzer-b3@PF,grid-mike-budenholzer-b0@PG",
+  "changes": 2,
+  "starters": "grid-mike-budenholzer-b5@SG,grid-mike-budenholzer-S-SG@SG,grid-mike-budenholzer-b1@SG,grid-mike-budenholzer-S-PF@PF,grid-mike-budenholzer-S-C@C",
+  "styleGain": 4.091666666666669,
+}
+`;
+
+exports[`reorderForCoach golden master > full varied roster vs opponent: mike-dantoni 1`] = `
+{
+  "bench": "grid-mike-dantoni-b1@SG,grid-mike-dantoni-b0@PG,grid-mike-dantoni-S-PG@PG,grid-mike-dantoni-b6@PF,grid-mike-dantoni-b2@SF,grid-mike-dantoni-S-PF@PF,grid-mike-dantoni-b4@C",
+  "changes": 2,
+  "starters": "grid-mike-dantoni-b5@SG,grid-mike-dantoni-S-SG@SG,grid-mike-dantoni-S-SF@SF,grid-mike-dantoni-b3@PF,grid-mike-dantoni-S-C@C",
+  "styleGain": 3.0044642857142883,
+}
+`;
+
+exports[`reorderForCoach golden master > full varied roster vs opponent: rick-carlisle 1`] = `
+{
+  "bench": "grid-rick-carlisle-b3@PF,grid-rick-carlisle-b0@PG,grid-rick-carlisle-b6@PF,grid-rick-carlisle-S-PF@PF,grid-rick-carlisle-S-PG@PG,grid-rick-carlisle-S-SF@SF,grid-rick-carlisle-b2@SF",
+  "changes": 3,
+  "starters": "grid-rick-carlisle-b1@SG,grid-rick-carlisle-S-SG@SG,grid-rick-carlisle-b5@SG,grid-rick-carlisle-b4@C,grid-rick-carlisle-S-C@C",
+  "styleGain": 3.706696428571428,
+}
+`;
+
+exports[`reorderForCoach golden master > injured bench players cannot start but still sort into the rotation 1`] = `
+{
+  "bench": "hurt-b4@C,hurt-b3@PF,hurt-S-PF@PF,hurt-b1@SG,hurt-b2@SF,hurt-b0@PG,hurt-b5@SG",
+  "changes": 1,
+  "starters": "hurt-S-PG@PG,hurt-S-SG@SG,hurt-S-SF@SF,hurt-b6@PF,hurt-S-C@C",
+  "styleGain": 0.5119047619047628,
+}
+`;
+
+exports[`reorderForCoach golden master > matchup veto: a smart coach refuses the tanking style swap, a blunt one takes it 1`] = `
+{
+  "blunt": {
+    "bench": "tank-pg@PG",
+    "changes": 1,
+    "starters": "StyleFit@SG,tank-sg@SG,tank-sf@SF,tank-pf@PF,tank-c@C",
+    "styleGain": 7.125,
+  },
+  "smart": {
+    "bench": "StyleFit@SG",
+    "changes": 0,
+    "starters": "tank-pg@PG,tank-sg@SG,tank-sf@SF,tank-pf@PF,tank-c@C",
+    "styleGain": 0,
+  },
+}
+`;
+
+exports[`reorderForCoach golden master > production builder path: buildCoachedHomeTeam with counters 1`] = `
+{
+  "bench": "prod-b3@PF,prod-b6@PF,prod-S-PF@PF,prod-S-PG@PG,prod-b0@PG,prod-b1@SG,prod-S-SF@SF",
+  "changes": 3,
+  "starters": "prod-b5@SG,prod-S-SG@SG,prod-b2@SF,prod-b4@C,prod-S-C@C",
+  "styleGain": 3.0973214285714246,
+}
+`;
+
+exports[`reorderForCoach golden master > pure-style branch (no opponent), S+ coach 1`] = `
+{
+  "bench": "pure-style-S-PF@PF,pure-style-b3@PF,pure-style-b0@PG,pure-style-b2@SF,pure-style-b6@PF,pure-style-S-SF@SF,pure-style-S-SG@SG",
+  "changes": 3,
+  "starters": "pure-style-S-PG@PG,pure-style-b5@SG,pure-style-b1@SG,pure-style-b4@C,pure-style-S-C@C",
+  "styleGain": 2.1726190476190492,
+}
+`;
+
+exports[`reorderForCoach golden master > single-body bench 1`] = `
+{
+  "bench": "one-S-PG@PG",
+  "changes": 1,
+  "starters": "one-S-SG@SG,one-b0@SF,one-S-SF@SF,one-S-PF@PF,one-S-C@C",
+  "styleGain": 1.653125000000001,
+}
+`;
+
+exports[`reorderForCoach golden master > strong five over a weak bench: zero changes, bench sorted, early break 1`] = `
+{
+  "bench": "wall-b2@SG,wall-b0@PG,wall-b1@C",
+  "changes": 0,
+  "starters": "wall-s-PG-0@PG,wall-s-SG-1@SG,wall-s-SF-2@SF,wall-s-PF-3@PF,wall-s-C-4@C",
+  "styleGain": 0,
+}
+`;

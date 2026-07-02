@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
 import { useFeelSettings, sfx, playMusicContext, setGameEnergy } from '@/feel';
@@ -456,11 +456,23 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   // player's chosen five in their own slots, with an injured starter marked OUT in
   // place rather than silently swapped; the healthy sub who dresses for them in the
   // sim is named under the five. Synergy comes from `home` (the five that actually
-  // dress), so the preview still never lies about the matchup.
-  const home = buildHomeTeam(model);
-  const away = buildOpponentTeam(model.core, nodeId, model.mods);
+  // dress), so the preview still never lies about the matchup. All memoized on what
+  // the builders actually read, so local state (banner dismissal) and phase-only
+  // dispatches (the coach scout landing) never rebuild two full teams mid-render.
+  const home = useMemo(
+    () => buildHomeTeam(model),
+    // buildHomeTeam reads the roster (core), the coach, boosts, and the win counters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [model.core, model.coachId, model.boosts, model.wins, model.forgivenLosses]
+  );
+  const away = useMemo(
+    () => buildOpponentTeam(model.core, nodeId, model.mods),
+    [model.core, nodeId, model.mods]
+  );
   const chosen = model.core.roster.starters;
-  const steppingIn = steppingInSubs(model.core.roster);
+  const steppingIn = useMemo(() => steppingInSubs(model.core.roster), [model.core.roster]);
+  const awayIdentity = useMemo(() => deriveTeamIdentity(away), [away]);
+  const homeIdentity = useMemo(() => deriveTeamIdentity(home), [home]);
   // Peak games tip off through a stake-themed ceremony wipe; routine games keep
   // the instant cut. The contrast IS the escalation (3-4 wipes per run at most).
   const node = model.core.map.nodes[nodeId];
@@ -507,7 +519,7 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
         </Text>
       </View>
       <TeamIdentityCard
-        identity={deriveTeamIdentity(away)}
+        identity={awayIdentity}
         accentHex={away.colorHex}
         coachName={coachForTeamName(away.name).name}
       />
@@ -515,7 +527,7 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
       <MatchupHeadline home={home} away={away} />
       <Text style={styles.section}>YOUR FIVE</Text>
       <TeamIdentityCard
-        identity={deriveTeamIdentity(home)}
+        identity={homeIdentity}
         accentHex={home.colorHex}
         coachName={getCoach(model.coachId).name}
       />
@@ -527,12 +539,16 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
         dense
       />
       {coachRec && !recDismissed ? (
-        <CoachRecBanner
-          coach={getCoach(model.coachId)}
-          rec={coachRec}
-          onAccept={actions.acceptCoachRec}
-          onDismiss={() => setRecDismissed(true)}
-        />
+        // The scout computes off the tap and lands a beat after the screen appears
+        // (see useRun), so the banner pops on arrival: the coach speaking up.
+        <Pop popOnMount>
+          <CoachRecBanner
+            coach={getCoach(model.coachId)}
+            rec={coachRec}
+            onAccept={actions.acceptCoachRec}
+            onDismiss={() => setRecDismissed(true)}
+          />
+        </Pop>
       ) : null}
       <Pressable onPress={actions.openLineupBuilder}>
         <Text style={styles.link}>Change Lineup</Text>
