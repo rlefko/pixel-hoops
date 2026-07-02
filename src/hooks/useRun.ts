@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useMemo, useRef } from 'react';
 import { useLocalSearchParams } from 'expo-router';
 import { runReducer } from '@/game/run-machine';
+import { withSlowActionWarning } from '@/game/dev-timing';
 import {
   mergeRunGainsIntoHome,
   previewRunAcquisitions,
@@ -34,6 +35,12 @@ export type RecruitCollectStatus =
   | { kind: 'owned' }
   | { kind: 'collecting'; copies: number; threshold: number };
 
+// Reducer actions run synchronously inside dispatch, so a slow one blocks the tap that
+// fired it. In dev, surface any action that overruns a frame; in release this resolves
+// to the bare reducer (Metro inlines __DEV__; the typeof guard keeps node/vitest safe).
+// Module scope so the reducer identity useReducer sees never changes.
+const reducer = typeof __DEV__ !== 'undefined' && __DEV__ ? withSlowActionWarning(runReducer) : runReducer;
+
 /**
  * React wrapper around the pure run machine (src/game/run-machine.ts). It:
  *  - starts a run once both stores have loaded, NEW or RESUMED per the `?mode` param;
@@ -47,7 +54,7 @@ export function useRun() {
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const { savedRun, loaded: runLoaded, saveActiveRun, clearActiveRun } = useActiveRun();
   const { mode } = useLocalSearchParams<{ mode?: string }>();
-  const [model, dispatch] = useReducer(runReducer, null);
+  const [model, dispatch] = useReducer(reducer, null);
   const initRef = useRef(false);
   const draftRememberedRef = useRef(false);
   // The coach ids won by this run's championship (computed BEFORE the merge, which
