@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
@@ -37,6 +37,11 @@ import type { MapNodeType, RunState } from '@/types/run-map';
 import type { PassiveBoost } from '@/game/boosts';
 
 /** The branching run map: tap a reachable node to play it. */
+
+/** The scroll offset that puts a layer's position in view (top while choosing entry). */
+function layerScrollY(layer: number | null): number {
+  return layer == null ? 0 : Math.max(0, layer * ROW_PITCH - ROW_PITCH);
+}
 
 interface RunMapViewProps {
   core: RunState;
@@ -112,13 +117,15 @@ export function RunMapView({
       : null;
 
   const scrollRef = useRef<ScrollView>(null);
-  // Keep the player's position in view as they advance (top while choosing entry).
-  useEffect(() => {
-    const y =
-      currentLayer == null
-        ? 0
-        : Math.max(0, currentLayer * ROW_PITCH - ROW_PITCH);
-    scrollRef.current?.scrollTo({ y, animated: true });
+  // The map must LAND already in position and interactive, never sweep to it: the view
+  // remounts on every return from a game, and during an animated scrollTo a tap cancels
+  // the scroll instead of reaching the node's Pressable, so a sweep eats the first tap
+  // (worst after late-map elite/boss games, whose sweep is longest). A layout effect
+  // issues the jump inside the mount commit, before the first frame paints. Jumping via
+  // the ref (not a contentOffset prop) leaves the ScrollView uncontrolled, so re-renders
+  // can never snap a manually scrolled map back.
+  useLayoutEffect(() => {
+    scrollRef.current?.scrollTo({ y: layerScrollY(currentLayer), animated: false });
   }, [currentLayer]);
 
   // Leaving suspends the run (it auto-saves as you climb), so this is lossless and
