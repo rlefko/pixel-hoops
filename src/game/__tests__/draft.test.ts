@@ -116,3 +116,31 @@ describe('draft budget + loadout', () => {
     expect(s.map((p) => `${p.player.name}|${p.position}`)).toEqual(lastRotation.slice(0, 5));
   });
 });
+
+describe('one legend per rotation', () => {
+  // Five starters: a legend plus four free below-ladder players (spend 2, well inside easy's 8),
+  // so only the LEGEND COUNT can push a loadout illegal here, not the budget.
+  const legend1 = playerAt('legend-one', 'S+', 'PG', true);
+  const fillers = POSITIONS.slice(1).map((pos) => playerAt(`d-${pos}`, 'D', pos));
+  const oneLegendFive = [legend1, ...fillers];
+
+  it('accepts a single reach-up legend on a low ladder', () => {
+    expect(oneLegendFive).toHaveLength(5);
+    expect(canConfirmLoadout(oneLegendFive, [], 'C', 'easy').ok).toBe(true);
+  });
+
+  it('rejects two reach-up legends on a low ladder', () => {
+    const legend2 = playerAt('legend-two', 'S+', 'SG', true);
+    const result = canConfirmLoadout(oneLegendFive, [legend2], 'C', 'easy');
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('One legend per rotation');
+  });
+
+  it('does NOT cap native legends on the S+ ladder (they are the ladder class)', () => {
+    // Five S+ legends on the S+ ladder cost 2 each (10) -- over easy's 8, so pare to four
+    // legends + one free below-ladder filler: legal, proving the cap does not fire here.
+    const legends = POSITIONS.slice(0, 4).map((pos) => playerAt(`sp-${pos}`, 'S+', pos, true));
+    const filler = playerAt('a-c', 'A', 'C'); // A is below the S+ ladder -> free
+    expect(canConfirmLoadout([...legends, filler], [], 'S+', 'easy').ok).toBe(true);
+  });
+});

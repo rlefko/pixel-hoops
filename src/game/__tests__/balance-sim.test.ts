@@ -14,6 +14,7 @@ import { coachForTeamName } from '@/game/opponent-coach';
 import { generateFixedMap } from '@/game/run-map';
 import { simulateGame } from '@/game/simulation';
 import { teamModifierFromPartial } from '@/game/effects';
+import { scaleLegendsForLadder } from '@/game/apply-effects';
 import { poolByClass, realPlayerToRosterPlayer, legendRecruit } from '@/game/player-pool';
 import { defaultLoadout } from '@/game/draft';
 import { SKILL_STAT_KEYS, STAT_HARD_MAX, type PlayerStats } from '@/types/player';
@@ -109,6 +110,13 @@ function collection(ladder: LadderClass, delta: number, rng: RNG): RosterPlayer[
   return [...make(classShift(ladder, -1), 5), ...make(ladder, 5), ...make(classShift(ladder, 1), 2)];
 }
 
+/** The class-shaped collection plus ONE owned legend (the strongest pick in the pool, so
+ * defaultLoadout drafts it for 2 points). The sim fields it through scaleLegendsForLadder,
+ * so it measures the ladder-scaled legend the real game plays, not a full-power wall. */
+function collectionWithLegend(ladder: LadderClass, delta: number, rng: RNG): RosterPlayer[] {
+  return [...collection(ladder, delta, rng), legendRecruit(rng)];
+}
+
 /** The combat nodes on a min-combat entry->boss path (the survival route). */
 function minCombatPath(map: ReturnType<typeof generateFixedMap>): MapNode[] {
   const memo = new Map<string, number>();
@@ -134,25 +142,37 @@ function minCombatPath(map: ReturnType<typeof generateFixedMap>): MapNode[] {
   return path.filter((n) => COMBAT.has(n.type));
 }
 
-/** In-run growth (training/boosts/recruits) as a team buff ramping 0 -> INRUN_MAX. */
-function homeTeam(roster: Roster, mapIndex: number, difficulty: Difficulty): Team {
+/** In-run growth (training/boosts/recruits) as a team buff ramping 0 -> INRUN_MAX. Any
+ * drafted legend is fielded at its ladder-scaled line (scaleLegendsForLadder), exactly as
+ * buildCoachedHomeTeam does in the live game, so a legend is measured scaled, not full-power. */
+function homeTeam(roster: Roster, mapIndex: number, difficulty: Difficulty, ladder: LadderClass): Team {
   const b = Math.round((mapIndex / (MAPS - 1)) * INRUN_MAX[difficulty]);
   const modifier = teamModifierFromPartial({ offenseBonus: b, defenseBonus: b });
-  return buildTeam('You', roster.starters, planForRoster(roster), '#FFD54F', '#1D428A', roster.bench, modifier);
+  const scaled: Roster = {
+    starters: scaleLegendsForLadder(roster.starters, ladder),
+    bench: scaleLegendsForLadder(roster.bench, ladder),
+  };
+  return buildTeam('You', scaled.starters, planForRoster(scaled), '#FFD54F', '#1D428A', scaled.bench, modifier);
 }
 
 /** Play one full run; true if it clears every map before exhausting the timeout pool. */
-function playRun(difficulty: Difficulty, ladder: LadderClass, delta: number, seed: string): boolean {
+function playRun(
+  difficulty: Difficulty,
+  ladder: LadderClass,
+  delta: number,
+  seed: string,
+  legend = false
+): boolean {
   const ladderLevel = classLevel(ladder);
   const mods = difficultyMods(difficulty);
   let timeouts = mods.secondChances;
-  const roster: Roster = defaultLoadout(
-    collection(ladder, delta, createRNG(deriveSeed(seed, `roster-${ladder}`))),
-    ladder,
-    difficulty
-  );
+  const rosterRng = createRNG(deriveSeed(seed, `roster-${ladder}`));
+  const owned = legend
+    ? collectionWithLegend(ladder, delta, rosterRng)
+    : collection(ladder, delta, rosterRng);
+  const roster: Roster = defaultLoadout(owned, ladder, difficulty);
   for (let map = 0; map < MAPS; map++) {
-    const home = homeTeam(roster, map, difficulty);
+    const home = homeTeam(roster, map, difficulty, ladder);
     const fixed = generateFixedMap({ seed: deriveSeed(seed, `map-${map}`), mapIndex: map, difficulty, ladderLevel });
     for (const node of minCombatPath(fixed)) {
       const level = node.difficulty ?? ladderLevel;
@@ -196,9 +216,14 @@ function playRun(difficulty: Difficulty, ladder: LadderClass, delta: number, see
   return true;
 }
 
-function clearRate(difficulty: Difficulty, ladder: LadderClass, delta: number): number {
+function clearRate(
+  difficulty: Difficulty,
+  ladder: LadderClass,
+  delta: number,
+  legend = false
+): number {
   let cleared = 0;
-  for (let s = 0; s < N; s++) if (playRun(difficulty, ladder, delta, `bal-${s}`)) cleared += 1;
+  for (let s = 0; s < N; s++) if (playRun(difficulty, ladder, delta, `bal-${s}`, legend)) cleared += 1;
   return cleared / N;
 }
 
@@ -254,5 +279,24 @@ describe('balance: difficulty clear rates', () => {
     // The ladder is acquisition-gated, not upgrade-gated: base acquired rosters clear easy.
     expect(easySBase).toBeGreaterThan(0.3);
     expect(easySplusBase).toBeGreaterThan(0.3);
+  }, 120_000);
+
+  it('a single drafted legend helps a low ladder without trivializing it', () => {
+    const base = clearRate('medium', 'C', ARCHETYPES.base);
+    const withLegend = clearRate('medium', 'C', ARCHETYPES.base, true);
+    const easyWithLegend = clearRate('easy', 'C', ARCHETYPES.base, true);
+    console.log(
+      [
+        `\nlegend guard (C ladder), N=${N}`,
+        `medium base ${pct(base)} -> +1 scaled legend ${pct(withLegend)}`,
+        `easy   base -> +1 scaled legend ${pct(easyWithLegend)}`,
+      ].join('\n')
+    );
+    // A drafted legend, scaled to the ladder and capped at one, is a REAL help over a bare
+    // base roster. But it is NOT the near-guaranteed clear a full-power 2-point legend used
+    // to be (that unscaled path measured ~1.0 here): the regression guard for the scaling.
+    expect(withLegend).toBeGreaterThanOrEqual(base);
+    expect(withLegend).toBeLessThan(0.85);
+    expect(easyWithLegend).toBeLessThan(0.98);
   }, 120_000);
 });
