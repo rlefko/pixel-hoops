@@ -93,6 +93,7 @@ export function setAudioActive(active: boolean): void {
   if (IS_WEB || !initStarted) return;
   if (!active) {
     for (const pool of pools.values()) pool.expectedEndAt.fill(Infinity);
+    logDevShotCounts(); // backgrounding = a natural session boundary for the tally
   }
   bestEffort(() => {
     void setIsAudioActiveAsync(active);
@@ -131,11 +132,20 @@ export async function initSfx(): Promise<void> {
           // the ExoPlayer callback, NOT the (60s) status interval, so it always fires.
           // pause() first is load-bearing on Android: ExoPlayer keeps playWhenReady at
           // STATE_ENDED and a bare seek out of it auto-replays audibly; on iOS the
-          // player is already paused and the pause is a no-op. The expectedEndAt guard
-          // ignores a stale finish when a newer shot has since taken the player.
+          // player is already paused and the pause is a no-op.
           player.addListener('playbackStatusUpdate', (status) => {
             if (!status.didJustFinish) return;
-            if (Date.now() < pool.expectedEndAt[i] - FINISH_EPSILON_MS) return;
+            if (Date.now() < pool.expectedEndAt[i] - FINISH_EPSILON_MS) {
+              // A newer shot owns the player, so this finish must not re-park it.
+              // But that newer shot may have been a ghost: if this event's JS
+              // delivery was delayed past the busy window, the fast path played a
+              // still-parked-at-EOF player (silent, emits no finish of its own).
+              // Marking the state unknown routes the player's NEXT shot through the
+              // ordered seek-then-play path, so a strand self-heals in one shot;
+              // in the legitimate busy-reuse case the cost is one extra seek.
+              pool.expectedEndAt[i] = Infinity;
+              return;
+            }
             bestEffort(() => {
               player.pause();
               void player.seekTo(0);
@@ -171,9 +181,20 @@ function countShot(kind: 'fast' | 'busy' | 'dropped', name: SfxName): void {
   const map = devShotCounts[kind];
   map.set(name, (map.get(name) ?? 0) + 1);
 }
-/** Dev console helper: per-cue fast/busy/dropped shot tallies (null in release). */
-export function devSfxShotCounts(): typeof devShotCounts {
-  return devShotCounts;
+/** Dev-only: log the per-cue fast/busy/dropped tallies (one line, skipped when all
+ * zero) and reset them. Fired on backgrounding so every dev session ends with the
+ * pool-sizing evidence in the console: a busy-heavy cue wants a bigger pool, a
+ * dropped-heavy one is machine-gunning into its cooldown. */
+function logDevShotCounts(): void {
+  if (!devShotCounts) return;
+  const fmt = (map: Map<SfxName, number>): string =>
+    [...map.entries()].map(([name, n]) => `${name}:${n}`).join(' ');
+  const parts = (['fast', 'busy', 'dropped'] as const)
+    .filter((kind) => devShotCounts[kind].size > 0)
+    .map((kind) => `${kind} ${fmt(devShotCounts[kind])}`);
+  if (parts.length === 0) return;
+  console.log(`[sfx] shots: ${parts.join(' | ')}`);
+  for (const kind of ['fast', 'busy', 'dropped'] as const) devShotCounts[kind].clear();
 }
 
 /** Play one SFX from the start. `rate` (default 1) shifts pitch for variation. */

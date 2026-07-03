@@ -53,5 +53,12 @@ export const RAPID_CUE_COOLDOWN_MS: Partial<Record<SfxName, number>> = {
  * so the pool-coverage invariant (a cooldown cue's WAV must fit inside
  * cooldown x pool at the slowest jitter, checked at bake time and pinned in
  * recipes.test.ts) divides durations by this instead of assuming rate 1.
+ *
+ * Premise: the invariant assumes a BASE rate of 1.0 and only accounts for the
+ * jitter. Some call sites pass sub-1.0 base rates (the locker spend tick at 0.9,
+ * TickCounter's climb from 0.92), stretching tails further than the check models;
+ * today every such cue clears the budget with multiples of headroom (tick: ~46ms
+ * effective vs a 160ms budget), but a future cue tuned near its budget must fold
+ * its slowest call-site base rate into the math, not just this constant.
  */
 export const RATE_JITTER_MIN = 0.97;
