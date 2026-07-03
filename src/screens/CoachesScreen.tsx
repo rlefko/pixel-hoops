@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
+import { useSlowMountWarning } from '@/hooks/useSlowMountWarning';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { StaggerIn } from '@/components/fx';
@@ -18,6 +19,7 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
  * A standalone screen reached from the home menu, mirroring the Hall of Fame.
  */
 export default function CoachesScreen() {
+  useSlowMountWarning('coaches');
   const nav = useArcadeRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const { idle, screenProps } = useHubBackdrop();

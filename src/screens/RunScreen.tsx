@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
-import { useFeelSettings, sfx, playMusicContext, setGameEnergy } from '@/feel';
+import { useFeelSettings, sfx, playMusicContext, setGameEnergy, type WipeConfig } from '@/feel';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { CoinFly, Pop, Counter, TickCounter } from '@/components/fx';
@@ -120,6 +120,51 @@ export default function RunScreen() {
     };
   }, []);
 
+  // The ceremony's "destination settled" signal for an auto-skipped stakes game: the
+  // tip-off wipe covers enterGame, but with skip on the real destination (the map
+  // advance or summary on a win, the full postgame on a loss) lands one AutoAdvance
+  // commit later. Waiters registered at the tip-off resolve when the phase leaves
+  // 'game', so the cover holds to the commit the player will actually see instead of
+  // the FINAL... placeholder.
+  // Flush-on-unmount keeps an abandoned run from ever stranding the cover (the
+  // provider's cap is the last-resort backstop, not the design).
+  const settleWaitersRef = useRef<Array<() => void>>([]);
+  useEffect(() => {
+    if (!phaseKind || phaseKind === 'game') return;
+    const waiters = settleWaitersRef.current;
+    settleWaitersRef.current = [];
+    for (const resolve of waiters) resolve();
+  }, [phaseKind]);
+  useEffect(
+    () => () => {
+      for (const resolve of settleWaitersRef.current) resolve();
+      settleWaitersRef.current = [];
+    },
+    []
+  );
+  const waitForGameSettled = useCallback(
+    () => new Promise<void>((resolve) => settleWaitersRef.current.push(resolve)),
+    []
+  );
+  // The latest ceremony's full run (cover -> settle -> reveal), so the champion
+  // celebration can anchor its beats to the reveal actually completing. Resolved (or
+  // absent) for every non-ceremony path, where the summary arrives from a plain tap.
+  // A double-tap rejected by the provider's in-flight guard returns null and must
+  // NOT replace the ref: overwriting with a resolved promise would fire the
+  // celebration under the first ceremony's still-held cover.
+  const ceremonyRevealedRef = useRef<Promise<void> | null>(null);
+  const runCeremony = useCallback(
+    (config: WipeConfig, action: () => void | Promise<void>) => {
+      const started = nav.ceremony(config, action);
+      if (started) ceremonyRevealedRef.current = started;
+    },
+    [nav]
+  );
+  const waitForCeremonyReveal = useCallback(
+    () => ceremonyRevealedRef.current ?? Promise.resolve(),
+    []
+  );
+
   if (!loaded || !model) {
     return (
       <View style={styles.center}>
@@ -228,14 +273,22 @@ export default function RunScreen() {
         />
       );
     case 'pregame':
-      return <Pregame model={model} actions={actions} />;
+      return (
+        <Pregame
+          model={model}
+          actions={actions}
+          onCeremony={runCeremony}
+          awaitSkipSettled={autoSkipGames ? waitForGameSettled : undefined}
+        />
+      );
     case 'game':
       if (!model.game) return null;
-      // Auto-skip jumps past the watched play-by-play straight to the result.
+      // Auto-skip jumps past the watched play-by-play straight to the result:
+      // skipToResult composes finishReplay + resolveGameResult in ONE dispatch, so a
+      // skipped win costs one commit (game -> map/summary) instead of parading a
+      // second AutoAdvance through postgame. A loss stops at postgame below.
       return autoSkipGames ? (
-        // Distinct key from the postgame AutoAdvance (see its definition): without it
-        // React reuses one instance across game -> postgame and the run freezes.
-        <AutoAdvance key="advance-from-game" onAdvance={actions.finishReplay} />
+        <AutoAdvance key="advance-from-game" onAdvance={actions.skipToResult} />
       ) : (
         <PlayByPlayFeed
           timeline={model.game.result.events}
@@ -250,17 +303,20 @@ export default function RunScreen() {
         />
       );
     case 'postgame':
-      // With auto-skip, a win heads straight back to the map (no box-score flash); a
-      // loss/timeout still shows the full result so the "RUN IT BACK" decision is kept.
-      if (autoSkipGames && model.phase.won) {
-        return (
-          <AutoAdvance
-            key="advance-from-postgame"
-            onAdvance={actions.resolveGameResult}
-          />
-        );
-      }
-      return <Postgame model={model} onContinue={actions.resolveGameResult} />;
+      // A won postgame is unreachable with auto-skip on: skipToResult never lands on
+      // one, the auto-save skips game/postgame so no resume enters them, and the
+      // auto-skip toggle is only reachable from the map phase (RunSettingsModal) or
+      // outside the run, never from game/postgame. So this phase always shows the
+      // full result: on a loss/timeout the "RUN IT BACK" decision is kept, skip or no
+      // skip. The reveal anchor covers the auto-skipped stakes loss, whose postgame
+      // commits behind the still-held tip-off cover.
+      return (
+        <Postgame
+          model={model}
+          onContinue={actions.resolveGameResult}
+          waitForReveal={waitForCeremonyReveal}
+        />
+      );
     case 'recruit':
       return (
         <RecruitView
@@ -369,16 +425,29 @@ export default function RunScreen() {
           />
         );
       }
-      // From the celebration, exits lead INTO the first applicable reveal (bounty, players, coaches).
-      const firstReveal = bounty
-        ? () => setShowBountyReveal(true)
-        : unlockedPlayers.length > 0
-          ? toPlayerReveal
-          : wonCoaches.length > 0
-            ? toCoachReveal
-            : null;
-      const exitHome = firstReveal ?? goMenu;
-      const exitNewRun = firstReveal ?? actions.newRun;
+      // From the celebration, exits lead INTO the first applicable reveal (bounty,
+      // players, coaches). Routed at TAP time from the settled outputs: the champion
+      // settle is deferred off the celebration's commit frame, so a render-baked
+      // closure could be looking at pre-settle (empty) grants; ensureSettled() lands
+      // it synchronously if the deferred task has not run yet and returns what it
+      // banked. By the reveal screens themselves the context has caught up, so their
+      // chained exits keep reading render props as before.
+      const exitVia = (leave: () => void) => () => {
+        const settled = actions.ensureSettled();
+        const grants = settled
+          ? {
+              bounty: champion ? settled.bounty : null,
+              unlocked: champion ? settled.acquisitions.unlocked : [],
+              coachCount: champion ? settled.wonCoachIds.length : 0,
+            }
+          : { bounty, unlocked: unlockedPlayers, coachCount: wonCoaches.length };
+        if (grants.bounty) setShowBountyReveal(true);
+        else if (grants.unlocked.length > 0) toPlayerReveal();
+        else if (grants.coachCount > 0) toCoachReveal();
+        else leave();
+      };
+      const exitHome = exitVia(goMenu);
+      const exitNewRun = exitVia(actions.newRun);
       // A won ladder gets the full champion celebration (it needs the final game's
       // score and five). Losses, and the defensive champion-without-game case, fall
       // back to the flat summary.
@@ -406,6 +475,7 @@ export default function RunScreen() {
             coinsBanked={model.core.rewards.coins}
             stepUp={stepUp}
             dailyGrants={dailyGrants}
+            waitForReveal={waitForCeremonyReveal}
             onNewRun={exitNewRun}
             onHome={exitHome}
           />
@@ -456,8 +526,21 @@ function lastEventClock(result: SimResult): string {
   return parts[parts.length - 1];
 }
 
-function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
-  const nav = useArcadeRouter();
+function Pregame({
+  model,
+  actions,
+  onCeremony,
+  awaitSkipSettled,
+}: {
+  model: RunModel;
+  actions: RunActions;
+  /** Runs the stake-themed tip-off wipe (RunScreen tracks its reveal for the
+   * champion celebration's anchoring). */
+  onCeremony: (config: WipeConfig, action: () => void | Promise<void>) => void;
+  /** With auto-skip on: the "phase left 'game'" settlement promise, so the ceremony
+   * cover holds through the skip cascade to the commit the player will actually see. */
+  awaitSkipSettled?: () => Promise<void>;
+}) {
   const [recDismissed, setRecDismissed] = useState(false);
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
   const timeoutUsed = model.phase.kind === 'pregame' && model.phase.timeoutUsed;
@@ -500,9 +583,14 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const tipOff = () => {
     sfx.tipoff();
     if (stakes) {
-      nav.ceremony(
+      onCeremony(
         { variant: 'run', color: stakes.color, label: stakes.label, direction: 'forward' },
-        actions.enterGame
+        () => {
+          actions.enterGame();
+          // With auto-skip on, enterGame is only the first commit of a cascade;
+          // returning the settlement promise holds the cover to the real destination.
+          return awaitSkipSettled?.();
+        }
       );
     } else {
       actions.enterGame();
@@ -585,13 +673,11 @@ function AutoAdvance({ onAdvance }: { onAdvance: () => void }) {
   // Fire the phase transition once on mount and show only a brief "FINAL..." beat, so
   // auto-skip never paints the watched game or the full postgame (the box score would
   // otherwise flash for a frame). The reducer's phase guard and the once-ref keep a
-  // stray re-render from double-firing.
-  //
-  // The two call sites (game -> finishReplay, postgame -> resolveGameResult) MUST pass
-  // distinct `key`s. Without them React reuses this one instance across the
-  // game -> postgame transition (same type, same position), so `firedRef` stays true and
-  // the postgame advance never fires, freezing the run on "FINAL...". Distinct keys force
-  // a fresh instance (and a fresh guard) per phase.
+  // stray re-render from double-firing. If this ever grows a second call site again,
+  // the sites MUST pass distinct `key`s: React would otherwise reuse one instance
+  // across the phase change (same type, same position), `firedRef` would stay true,
+  // and the run would freeze on "FINAL..." (learned the hard way with the old
+  // game -> postgame pair, now composed into one skipToResult dispatch).
   const firedRef = useRef(false);
   useEffect(() => {
     if (firedRef.current) return;
@@ -608,25 +694,47 @@ function AutoAdvance({ onAdvance }: { onAdvance: () => void }) {
 function Postgame({
   model,
   onContinue,
+  waitForReveal,
 }: {
   model: RunModel;
   onContinue: () => void;
+  /** Same contract as ChampionView's: on an auto-skipped stakes LOSS this view
+   * commits behind the still-held tip-off cover, so the result beats (headline
+   * pop, sting, score climb, payout tally) anchor to the ceremony reveal
+   * completing instead of firing half-hidden under the mosaic. Already resolved
+   * on every plain-tap path, where the beats land on mount as before. */
+  waitForReveal?: () => Promise<void>;
 }) {
   // Default open so the box score is right there after a game; still collapsible
   // to put the win/loss headline and the retry one tap away.
   const [showBox, setShowBox] = useState(true);
-  // Count the final score up from zero once on mount (Counter only tweens on a change).
+  // The single gate every result beat hangs off (see waitForReveal above). A
+  // rejected reveal degrades to mount-time beats rather than no beats.
+  const [revealed, setRevealed] = useState(!waitForReveal);
+  useEffect(() => {
+    if (!waitForReveal) return;
+    let cancelled = false;
+    const done = () => {
+      if (!cancelled) setRevealed(true);
+    };
+    waitForReveal().then(done, done);
+    return () => {
+      cancelled = true;
+    };
+  }, [waitForReveal]);
+  // Count the final score up from zero once revealed (Counter only tweens on a change).
   const [settled, setSettled] = useState(false);
   useEffect(() => {
-    setSettled(true);
-  }, []);
+    if (revealed) setSettled(true);
+  }, [revealed]);
   // The win's payout lands as its own beat AFTER the score settles: the coin
   // tally pops in and counts up with ticks, so every win visibly pays.
   const [showEarned, setShowEarned] = useState(false);
   useEffect(() => {
+    if (!revealed) return;
     const timer = setTimeout(() => setShowEarned(true), 700);
     return () => clearTimeout(timer);
-  }, []);
+  }, [revealed]);
   // Economy juice: the earned coins arc from the final score into the tally.
   // Decoration only: launched 120ms in so the last coin lands exactly at the
   // 700ms tally reveal (see CoinFly's timing contract; the showEarned timer
@@ -637,23 +745,23 @@ function Postgame({
   const [flyTrigger, setFlyTrigger] = useState(0);
   const postgameWon = model.phase.kind === 'postgame' && model.phase.won;
   useEffect(() => {
-    if (!postgameWon) return;
+    if (!postgameWon || !revealed) return;
     const timer = setTimeout(() => setFlyTrigger(1), 120);
     return () => clearTimeout(timer);
-  }, [postgameWon]);
+  }, [postgameWon, revealed]);
 
-  // Result sting once on mount (Postgame remounts per postgame phase, so the ref resets
-  // between games; the guard only blocks a dev strict-mode double-invoke). A forgivable
-  // timeout invites a replay, so it gets no defeat tone.
+  // Result sting once per postgame (Postgame remounts per postgame phase, so the ref
+  // resets between games; the guard only blocks a dev strict-mode double-invoke). A
+  // forgivable timeout invites a replay, so it gets no defeat tone.
   const stingRef = useRef(false);
   const phase = model.phase;
   const chances = model.secondChancesRemaining;
   useEffect(() => {
-    if (stingRef.current || phase.kind !== 'postgame') return;
+    if (!revealed || stingRef.current || phase.kind !== 'postgame') return;
     stingRef.current = true;
     if (phase.won) sfx.win();
     else if (chances <= 0) sfx.loss();
-  }, [phase, chances]);
+  }, [revealed, phase, chances]);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
   const earned = pendingWinRewards(model);
@@ -675,7 +783,8 @@ function Postgame({
   return (
     <Screen style={styles.postgame} bottomGap={space(6)}>
       <View style={styles.postgameHeadline}>
-        <Pop popOnMount>
+        {/* Pops when the reveal gate opens (immediately on plain-tap paths). */}
+        <Pop trigger={revealed}>
           <Text style={[styles.result, { color: headlineColor }]}>
             {headline}
           </Text>

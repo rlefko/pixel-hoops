@@ -4,16 +4,24 @@ import { useRouter, type Href } from 'expo-router';
 import { PixelWipeOverlay, type PixelWipeHandle } from '@/components/fx';
 import { sfx, type WipeConfig, type WipeVariant } from '@/feel';
 import { palette } from '@/theme';
+import { formatSlowTransition, type TransitionMarks } from './transition-timing';
 
 /** Arcade-flavored navigation: a drop-in for expo-router's push/replace/back
  *  that plays a pixel-dissolve wipe around each route change. `ceremony` runs the
  *  same wipe around an in-screen action (no route change): the stake-themed
- *  tip-off into a boss or championship game. */
+ *  tip-off into a boss or championship game. A ceremony action may return a
+ *  promise declaring "the destination is not settled yet"; the cover then holds
+ *  (capped) until it resolves, so a multi-commit cascade (the auto-skipped
+ *  championship) reveals its real destination, not a mid-cascade placeholder.
+ *  The returned promise resolves when the reveal completes, so the destination
+ *  can anchor its celebration beats to the moment it is actually visible; null
+ *  means the ceremony never started (rejected by the in-flight guard), so the
+ *  caller keeps waiting on the ceremony that IS running. */
 export interface ArcadeRouter {
   push: (href: Href, variant?: WipeVariant) => void;
   replace: (href: Href, variant?: WipeVariant) => void;
   back: (variant?: WipeVariant) => void;
-  ceremony: (config: WipeConfig, action: () => void) => void;
+  ceremony: (config: WipeConfig, action: () => void | Promise<void>) => Promise<void> | null;
 }
 
 export const TransitionContext = createContext<ArcadeRouter | null>(null);
@@ -54,6 +62,31 @@ function afterCommit(): Promise<void> {
 }
 
 /**
+ * Cap on a ceremony's settlement hold. afterCommit only ever covers ONE commit, so a
+ * ceremony whose action cascades through several (the auto-skipped championship)
+ * declares settlement with a promise instead; the cap guarantees a broken waiter can
+ * never strand the cover. Hitting it is a bug (dev-warned), not a designed beat.
+ */
+const SETTLE_CAP_MS = 1500;
+
+/** Await the ceremony's settlement, resolving (never rejecting) at the cap. The timer
+ * exists only on this path (plain push/replace/back never allocate one) and is
+ * cleared the moment the action wins the race. */
+function holdUntilSettled(settled: Promise<void>): Promise<void> {
+  return new Promise((resolve) => {
+    const cap = setTimeout(() => {
+      if (__DEV__) console.warn(`[nav] ceremony settle capped at ${SETTLE_CAP_MS}ms`);
+      resolve();
+    }, SETTLE_CAP_MS);
+    const done = () => {
+      clearTimeout(cap);
+      resolve();
+    };
+    settled.then(done, done); // a rejected waiter must also never strand the cover
+  });
+}
+
+/**
  * Build the wipe config for a navigation. The run variant is its own boot. A menu
  * navigation themes by destination and sweeps forward, while any return to home
  * (back, or replace('/')) mirrors backward with no label.
@@ -88,32 +121,67 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
   // before any re-render, and a stray throw can never strand navigation.
   const transitioning = useRef(false);
 
-  const run = useCallback(async (action: () => void, config: WipeConfig) => {
-    const wipe = wipeRef.current;
-    if (!wipe) {
-      action(); // overlay not mounted yet: never strand the navigation
-      return;
-    }
-    if (transitioning.current) return;
-    transitioning.current = true;
-    sfx.whoosh(config.direction); // sweep matches the wipe direction (forward vs return)
-    try {
-      await wipe.cover(config); // screen now fully covered
-      action(); // the real router nav, invisible behind the cover
-      await afterCommit(); // hold the cover until the destination's commit paints
-      await wipe.reveal(config); // new screen mosaics in
-    } finally {
-      transitioning.current = false;
-    }
-  }, []);
+  // Returns the full-transition promise (resolves once the reveal completes), or
+  // null when the navigation never started: the overlay-missing fallback fires the
+  // action bare, and the transitioning guard rejects a double-tap. The null is
+  // load-bearing for `ceremony` consumers: a rejected double-tap must NOT hand back
+  // an already-resolved promise, or a celebration anchored to "the reveal" would
+  // fire under the first ceremony's still-held cover.
+  const run = useCallback(
+    (
+      action: () => void | Promise<void>,
+      config: WipeConfig,
+      label: string
+    ): Promise<void> | null => {
+      const wipe = wipeRef.current;
+      if (!wipe) {
+        void action(); // overlay not mounted yet: never strand the navigation
+        return null;
+      }
+      if (transitioning.current) return null;
+      transitioning.current = true;
+      // Dev-only dwell tracer (see transition-timing.ts). Marks exist only on this
+      // full path, so the !wipe fallback and rejected double-taps never log garbage.
+      const marks: TransitionMarks | null = __DEV__
+        ? { coverStart: performance.now(), covered: 0, actionDone: 0, held: 0, painted: 0, revealed: 0 }
+        : null;
+      sfx.whoosh(config.direction); // sweep matches the wipe direction (forward vs return)
+      return (async () => {
+        try {
+          await wipe.cover(config); // screen now fully covered
+          if (marks) marks.covered = performance.now();
+          const settled = action(); // the real router nav, invisible behind the cover
+          if (marks) marks.actionDone = performance.now();
+          // A ceremony may declare "not settled yet": hold the (capped) cover through
+          // its cascade so the reveal lands on the real destination. Plain navigations
+          // return undefined and skip straight through.
+          if (settled && typeof settled.then === 'function') await holdUntilSettled(settled);
+          if (marks) marks.held = performance.now();
+          await afterCommit(); // hold the cover until the destination's commit paints
+          if (marks) marks.painted = performance.now();
+          await wipe.reveal(config); // new screen mosaics in
+          if (marks) {
+            marks.revealed = performance.now();
+            const msg = formatSlowTransition(label, marks);
+            if (msg) console.warn(msg);
+          }
+        } finally {
+          transitioning.current = false;
+        }
+      })();
+    },
+    []
+  );
 
   const value = useMemo<ArcadeRouter>(
     () => ({
-      push: (href, variant = 'menu') => run(() => router.push(href), buildConfig(variant, href)),
+      push: (href, variant = 'menu') =>
+        run(() => router.push(href), buildConfig(variant, href), hrefToPath(href)),
       replace: (href, variant = 'menu') =>
-        run(() => router.replace(href), buildConfig(variant, href)),
-      back: (variant = 'menu') => run(() => router.back(), buildConfig(variant, null)),
-      ceremony: (config, action) => run(action, config),
+        run(() => router.replace(href), buildConfig(variant, href), hrefToPath(href)),
+      back: (variant = 'menu') => run(() => router.back(), buildConfig(variant, null), 'back'),
+      ceremony: (config, action) =>
+        run(action, config, `ceremony:${config.label ?? config.variant}`),
     }),
     [run, router]
   );

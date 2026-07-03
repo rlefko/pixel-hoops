@@ -1,5 +1,5 @@
 import { difficultyMods, DIFFICULTIES, type Difficulty } from './difficulty-mode';
-import type { RunModel } from './run-machine';
+import { withoutPendingGame, type RunModel } from './run-machine';
 
 /**
  * Serialize / deserialize the in-progress run for the suspend-and-resume slot. Pure
@@ -7,9 +7,12 @@ import type { RunModel } from './run-machine';
  * (src/context/ActiveRunContext.tsx) wraps it with state + AsyncStorage.
  *
  * The run is auto-saved as the player climbs so closing the app, a dead battery, or a
- * web refresh never destroys it. Two invariants keep this small and safe:
+ * web refresh never destroys it. Three invariants keep this small and safe:
  *  - `model.game` (the full simulated timeline + both Teams) is stripped on save: it is
  *    large and fully re-derivable from the seed, and the resumable phases never need it.
+ *  - a pregame's `pendingGame` (the idle-precomputed sim) is stripped the same way and
+ *    for the same reason: it is another full SimResult + two Teams, and a resumed
+ *    pregame simply recomputes it in idle.
  *  - a finished run (`phase.kind === 'summary'`) is never resumable, so deserialize
  *    rejects it. Combined with the hook never persisting summary, this guarantees a
  *    settled run can never be reopened (no double-banking of its rewards).
@@ -22,9 +25,12 @@ export interface SerializedActiveRun {
   data: RunModel;
 }
 
-/** Wrap the run for storage, dropping the re-derivable game blob. */
+/** Wrap the run for storage, dropping the re-derivable game blobs. */
 export function serializeActiveRun(model: RunModel): SerializedActiveRun {
-  return { version: ACTIVE_RUN_VERSION, data: { ...model, game: null } };
+  return {
+    version: ACTIVE_RUN_VERSION,
+    data: { ...model, phase: withoutPendingGame(model.phase), game: null },
+  };
 }
 
 function isDifficulty(value: unknown): value is Difficulty {
@@ -53,5 +59,11 @@ export function deserializeActiveRun(raw: unknown): RunModel | null {
   const difficulty = data.difficulty;
   if (!isDifficulty(difficulty)) return null;
 
-  return { ...(data as RunModel), mods: difficultyMods(difficulty), game: null };
+  const model = data as RunModel;
+  return {
+    ...model,
+    phase: withoutPendingGame(model.phase),
+    mods: difficultyMods(difficulty),
+    game: null,
+  };
 }

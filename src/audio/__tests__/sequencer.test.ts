@@ -94,21 +94,27 @@ describe('renderMusicLoop', () => {
 });
 
 describe('MUSIC_TRACKS catalog', () => {
-  it('every bed renders stereo to its exact loop length, audible, in range, seamless', () => {
-    for (const name of Object.keys(MUSIC_TRACKS) as MusicName[]) {
-      const track: MusicTrack = MUSIC_TRACKS[name];
-      const { left, right } = renderMusicLoop(track, TEST_SR);
-      const len = loopSamples(track, TEST_SR);
-      expect(left.length, `${name} length`).toBe(len);
-      expect(right.length, `${name} length`).toBe(len);
-      expect(allFinite(left) && allFinite(right), `${name} finite`).toBe(true);
-      expect(peakOf(left), `${name} not silent`).toBeGreaterThan(0);
-      expect(peakOf(left), `${name} L in range`).toBeLessThanOrEqual(1);
-      expect(peakOf(right), `${name} R in range`).toBeLessThanOrEqual(1);
-      expect(Math.abs(left[0] - left[len - 1]), `${name} seam L`).toBeLessThan(0.02);
-      expect(Math.abs(right[0] - right[len - 1]), `${name} seam R`).toBeLessThan(0.02);
+  // Renders every bed in full (~9 minutes of audio); ~5s of CPU sits right on
+  // vitest's default budget and flakes under parallel suite load, so give it room.
+  it(
+    'every bed renders stereo to its exact loop length, audible, in range, seamless',
+    { timeout: 30_000 },
+    () => {
+      for (const name of Object.keys(MUSIC_TRACKS) as MusicName[]) {
+        const track: MusicTrack = MUSIC_TRACKS[name];
+        const { left, right } = renderMusicLoop(track, TEST_SR);
+        const len = loopSamples(track, TEST_SR);
+        expect(left.length, `${name} length`).toBe(len);
+        expect(right.length, `${name} length`).toBe(len);
+        expect(allFinite(left) && allFinite(right), `${name} finite`).toBe(true);
+        expect(peakOf(left), `${name} not silent`).toBeGreaterThan(0);
+        expect(peakOf(left), `${name} L in range`).toBeLessThanOrEqual(1);
+        expect(peakOf(right), `${name} R in range`).toBeLessThanOrEqual(1);
+        expect(Math.abs(left[0] - left[len - 1]), `${name} seam L`).toBeLessThan(0.02);
+        expect(Math.abs(right[0] - right[len - 1]), `${name} seam R`).toBeLessThan(0.02);
+      }
     }
-  });
+  );
 
   it('gameEnergy shares its BPM with both run themes (the layer must lock)', () => {
     expect(MUSIC_TRACKS.gameEnergy.bpm).toBe(MUSIC_TRACKS.runThemeA.bpm);

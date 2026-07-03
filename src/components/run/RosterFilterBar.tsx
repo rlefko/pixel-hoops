@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { View, StyleSheet, Pressable, TextInput, ScrollView } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { CLASS_ORDER, type PlayerClass } from '@/game/ratings';
@@ -30,7 +31,13 @@ interface RosterFilterBarProps {
   right?: React.ReactNode;
 }
 
-export function RosterFilterBar({
+/**
+ * memo'd: the bar (a TextInput + ~18 chip Pressables) re-renders on every save from
+ * its host screens unless its props hold identity; the locker keeps them stable
+ * (functional-updater togglers, signature-keyed enabled sets) so an upgrade spend
+ * bails here. RosterScreen's `right` element defeats the memo there, harmlessly.
+ */
+export const RosterFilterBar = memo(function RosterFilterBar({
   query,
   onQuery,
   positions,
@@ -117,7 +124,7 @@ export function RosterFilterBar({
       </ScrollView>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   wrap: { alignSelf: 'stretch', gap: space(2) },

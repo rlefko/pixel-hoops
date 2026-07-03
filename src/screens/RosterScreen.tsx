@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
+import { useSlowMountWarning } from '@/hooks/useSlowMountWarning';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { StaggerIn } from '@/components/fx';
@@ -101,6 +102,7 @@ const RosterRow = memo(function RosterRow({
 type BrowseItem = { rp: RosterPlayer; collect?: { copies: number; threshold: number } };
 
 export default function RosterScreen() {
+  useSlowMountWarning('roster');
   const nav = useArcadeRouter();
   const { homeRoster, loaded, saveHomeRoster } = useHomeRoster();
   const { screenProps } = useHubBackdrop();

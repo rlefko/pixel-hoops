@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
+import { useSlowMountWarning } from '@/hooks/useSlowMountWarning';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { FlashOverlay, ShakeView, StaggerIn } from '@/components/fx';
@@ -25,6 +26,7 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
  * the shared reward burst (legendary confetti for the full 20).
  */
 export default function HallOfFameScreen() {
+  useSlowMountWarning('hall-of-fame');
   const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
   const { screenProps } = useHubBackdrop();
