@@ -4,6 +4,7 @@ import { useRouter, type Href } from 'expo-router';
 import { PixelWipeOverlay, type PixelWipeHandle } from '@/components/fx';
 import { sfx, type WipeConfig, type WipeVariant } from '@/feel';
 import { palette } from '@/theme';
+import { formatSlowTransition, type TransitionMarks } from './transition-timing';
 
 /** Arcade-flavored navigation: a drop-in for expo-router's push/replace/back
  *  that plays a pixel-dissolve wipe around each route change. `ceremony` runs the
@@ -88,7 +89,7 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
   // before any re-render, and a stray throw can never strand navigation.
   const transitioning = useRef(false);
 
-  const run = useCallback(async (action: () => void, config: WipeConfig) => {
+  const run = useCallback(async (action: () => void, config: WipeConfig, label: string) => {
     const wipe = wipeRef.current;
     if (!wipe) {
       action(); // overlay not mounted yet: never strand the navigation
@@ -96,12 +97,25 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
     }
     if (transitioning.current) return;
     transitioning.current = true;
+    // Dev-only dwell tracer (see transition-timing.ts). Marks exist only on this
+    // full path, so the !wipe fallback and rejected double-taps never log garbage.
+    const marks: TransitionMarks | null = __DEV__
+      ? { coverStart: performance.now(), covered: 0, actionDone: 0, held: 0, painted: 0, revealed: 0 }
+      : null;
     sfx.whoosh(config.direction); // sweep matches the wipe direction (forward vs return)
     try {
       await wipe.cover(config); // screen now fully covered
+      if (marks) marks.covered = performance.now();
       action(); // the real router nav, invisible behind the cover
+      if (marks) marks.actionDone = marks.held = performance.now();
       await afterCommit(); // hold the cover until the destination's commit paints
+      if (marks) marks.painted = performance.now();
       await wipe.reveal(config); // new screen mosaics in
+      if (marks) {
+        marks.revealed = performance.now();
+        const msg = formatSlowTransition(label, marks);
+        if (msg) console.warn(msg);
+      }
     } finally {
       transitioning.current = false;
     }
@@ -109,11 +123,13 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<ArcadeRouter>(
     () => ({
-      push: (href, variant = 'menu') => run(() => router.push(href), buildConfig(variant, href)),
+      push: (href, variant = 'menu') =>
+        run(() => router.push(href), buildConfig(variant, href), hrefToPath(href)),
       replace: (href, variant = 'menu') =>
-        run(() => router.replace(href), buildConfig(variant, href)),
-      back: (variant = 'menu') => run(() => router.back(), buildConfig(variant, null)),
-      ceremony: (config, action) => run(action, config),
+        run(() => router.replace(href), buildConfig(variant, href), hrefToPath(href)),
+      back: (variant = 'menu') => run(() => router.back(), buildConfig(variant, null), 'back'),
+      ceremony: (config, action) =>
+        run(action, config, `ceremony:${config.label ?? config.variant}`),
     }),
     [run, router]
   );

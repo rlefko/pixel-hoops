@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
+import { useSlowMountWarning } from '@/hooks/useSlowMountWarning';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { HubHeader } from '@/components/locker/HubHeader';
@@ -14,6 +15,7 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
  * shared title + coin header; the machines and loadout live in ArcadeTab.
  */
 export default function ArcadeScreen() {
+  useSlowMountWarning('arcade');
   const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
 

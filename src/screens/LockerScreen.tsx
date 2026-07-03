@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
+import { useSlowMountWarning } from '@/hooks/useSlowMountWarning';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { useHubBackdrop } from '@/feel';
@@ -15,6 +16,7 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
  * the upgrade grid, search, and filters live in LockerRoomTab.
  */
 export default function LockerScreen() {
+  useSlowMountWarning('locker');
   const nav = useArcadeRouter();
   const { homeRoster, loaded } = useHomeRoster();
   const { screenProps } = useHubBackdrop();
