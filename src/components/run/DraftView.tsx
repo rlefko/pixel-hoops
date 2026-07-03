@@ -8,6 +8,8 @@ import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { DraftSynergyStrip } from '@/components/run/DraftSynergyStrip';
 import { TeachCallout } from '@/components/teach/TeachCallout';
+import { lossNudgeLine } from '@/game/loss-nudge';
+import { tipSeen } from '@/game/teach';
 import { DRAFT_COST_COLOR, CLASS_COLOR } from '@/components/run/class-ui';
 import {
   draftCostFor,
@@ -157,6 +159,15 @@ export function DraftView({
   const selectedRefund = selectedOccupant
     ? (draftCostFor(selectedOccupant, ladderClass) ?? 0)
     : 0;
+  // After three straight losses at this exact cell, ONE coach strategy line
+  // keyed on the remembered (losing) rotation's shape. Captured once at mount
+  // (the memo would pop it in mid-view when the budget beat stamps itself
+  // seen), and suppressed while that beat is unseen: one voice per screen.
+  const [nudge] = useState(() =>
+    homeRoster && tipSeen(homeRoster.teach, 'draftBudget')
+      ? lossNudgeLine(homeRoster.teach, homeRoster.rosterMemory, difficulty, ladderClass)
+      : null
+  );
   const confirmable = canConfirmLoadout(
     starters,
     bench,
@@ -202,6 +213,7 @@ export function DraftView({
         section="draft"
         style={styles.teach}
       />
+      {nudge ? <Text style={styles.nudge}>COACH: {nudge}</Text> : null}
 
       <View style={styles.board}>
         {slots.map((rp, i) => {
@@ -427,6 +439,13 @@ const styles = StyleSheet.create({
     marginBottom: space(2),
   },
   teach: { alignSelf: 'stretch', marginBottom: space(2) },
+  nudge: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.steelBlue,
+    textAlign: 'center',
+    marginBottom: space(2),
+  },
   board: { flexDirection: 'row', flexWrap: 'wrap', gap: space(1) },
   slotWrap: { width: '48.5%' },
   slot: {
