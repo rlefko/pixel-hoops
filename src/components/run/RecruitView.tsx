@@ -5,6 +5,9 @@ import { Screen } from '@/components/Screen';
 import { StaggerIn } from '@/components/fx';
 import { PixelButton } from '@/components/PixelButton';
 import { PlayerCard } from '@/components/run/PlayerCard';
+import { TeachCallout } from '@/components/teach/TeachCallout';
+import { useHomeRoster } from '@/context/HomeRosterContext';
+import { tipSeen } from '@/game/teach';
 import { sfx } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { RosterPlayer } from '@/types/roster';
@@ -41,6 +44,12 @@ export function RecruitView({
   // Tapping a card recruits; the chevron just reveals the full ratings, so a
   // single index of the expanded offer keeps the breakdown one tap from a pick.
   const [expanded, setExpanded] = useState<number | null>(null);
+  // First-ever recruit node: the one-shot callout REPLACES the two standing
+  // truth lines (same message, one voice); dismissing swaps the statics back in.
+  const { homeRoster } = useHomeRoster();
+  const [showTip, setShowTip] = useState(
+    () => homeRoster != null && !tipSeen(homeRoster.teach, 'recruitRental')
+  );
 
   return (
     <Screen style={styles.container} bottomGap={space(5)}>
@@ -48,14 +57,25 @@ export function RecruitView({
       <Text style={styles.subtitle}>
         Add one to your bench ({benchCount} benched)
       </Text>
-      <Text style={styles.provisional}>
-        {copiesMul > 1
-          ? `Signed for this run. A clear banks x${copiesMul} collection copies.`
-          : 'Signed for this run. Clear the run to keep them.'}
-      </Text>
-      <Text style={styles.favorPitch}>
-        Un-owned recruits earn favor every game they win. Favor banks, win or lose.
-      </Text>
+      {showTip ? (
+        <TeachCallout
+          tip="recruitRental"
+          section="favor"
+          style={styles.teach}
+          onDismiss={() => setShowTip(false)}
+        />
+      ) : (
+        <>
+          <Text style={styles.provisional}>
+            {copiesMul > 1
+              ? `Signed for this run. A clear banks x${copiesMul} collection copies.`
+              : 'Signed for this run. Clear the run to keep them.'}
+          </Text>
+          <Text style={styles.favorPitch}>
+            Un-owned recruits earn favor every game they win. Favor banks, win or lose.
+          </Text>
+        </>
+      )}
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
         {offers.map((rp, i) => {
@@ -141,6 +161,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: space(1),
   },
+  teach: { alignSelf: 'stretch', marginTop: space(2) },
   scroll: { flex: 1, alignSelf: 'stretch' },
   offers: { marginTop: space(6), gap: space(3), paddingBottom: space(4) },
   card: {

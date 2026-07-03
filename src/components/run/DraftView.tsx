@@ -6,6 +6,7 @@ import { LiveChip, Counter } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
+import { TeachCallout } from '@/components/teach/TeachCallout';
 import { DRAFT_COST_COLOR, CLASS_COLOR } from '@/components/run/class-ui';
 import {
   draftCostFor,
@@ -182,6 +183,13 @@ export function DraftView({
           Starting this five replaces your saved run.
         </Text>
       ) : null}
+      {/* One-shot, anchored to the POINTS counter it explains. */}
+      <TeachCallout
+        tip="draftBudget"
+        copyArgs={{ budget }}
+        section="draft"
+        style={styles.teach}
+      />
 
       <View style={styles.board}>
         {slots.map((rp, i) => {
@@ -398,6 +406,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: space(2),
   },
+  teach: { alignSelf: 'stretch', marginBottom: space(2) },
   board: { flexDirection: 'row', flexWrap: 'wrap', gap: space(1) },
   slotWrap: { width: '48.5%' },
   slot: {

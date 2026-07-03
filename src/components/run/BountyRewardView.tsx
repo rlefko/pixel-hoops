@@ -8,6 +8,9 @@ import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { PlayerCard } from './PlayerCard';
 import { CoinIcon, CrownIcon, StarIcon } from '@/components/run/PixelIcons';
+import { TeachCallout } from '@/components/teach/TeachCallout';
+import { useHomeRoster } from '@/context/HomeRosterContext';
+import { tipSeen } from '@/game/teach';
 import { RARITY_COLOR, RARITY_LABEL } from './rarity-ui';
 import { getGachaAbility } from '@/game/abilities-gacha';
 import type { BountyGrant } from '@/game/home-roster';
@@ -62,6 +65,18 @@ export function BountyRewardView({ grant, onNewRun, onHome }: BountyRewardViewPr
     fire(rarity);
     setBurst((n) => n + 1);
   }, [fire, rarity]);
+  // First-ever bounty (the first clear always grants one): the ladder-shape beat
+  // waits for the mount burst and counter to land, reward first, teach second.
+  const { homeRoster } = useHomeRoster();
+  const [ladderTipArmed] = useState(
+    () => homeRoster != null && !tipSeen(homeRoster.teach, 'ladderShape')
+  );
+  const [showLadderTip, setShowLadderTip] = useState(false);
+  useEffect(() => {
+    if (!ladderTipArmed) return;
+    const timer = setTimeout(() => setShowLadderTip(true), 900);
+    return () => clearTimeout(timer);
+  }, [ladderTipArmed]);
 
   // A player grant that actually deposited a copy shows its card; an overflow (fully-owned
   // tier) or a coin/capstone reward shows a coin count-up instead.
@@ -84,6 +99,13 @@ export function BountyRewardView({ grant, onNewRun, onHome }: BountyRewardViewPr
           </Pop>
           <Text style={[styles.label, { color: accent }]}>{grant.bounty.label}</Text>
           <Text style={styles.blurb}>{grant.bounty.blurb}</Text>
+          {ladderTipArmed ? (
+            // Reserved only when the one-shot beat will land; fixed height so its
+            // delayed arrival cannot shift the reward card below.
+            <View style={styles.teachSlot}>
+              <TeachCallout tip="ladderShape" section="ladder" visible={showLadderTip} />
+            </View>
+          ) : null}
 
           <View style={styles.rewardWrap}>
             {showPlayerCard && grant.player ? (
@@ -161,6 +183,9 @@ const styles = StyleSheet.create({
     marginTop: space(1),
     paddingHorizontal: space(4),
   },
+  // Sized for the callout's two-line worst case, so its delayed arrival can
+  // never shift the reward card below.
+  teachSlot: { minHeight: 62, alignSelf: 'stretch', justifyContent: 'center', marginTop: space(2) },
   rewardWrap: {
     alignSelf: 'stretch',
     width: '100%',

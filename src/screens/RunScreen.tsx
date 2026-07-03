@@ -7,6 +7,9 @@ import { Screen } from '@/components/Screen';
 import { Pop, Counter, TickCounter } from '@/components/fx';
 import { useRun } from '@/hooks/useRun';
 import { useActiveRun } from '@/context/ActiveRunContext';
+import { useHomeRoster } from '@/context/HomeRosterContext';
+import { tipSeen } from '@/game/teach';
+import { TeachCallout } from '@/components/teach/TeachCallout';
 import {
   buildHomeTeam,
   buildOpponentTeam,
@@ -569,6 +572,9 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
           <Text style={styles.streakNote}>Protect the streak</Text>
         </View>
       ) : null}
+      {/* One-shot: the auto-sim surprise ("am I supposed to tap?") is defused
+          right above the button that starts the watch. */}
+      <TeachCallout tip="watchDontTap" section="watch" style={styles.teachPregame} />
       <Pressable style={[styles.button, styles.primary]} onPress={tipOff}>
         <Text style={styles.buttonText}>TIP OFF</Text>
       </Pressable>
@@ -622,6 +628,19 @@ function Postgame({
     const timer = setTimeout(() => setShowEarned(true), 700);
     return () => clearTimeout(timer);
   }, []);
+  // The first-coins teach beat waits behind the reward beats (win pop at mount,
+  // tally tick at 700ms), so reward speaks first and teaching second, never
+  // stacked. Armed-at-mount so the seen-stamp cannot hide this instance.
+  const { homeRoster } = useHomeRoster();
+  const [coinTipArmed] = useState(
+    () => homeRoster != null && !tipSeen(homeRoster.teach, 'coinsEarned')
+  );
+  const [showCoinTip, setShowCoinTip] = useState(false);
+  useEffect(() => {
+    if (!coinTipArmed) return;
+    const timer = setTimeout(() => setShowCoinTip(true), 1600);
+    return () => clearTimeout(timer);
+  }, [coinTipArmed]);
 
   // Result sting once on mount (Postgame remounts per postgame phase, so the ref resets
   // between games; the guard only blocks a dev strict-mode double-invoke). A forgivable
@@ -690,6 +709,14 @@ function Postgame({
             Dropped it, but you've got a timeout. Replay this game.{' '}
             {model.secondChancesRemaining} left.
           </Text>
+        ) : null}
+        {coinTipArmed && earned && earned.coins > 0 ? (
+          // Reserved only when the one-shot beat will land (a veteran's postgame
+          // never gains a pixel); fixed height so the box score cannot shift
+          // under a reading thumb when the callout appears.
+          <View style={styles.teachSlot}>
+            <TeachCallout tip="coinsEarned" section="bank" visible={showCoinTip} />
+          </View>
         ) : null}
       </View>
 
@@ -781,7 +808,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: space(5),
   },
-  postgameHeadline: { alignItems: 'center' },
+  postgameHeadline: { alignItems: 'center', alignSelf: 'stretch' },
+  teachPregame: { alignSelf: 'stretch', marginTop: space(4) },
+  // Sized for the callout's two-line worst case, so its delayed arrival can
+  // never shift the box score below.
+  teachSlot: { minHeight: 62, alignSelf: 'stretch', justifyContent: 'center', marginTop: space(2) },
   postgameBox: {
     flex: 1,
     alignSelf: 'stretch',
