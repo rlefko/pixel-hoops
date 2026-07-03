@@ -46,3 +46,12 @@ export const RAPID_CUE_COOLDOWN_MS: Partial<Record<SfxName, number>> = {
   crowdCheer: 2200,
   crowdRoar: 2500,
 };
+
+/**
+ * The slowest playback rate the anti-fatigue pitch jitter applies to a cooldown cue
+ * (audio.ts walks 0.97..1.03 per repeat). Slower playback stretches the audible tail,
+ * so the pool-coverage invariant (a cooldown cue's WAV must fit inside
+ * cooldown x pool at the slowest jitter, checked at bake time and pinned in
+ * recipes.test.ts) divides durations by this instead of assuming rate 1.
+ */
+export const RATE_JITTER_MIN = 0.97;

@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type { Recipe } from '@/audio/synth';
+import { renderRecipe, type Recipe } from '@/audio/synth';
+import { SAMPLE_RATE } from '@/audio/wav';
 import { RECIPES } from '@/audio/recipes';
+import { RAPID_CUE_COOLDOWN_MS, RATE_JITTER_MIN } from '@/feel/soundPolicy';
 
 /**
  * Gentleness pins for the sounds that fire the most. The whoosh (every navigation) and
@@ -63,5 +65,33 @@ describe('the crowd swells stay honest air, under the stings they answer', () =>
     expect(totalMs('crowdCheer')).toBeLessThanOrEqual(1500);
     expect(totalMs('crowdRoar')).toBeLessThanOrEqual(2500);
     expect(totalMs('crowdMurmur')).toBeLessThanOrEqual(800);
+  });
+});
+
+describe('pool coverage: a cooldown cue is never re-triggered mid-tail', () => {
+  // The runtime plays a resting player from position 0 without a rewind (audio.ts);
+  // that is only safe if the round-robin can never hand back a player still audibly
+  // mid-shot. For each cooldown-listed cue: rendered duration, stretched by the
+  // slowest anti-fatigue jitter rate, must fit inside cooldown x pool. The bake
+  // (scripts/generate-sfx.ts) enforces the same invariant, so a violating recipe
+  // fails here AND cannot bake.
+  it('rendered duration <= cooldown x pool at the slowest jitter rate', () => {
+    for (const [name, cooldown] of Object.entries(RAPID_CUE_COOLDOWN_MS)) {
+      const recipe = recipes[name];
+      expect(recipe, `${name} has a cooldown but no recipe`).toBeDefined();
+      const durationMs = (renderRecipe(recipe).length / SAMPLE_RATE) * 1000;
+      expect(
+        durationMs / RATE_JITTER_MIN,
+        `${name}: ${durationMs.toFixed(0)}ms WAV vs cooldown ${cooldown}ms x pool ${recipe.pool}`
+      ).toBeLessThanOrEqual(cooldown! * recipe.pool);
+    }
+  });
+
+  // The cross-source collision pools (see recipes.ts): celebration beats and watch
+  // juice share these cues with navigation, so pool 1 would restart them mid-puff.
+  it('whoosh, whooshBack, and toggle keep their collision headroom pools', () => {
+    expect(recipes.whoosh.pool).toBeGreaterThanOrEqual(2);
+    expect(recipes.whooshBack.pool).toBeGreaterThanOrEqual(2);
+    expect(recipes.toggle.pool).toBeGreaterThanOrEqual(2);
   });
 });

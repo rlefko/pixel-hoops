@@ -306,7 +306,9 @@ export const RECIPES = {
     ],
   },
   toggle: {
-    pool: 1,
+    // 48ms of audio against a 45ms cooldown: pool 2 keeps a fast settings-flipper
+    // from re-seeking a player mid-tail (duration <= cooldown x pool, checked at bake).
+    pool: 2,
     gain: 0.3,
     voices: [
       { osc: 'sine', freq: A5, durMs: 48, filter: { baseHz: 1600, peakHz: 2600, q: 0.7, decayMs: 42, sustain: 0 }, env: { attackMs: 2, decayMs: 42, sustain: 0, releaseMs: 4 } },
@@ -316,7 +318,10 @@ export const RECIPES = {
     // Fires on EVERY navigation, stacked on the button's own tap, so it is a near-silent
     // FELT puff of low-passed air: no pitch sweep, no tone layer. Direction reads from
     // the filter alone (forward opens, back closes), never from pitch.
-    pool: 1,
+    // Pool 2: navigations are serialized ~440ms apart by the wipe, but the same cue
+    // also fires from celebration beats (ChampionView's unlock, watch juice), and a
+    // 220ms puff colliding with a fast HOME tap would restart mid-play on pool 1.
+    pool: 2,
     gain: 0.12,
     voices: [
       {
@@ -327,7 +332,7 @@ export const RECIPES = {
     ],
   },
   whooshBack: {
-    pool: 1,
+    pool: 2, // same cross-source collision headroom as whoosh
     gain: 0.11,
     voices: [
       {
