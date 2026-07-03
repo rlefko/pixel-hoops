@@ -46,9 +46,24 @@ export async function resolveAudioUri(source: number): Promise<string | null> {
   return asset?.localUri ?? asset?.uri ?? null;
 }
 
-/** Create a player for an already-resolved URI, with the quiet status interval. */
+/**
+ * Create a player for an already-resolved URI, with the quiet status interval.
+ *
+ * keepAudioSessionActive matters more than it looks: expo-audio defaults it to false,
+ * under which iOS deactivates the shared AVAudioSession ~100ms after any player
+ * finishes with nothing else playing (AudioModule.swift's finish handler ->
+ * deactivateSession), and the next play() re-activates it synchronously ON THE JS
+ * THREAD (Function("play") runs `try activateSession()` unconditionally). With music
+ * off, that put a session deactivate/reactivate round-trip inside every single SFX
+ * shot. True keeps the (ambient, mix-with-others) session claimed while the app is
+ * foregrounded, degrading the per-play setActive(true) to a cheap redundant call;
+ * backgrounding still releases the session via audio.ts setAudioActive(false).
+ */
 export function createResolvedPlayer(uri: string): AudioPlayer {
-  return createAudioPlayer({ uri }, { updateInterval: STATUS_UPDATE_INTERVAL_MS });
+  return createAudioPlayer(
+    { uri },
+    { updateInterval: STATUS_UPDATE_INTERVAL_MS, keepAudioSessionActive: true }
+  );
 }
 
 /** Resolve and create in one step, for callers that want one player per asset. */
