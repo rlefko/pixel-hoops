@@ -67,3 +67,37 @@ export function canUpgrade(
 ): boolean {
   return alreadyBought < maxBought && currentValue < RATING_CAP;
 }
+
+// Bit index per upgradeable stat; UPGRADEABLE_STATS order is the single source of
+// the mask's bit layout (affordMask writes and maskBit reads through this map only).
+const STAT_BIT = new Map(UPGRADEABLE_STATS.map((stat, i) => [stat, i]));
+
+/**
+ * Bitmask of which of the eight UPGRADEABLE_STATS can be bought right now: still
+ * under the cap AND affordable at the current wallet. A locker row's buttons are a
+ * pure function of (the player's stats, their upgrades ledger entry, this mask), all
+ * identity-stable across an unrelated upgrade, so the locker list can React.memo its
+ * rows and a spend re-renders only the tapped row plus rows whose affordability
+ * actually flipped at a cost threshold.
+ */
+export function affordMask(
+  stats: PlayerStats,
+  upgrades: Partial<Record<keyof PlayerStats, number>> | undefined,
+  coins: number
+): number {
+  let mask = 0;
+  for (let i = 0; i < UPGRADEABLE_STATS.length; i++) {
+    const stat = UPGRADEABLE_STATS[i];
+    const bought = upgrades?.[stat] ?? 0;
+    if (canUpgrade(stat, stats[stat], bought) && coins >= upgradeCost(stat, bought)) {
+      mask |= 1 << i;
+    }
+  }
+  return mask;
+}
+
+/** Read one stat's affordability out of an {@link affordMask} value. */
+export function maskBit(mask: number, stat: keyof PlayerStats): boolean {
+  const bit = STAT_BIT.get(stat);
+  return bit !== undefined && (mask & (1 << bit)) !== 0;
+}

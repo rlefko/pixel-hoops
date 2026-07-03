@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { haptics, sfx } from '@/feel';
@@ -7,16 +7,12 @@ import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { useHomeRoster } from '@/context/HomeRosterContext';
+import { applyUpgrade, playerKey, totalUpgrades } from '@/game/home-roster';
 import {
-  applyUpgrade,
-  playerKey,
-  totalUpgrades,
-  upgradeCount,
-  type HomeRoster,
-} from '@/game/home-roster';
-import {
+  affordMask,
   canUpgrade,
   isPremiumStat,
+  maskBit,
   perStatMax,
   upgradeCost,
 } from '@/game/upgrades';
@@ -117,22 +113,32 @@ function StatUpgradeButton({
  * One roster row in the locker grid: the (memoized) player card plus its eight
  * upgrade buttons. Only the visible rows mount, so a few hundred owned players no
  * longer freeze the screen on open, filter, or upgrade.
+ *
+ * memo'd behind identity-stable props: applyUpgrade structurally shares every
+ * untouched player object and per-player `upgrades` ledger entry, and affordability
+ * arrives pre-computed as a bitmask, so an upgrade spend re-renders ONLY the tapped
+ * row (plus rows whose afford bit flipped when the wallet crossed a cost threshold)
+ * instead of every visible row's ~50-element subtree. The identity contract: any
+ * future flow that mutates rp.player.stats or a ledger entry in place, instead of
+ * immutably like applyUpgrade / the settle merge / deserialize, breaks this memo.
  */
-function LockerRow({
+const LockerRow = memo(function LockerRow({
   rp,
   index,
   listIndex,
   entering,
-  home,
-  coins,
+  upgrades,
+  mask,
   onUpgrade,
 }: {
   rp: RosterPlayer;
   index: number;
   listIndex: number;
   entering: boolean;
-  home: HomeRoster;
-  coins: number;
+  /** This player's permanent-upgrade ledger entry (identity-stable across saves). */
+  upgrades: Partial<Record<keyof PlayerStats, number>> | undefined;
+  /** affordMask() of this player: which stats are under-cap AND affordable now. */
+  mask: number;
   onUpgrade: (index: number, stat: keyof PlayerStats) => void;
 }) {
   return (
@@ -145,22 +151,16 @@ function LockerRow({
             <View style={styles.statButtons}>
               {group.stats.map((s) => {
                 const value = rp.player.stats[s.key];
-                const bought = upgradeCount(home, rp, s.key);
-                const cost = upgradeCost(s.key, bought);
-                const upgradable = canUpgrade(
-                  s.key,
-                  value,
-                  bought,
-                  perStatMax()
-                );
+                const bought = upgrades?.[s.key] ?? 0;
+                const upgradable = canUpgrade(s.key, value, bought, perStatMax());
                 return (
                   <StatUpgradeButton
                     key={s.key}
                     label={s.label}
                     value={value}
-                    cost={cost}
+                    cost={upgradeCost(s.key, bought)}
                     upgradable={upgradable}
-                    disabled={!upgradable || coins < cost}
+                    disabled={!maskBit(mask, s.key)}
                     premium={isPremiumStat(s.key)}
                     onPress={() => onUpgrade(index, s.key)}
                   />
@@ -172,7 +172,7 @@ function LockerRow({
       </View>
     </StaggerIn>
   );
-}
+});
 
 export function LockerRoomTab() {
   const { homeRoster, saveHomeRoster } = useHomeRoster();
@@ -226,42 +226,76 @@ export function LockerRoomTab() {
       .map(({ i }) => i);
   }, [rosterSignature, q, classes, positions]);
 
-  // Buy one +1 against the LIVE roster (read through the latest homeRoster).
+  // Buy one +1 against the LIVE roster, read through a ref (the onPin precedent in
+  // RosterScreen): the callback identity never churns on a save, so the memoized
+  // rows keep their props across consecutive upgrades instead of all re-rendering
+  // on every tap. saveHomeRoster is already identity-stable (deps [writer]).
+  const homeRosterRef = useRef(homeRoster);
+  homeRosterRef.current = homeRoster;
   const onUpgrade = useCallback(
     (index: number, stat: keyof PlayerStats) => {
-      if (!homeRoster) return;
+      const home = homeRosterRef.current;
+      if (!home) return;
       haptics.selection();
       sfx.tick(0.9); // a notch below the in-run training tick: a spend, not a gain
-      saveHomeRoster(applyUpgrade(homeRoster, index, stat));
+      saveHomeRoster(applyUpgrade(home, index, stat));
     },
-    [homeRoster, saveHomeRoster]
+    [saveHomeRoster]
+  );
+
+  // Filter-bar inputs, all identity-stable across an upgrade tap: the enabled sets
+  // are keyed on the roster signature (membership + order; a player's class and
+  // position can never change without changing their playerKey), and the togglers
+  // are functional updaters, so the memoized bar bails on every spend.
+  const players = homeRoster?.players;
+  const enabledClasses = useMemo(
+    () => (players ? availableClasses(players) : new Set<PlayerClass>()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rosterSignature]
+  );
+  const enabledPositions = useMemo(
+    () => (players ? availablePositions(players) : new Set<Position>()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rosterSignature]
+  );
+  const toggleClass = useCallback(
+    (cls: PlayerClass) =>
+      setClasses((prev) => {
+        const next = new Set(prev);
+        if (next.has(cls)) next.delete(cls);
+        else next.add(cls);
+        return next;
+      }),
+    []
+  );
+  const togglePosition = useCallback(
+    (pos: Position) =>
+      setPositions((prev) => {
+        const next = new Set(prev);
+        if (next.has(pos)) next.delete(pos);
+        else next.add(pos);
+        return next;
+      }),
+    []
+  );
+
+  // Resolve the frozen order back onto the live roster. Indices stay valid because a
+  // membership change bumps rosterSignature and re-derives orderedIndices; the guard
+  // covers any momentary mismatch. Memoized so only saves and re-orders rebuild it
+  // (an upgrade replaces the players array, so its rows resolve fresh stat objects).
+  const shown = useMemo(
+    () =>
+      homeRoster
+        ? orderedIndices
+            .map((i) => ({ rp: homeRoster.players[i], i }))
+            .filter((row): row is Row => Boolean(row.rp))
+        : [],
+    [orderedIndices, homeRoster]
   );
 
   if (!homeRoster) return null;
 
   const coins = homeRoster.coins;
-  const enabledClasses = availableClasses(homeRoster.players);
-  const enabledPositions = availablePositions(homeRoster.players);
-  // Resolve the frozen order back onto the live roster. Indices stay valid because a
-  // membership change bumps rosterSignature and re-derives orderedIndices; the guard
-  // covers any momentary mismatch.
-  const shown = orderedIndices
-    .map((i) => ({ rp: homeRoster.players[i], i }))
-    .filter((row): row is Row => Boolean(row.rp));
-  const toggleClass = (cls: PlayerClass) =>
-    setClasses((prev) => {
-      const next = new Set(prev);
-      if (next.has(cls)) next.delete(cls);
-      else next.add(cls);
-      return next;
-    });
-  const togglePosition = (pos: Position) =>
-    setPositions((prev) => {
-      const next = new Set(prev);
-      if (next.has(pos)) next.delete(pos);
-      else next.add(pos);
-      return next;
-    });
 
   return (
     <View style={styles.tab}>
@@ -284,17 +318,22 @@ export function LockerRoomTab() {
         contentContainerStyle={styles.listContent}
         data={shown}
         keyExtractor={(row) => `${row.rp.player.name}-${row.i}`}
-        renderItem={({ item, index }) => (
-          <LockerRow
-            rp={item.rp}
-            index={item.i}
-            listIndex={index}
-            entering={entering}
-            home={homeRoster}
-            coins={coins}
-            onUpgrade={onUpgrade}
-          />
-        )}
+        renderItem={({ item, index }) => {
+          // Cheap per-cell derivations (a map lookup + 8 arithmetic ops); the row
+          // itself bails via memo unless ITS inputs changed.
+          const upgrades = homeRoster.upgrades[playerKey(item.rp)];
+          return (
+            <LockerRow
+              rp={item.rp}
+              index={item.i}
+              listIndex={index}
+              entering={entering}
+              upgrades={upgrades}
+              mask={affordMask(item.rp.player.stats, upgrades, coins)}
+              onUpgrade={onUpgrade}
+            />
+          );
+        }}
         extraData={homeRoster}
         windowSize={5}
         initialNumToRender={8}
