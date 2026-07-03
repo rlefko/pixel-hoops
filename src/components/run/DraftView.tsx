@@ -17,9 +17,12 @@ import {
   draftPoints,
   canConfirmLoadout,
   isDraftable,
+  isCappedLegend,
   playerDraftClass,
   MAX_DRAFT_ROTATION,
+  MAX_DRAFT_LEGENDS,
 } from '@/game/draft';
+import { scaleLegendsForLadder } from '@/game/apply-effects';
 import {
   type Difficulty,
   type LadderClass,
@@ -70,6 +73,21 @@ const firstEmpty = (slots: (RosterPlayer | null)[]): number => {
   return i === -1 ? 0 : i;
 };
 
+/** A player's ladder-fielded view for the draft display: a legend dropped to its
+ * ladder-scaled line, so its shown OVR/strength matches what it plays on this rung.
+ * Every non-legend is returned by reference (no allocation, memo-friendly). */
+const fieldedView = (rp: RosterPlayer, ladderClass: LadderClass): RosterPlayer =>
+  rp.legendary ? scaleLegendsForLadder([rp], ladderClass)[0] : rp;
+
+/** Legends slotted OUTSIDE the selected slot (which a tap displaces) that count against
+ * the one-legend cap on this ladder. Native legends on the S+ ladder do not count. */
+const cappedLegendsElsewhere = (
+  slots: (RosterPlayer | null)[],
+  selected: number,
+  ladderClass: LadderClass
+): number =>
+  slots.filter((s, i) => i !== selected && s != null && isCappedLegend(s, ladderClass)).length;
+
 export function DraftView({
   available,
   defaultStarters,
@@ -113,6 +131,13 @@ export function DraftView({
   const assign = (rp: RosterPlayer) => {
     if (draftCostFor(rp, ladderClass) === null) return; // barred
     if (slots.some((s) => s && keyOf(s) === keyOf(rp))) return; // already slotted
+    // One legend per rotation: block another reach-up legend at the cap, unless it
+    // replaces the legend already in the selected slot (which this tap displaces).
+    if (
+      isCappedLegend(rp, ladderClass) &&
+      cappedLegendsElsewhere(slots, selected, ladderClass) >= MAX_DRAFT_LEGENDS
+    )
+      return;
     const next = [...slots];
     next[selected] = rp; // any displaced player drops back to the collection
     setSlots(next);
@@ -128,6 +153,9 @@ export function DraftView({
     const q = query.trim().toLowerCase();
     const list = available.filter((rp) => {
       if (inLoadout.has(keyOf(rp))) return false;
+      // Hide players too strong for this ladder outright (a barred pick is undraftable),
+      // so the list holds only legal picks instead of greyed high-OVR rows crowding the top.
+      if (!isDraftable(rp, ladderClass)) return false;
       if (q && !rp.player.name.toLowerCase().includes(q)) return false;
       if (
         classes.size > 0 &&
@@ -140,8 +168,14 @@ export function DraftView({
     const upgradesOf = homeRoster
       ? (rp: RosterPlayer) => totalUpgrades(homeRoster, rp)
       : undefined;
-    return list.sort(compareByRatingDesc(upgradesOf));
-  }, [available, inLoadout, query, classes, positions, homeRoster]);
+    // Sort by the ladder-FIELDED overall (a legend by its scaled strength), computed once
+    // per player here rather than on every comparison, so list order matches the shown OVR.
+    const fieldedOvr = new Map<RosterPlayer, number>();
+    for (const rp of list) fieldedOvr.set(rp, effectiveOvr(fieldedView(rp, ladderClass)));
+    return list.sort(
+      compareByRatingDesc(upgradesOf, (rp) => fieldedOvr.get(rp) ?? effectiveOvr(rp))
+    );
+  }, [available, inLoadout, query, classes, positions, homeRoster, ladderClass]);
 
   const starters = slots
     .slice(0, STARTER_SLOTS)
@@ -159,6 +193,16 @@ export function DraftView({
   const selectedRefund = selectedOccupant
     ? (draftCostFor(selectedOccupant, ladderClass) ?? 0)
     : 0;
+  // One legend per rotation: at the cap, extra reach-up legends read disabled + a "1 MAX"
+  // note in the list (the assign/confirm guards enforce it).
+  const legendCapReached =
+    cappedLegendsElsewhere(slots, selected, ladderClass) >= MAX_DRAFT_LEGENDS;
+  // The draft scales an owned legend down toward this ladder (full power only once you
+  // climb to the S / S+ ladders), so a hint explains the reduced OVR, shown exactly when an
+  // owned legend actually fields weaker than its natural OVR here.
+  const showLegendHint = available.some(
+    (rp) => rp.legendary && effectiveOvr(fieldedView(rp, ladderClass)) < effectiveOvr(rp)
+  );
   // After three straight losses at this exact cell, ONE coach strategy line
   // keyed on the remembered (losing) rotation's shape. Captured once at mount
   // (a memo would pop it in mid-view when the budget beat stamps itself seen),
@@ -256,6 +300,11 @@ export function DraftView({
         enabledPositions={enabledPositions}
         enabledClasses={enabledClasses}
       />
+      {showLegendHint ? (
+        <Text style={styles.legendHint}>
+          ★ Legends scale to this ladder. Full power up top.
+        </Text>
+      ) : null}
 
       <FlatList
         style={styles.list}
@@ -272,21 +321,37 @@ export function DraftView({
         ListEmptyComponent={<Text style={styles.empty}>No players match.</Text>}
         renderItem={({ item: rp }) => {
           const cost = draftCostFor(rp, ladderClass);
-          const barred = cost === null;
-          // Assigning REFUNDS the displaced occupant of the selected slot, so a
-          // cost above the raw remainder is still a legal tap; the badge only
-          // warns (red OVER) and the confirm reason stays the enforcement.
-          const affordable = cost == null || cost <= budget - spent + selectedRefund;
+          // A FREE (below-ladder) pick never raises spend, so it is always affordable.
+          // A priced pick fits when it clears the remaining budget after the selected
+          // slot's refund (assigning REFUNDS the displaced occupant, so a cost above the
+          // raw remainder is still a legal tap; the badge only warns, confirm enforces).
+          // Barred picks are filtered out of the list, so cost is never null here.
+          const affordable =
+            cost == null || cost === 0 || cost <= budget - spent + selectedRefund;
+          // One legend per rotation: extra legends read disabled + "1 MAX" (assign/confirm enforce).
+          const legendBlocked = isCappedLegend(rp, ladderClass) && legendCapReached;
+          const fielded = fieldedView(rp, ladderClass);
+          // Keep the legend's true S+ badge and hide the class arrow ONLY when it is actually
+          // scaled DOWN here, so the reduced OVR never reads as a downgrade. A full-power legend
+          // (S / S+ ladders) keeps the normal badge, including a legit S++ arrow if trained.
+          const scaledDown = (rp.legendary ?? false) && effectiveOvr(fielded) < effectiveOvr(rp);
           return (
             <Pressable
               onPress={() => assign(rp)}
-              disabled={barred}
-              style={[styles.row, barred && styles.rowBarred]}
+              disabled={legendBlocked}
+              style={[styles.row, legendBlocked && styles.rowDisabled]}
             >
               <View style={styles.cardWrap}>
-                <PlayerCard rp={rp} compact showSpecialty />
+                {/* Show the legend at its ladder-FIELDED strength (scaled OVR), keeping its
+                    S+ identity badge; every other player renders at their real line. */}
+                <PlayerCard
+                  rp={fielded}
+                  compact
+                  showSpecialty
+                  overrideClass={scaledDown ? playerDraftClass(rp) : undefined}
+                />
               </View>
-              <CostBadge cost={cost} affordable={affordable} />
+              <CostBadge cost={cost} affordable={affordable} capped={legendBlocked} />
             </Pressable>
           );
         }}
@@ -325,11 +390,11 @@ function Slot({
   // B from its position-weighted OVR.
   const cls = rp ? playerDraftClass(rp) : null;
   const cost = rp ? draftCostFor(rp, ladderClass) : null;
-  // The slot's effective OVR (training folded in) is computed inline below exactly
-  // as PlayerCard does, so the slot reads the same strength the player sees when
-  // scouting the card. Position is the player's intrinsic floor position, which can
-  // differ from this slot's label when slotted out of spot or onto the bench, so a
-  // draftee's fit is legible at a glance.
+  // The slot's effective OVR (training folded in) reads the same strength the row card
+  // shows: a legend uses its ladder-FIELDED (scaled) line, so its number matches what it
+  // plays, while the class badge stays its intrinsic S+ (via `cls`). Position is the
+  // player's intrinsic floor position, which can differ from this slot's label when
+  // slotted out of spot or onto the bench, so a draftee's fit is legible at a glance.
   return (
     <Pressable
       onPress={onSelect}
@@ -372,7 +437,7 @@ function Slot({
             </Text>
           </View>
           <StatNumber
-            value={effectiveOvr(rp)}
+            value={effectiveOvr(fieldedView(rp, ladderClass))}
             style={styles.slotOvr}
             animate={false}
           />
@@ -402,9 +467,19 @@ function costLabel(cost: number): string {
   return cost === 0 ? 'FREE' : `${cost} ${cost === 1 ? 'PT' : 'PTS'}`;
 }
 
-function CostBadge({ cost, affordable = true }: { cost: number | null; affordable?: boolean }) {
+function CostBadge({
+  cost,
+  affordable = true,
+  capped = false,
+}: {
+  cost: number | null;
+  affordable?: boolean;
+  /** The one-legend cap is already met, so this legend can't be added: read "1 MAX". */
+  capped?: boolean;
+}) {
   // A null cost means the class is barred for this ladder: say so instead of a
-  // bare dash, since "why is this row grey" was a real new-player wall.
+  // bare dash, since "why is this row grey" was a real new-player wall. (Barred rows
+  // are filtered out of the draft list, so this is now only a defensive fallback.)
   if (cost === null) {
     return (
       <View style={[styles.cost, { borderColor: palette.inkDim }]}>
@@ -412,11 +487,19 @@ function CostBadge({ cost, affordable = true }: { cost: number | null; affordabl
       </View>
     );
   }
-  const color = affordable ? (DRAFT_COST_COLOR[cost] ?? palette.inkDim) : palette.missRed;
+  const color = capped
+    ? palette.inkDim
+    : affordable
+      ? (DRAFT_COST_COLOR[cost] ?? palette.inkDim)
+      : palette.missRed;
   return (
     <View style={[styles.cost, { borderColor: color }]}>
       <Text style={[styles.costText, { color }]}>{costLabel(cost)}</Text>
-      {!affordable ? <Text style={styles.costOver}>OVER</Text> : null}
+      {capped ? (
+        <Text style={styles.costCap}>{MAX_DRAFT_LEGENDS} MAX</Text>
+      ) : !affordable ? (
+        <Text style={styles.costOver}>OVER</Text>
+      ) : null}
     </View>
   );
 }
@@ -517,6 +600,12 @@ const styles = StyleSheet.create({
     marginTop: space(3),
     marginBottom: space(1),
   },
+  legendHint: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.gold,
+    marginTop: space(1),
+  },
   list: { flex: 1, marginTop: space(2), alignSelf: 'stretch' },
   listContent: { gap: space(0.5), paddingBottom: space(2) },
   row: {
@@ -526,7 +615,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(1),
     borderRadius: RADIUS.chip,
   },
-  rowBarred: { opacity: 0.35 },
+  rowDisabled: { opacity: 0.35 },
   cardWrap: { flex: 1 },
   cost: {
     minWidth: 52,
@@ -539,6 +628,7 @@ const styles = StyleSheet.create({
   },
   costText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
   costOver: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.missRed },
+  costCap: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.inkDim },
   pointsOver: { color: palette.missRed },
   empty: {
     fontFamily: FONT.body,
