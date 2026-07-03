@@ -3,8 +3,9 @@ import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'rea
 import { Text, MonoText } from '@/components/StyledText';
 import { LiveChip, StaggerIn } from '@/components/fx';
 import { MoreLink } from '@/components/teach/MoreLink';
+import { useTipArmed } from '@/components/teach/useTipArmed';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { markTipSeen, tipSeen } from '@/game/teach';
+import { markTipSeen } from '@/game/teach';
 import type { HandbookSection } from '@/navigation/handbook';
 import { haptics, sfx } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
@@ -62,7 +63,7 @@ export function TeachCallout({
 }: TeachCalloutProps) {
   const { homeRoster, saveHomeRoster } = useHomeRoster();
   // Captured once at mount: the seen-stamp below must not hide this instance.
-  const [show] = useState(() => homeRoster != null && !tipSeen(homeRoster.teach, tip));
+  const show = useTipArmed(tip);
   const [dismissed, setDismissed] = useState(false);
   const [settled, setSettled] = useState(false);
 

@@ -9,8 +9,7 @@ import { DailyRewardStrip } from './DailyRewardStrip';
 import { FavorStrip } from './FavorStrip';
 import { CoinIcon } from './PixelIcons';
 import { TeachCallout } from '@/components/teach/TeachCallout';
-import { useHomeRoster } from '@/context/HomeRosterContext';
-import { tipSeen } from '@/game/teach';
+import { useTipArmed } from '@/components/teach/useTipArmed';
 import { sfx, useIdle, useGlowPulse, HUB_IDLE_MS } from '@/feel';
 import type { DailyGrants, FavorDelta, ProgressedCopy } from '@/game/home-roster';
 import {
@@ -119,10 +118,9 @@ export function RunSummaryView({
   // The milestone consolation: a deep hard/insane loss still banked one recruit copy.
   const bankedName = bankedRecruit?.player.name ?? (!champion ? progressed[0]?.player.player.name : undefined);
   // First run-ending loss only: the framing beat swaps in for the standing note.
-  const { homeRoster } = useHomeRoster();
-  const [showLossTip, setShowLossTip] = useState(
-    () => !champion && homeRoster != null && !tipSeen(homeRoster.teach, 'lossFraming')
-  );
+  const lossTipArmed = useTipArmed('lossFraming');
+  const [lossTipDismissed, setLossTipDismissed] = useState(false);
+  const showLossTip = !champion && lossTipArmed && !lossTipDismissed;
   // Quiet the unlock banner's reward glow once the player settles on this terminal
   // screen; the next touch wakes it. Mirrors the hub/run-map idle-pause.
   const { idle, bump } = useIdle(HUB_IDLE_MS);
@@ -208,7 +206,7 @@ export function RunSummaryView({
           tip="lossFraming"
           section="bank"
           style={styles.teach}
-          onDismiss={() => setShowLossTip(false)}
+          onDismiss={() => setLossTipDismissed(true)}
         />
       ) : (
         <Text style={[styles.note, !champion && styles.noteLost]}>

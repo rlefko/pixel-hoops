@@ -7,9 +7,8 @@ import { Screen } from '@/components/Screen';
 import { CoinFly, Pop, Counter, TickCounter } from '@/components/fx';
 import { useRun } from '@/hooks/useRun';
 import { useActiveRun } from '@/context/ActiveRunContext';
-import { useHomeRoster } from '@/context/HomeRosterContext';
-import { tipSeen } from '@/game/teach';
 import { TeachCallout } from '@/components/teach/TeachCallout';
+import { TeachSlot } from '@/components/teach/TeachSlot';
 import {
   buildHomeTeam,
   buildOpponentTeam,
@@ -628,19 +627,6 @@ function Postgame({
     const timer = setTimeout(() => setShowEarned(true), 700);
     return () => clearTimeout(timer);
   }, []);
-  // The first-coins teach beat waits behind the reward beats (win pop at mount,
-  // tally tick at 700ms), so reward speaks first and teaching second, never
-  // stacked. Armed-at-mount so the seen-stamp cannot hide this instance.
-  const { homeRoster } = useHomeRoster();
-  const [coinTipArmed] = useState(
-    () => homeRoster != null && !tipSeen(homeRoster.teach, 'coinsEarned')
-  );
-  const [showCoinTip, setShowCoinTip] = useState(false);
-  useEffect(() => {
-    if (!coinTipArmed) return;
-    const timer = setTimeout(() => setShowCoinTip(true), 1600);
-    return () => clearTimeout(timer);
-  }, [coinTipArmed]);
   // Economy juice: the earned coins arc from the final score into the tally.
   // Decoration only: launched 120ms in so the last coin lands exactly at the
   // 700ms tally reveal (see CoinFly's timing contract; the showEarned timer
@@ -737,13 +723,10 @@ function Postgame({
             {model.secondChancesRemaining} left.
           </Text>
         ) : null}
-        {coinTipArmed && earned && earned.coins > 0 ? (
-          // Reserved only when the one-shot beat will land (a veteran's postgame
-          // never gains a pixel); fixed height so the box score cannot shift
-          // under a reading thumb when the callout appears.
-          <View style={styles.teachSlot}>
-            <TeachCallout tip="coinsEarned" section="bank" visible={showCoinTip} />
-          </View>
+        {earned && earned.coins > 0 ? (
+          // The first-coins beat waits behind the reward beats (win pop at
+          // mount, coin fly, tally tick at 700ms): reward first, teach second.
+          <TeachSlot tip="coinsEarned" section="bank" delayMs={1600} />
         ) : null}
         {won && earned && earned.coins > 0 && flyFrom && flyTo ? (
           <CoinFly from={flyFrom} to={flyTo} coins={earned.coins} trigger={flyTrigger} />
@@ -840,9 +823,6 @@ const styles = StyleSheet.create({
   },
   postgameHeadline: { alignItems: 'center', alignSelf: 'stretch' },
   teachPregame: { alignSelf: 'stretch', marginTop: space(4) },
-  // Sized for the callout's two-line worst case, so its delayed arrival can
-  // never shift the box score below.
-  teachSlot: { minHeight: 62, alignSelf: 'stretch', justifyContent: 'center', marginTop: space(2) },
   postgameBox: {
     flex: 1,
     alignSelf: 'stretch',

@@ -6,8 +6,7 @@ import { StaggerIn } from '@/components/fx';
 import { PixelButton } from '@/components/PixelButton';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { TeachCallout } from '@/components/teach/TeachCallout';
-import { useHomeRoster } from '@/context/HomeRosterContext';
-import { tipSeen } from '@/game/teach';
+import { useTipArmed } from '@/components/teach/useTipArmed';
 import { sfx } from '@/feel';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { RosterPlayer } from '@/types/roster';
@@ -46,10 +45,9 @@ export function RecruitView({
   const [expanded, setExpanded] = useState<number | null>(null);
   // First-ever recruit node: the one-shot callout REPLACES the two standing
   // truth lines (same message, one voice); dismissing swaps the statics back in.
-  const { homeRoster } = useHomeRoster();
-  const [showTip, setShowTip] = useState(
-    () => homeRoster != null && !tipSeen(homeRoster.teach, 'recruitRental')
-  );
+  const tipArmed = useTipArmed('recruitRental');
+  const [tipDismissed, setTipDismissed] = useState(false);
+  const showTip = tipArmed && !tipDismissed;
 
   return (
     <Screen style={styles.container} bottomGap={space(5)}>
@@ -62,7 +60,7 @@ export function RecruitView({
           tip="recruitRental"
           section="favor"
           style={styles.teach}
-          onDismiss={() => setShowTip(false)}
+          onDismiss={() => setTipDismissed(true)}
         />
       ) : (
         <>
