@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createRNG } from '@/game/rng';
+import { createRNG, deriveSeed } from '@/game/rng';
 import { generateRecruitOffers } from '@/game/tournament';
 import {
   applyUpgrade,
@@ -22,6 +22,7 @@ import { NBA_LEGENDS, NBA_POOL } from '@/data/nba';
 import {
   runReducer,
   initRun,
+  isFirstEverRun,
   buildHomeTeam,
   buildOpponentTeam,
   coachReorderRoster,
@@ -32,6 +33,7 @@ import {
   MAX_BANISHES,
   type RunModel,
 } from '@/game/run-machine';
+import { markTipSeen } from '@/game/teach';
 import { generateFixedMap } from '@/game/run-map';
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { tierFor } from '@/game/ratings';
@@ -183,6 +185,75 @@ describe('generateFixedMap (fixed shape, random types)', () => {
       const map = generateFixedMap({ seed, mapIndex: 0 });
       expect(Object.values(map.nodes).some((n) => n.type === 'elite')).toBe(false);
     }
+  });
+
+  it('firstRun pins map 0 row 1 to [boost, recruit, recruit] with re-derived rounds', () => {
+    for (const seed of seeds) {
+      for (const difficulty of ['easy', 'hard', 'insane'] as const) {
+        const map = generateFixedMap({ seed, mapIndex: 0, difficulty, firstRun: true });
+        const row1 = map.layers[1].map((id) => map.nodes[id]);
+        expect(row1.map((n) => n.type)).toEqual(['boost', 'recruit', 'recruit']);
+        // An overridden combat node must not keep its stale round: recruit and
+        // boost are non-combat, so the pinned row carries no round at all.
+        for (const n of row1) expect(n.round).toBeUndefined();
+      }
+    }
+  });
+
+  it('firstRun guarantees a recruit within the first two nodes on every path', () => {
+    for (const seed of seeds) {
+      const map = generateFixedMap({ seed, mapIndex: 0, firstRun: true });
+      for (const entryId of map.startNodeIds) {
+        const entry = map.nodes[entryId];
+        if (entry.type === 'recruit') continue; // hit at node one
+        // A non-recruit entry must reach a recruit at node two on EVERY exit.
+        expect(entry.next.length).toBeGreaterThan(0);
+        for (const nextId of entry.next) {
+          expect(map.nodes[nextId].type).toBe('recruit');
+        }
+      }
+    }
+  });
+
+  it('firstRun leaves every later map untouched', () => {
+    for (const seed of seeds) {
+      expect(generateFixedMap({ seed, mapIndex: 1, firstRun: true })).toEqual(
+        generateFixedMap({ seed, mapIndex: 1 })
+      );
+    }
+  });
+
+  it('firstRun:false and an omitted flag stay byte-identical (characterization)', () => {
+    for (const seed of seeds) {
+      const base = generateFixedMap({ seed, mapIndex: 0 });
+      expect(generateFixedMap({ seed, mapIndex: 0, firstRun: false })).toEqual(base);
+      // Same-seed determinism holds through the new config field.
+      expect(generateFixedMap({ seed, mapIndex: 0 })).toEqual(base);
+    }
+  });
+});
+
+describe('isFirstEverRun (first-run recruit pin gate)', () => {
+  it('is true only for a fresh save with an un-graduated teach ledger', () => {
+    const fresh = rookie('first-ever');
+    expect(isFirstEverRun(fresh)).toBe(true);
+    // Seeing the recruit tip graduates the pin.
+    expect(isFirstEverRun(markTipSeen(fresh, 'recruitRental'))).toBe(false);
+    // Any cleared cell means the save is past its first run.
+    expect(isFirstEverRun({ ...fresh, clearedCells: ['easy:C'] })).toBe(false);
+    // A missing ledger reads as a graduated veteran, never pinned.
+    expect(isFirstEverRun({ ...fresh, teach: undefined })).toBe(false);
+  });
+
+  it('initRun threads the pin: a rookie save gets the guaranteed recruit row', () => {
+    const m = initRun('first-map', rookie('first-ever'));
+    const row1 = m.core.map.layers[1].map((id) => m.core.map.nodes[id].type);
+    expect(row1).toEqual(['boost', 'recruit', 'recruit']);
+    // A graduated save gets the organic map, byte-for-byte.
+    const vet = initRun('first-map', markTipSeen(rookie('first-ever'), 'recruitRental'));
+    expect(vet.core.map).toEqual(
+      generateFixedMap({ seed: deriveSeed('first-map', 'map-0'), mapIndex: 0 })
+    );
   });
 });
 

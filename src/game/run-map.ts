@@ -22,6 +22,10 @@ export interface FixedMapConfig {
   /** The selected ladder class's level (default C), the center the opponent curve
    * is offset around. See src/game/classes.ts and difficulty.ts. */
   ladderLevel?: number;
+  /** True only for the save's first-ever run (see run-machine's isFirstEverRun).
+   * Pins map 0's row 1 to [boost, recruit, recruit] so BOTH entries reach a
+   * recruit within two nodes and the recruit tutorial can never be skipped. */
+  firstRun?: boolean;
 }
 
 /** Nodes per row, entry (0) to boss. The map's fixed shape (a tall pokelike map). */
@@ -128,6 +132,20 @@ export function generateFixedMap(config: FixedMapConfig): RunMap {
   for (let layer = 0; layer < EDGES.length; layer++) {
     EDGES[layer].forEach((targets, i) => {
       nodes[layers[layer][i]].next = targets.map((j) => layers[layer + 1][j]);
+    });
+  }
+
+  // First-ever run: pin row 1 to [boost, recruit, recruit], as a POST-pass so the
+  // RNG stream is untouched and every non-overridden node stays byte-identical for
+  // the seed. With the entry edges [[0,1],[1,2]], every path from either entry then
+  // hits a recruit within its first two nodes: the recruit entry IS one, and both
+  // exits of the boost entry are one. The round is re-derived because an overridden
+  // combat node must not keep a stale one (recruit/boost carry no round).
+  if (config.firstRun && mapIndex === 0) {
+    const row1Types: MapNodeType[] = ['boost', 'recruit', 'recruit'];
+    layers[1].forEach((id, i) => {
+      const type = row1Types[i];
+      nodes[id] = { ...nodes[id], type, round: roundFor(type, mapIndex) };
     });
   }
 
