@@ -152,6 +152,26 @@ export function anchorStatsToClass(
 }
 
 /**
+ * A drafted legend's fielded target level on a ladder: TWO classes above the ladder,
+ * so an owned legend fields as a genuine star (a firepower you cannot otherwise buy on a
+ * low rung, where an A/S regular is barred) instead of an unscaled all-time-great wall.
+ * Two-above, not one-above, because a legend scaled to merely one class above is no better
+ * than a vanilla above-ladder pick and not worth its slot; two-above makes it a real,
+ * rewarding star while still costing it budget and the one-legend cap. On the S / S+
+ * ladders this lands at or above S++ level (26), which meets or exceeds any legend's
+ * natural OVR, so `scaleLegendToLevel`'s `min(natural, target)` clamp makes the scale a
+ * no-op: a legend only reaches full power once you have climbed to it. Mirrors the
+ * opponent-side boss-legend scaling (bosses scale to `nodeLevel + LEGEND_BOSS_PREMIUM`),
+ * so both sides field a legend on the same "a real fight, never a wall" rule. Reuses
+ * `classShift` + `classLevel` (no import cycle with difficulty-mode.ts); the additive
+ * premium is a fine-tune knob on top of the two-class step.
+ */
+export const LEGEND_DRAFT_PREMIUM = 0;
+export function legendDraftTargetLevel(ladderClass: PlayerClass): number {
+  return classLevel(classShift(ladderClass, 2)) + LEGEND_DRAFT_PREMIUM;
+}
+
+/**
  * Scale a curated legend's stat line toward a target difficulty level, preserving its
  * specialized shape. A boss legend is fielded a notch above the boss's other starters,
  * but is NEVER buffed above its natural ability, so it grows with the run and reaches

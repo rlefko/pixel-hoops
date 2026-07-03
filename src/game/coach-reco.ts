@@ -55,6 +55,9 @@ export interface RecommendArgs {
   buildHome: (roster: Roster) => Team;
   /** The difficulty-scaled style gain below which the banner stays quiet. */
   minDelta: number;
+  /** See {@link ReorderArgs.scaleBase}: the run machine injects the drafted-legend ladder
+   * scaling so the rec ranks candidates on the same line the sim fields. */
+  scaleBase?: (players: RosterPlayer[]) => RosterPlayer[];
 }
 
 // --- Matchup proxy ----------------------------------------------------------
@@ -198,6 +201,10 @@ export interface ReorderArgs {
   buildHome: (roster: Roster) => Team;
   /** The opponent to thread the matchup against; omit for a pure-style reorder. */
   opponent?: Team;
+  /** Optional pre-transform of the roster's base lines before fit/rank are read (the run
+   * machine injects the drafted-legend ladder scaling here, so the coach values a legend at
+   * the same reduced strength the sim fields). Defaults to identity, keeping this a pure leaf. */
+  scaleBase?: (players: RosterPlayer[]) => RosterPlayer[];
 }
 
 /**
@@ -209,7 +216,7 @@ export interface ReorderArgs {
  * recommendLineup} wraps this with the surfacing gate for the pregame banner.
  */
 export function reorderForCoach(args: ReorderArgs): ReorderResult {
-  const { roster, coach, buildHome, opponent } = args;
+  const { roster, coach, buildHome, opponent, scaleBase } = args;
   const budget = budgetForClass(coach.class);
   const matchupW = matchupWeightForIq(coach.iq);
   // Only a smart coach with an opponent threads the matchup; the away side is fixed
@@ -221,7 +228,9 @@ export function reorderForCoach(args: ReorderArgs): ReorderResult {
   // player by reading their base stats. Fit and class rank depend only on that line,
   // the position, and the coach, so both are baked once per player up front.
   const all = [...roster.starters, ...roster.bench];
-  const effList = effectivePlayers(all);
+  // scaleBase (identity by default) drops any drafted legend to its ladder-scaled line
+  // before fit/rank, so the coach ranks it at the strength the sim will actually field.
+  const effList = effectivePlayers(scaleBase ? scaleBase(all) : all);
   const fitByRef = new Map<RosterPlayer, number>();
   const rankByRef = new Map<RosterPlayer, number>();
   all.forEach((rp, i) => {
@@ -322,7 +331,7 @@ function summarize(
  * matchup-specific tweak (the lineup builder stays one tap away).
  */
 export function recommendLineup(args: RecommendArgs): CoachRec | null {
-  const { roster, coach, opponent, buildHome, minDelta } = args;
+  const { roster, coach, opponent, buildHome, minDelta, scaleBase } = args;
   if (roster.bench.length === 0) return null;
 
   const { roster: reordered, changes, styleGain } = reorderForCoach({
@@ -330,6 +339,7 @@ export function recommendLineup(args: RecommendArgs): CoachRec | null {
     coach,
     buildHome,
     opponent,
+    scaleBase,
   });
   if (changes === 0) return null;
   if (styleGain < minDelta) return null;

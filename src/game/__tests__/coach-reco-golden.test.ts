@@ -223,7 +223,7 @@ describe('reorderForCoach golden master', () => {
     const result = reorderForCoach({
       roster: fullRoster('prod'),
       coach,
-      buildHome: (r) => buildCoachedHomeTeam(r, coach, [], counters),
+      buildHome: (r) => buildCoachedHomeTeam(r, coach, [], 'C', counters),
       opponent,
     });
     expect(reorderDigest(result)).toMatchSnapshot();
