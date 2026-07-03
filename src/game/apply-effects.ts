@@ -16,6 +16,7 @@ import { getGachaAbility } from './abilities-gacha';
 import { ITEM_BY_ID, itemDelta } from './items';
 import { boostsToModifier, type PassiveBoost } from './boosts';
 import { resolveSets } from './sets';
+import { legendDraftTargetLevel, scaleLegendToLevel, type PlayerClass } from './classes';
 
 /**
  * Bridges the declarative effects into the sim. Two pure entry points used
@@ -60,6 +61,30 @@ export function effectivePlayers(players: RosterPlayer[]): RosterPlayer[] {
     if (hasTraining) stats = applyTrainingDelta(stats, rp.trainingDelta);
     return { ...rp, player: { ...rp.player, stats } };
   });
+}
+
+/**
+ * Field each drafted legend at its ladder-scaled strength: a legend plays as a genuine
+ * star (roughly two classes above the ladder), not an unscaled all-time-great wall, and
+ * only reaches full power once you have climbed to its own ladder. This is the
+ * player-side mirror of the opponent boss-legend scaling (tournament.ts), so a legend is
+ * "a real fight, never a wall" on both sides. Non-legends pass through by REFERENCE
+ * (identity preserved, so a long draft list or a home build never re-renders / re-bakes
+ * the 99% case). Scales the BASE stat line ONLY; the item / ability / training bake in
+ * effectivePlayers layers on top, so an earned in-run upgrade is never clawed back.
+ * Applied only where a legend is FIELDED (the home-team build and the draft display): the
+ * stored collection keeps each legend's true OVR everywhere else.
+ */
+export function scaleLegendsForLadder(
+  players: readonly RosterPlayer[],
+  ladderClass: PlayerClass
+): RosterPlayer[] {
+  const target = legendDraftTargetLevel(ladderClass);
+  return players.map((rp) =>
+    rp.legendary
+      ? { ...rp, player: { ...rp.player, stats: scaleLegendToLevel(rp.player.stats, rp.position, target) } }
+      : rp
+  );
 }
 
 /**

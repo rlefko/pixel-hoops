@@ -9,6 +9,8 @@ import {
   classTargetOvr,
   anchorStatsToClass,
   scaleLegendToLevel,
+  legendDraftTargetLevel,
+  LEGEND_DRAFT_PREMIUM,
   compareClass,
   classShift,
   classCost,
@@ -209,5 +211,42 @@ describe('scaleLegendToLevel', () => {
     const natural = ovrRaw(legend, 'C');
     const up = scaleLegendToLevel(legend, 'C', natural + 10);
     for (const key of SKILL_STAT_KEYS) expect(up[key]).toBe(legend[key]);
+  });
+
+  it('fields a drafted legend at TWO CLASSES ABOVE the ladder on a low rung', () => {
+    // 'C' here is the Center POSITION (matching the Shaq-ish line's slot).
+    const scaled = scaleLegendToLevel(legend, 'C', legendDraftTargetLevel('C'));
+    expect(classForOvr(ovr(scaled, 'C'))).toBe('A'); // C-ladder legend plays as an A star, not S+
+    // Shape survives the scale: still rim-dominant, still no jumper.
+    expect(scaled.inside).toBeGreaterThan(scaled.outside);
+  });
+
+  it('fields a drafted legend at FULL power on the S+ ladder (scale is a no-op)', () => {
+    const scaled = scaleLegendToLevel(legend, 'C', legendDraftTargetLevel('S+'));
+    for (const key of SKILL_STAT_KEYS) expect(scaled[key]).toBe(legend[key]);
+  });
+});
+
+describe('legendDraftTargetLevel', () => {
+  it('targets two classes above the ladder plus the (0) premium', () => {
+    expect(LEGEND_DRAFT_PREMIUM).toBe(0);
+    expect(legendDraftTargetLevel('C')).toBe(classLevel('A') + LEGEND_DRAFT_PREMIUM);
+    expect(legendDraftTargetLevel('B')).toBe(classLevel('S') + LEGEND_DRAFT_PREMIUM);
+  });
+
+  it('rises monotonically up the ladder (a legend is the climb reward)', () => {
+    const ladders = ['C', 'B', 'A', 'S', 'S+'] as const;
+    for (let i = 1; i < ladders.length; i++) {
+      expect(legendDraftTargetLevel(ladders[i])).toBeGreaterThanOrEqual(
+        legendDraftTargetLevel(ladders[i - 1])
+      );
+    }
+    // Strictly rising over the low ladders (where the two-above step is not yet clamped).
+    expect(legendDraftTargetLevel('A')).toBeGreaterThan(legendDraftTargetLevel('C'));
+  });
+
+  it('reaches S++ level by the S / S+ ladders, at or above any legend natural OVR', () => {
+    expect(legendDraftTargetLevel('S')).toBe(classLevel('S++'));
+    expect(legendDraftTargetLevel('S+')).toBe(classLevel('S++'));
   });
 });

@@ -24,7 +24,7 @@ import {
   defaultLoadout,
   MAX_RUN_ROSTER,
 } from './draft';
-import { effectivePlayers, teamModifierFor } from './apply-effects';
+import { effectivePlayers, scaleLegendsForLadder, teamModifierFor } from './apply-effects';
 import {
   MAX_TRAINED_STAT,
   trainedStat,
@@ -543,9 +543,17 @@ export function buildCoachedHomeTeam(
   roster: RunState['roster'],
   coach: CoachProfile,
   boosts: PassiveBoost[],
+  ladderClass: LadderClass,
   counters?: RunCounters
 ): Team {
-  const dressed = dressedRoster(roster);
+  // Field any drafted legend at its ladder-scaled strength (a genuine star, not an
+  // unscaled wall) BEFORE effects bake, so item/ability/training layer on the scaled
+  // base and the coach's plan + system bonus read the strength that plays.
+  const raw = dressedRoster(roster);
+  const dressed = {
+    starters: scaleLegendsForLadder(raw.starters, ladderClass),
+    bench: scaleLegendsForLadder(raw.bench, ladderClass),
+  };
   const effStarters = effectivePlayers(dressed.starters);
   const plan = planForCoach(planForRoster(dressed), coach, dressed);
   // teamModifierFor folds in passive boosts, abilities, item hooks, snowball scaling,
@@ -578,7 +586,13 @@ export function buildHomeTeam(model: RunModel): Team {
     mapIndex: model.core.currentMapIndex,
     forgivenLosses: model.forgivenLosses,
   };
-  return buildCoachedHomeTeam(model.core.roster, getCoach(model.coachId), model.boosts, counters);
+  return buildCoachedHomeTeam(
+    model.core.roster,
+    getCoach(model.coachId),
+    model.boosts,
+    model.ladderClass,
+    counters
+  );
 }
 
 /**
@@ -624,7 +638,10 @@ export function coachReorderRoster(model: RunModel, roster: RunState['roster']):
     roster,
     coach,
     opponent: builderOpponent(model),
-    buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts, counters),
+    buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts, model.ladderClass, counters),
+    // The coach values candidates on the SAME ladder-scaled line the sim fields, so it
+    // never over-ranks a legend it would then field at reduced power.
+    scaleBase: (players) => scaleLegendsForLadder(players, model.ladderClass),
   });
   return rosterOrder(reordered) === rosterOrder(roster) ? null : reordered;
 }
@@ -687,7 +704,9 @@ export function computeCoachRec(model: RunModel, nodeId: string): CoachRec | nul
     roster: model.core.roster,
     coach,
     opponent: away,
-    buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts, counters),
+    buildHome: (r) => buildCoachedHomeTeam(r, coach, model.boosts, model.ladderClass, counters),
+    // Rank candidates on the same ladder-scaled line the sim fields (see coachReorderRoster).
+    scaleBase: (players) => scaleLegendsForLadder(players, model.ladderClass),
     minDelta: recMinDelta(model.difficulty, node.type),
   });
 }

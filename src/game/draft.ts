@@ -1,5 +1,5 @@
 import { POSITIONS, nameKey, type Position, type RosterPlayer } from '@/types/roster';
-import { classCost, type PlayerClass } from './classes';
+import { classCost, compareClass, type PlayerClass } from './classes';
 import { ovr, ovrRaw, classForOvr } from './ratings';
 import { difficultyMods, type Difficulty, type LadderClass } from './difficulty-mode';
 
@@ -18,6 +18,12 @@ import { difficultyMods, type Difficulty, type LadderClass } from './difficulty-
 
 /** Players selectable at the draft. */
 export const MAX_DRAFT_ROTATION = 8;
+/** At most one REACH-UP legend per drafted rotation: a single franchise cornerstone, never
+ * a super-team of all-time greats brought down onto a low ladder. Even scaled to the ladder,
+ * a stack of legends would still be several elite specialists, so the cap is the legible
+ * "one star" guard rail. Only legends ABOVE the ladder class count (see {@link isCappedLegend});
+ * on the S+ ladder, whose native class IS legends, they are uncapped so a five can be fielded. */
+export const MAX_DRAFT_LEGENDS = 1;
 /** Players allowed on the squad during a run (recruiting past this forces a drop). */
 export const MAX_RUN_ROSTER = 12;
 /** A five is the minimum draftable rotation (you must be able to field a lineup). */
@@ -43,6 +49,14 @@ export function draftCostFor(rp: RosterPlayer, ladderClass: LadderClass): number
 /** Whether a player may be drafted on a ladder at all. */
 export function isDraftable(rp: RosterPlayer, ladderClass: LadderClass): boolean {
   return draftCostFor(rp, ladderClass) !== null;
+}
+
+/** Whether a legend counts against the one-cornerstone cap on this ladder: only a legend
+ * reaching UP above the ladder class (the over-powered case) is capped. A native legend on
+ * the S+ ladder, where legends ARE the ladder class, does not count, so that ladder (whose
+ * only players are legends) can still field a full five. See {@link MAX_DRAFT_LEGENDS}. */
+export function isCappedLegend(rp: RosterPlayer, ladderClass: LadderClass): boolean {
+  return (rp.legendary ?? false) && compareClass(playerDraftClass(rp), ladderClass) > 0;
 }
 
 /** Total points spent by a drafted rotation (barred players count as Infinity). */
@@ -110,6 +124,9 @@ export function canConfirmLoadout(
   if (all.some((rp) => !isDraftable(rp, ladderClass))) {
     return { ok: false, reason: 'A pick is too strong for this ladder' };
   }
+  if (all.filter((rp) => isCappedLegend(rp, ladderClass)).length > MAX_DRAFT_LEGENDS) {
+    return { ok: false, reason: 'One legend per rotation' };
+  }
   if (draftSpend(all, ladderClass) > draftPoints(difficulty)) {
     return { ok: false, reason: 'Over the draft point budget' };
   }
@@ -150,12 +167,24 @@ export function defaultLoadout(
 
   const used = new Set<RosterPlayer>();
   let spent = 0;
+  let cappedLegends = 0;
   const take = (p: RosterPlayer): void => {
     used.add(p);
     spent += cost(p);
+    if (isCappedLegend(p, ladderClass)) cappedLegends += 1;
   };
+  // Respect the one-legend cap so the auto-built default is always CONFIRMABLE: without
+  // this, a player owning two legends would open the draft on an over-cap loadout that
+  // canConfirmLoadout rejects (START disabled with "One legend per rotation").
   const bestAffordable = (pool: RosterPlayer[]): RosterPlayer | undefined =>
-    pool.filter((p) => !used.has(p) && spent + cost(p) <= budget).sort(byValue)[0];
+    pool
+      .filter(
+        (p) =>
+          !used.has(p) &&
+          spent + cost(p) <= budget &&
+          (!isCappedLegend(p, ladderClass) || cappedLegends < MAX_DRAFT_LEGENDS)
+      )
+      .sort(byValue)[0];
 
   const starters: (RosterPlayer | null)[] = POSITIONS.map(() => null);
   // Pass 1: best affordable player at each slot's natural position.

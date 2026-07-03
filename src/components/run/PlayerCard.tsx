@@ -8,7 +8,7 @@ import { InjuryIcon } from '@/components/run/PixelIcons';
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { POSITION_COLOR } from '@/components/game/positionColor';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
-import { ovr, off, def, ath, tierFor, classForOvr, CLASS_ORDER } from '@/game/ratings';
+import { ovr, off, def, ath, tierFor, classForOvr, CLASS_ORDER, type PlayerClass } from '@/game/ratings';
 import { applyTrainingDelta, MAX_TRAINED_STAT } from '@/game/effects';
 import { ITEM_BY_ID } from '@/game/items';
 import { getAbility } from '@/game/abilities';
@@ -57,6 +57,11 @@ interface PlayerCardProps {
   /** Whether the `collect` state dims the card ("not yours yet"). Off for a recruit OFFER,
    * where dimming would wrongly read as disabled. Defaults on. */
   collectDim?: boolean;
+  /** Force the tier badge to this class and hide the original->current class arrow. The
+   * draft passes a ladder-scaled legend's TRUE class (S+) so its badge keeps its legend
+   * identity while the OVR number shows the reduced strength it fields on this ladder,
+   * without the arrow reading as a spurious downgrade. */
+  overrideClass?: PlayerClass;
 }
 
 /** One rating's short label, for the expanded breakdown grid. */
@@ -119,19 +124,27 @@ function PlayerCardImpl({
   showSpecialty = false,
   collect,
   collectDim = true,
+  overrideClass,
 }: PlayerCardProps) {
   // Fold run-scoped training into the displayed stats so a trained player reads
   // its true OVR/tier (up to S++) everywhere the card appears.
   const stats = applyTrainingDelta(rp.player.stats, rp.trainingDelta);
   const overall = ovr(stats, rp.position);
   const tier = tierFor(overall);
-  // tier.label is the PlayerClass, so the class ramp is the single source for the badge color.
-  const tierColor = CLASS_COLOR[tier.label];
+  // The badge shows overrideClass when given (a ladder-scaled legend keeps its S+
+  // identity), else the current tier from the displayed OVR. tier.label / overrideClass
+  // are PlayerClasses, so the class ramp is the single source for the badge color.
+  const badgeClass = overrideClass ?? tier.label;
+  const tierColor = CLASS_COLOR[badgeClass];
   // Show the player's fixed original class with an arrow to the current class when
-  // upgrades/abilities/training have lifted them past their starting tier.
+  // upgrades/abilities/training have lifted them past their starting tier. An
+  // overrideClass card (scaled legend) hides the arrow: it isn't an upgrade, and the
+  // reduced OVR would otherwise read as a spurious "S+ -> B" downgrade.
   const currentClass = classForOvr(overall);
   const upgradedFrom =
-    rp.originalClass && rp.originalClass !== currentClass ? rp.originalClass : null;
+    !overrideClass && rp.originalClass && rp.originalClass !== currentClass
+      ? rp.originalClass
+      : null;
   // Celebrate an in-place class promotion (a training/upgrade/reward pushing the
   // player across a grade band): pop the badge when this card's class rises between
   // renders. Initialized to the current class on mount, so a fresh card never pops.
@@ -188,7 +201,7 @@ function PlayerCardImpl({
           <Text style={styles.classFrom}>{upgradedFrom}{'→'}</Text>
         ) : null}
         <TierBadge
-          label={tier.label}
+          label={badgeClass}
           color={tierColor}
           animated={tier.key === 'zenith'}
           celebrate={leveledUp}

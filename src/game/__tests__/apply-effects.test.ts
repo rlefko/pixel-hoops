@@ -2,12 +2,24 @@ import { describe, it, expect } from 'vitest';
 import { createRNG } from '@/game/rng';
 import { createPlayer } from '@/types/player';
 import type { RosterPlayer } from '@/types/roster';
-import { effectivePlayers, teamModifierFor } from '@/game/apply-effects';
+import { effectivePlayers, scaleLegendsForLadder, teamModifierFor } from '@/game/apply-effects';
 import { ITEM_BY_ID, itemDelta } from '@/game/items';
+import { ovr, classForOvr } from '@/game/ratings';
 
 function rp(overrides: Partial<RosterPlayer> = {}): RosterPlayer {
   const player = createPlayer('Test', 'small-forward', createRNG('p').int);
   return { player, position: 'SF', ...overrides };
+}
+
+/** A strong all-time-great line so a low-ladder scale visibly reduces it. */
+function legendRp(): RosterPlayer {
+  const player = createPlayer('Legend', 'small-forward', createRNG('legend').int);
+  player.stats = {
+    ...player.stats,
+    inside: 24, outside: 22, playmaking: 22, perimeterD: 22,
+    interiorD: 22, athleticism: 22, iq: 22, clutch: 22,
+  };
+  return { player, position: 'SF', originalClass: 'S+', legendary: true };
 }
 
 // Mirror of applyStatDelta's soft cap (full value to 20, diminishing to 24).
@@ -54,6 +66,29 @@ describe('effectivePlayers', () => {
     const [eff2] = effectivePlayers([drawback]);
     expect(eff2.player.stats.outside).toBe(softCap(drawback.player.stats.outside + 2));
     expect(eff2.player.stats.perimeterD).toBe(Math.max(6, drawback.player.stats.perimeterD - 1));
+  });
+});
+
+describe('scaleLegendsForLadder', () => {
+  it('passes a non-legend through by reference (identity preserved)', () => {
+    const plain = rp();
+    expect(scaleLegendsForLadder([plain], 'C')[0]).toBe(plain);
+  });
+
+  it('drops a drafted legend to ~two classes above the ladder on a low rung', () => {
+    const legend = legendRp();
+    const naturalOvr = ovr(legend.player.stats, 'SF');
+    const [scaled] = scaleLegendsForLadder([legend], 'C');
+    expect(scaled).not.toBe(legend); // a copy, never a mutation
+    expect(legend.player.stats.inside).toBe(24); // base line untouched
+    expect(ovr(scaled.player.stats, 'SF')).toBeLessThan(naturalOvr);
+    expect(classForOvr(ovr(scaled.player.stats, 'SF'))).toBe('A'); // plays as an A star on the C ladder
+  });
+
+  it('fields a legend at full power on the S+ ladder (scale is a no-op)', () => {
+    const legend = legendRp();
+    const [scaled] = scaleLegendsForLadder([legend], 'S+');
+    expect(scaled.player.stats).toEqual(legend.player.stats);
   });
 });
 

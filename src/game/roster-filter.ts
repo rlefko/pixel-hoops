@@ -20,13 +20,16 @@ export function effectiveOvr(rp: RosterPlayer): number {
  * Search ordering: highest effective rating first, breaking ties by who has had
  * more permanent upgrades applied (when an `upgradesOf` lookup is supplied), then
  * by name so the order is stable across re-renders. `upgradesOf` is optional
- * because the welcome reveal has no upgrade ledger to consult.
+ * because the welcome reveal has no upgrade ledger to consult. `ratingOf` defaults
+ * to `effectiveOvr`; the draft injects a ladder-scaled overall so a drafted legend
+ * sorts by the reduced strength it will actually field, not its natural all-time OVR.
  */
 export function compareByRatingDesc(
-  upgradesOf?: (rp: RosterPlayer) => number
+  upgradesOf?: (rp: RosterPlayer) => number,
+  ratingOf: (rp: RosterPlayer) => number = effectiveOvr
 ): (a: RosterPlayer, b: RosterPlayer) => number {
   return (a, b) => {
-    const byRating = effectiveOvr(b) - effectiveOvr(a);
+    const byRating = ratingOf(b) - ratingOf(a);
     if (byRating !== 0) return byRating;
     if (upgradesOf) {
       const byUpgrades = upgradesOf(b) - upgradesOf(a);
