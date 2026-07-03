@@ -1,5 +1,5 @@
 import { type ReactNode } from 'react';
-import { StyleSheet, View, Pressable } from 'react-native';
+import { StyleSheet, View, Pressable, type StyleProp, type ViewStyle } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useArcadeRouter } from '@/navigation';
@@ -21,6 +21,7 @@ import {
   WhistleIcon,
 } from '@/components/run/PixelIcons';
 import { FreeAgentRevealView } from '@/components/run/FreeAgentRevealView';
+import { Pop, StaggerIn } from '@/components/fx';
 import { CLASS_COLOR } from '@/components/run/class-ui';
 import { haptics, sfx, useGlowPulse, useBobPulse, useHubBackdrop } from '@/feel';
 import { useHomeRoster } from '@/context/HomeRosterContext';
@@ -41,9 +42,63 @@ import { COURT_THEMES, courtThemeUnlocked, courtThemeUnlockHint } from '@/game/c
 import { DAILY_BOUNTY_COINS, spotlightCell, weeklyProgress } from '@/game/daily';
 import { DailyPanel } from '@/components/home/DailyPanel';
 import { DeltaChip } from '@/components/home/DeltaChip';
+import { ARCADE_UNLOCK_COINS } from '@/game/teach';
 import { useDayKey } from '@/hooks/useDayKey';
 import { useHubDeltas } from '@/hooks/useHubDeltas';
+import { useHubUnlocks } from '@/hooks/useHubUnlocks';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
+
+/** A hub tile that has not been earned yet: dim, lock-iconed, and honest about
+ * what opens it. The reason line REPLACES icon height inside the tile's fixed
+ * minHeight (LockIcon 16 vs the live icon's 24), so a locked row measures
+ * exactly like an unlocked one and the one-viewport fit budget never moves.
+ * The press still squishes and ticks (MenuButton's own feedback); nothing
+ * navigates, and the reason line is the explanation. */
+function LockedTile({
+  label,
+  reason,
+  style,
+}: {
+  label: string;
+  reason: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <MenuButton
+      variant="tile"
+      style={style}
+      label={label}
+      sublabel={reason}
+      color={palette.inkDim}
+      icon={<LockIcon size={16} color={palette.inkDim} />}
+      flashOnPress={false}
+      haptic="selection"
+      accessibilityLabel={`${label}, locked. ${reason}.`}
+      onPress={() => {}}
+    />
+  );
+}
+
+/** Wraps a tile during its unlock focus. The Pop MOUNT is the one-shot punch: a
+ * trigger-keyed Pop would also fire when the blur reset returns the trigger to
+ * zero, which would read as a ceremony replay on the next visit. */
+function CeremonyWrap({
+  playing,
+  style,
+  children,
+}: {
+  playing: boolean;
+  style?: StyleProp<ViewStyle>;
+  children: ReactNode;
+}) {
+  return playing ? (
+    <Pop popOnMount style={style}>
+      {children}
+    </Pop>
+  ) : (
+    <View style={style}>{children}</View>
+  );
+}
 
 /** A quiet icon-chip button for the screen's corner chrome, with the standard
  * secondary tap feedback baked in. */
@@ -95,6 +150,14 @@ export default function HomeScreen() {
   // Since-you-left deltas: captured per focus, revealed after a short hold so the
   // hub lands static and tappable first. See useHubDeltas for the ledger contract.
   const { deltas, baselineCoins, revealed } = useHubDeltas();
+  // Progressive unfolding: which hub features are open, the one unlock ceremony
+  // this focus may play, and the single attract pulse. Called before the welcome
+  // early-return so the hook order is stable.
+  const spotlightClaimed = homeRoster?.daily?.spotlightClaimedDay === day;
+  const { stages, ceremony, dailyJustUnlocked, coachesJustUnlocked } = useHubUnlocks({
+    hasSavedRun: savedRun != null,
+    spotlightClaimed,
+  });
 
   // First launch: welcome the player with their starting free agents, once.
   if (loaded && homeRoster && !homeRoster.seenWelcome) {
@@ -137,7 +200,6 @@ export default function HomeScreen() {
 
   const goalNudge = nudges.length ? nudges[day.charCodeAt(day.length - 1) % nudges.length] : null;
   const spotlight = homeRoster ? spotlightCell(day, clearedCells) : null;
-  const spotlightClaimed = homeRoster?.daily?.spotlightClaimedDay === day;
   const weekly = weeklyProgress(homeRoster?.weekly, week);
   const playSpotlight = () => {
     if (!homeRoster || !spotlight) return;
@@ -280,20 +342,24 @@ export default function HomeScreen() {
               ? `${homeRoster.selectedLadderClass} BOUNTY CLAIMED`
               : `BOUNTY: ${bountyFor(homeRoster.selectedDifficulty, homeRoster.selectedLadderClass).label}`}
           </Text>
-          {coach ? (
-            <Pressable
-              style={styles.coachRow}
-              onPress={() => nav.push('/coaches')}
-            >
-              <WhistleIcon size={14} color={CLASS_COLOR[coach.class]} />
-              <Text
-                style={[styles.coachName, { color: CLASS_COLOR[coach.class] }]}
-                numberOfLines={1}
+          {coach && stages.coaches ? (
+            // Hidden until the first clear (the first real coach is winnable then);
+            // the reveal is a quiet entrance, since the clear already celebrated.
+            <StaggerIn index={0} enabled={coachesJustUnlocked}>
+              <Pressable
+                style={styles.coachRow}
+                onPress={() => nav.push('/coaches')}
               >
-                {coach.name}
-              </Text>
-              <Text style={styles.coachChange}>CHANGE ›</Text>
-            </Pressable>
+                <WhistleIcon size={14} color={CLASS_COLOR[coach.class]} />
+                <Text
+                  style={[styles.coachName, { color: CLASS_COLOR[coach.class] }]}
+                  numberOfLines={1}
+                >
+                  {coach.name}
+                </Text>
+                <Text style={styles.coachChange}>CHANGE ›</Text>
+              </Pressable>
+            </StaggerIn>
           ) : null}
           {goalNudge ? (
             <Text style={styles.goalNudge} numberOfLines={1}>
@@ -303,16 +369,29 @@ export default function HomeScreen() {
         </View>
       ) : null}
 
-      {loaded && homeRoster && spotlight ? (
-        <DailyPanel
-          cell={spotlight}
-          bountyCoins={DAILY_BOUNTY_COINS[spotlight.difficulty]}
-          claimedToday={spotlightClaimed}
-          weeklyWins={weekly.gameWins}
-          claimedTiers={weekly.claimedTiers}
-          attract={!idle}
-          onPlaySpotlight={playSpotlight}
-        />
+      {loaded && homeRoster && spotlight && stages.daily ? (
+        // Hidden until the first run settles (one fewer system on minute one);
+        // the unlock day gets a quiet entrance plus a novelty dot.
+        <StaggerIn index={0} enabled={dailyJustUnlocked} style={styles.dailyWrap}>
+          <DailyPanel
+            cell={spotlight}
+            bountyCoins={DAILY_BOUNTY_COINS[spotlight.difficulty]}
+            claimedToday={spotlightClaimed}
+            weeklyWins={weekly.gameWins}
+            claimedTiers={weekly.claimedTiers}
+            attract={!idle}
+            badge={
+              <DeltaChip
+                amount={dailyJustUnlocked ? 1 : 0}
+                variant="dot"
+                index={3}
+                visible
+                paused={idle}
+              />
+            }
+            onPlaySpotlight={playSpotlight}
+          />
+        </StaggerIn>
       ) : null}
 
       <View style={styles.menu}>
@@ -351,26 +430,58 @@ export default function HomeScreen() {
           />
         ) : null}
         <View style={styles.tileRow}>
-          <MenuButton
-            variant="tile"
-            style={styles.tile}
-            label="LOCKER ROOM"
-            color={palette.makeGreen}
-            icon={<LockerIcon size={24} color={palette.makeGreen} />}
-            attract={!idle}
-            attractDelayMs={150}
-            onPress={() => nav.push('/locker')}
-          />
-          <MenuButton
-            variant="tile"
-            style={styles.tile}
-            label="ARCADE"
-            color={palette.flame}
-            icon={<JoystickIcon size={24} color={palette.flame} />}
-            attract={!idle}
-            attractDelayMs={300}
-            onPress={() => nav.push('/arcade')}
-          />
+          {stages.locker ? (
+            <CeremonyWrap playing={ceremony === 'lockerUnlock'} style={styles.tile}>
+              <MenuButton
+                variant="tile"
+                label="LOCKER ROOM"
+                color={palette.makeGreen}
+                icon={<LockerIcon size={24} color={palette.makeGreen} />}
+                attract={!idle}
+                attractDelayMs={150}
+                badge={
+                  <DeltaChip
+                    amount={ceremony === 'lockerUnlock' ? 1 : 0}
+                    variant="dot"
+                    index={1}
+                    visible
+                    paused={idle}
+                  />
+                }
+                onPress={() => nav.push('/locker')}
+              />
+            </CeremonyWrap>
+          ) : (
+            <LockedTile style={styles.tile} label="LOCKER ROOM" reason="FINISH A RUN" />
+          )}
+          {stages.arcade ? (
+            <CeremonyWrap playing={ceremony === 'arcadeUnlock'} style={styles.tile}>
+              <MenuButton
+                variant="tile"
+                label="ARCADE"
+                color={palette.flame}
+                icon={<JoystickIcon size={24} color={palette.flame} />}
+                attract={!idle}
+                attractDelayMs={300}
+                badge={
+                  <DeltaChip
+                    amount={ceremony === 'arcadeUnlock' ? 1 : 0}
+                    variant="dot"
+                    index={1}
+                    visible
+                    paused={idle}
+                  />
+                }
+                onPress={() => nav.push('/arcade')}
+              />
+            </CeremonyWrap>
+          ) : (
+            <LockedTile
+              style={styles.tile}
+              label="ARCADE"
+              reason={`SCOUT AT ${ARCADE_UNLOCK_COINS}c`}
+            />
+          )}
         </View>
         <View style={styles.tileRow}>
           <MenuButton
@@ -386,24 +497,31 @@ export default function HomeScreen() {
             }
             onPress={() => nav.push('/roster')}
           />
-          <MenuButton
-            variant="tile"
-            style={styles.tile}
-            label="HALL OF FAME"
-            color={palette.gold}
-            icon={<CrownIcon size={24} color={palette.gold} />}
-            // A dot, not a number: "something new on the shelf" is the message.
-            badge={
-              <DeltaChip
-                amount={deltas.crests}
-                variant="dot"
-                index={2}
-                visible={revealed}
-                paused={idle}
+          {/* Hidden until the first banner hangs: an empty trophy case is a dead
+              end that teaches nothing (locked-visible is reserved for features
+              with a stated path in). ROSTER stretches to fill the row alone. */}
+          {stages.hallOfFame ? (
+            <CeremonyWrap playing={ceremony === 'hofUnlock'} style={styles.tile}>
+              <MenuButton
+                variant="tile"
+                label="HALL OF FAME"
+                color={palette.gold}
+                icon={<CrownIcon size={24} color={palette.gold} />}
+                // A dot, not a number: "something new on the shelf" is the message.
+                // On the unlock focus the ceremony dot takes the single badge slot.
+                badge={
+                  <DeltaChip
+                    amount={ceremony === 'hofUnlock' ? 1 : deltas.crests}
+                    variant="dot"
+                    index={2}
+                    visible={ceremony === 'hofUnlock' || revealed}
+                    paused={idle}
+                  />
+                }
+                onPress={() => nav.push('/hall-of-fame')}
               />
-            }
-            onPress={() => nav.push('/hall-of-fame')}
-          />
+            </CeremonyWrap>
+          ) : null}
         </View>
       </View>
     </Screen>
@@ -414,6 +532,9 @@ const styles = StyleSheet.create({
   // Sized to fit a whole phone viewport with no scrolling, down to an iPhone SE
   // in the tallest state (saved run + perks + nudge). Spare height on big phones
   // centers the column; the Screen scroll shell stays on only as a safety valve.
+  // The teach unfolding can never exceed that worst case: locked tiles swap icon
+  // size for a reason sublabel inside the same tile minHeight (zero delta), and
+  // new-player states only ever HIDE elements (coach row, DailyPanel, HoF tile).
   container: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -597,6 +718,7 @@ const styles = StyleSheet.create({
     marginTop: space(1),
     gap: space(2),
   },
+  dailyWrap: { alignSelf: 'stretch' },
   tileRow: {
     flexDirection: 'row',
     gap: space(2),
