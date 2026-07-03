@@ -77,6 +77,32 @@ describe('active-run serialize/deserialize', () => {
     ).toBeUndefined();
   });
 
+  it('strips the pregame pendingGame sim blob on serialize and on deserialize', () => {
+    const model = snapshot();
+    const game = {
+      opponentName: 'X',
+      result: {} as never,
+      home: {} as never,
+      away: {} as never,
+    };
+    const pending: RunModel = {
+      ...model,
+      phase: {
+        kind: 'pregame',
+        nodeId: model.core.map.bossNodeId,
+        pendingGame: { key: 'k', game },
+      },
+    };
+    // Serialize drops it (mirroring the game-blob strip), so every pregame auto-save's
+    // stringify stays small; a resumed pregame recomputes the sim in idle.
+    expect(serializeActiveRun(pending).data.phase).not.toHaveProperty('pendingGame');
+    // Deserialize also drops one from a hand-built (older or foreign) blob.
+    const raw = throughStorage({ version: ACTIVE_RUN_VERSION, data: pending });
+    const restored = deserializeActiveRun(raw);
+    expect(restored?.phase.kind).toBe('pregame');
+    expect(restored?.phase).not.toHaveProperty('pendingGame');
+  });
+
   it('recomputes mods from difficulty (ignores any stale persisted mods)', () => {
     const model = snapshot();
     const raw = throughStorage(serializeActiveRun(model)) as { data: { mods: unknown } };

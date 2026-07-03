@@ -27,6 +27,8 @@ import {
   buildOpponentTeam,
   coachReorderRoster,
   computeCoachRec,
+  computeGameSim,
+  gameSimKey,
   pendingWinRewards,
   steppingInSubs,
   TOTAL_MAPS,
@@ -1358,6 +1360,101 @@ describe('coaches in a run', () => {
       summary: 'late',
     };
     expect(runReducer(back, { type: 'setCoachRec', nodeId: bossId, rec })).toBe(back);
+  });
+
+  it('the TIP OFF tap defers the sim; computeGameSim + setGameSim land it once', () => {
+    const m = atMap('sim-async');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    expect(pregame.phase.kind === 'pregame' && pregame.phase.pendingGame).toBeUndefined();
+    const key = gameSimKey(pregame, bossId);
+    const game = computeGameSim(pregame, bossId);
+    const landed = runReducer(pregame, { type: 'setGameSim', nodeId: bossId, key, game })!;
+    expect(landed.phase.kind === 'pregame' && landed.phase.pendingGame?.game).toBe(game);
+    // A duplicate landing is dropped without a model change.
+    expect(runReducer(landed, { type: 'setGameSim', nodeId: bossId, key, game })).toBe(landed);
+    // The determinism pin the whole design rests on: entering the game through the
+    // cached sentinel is byte-identical to entering it through the sync fallback.
+    const viaSentinel = runReducer(landed, { type: 'enterGame' })!;
+    const viaFallback = runReducer(pregame, { type: 'enterGame' })!;
+    expect(viaSentinel.game).toEqual(viaFallback.game);
+    expect(viaSentinel.phase).toEqual(viaFallback.phase);
+  });
+
+  it('setGameSim refuses a result for another node, phase, or stale inputs', () => {
+    const m = atMap('sim-stale');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    const key = gameSimKey(pregame, bossId);
+    const game = computeGameSim(pregame, bossId);
+    expect(runReducer(m, { type: 'setGameSim', nodeId: bossId, key, game })).toBe(m); // map phase
+    expect(runReducer(pregame, { type: 'setGameSim', nodeId: 'not-this-node', key, game })).toBe(
+      pregame
+    );
+    // A key computed against different sim inputs (here: a replay's forgivenLosses)
+    // fails the land-time re-derivation and is refused.
+    const staleKey = gameSimKey({ ...pregame, forgivenLosses: pregame.forgivenLosses + 1 }, bossId);
+    expect(runReducer(pregame, { type: 'setGameSim', nodeId: bossId, key: staleKey, game })).toBe(
+      pregame
+    );
+  });
+
+  it('enterGame recomputes fresh when the cached sim no longer matches', () => {
+    const m = atMap('sim-refresh');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    if (pregame.phase.kind !== 'pregame') throw new Error('expected pregame');
+    const game = computeGameSim(pregame, bossId);
+    // Force a stale cache on (a defensive state no reducer path produces, since
+    // setGameSim re-keys at land time): enterGame must ignore it and re-sim.
+    const stale: RunModel = {
+      ...pregame,
+      phase: { ...pregame.phase, pendingGame: { key: 'stale-inputs', game } },
+    };
+    const entered = runReducer(stale, { type: 'enterGame' })!;
+    const fresh = runReducer(pregame, { type: 'enterGame' })!;
+    expect(entered.game).toEqual(fresh.game);
+  });
+
+  it('gameSimKey moves with every keyed sim input and holds across a scout landing', () => {
+    const m = atMap('sim-key');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    const key = gameSimKey(pregame, bossId);
+    // Replay salt, win counters, and roster order all move the key.
+    expect(gameSimKey({ ...pregame, forgivenLosses: 1 }, bossId)).not.toBe(key);
+    expect(gameSimKey({ ...pregame, wins: pregame.wins + 1 }, bossId)).not.toBe(key);
+    const reversed = {
+      ...pregame,
+      core: {
+        ...pregame.core,
+        roster: {
+          starters: [...pregame.core.roster.starters].reverse(),
+          bench: pregame.core.roster.bench,
+        },
+      },
+    };
+    expect(gameSimKey(reversed, bossId)).not.toBe(key);
+    // A phase-only dispatch (the coach scout landing) leaves the key untouched.
+    const scouted = runReducer(pregame, { type: 'setCoachRec', nodeId: bossId, rec: null })!;
+    expect(gameSimKey(scouted, bossId)).toBe(key);
+  });
+
+  it('opening the lineup builder or bag strips the cached sim from the captured pregame', () => {
+    const m = atMap('sim-capture');
+    const bossId = m.core.map.bossNodeId;
+    const pregame = runReducer(m, { type: 'chooseNode', nodeId: bossId })!;
+    const key = gameSimKey(pregame, bossId);
+    const game = computeGameSim(pregame, bossId);
+    const landed = runReducer(pregame, { type: 'setGameSim', nodeId: bossId, key, game })!;
+    // The sub-flows edit the exact inputs the key covers, and their phases are
+    // auto-saved: the captured returnTo must not carry the SimResult blob.
+    const lineup = runReducer(landed, { type: 'openLineupBuilder' })!;
+    expect(lineup.phase.kind === 'lineup' && lineup.phase.returnTo).not.toHaveProperty(
+      'pendingGame'
+    );
+    const bag = runReducer(landed, { type: 'openBag' })!;
+    expect(bag.phase.kind === 'bag' && bag.phase.returnTo).not.toHaveProperty('pendingGame');
   });
 
   it('coachReorderRoster slots a position-scrambled lineup back into PG..C order', () => {

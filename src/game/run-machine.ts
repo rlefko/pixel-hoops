@@ -122,7 +122,16 @@ export type RunPhase =
   // matchup. Sentinel semantics keep the async compute (see computeCoachRec) honest:
   // `undefined` = not computed yet (useRun schedules the search off the tap), `null` =
   // resolved with nothing to show (below the bar, accepted, edited, or a replay).
-  | { kind: 'pregame'; nodeId: string; timeoutUsed?: boolean; coachRec?: CoachRec | null }
+  // `pendingGame` is the game sim precomputed during the pregame idle (see
+  // computeGameSim), keyed so enterGame consumes it only while its inputs still hold;
+  // absent = not landed yet (the TIP OFF tap falls back to the identical sync sim).
+  | {
+      kind: 'pregame';
+      nodeId: string;
+      timeoutUsed?: boolean;
+      coachRec?: CoachRec | null;
+      pendingGame?: { key: string; game: ActiveGame };
+    }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
   | { kind: 'recruit'; nodeId: string; offers: RosterPlayer[]; rerolled: boolean[] }
@@ -211,12 +220,16 @@ export interface RunModel {
    * persistent legendary-PLAYER pity in legend.dryStreak. */
   boostPity: number;
   /** Active game context, set on enterGame and read in game/postgame. */
-  game: {
-    opponentName: string;
-    result: SimResult;
-    home: Team;
-    away: Team;
-  } | null;
+  game: ActiveGame | null;
+}
+
+/** The full simulated game context: the timeline plus both built Teams. Large and
+ * fully re-derivable from the seed, so it is never persisted (see active-run.ts). */
+export interface ActiveGame {
+  opponentName: string;
+  result: SimResult;
+  home: Team;
+  away: Team;
 }
 
 export type RunAction =
@@ -232,6 +245,9 @@ export type RunAction =
   // Lands the asynchronously computed coach suggestion on its pregame (see
   // computeCoachRec); `rec: null` records "nothing worth surfacing" so it computes once.
   | { type: 'setCoachRec'; nodeId: string; rec: CoachRec | null }
+  // Lands the asynchronously precomputed game sim on its pregame (see computeGameSim);
+  // guarded like setCoachRec so a stale result can never enter a changed matchup.
+  | { type: 'setGameSim'; nodeId: string; key: string; game: ActiveGame }
   | { type: 'enterGame' }
   | { type: 'finishReplay' }
   | { type: 'resolveGameResult' }
@@ -674,6 +690,66 @@ export function computeCoachRec(model: RunModel, nodeId: string): CoachRec | nul
 }
 
 /**
+ * The full game sim for a combat node, extracted from enterGame so useRun can run it
+ * during the pregame idle (the sim is the app's largest synchronous JS block, so the
+ * reducer must not run it on the TIP OFF tap). Pure and deterministic from the model:
+ * seeded opponent, seed salted by forgivenLosses exactly as before, so a precomputed
+ * and a tap-time sim of the same inputs are byte-identical.
+ */
+export function computeGameSim(model: RunModel, nodeId: string): ActiveGame {
+  const home = buildHomeTeam(model);
+  const away = buildOpponentTeam(model.core, nodeId, model.mods);
+  // Salt the seed with timeouts spent so a replayed game (after a forgiven loss)
+  // is a fresh roll, not a deterministic repeat. The opponent (opp-${nodeId}) is
+  // unchanged, so it is the same five, re-contested.
+  const result = simulateGame({
+    home,
+    away,
+    seed: deriveSeed(model.core.seed, `game-${nodeId}-${model.forgivenLosses}`),
+    homeRotation: rotationForCoach(getCoach(model.coachId)),
+    awayRotation: rotationForCoach(coachForTeamName(away.name)),
+  });
+  return { opponentName: away.name, result, home, away };
+}
+
+/**
+ * The identity of every sim input that can move within an unbroken pregame, so a
+ * precomputed sim is consumed only while it still matches. Reachable actions during a
+ * pregame are setLineup / acceptCoachRec (roster membership + slot order) and the
+ * lineup->bag item flow equipFromBag / unequipToBag (held items); seed, coachId, mods,
+ * mapIndex, difficulty, ladderClass, and training are all frozen while the pregame is
+ * open, and forgivenLosses / wins / boosts are included defensively for replay
+ * pregames. ANY future action that mutates a sim input mid-pregame must extend this
+ * key (standing invariant, pinned by the stale-key test in run.test.ts).
+ */
+export function gameSimKey(model: RunModel, nodeId: string): string {
+  const k = (rp: RosterPlayer): string =>
+    `${nameKey(rp.player.name, rp.position)}:${rp.item?.defId ?? ''}:${rp.gamesOut ?? 0}`;
+  return [
+    nodeId,
+    `f${model.forgivenLosses}`,
+    `w${model.wins}`,
+    `b${model.boosts.map((b) => b.id).join('+')}`,
+    ...model.core.roster.starters.map(k),
+    '/',
+    ...model.core.roster.bench.map(k),
+  ].join('|');
+}
+
+/**
+ * A phase captured into `returnTo` (lineup builder, bag): a pregame drops its
+ * pendingGame first. The sub-flow edits the exact inputs the key covers, so the
+ * cached sim would be discarded on return anyway, and lineup/bag phases ARE
+ * auto-saved: carrying the blob would put a full SimResult into every one of those
+ * saves' JSON.stringify (the same rationale as active-run's `game: null` strip).
+ */
+function capturedPhase(phase: RunPhase): RunPhase {
+  if (phase.kind !== 'pregame' || !phase.pendingGame) return phase;
+  const { pendingGame: _pendingGame, ...rest } = phase;
+  return rest;
+}
+
+/**
  * After a game, recover everyone one game (decrement gamesOut) and roll fresh
  * injuries for the players who dressed. Risk rises with accumulated load and falls
  * with durability. Deterministic from the game's derived seed.
@@ -953,7 +1029,7 @@ export function runReducer(
     }
 
     case 'openLineupBuilder':
-      return { ...model, phase: { kind: 'lineup', returnTo: model.phase } };
+      return { ...model, phase: { kind: 'lineup', returnTo: capturedPhase(model.phase) } };
 
     case 'setLineup': {
       if (model.phase.kind !== 'lineup') return model;
@@ -999,26 +1075,34 @@ export function runReducer(
       return { ...model, phase: { ...model.phase, coachRec: action.rec } };
     }
 
+    case 'setGameSim': {
+      // Lands the async precomputed sim. Applies only to the pregame it was computed
+      // for and only while every keyed input still matches (the key is re-derived at
+      // land time), so a late result can never enter a changed matchup; a duplicate
+      // landing is dropped without a model change.
+      if (model.phase.kind !== 'pregame') return model;
+      if (model.phase.nodeId !== action.nodeId) return model;
+      if (model.phase.pendingGame?.key === action.key) return model;
+      if (action.key !== gameSimKey(model, action.nodeId)) return model;
+      return {
+        ...model,
+        phase: { ...model.phase, pendingGame: { key: action.key, game: action.game } },
+      };
+    }
+
     case 'enterGame': {
       if (model.phase.kind !== 'pregame') return model;
       const nodeId = model.phase.nodeId;
-      const home = buildHomeTeam(model);
-      const away = buildOpponentTeam(model.core, nodeId, model.mods);
-      // Salt the seed with timeouts spent so a replayed game (after a forgiven loss)
-      // is a fresh roll, not a deterministic repeat. The opponent (opp-${nodeId}) is
-      // unchanged, so it is the same five, re-contested.
-      const result = simulateGame({
-        home,
-        away,
-        seed: deriveSeed(model.core.seed, `game-${nodeId}-${model.forgivenLosses}`),
-        homeRotation: rotationForCoach(getCoach(model.coachId)),
-        awayRotation: rotationForCoach(coachForTeamName(away.name)),
-      });
-      return {
-        ...model,
-        phase: { kind: 'game', nodeId },
-        game: { opponentName: away.name, result, home, away },
-      };
+      // Consume the idle-precomputed sim when its inputs still hold; otherwise fall
+      // back to the identical synchronous sim (a tap that outraces the idle task).
+      // Both paths are the same pure function of the same inputs, so the choice is
+      // invisible to determinism and to every downstream consumer.
+      const cached = model.phase.pendingGame;
+      const game =
+        cached && cached.key === gameSimKey(model, nodeId)
+          ? cached.game
+          : computeGameSim(model, nodeId);
+      return { ...model, phase: { kind: 'game', nodeId }, game };
     }
 
     case 'finishReplay': {
@@ -1323,7 +1407,7 @@ export function runReducer(
     case 'openBag':
       return model.phase.kind === 'bag'
         ? model
-        : { ...model, phase: { kind: 'bag', returnTo: model.phase } };
+        : { ...model, phase: { kind: 'bag', returnTo: capturedPhase(model.phase) } };
 
     case 'leaveBag':
       return model.phase.kind === 'bag' ? { ...model, phase: model.phase.returnTo } : model;

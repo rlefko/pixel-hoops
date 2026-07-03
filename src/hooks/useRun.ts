@@ -1,7 +1,7 @@
 import { useReducer, useEffect, useMemo, useRef } from 'react';
 import { InteractionManager } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
-import { runReducer, computeCoachRec } from '@/game/run-machine';
+import { runReducer, computeCoachRec, computeGameSim, gameSimKey } from '@/game/run-machine';
 import { withSlowActionWarning } from '@/game/dev-timing';
 import {
   mergeRunGainsIntoHome,
@@ -114,6 +114,25 @@ export function useRun() {
     const { nodeId } = model.phase;
     const task = InteractionManager.runAfterInteractions(() => {
       dispatch({ type: 'setCoachRec', nodeId, rec: computeCoachRec(model, nodeId) });
+    });
+    return () => task.cancel();
+  }, [model]);
+
+  // Precompute the game sim during the pregame idle, so the TIP OFF tap's enterGame
+  // is an O(1) phase flip instead of the app's largest synchronous JS block. Gated on
+  // the coach scout having resolved: the banner is the player-visible beat (it must
+  // win the idle queue), and its accept/edit window is where the roster churns, so
+  // waiting also keeps normal play at exactly one sim per pregame instead of
+  // rescheduling on every lineup fiddle. The reducer re-derives the key at land time
+  // (setGameSim) and at consumption (enterGame), so a stale sim is dropped and a tap
+  // that outraces this task simply pays today's sync sim.
+  useEffect(() => {
+    if (!model || model.phase.kind !== 'pregame' || model.phase.coachRec === undefined) return;
+    const { nodeId } = model.phase;
+    const key = gameSimKey(model, nodeId);
+    if (model.phase.pendingGame?.key === key) return;
+    const task = InteractionManager.runAfterInteractions(() => {
+      dispatch({ type: 'setGameSim', nodeId, key, game: computeGameSim(model, nodeId) });
     });
     return () => task.cancel();
   }, [model]);
