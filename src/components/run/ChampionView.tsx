@@ -134,7 +134,9 @@ export function ChampionView({
         }, UNLOCK_DELAY_MS)
       );
     };
-    if (waitForReveal) void waitForReveal().then(begin);
+    // A rejected reveal degrades to mount-time beats: the celebration is
+    // information and must fire even if the ceremony promise errored.
+    if (waitForReveal) void waitForReveal().then(begin, begin);
     else begin();
     return () => {
       cancelled = true;

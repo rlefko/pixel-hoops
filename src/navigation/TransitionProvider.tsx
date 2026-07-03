@@ -14,12 +14,14 @@ import { formatSlowTransition, type TransitionMarks } from './transition-timing'
  *  (capped) until it resolves, so a multi-commit cascade (the auto-skipped
  *  championship) reveals its real destination, not a mid-cascade placeholder.
  *  The returned promise resolves when the reveal completes, so the destination
- *  can anchor its celebration beats to the moment it is actually visible. */
+ *  can anchor its celebration beats to the moment it is actually visible; null
+ *  means the ceremony never started (rejected by the in-flight guard), so the
+ *  caller keeps waiting on the ceremony that IS running. */
 export interface ArcadeRouter {
   push: (href: Href, variant?: WipeVariant) => void;
   replace: (href: Href, variant?: WipeVariant) => void;
   back: (variant?: WipeVariant) => void;
-  ceremony: (config: WipeConfig, action: () => void | Promise<void>) => Promise<void>;
+  ceremony: (config: WipeConfig, action: () => void | Promise<void>) => Promise<void> | null;
 }
 
 export const TransitionContext = createContext<ArcadeRouter | null>(null);
@@ -119,14 +121,24 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
   // before any re-render, and a stray throw can never strand navigation.
   const transitioning = useRef(false);
 
+  // Returns the full-transition promise (resolves once the reveal completes), or
+  // null when the navigation never started: the overlay-missing fallback fires the
+  // action bare, and the transitioning guard rejects a double-tap. The null is
+  // load-bearing for `ceremony` consumers: a rejected double-tap must NOT hand back
+  // an already-resolved promise, or a celebration anchored to "the reveal" would
+  // fire under the first ceremony's still-held cover.
   const run = useCallback(
-    async (action: () => void | Promise<void>, config: WipeConfig, label: string) => {
+    (
+      action: () => void | Promise<void>,
+      config: WipeConfig,
+      label: string
+    ): Promise<void> | null => {
       const wipe = wipeRef.current;
       if (!wipe) {
         void action(); // overlay not mounted yet: never strand the navigation
-        return;
+        return null;
       }
-      if (transitioning.current) return;
+      if (transitioning.current) return null;
       transitioning.current = true;
       // Dev-only dwell tracer (see transition-timing.ts). Marks exist only on this
       // full path, so the !wipe fallback and rejected double-taps never log garbage.
@@ -134,27 +146,29 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
         ? { coverStart: performance.now(), covered: 0, actionDone: 0, held: 0, painted: 0, revealed: 0 }
         : null;
       sfx.whoosh(config.direction); // sweep matches the wipe direction (forward vs return)
-      try {
-        await wipe.cover(config); // screen now fully covered
-        if (marks) marks.covered = performance.now();
-        const settled = action(); // the real router nav, invisible behind the cover
-        if (marks) marks.actionDone = performance.now();
-        // A ceremony may declare "not settled yet": hold the (capped) cover through
-        // its cascade so the reveal lands on the real destination. Plain navigations
-        // return undefined and skip straight through.
-        if (settled && typeof settled.then === 'function') await holdUntilSettled(settled);
-        if (marks) marks.held = performance.now();
-        await afterCommit(); // hold the cover until the destination's commit paints
-        if (marks) marks.painted = performance.now();
-        await wipe.reveal(config); // new screen mosaics in
-        if (marks) {
-          marks.revealed = performance.now();
-          const msg = formatSlowTransition(label, marks);
-          if (msg) console.warn(msg);
+      return (async () => {
+        try {
+          await wipe.cover(config); // screen now fully covered
+          if (marks) marks.covered = performance.now();
+          const settled = action(); // the real router nav, invisible behind the cover
+          if (marks) marks.actionDone = performance.now();
+          // A ceremony may declare "not settled yet": hold the (capped) cover through
+          // its cascade so the reveal lands on the real destination. Plain navigations
+          // return undefined and skip straight through.
+          if (settled && typeof settled.then === 'function') await holdUntilSettled(settled);
+          if (marks) marks.held = performance.now();
+          await afterCommit(); // hold the cover until the destination's commit paints
+          if (marks) marks.painted = performance.now();
+          await wipe.reveal(config); // new screen mosaics in
+          if (marks) {
+            marks.revealed = performance.now();
+            const msg = formatSlowTransition(label, marks);
+            if (msg) console.warn(msg);
+          }
+        } finally {
+          transitioning.current = false;
         }
-      } finally {
-        transitioning.current = false;
-      }
+      })();
     },
     []
   );

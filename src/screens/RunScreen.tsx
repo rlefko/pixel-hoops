@@ -121,10 +121,11 @@ export default function RunScreen() {
   }, []);
 
   // The ceremony's "destination settled" signal for an auto-skipped stakes game: the
-  // tip-off wipe covers enterGame, but with skip on the real destination (summary on a
-  // win, the full postgame on a loss) lands one AutoAdvance commit later. Waiters
-  // registered at the tip-off resolve when the phase leaves 'game', so the cover holds
-  // to the commit the player will actually see instead of the FINAL... placeholder.
+  // tip-off wipe covers enterGame, but with skip on the real destination (the map
+  // advance or summary on a win, the full postgame on a loss) lands one AutoAdvance
+  // commit later. Waiters registered at the tip-off resolve when the phase leaves
+  // 'game', so the cover holds to the commit the player will actually see instead of
+  // the FINAL... placeholder.
   // Flush-on-unmount keeps an abandoned run from ever stranding the cover (the
   // provider's cap is the last-resort backstop, not the design).
   const settleWaitersRef = useRef<Array<() => void>>([]);
@@ -148,10 +149,14 @@ export default function RunScreen() {
   // The latest ceremony's full run (cover -> settle -> reveal), so the champion
   // celebration can anchor its beats to the reveal actually completing. Resolved (or
   // absent) for every non-ceremony path, where the summary arrives from a plain tap.
+  // A double-tap rejected by the provider's in-flight guard returns null and must
+  // NOT replace the ref: overwriting with a resolved promise would fire the
+  // celebration under the first ceremony's still-held cover.
   const ceremonyRevealedRef = useRef<Promise<void> | null>(null);
   const runCeremony = useCallback(
     (config: WipeConfig, action: () => void | Promise<void>) => {
-      ceremonyRevealedRef.current = nav.ceremony(config, action);
+      const started = nav.ceremony(config, action);
+      if (started) ceremonyRevealedRef.current = started;
     },
     [nav]
   );
@@ -298,11 +303,20 @@ export default function RunScreen() {
         />
       );
     case 'postgame':
-      // A won postgame is unreachable with auto-skip on (skipToResult never lands on
-      // one, the auto-save skips game/postgame so no resume enters them, and settings
-      // cannot change mid-run), so this phase always shows the full result: on a
-      // loss/timeout the "RUN IT BACK" decision is kept, skip or no skip.
-      return <Postgame model={model} onContinue={actions.resolveGameResult} />;
+      // A won postgame is unreachable with auto-skip on: skipToResult never lands on
+      // one, the auto-save skips game/postgame so no resume enters them, and the
+      // auto-skip toggle is only reachable from the map phase (RunSettingsModal) or
+      // outside the run, never from game/postgame. So this phase always shows the
+      // full result: on a loss/timeout the "RUN IT BACK" decision is kept, skip or no
+      // skip. The reveal anchor covers the auto-skipped stakes loss, whose postgame
+      // commits behind the still-held tip-off cover.
+      return (
+        <Postgame
+          model={model}
+          onContinue={actions.resolveGameResult}
+          waitForReveal={waitForCeremonyReveal}
+        />
+      );
     case 'recruit':
       return (
         <RecruitView
@@ -680,25 +694,47 @@ function AutoAdvance({ onAdvance }: { onAdvance: () => void }) {
 function Postgame({
   model,
   onContinue,
+  waitForReveal,
 }: {
   model: RunModel;
   onContinue: () => void;
+  /** Same contract as ChampionView's: on an auto-skipped stakes LOSS this view
+   * commits behind the still-held tip-off cover, so the result beats (headline
+   * pop, sting, score climb, payout tally) anchor to the ceremony reveal
+   * completing instead of firing half-hidden under the mosaic. Already resolved
+   * on every plain-tap path, where the beats land on mount as before. */
+  waitForReveal?: () => Promise<void>;
 }) {
   // Default open so the box score is right there after a game; still collapsible
   // to put the win/loss headline and the retry one tap away.
   const [showBox, setShowBox] = useState(true);
-  // Count the final score up from zero once on mount (Counter only tweens on a change).
+  // The single gate every result beat hangs off (see waitForReveal above). A
+  // rejected reveal degrades to mount-time beats rather than no beats.
+  const [revealed, setRevealed] = useState(!waitForReveal);
+  useEffect(() => {
+    if (!waitForReveal) return;
+    let cancelled = false;
+    const done = () => {
+      if (!cancelled) setRevealed(true);
+    };
+    waitForReveal().then(done, done);
+    return () => {
+      cancelled = true;
+    };
+  }, [waitForReveal]);
+  // Count the final score up from zero once revealed (Counter only tweens on a change).
   const [settled, setSettled] = useState(false);
   useEffect(() => {
-    setSettled(true);
-  }, []);
+    if (revealed) setSettled(true);
+  }, [revealed]);
   // The win's payout lands as its own beat AFTER the score settles: the coin
   // tally pops in and counts up with ticks, so every win visibly pays.
   const [showEarned, setShowEarned] = useState(false);
   useEffect(() => {
+    if (!revealed) return;
     const timer = setTimeout(() => setShowEarned(true), 700);
     return () => clearTimeout(timer);
-  }, []);
+  }, [revealed]);
   // Economy juice: the earned coins arc from the final score into the tally.
   // Decoration only: launched 120ms in so the last coin lands exactly at the
   // 700ms tally reveal (see CoinFly's timing contract; the showEarned timer
@@ -709,23 +745,23 @@ function Postgame({
   const [flyTrigger, setFlyTrigger] = useState(0);
   const postgameWon = model.phase.kind === 'postgame' && model.phase.won;
   useEffect(() => {
-    if (!postgameWon) return;
+    if (!postgameWon || !revealed) return;
     const timer = setTimeout(() => setFlyTrigger(1), 120);
     return () => clearTimeout(timer);
-  }, [postgameWon]);
+  }, [postgameWon, revealed]);
 
-  // Result sting once on mount (Postgame remounts per postgame phase, so the ref resets
-  // between games; the guard only blocks a dev strict-mode double-invoke). A forgivable
-  // timeout invites a replay, so it gets no defeat tone.
+  // Result sting once per postgame (Postgame remounts per postgame phase, so the ref
+  // resets between games; the guard only blocks a dev strict-mode double-invoke). A
+  // forgivable timeout invites a replay, so it gets no defeat tone.
   const stingRef = useRef(false);
   const phase = model.phase;
   const chances = model.secondChancesRemaining;
   useEffect(() => {
-    if (stingRef.current || phase.kind !== 'postgame') return;
+    if (!revealed || stingRef.current || phase.kind !== 'postgame') return;
     stingRef.current = true;
     if (phase.won) sfx.win();
     else if (chances <= 0) sfx.loss();
-  }, [phase, chances]);
+  }, [revealed, phase, chances]);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
   const earned = pendingWinRewards(model);
@@ -747,7 +783,8 @@ function Postgame({
   return (
     <Screen style={styles.postgame} bottomGap={space(6)}>
       <View style={styles.postgameHeadline}>
-        <Pop popOnMount>
+        {/* Pops when the reveal gate opens (immediately on plain-tap paths). */}
+        <Pop trigger={revealed}>
           <Text style={[styles.result, { color: headlineColor }]}>
             {headline}
           </Text>
