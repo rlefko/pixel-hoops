@@ -231,15 +231,11 @@ export function useRun() {
       if (champion) {
         if (settleScheduledRef.current === runId) return;
         settleScheduledRef.current = runId;
-        // No cleanup-cancel: leaving the summary fast must never skip a settle
-        // (landSettle + ensureSettled keep a late task idempotent).
-        InteractionManager.runAfterInteractions(() => {
-          const m = modelRef.current;
-          const home = homeRosterRef.current;
-          if (!m || !home || String(m.core.seed) !== runId) return;
-          if (home.settledRunId === runId || settledRef.current?.runId === runId) return;
-          landSettle(runId, settleRunIntoHome(home, m, Date.now()));
-        });
+        // No cleanup-cancel: leaving the summary fast must never skip a settle.
+        // ensureSettled carries every idempotence guard (live refs, still-a-summary,
+        // settledRef, persisted settledRunId), so a late task is a no-op when a tap
+        // already landed it, and a model that left this run's summary settles nothing.
+        InteractionManager.runAfterInteractions(() => void ensureSettled());
       } else {
         landSettle(runId, settleRunIntoHome(homeRoster, model, Date.now()));
       }
@@ -258,7 +254,7 @@ export function useRun() {
       lastBankedRunId: runId,
       lastBankedCoins: earned,
     });
-  }, [model, homeRoster, saveHomeRoster, landSettle]);
+  }, [model, homeRoster, saveHomeRoster, landSettle, ensureSettled]);
 
   // Dispatch-only actions, memoized once: dispatch from useReducer is identity-stable,
   // so these callbacks never change and memoized children (the run-map tiles) keep

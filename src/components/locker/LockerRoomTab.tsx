@@ -282,7 +282,8 @@ export function LockerRoomTab() {
   // Resolve the frozen order back onto the live roster. Indices stay valid because a
   // membership change bumps rosterSignature and re-derives orderedIndices; the guard
   // covers any momentary mismatch. Memoized so only saves and re-orders rebuild it
-  // (an upgrade replaces the players array, so its rows resolve fresh stat objects).
+  // (an upgrade replaces the players array, so the tapped row resolves its fresh
+  // player object while untouched rows keep identity for the memo bail).
   const shown = useMemo(
     () =>
       homeRoster
