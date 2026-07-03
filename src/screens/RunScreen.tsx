@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useArcadeRouter } from '@/navigation';
-import { useFeelSettings, sfx, playMusicContext, setGameEnergy } from '@/feel';
+import { useFeelSettings, sfx, playMusicContext, setGameEnergy, type WipeConfig } from '@/feel';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { CoinFly, Pop, Counter, TickCounter } from '@/components/fx';
@@ -120,6 +120,46 @@ export default function RunScreen() {
     };
   }, []);
 
+  // The ceremony's "destination settled" signal for an auto-skipped stakes game: the
+  // tip-off wipe covers enterGame, but with skip on the real destination (summary on a
+  // win, the full postgame on a loss) lands one AutoAdvance commit later. Waiters
+  // registered at the tip-off resolve when the phase leaves 'game', so the cover holds
+  // to the commit the player will actually see instead of the FINAL... placeholder.
+  // Flush-on-unmount keeps an abandoned run from ever stranding the cover (the
+  // provider's cap is the last-resort backstop, not the design).
+  const settleWaitersRef = useRef<Array<() => void>>([]);
+  useEffect(() => {
+    if (!phaseKind || phaseKind === 'game') return;
+    const waiters = settleWaitersRef.current;
+    settleWaitersRef.current = [];
+    for (const resolve of waiters) resolve();
+  }, [phaseKind]);
+  useEffect(
+    () => () => {
+      for (const resolve of settleWaitersRef.current) resolve();
+      settleWaitersRef.current = [];
+    },
+    []
+  );
+  const waitForGameSettled = useCallback(
+    () => new Promise<void>((resolve) => settleWaitersRef.current.push(resolve)),
+    []
+  );
+  // The latest ceremony's full run (cover -> settle -> reveal), so the champion
+  // celebration can anchor its beats to the reveal actually completing. Resolved (or
+  // absent) for every non-ceremony path, where the summary arrives from a plain tap.
+  const ceremonyRevealedRef = useRef<Promise<void> | null>(null);
+  const runCeremony = useCallback(
+    (config: WipeConfig, action: () => void | Promise<void>) => {
+      ceremonyRevealedRef.current = nav.ceremony(config, action);
+    },
+    [nav]
+  );
+  const waitForCeremonyReveal = useCallback(
+    () => ceremonyRevealedRef.current ?? Promise.resolve(),
+    []
+  );
+
   if (!loaded || !model) {
     return (
       <View style={styles.center}>
@@ -228,14 +268,22 @@ export default function RunScreen() {
         />
       );
     case 'pregame':
-      return <Pregame model={model} actions={actions} />;
+      return (
+        <Pregame
+          model={model}
+          actions={actions}
+          onCeremony={runCeremony}
+          awaitSkipSettled={autoSkipGames ? waitForGameSettled : undefined}
+        />
+      );
     case 'game':
       if (!model.game) return null;
-      // Auto-skip jumps past the watched play-by-play straight to the result.
+      // Auto-skip jumps past the watched play-by-play straight to the result:
+      // skipToResult composes finishReplay + resolveGameResult in ONE dispatch, so a
+      // skipped win costs one commit (game -> map/summary) instead of parading a
+      // second AutoAdvance through postgame. A loss stops at postgame below.
       return autoSkipGames ? (
-        // Distinct key from the postgame AutoAdvance (see its definition): without it
-        // React reuses one instance across game -> postgame and the run freezes.
-        <AutoAdvance key="advance-from-game" onAdvance={actions.finishReplay} />
+        <AutoAdvance key="advance-from-game" onAdvance={actions.skipToResult} />
       ) : (
         <PlayByPlayFeed
           timeline={model.game.result.events}
@@ -250,16 +298,10 @@ export default function RunScreen() {
         />
       );
     case 'postgame':
-      // With auto-skip, a win heads straight back to the map (no box-score flash); a
-      // loss/timeout still shows the full result so the "RUN IT BACK" decision is kept.
-      if (autoSkipGames && model.phase.won) {
-        return (
-          <AutoAdvance
-            key="advance-from-postgame"
-            onAdvance={actions.resolveGameResult}
-          />
-        );
-      }
+      // A won postgame is unreachable with auto-skip on (skipToResult never lands on
+      // one, the auto-save skips game/postgame so no resume enters them, and settings
+      // cannot change mid-run), so this phase always shows the full result: on a
+      // loss/timeout the "RUN IT BACK" decision is kept, skip or no skip.
       return <Postgame model={model} onContinue={actions.resolveGameResult} />;
     case 'recruit':
       return (
@@ -406,6 +448,7 @@ export default function RunScreen() {
             coinsBanked={model.core.rewards.coins}
             stepUp={stepUp}
             dailyGrants={dailyGrants}
+            waitForReveal={waitForCeremonyReveal}
             onNewRun={exitNewRun}
             onHome={exitHome}
           />
@@ -456,8 +499,21 @@ function lastEventClock(result: SimResult): string {
   return parts[parts.length - 1];
 }
 
-function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
-  const nav = useArcadeRouter();
+function Pregame({
+  model,
+  actions,
+  onCeremony,
+  awaitSkipSettled,
+}: {
+  model: RunModel;
+  actions: RunActions;
+  /** Runs the stake-themed tip-off wipe (RunScreen tracks its reveal for the
+   * champion celebration's anchoring). */
+  onCeremony: (config: WipeConfig, action: () => void | Promise<void>) => void;
+  /** With auto-skip on: the "phase left 'game'" settlement promise, so the ceremony
+   * cover holds through the skip cascade to the commit the player will actually see. */
+  awaitSkipSettled?: () => Promise<void>;
+}) {
   const [recDismissed, setRecDismissed] = useState(false);
   const nodeId = model.phase.kind === 'pregame' ? model.phase.nodeId : '';
   const timeoutUsed = model.phase.kind === 'pregame' && model.phase.timeoutUsed;
@@ -500,9 +556,14 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
   const tipOff = () => {
     sfx.tipoff();
     if (stakes) {
-      nav.ceremony(
+      onCeremony(
         { variant: 'run', color: stakes.color, label: stakes.label, direction: 'forward' },
-        actions.enterGame
+        () => {
+          actions.enterGame();
+          // With auto-skip on, enterGame is only the first commit of a cascade;
+          // returning the settlement promise holds the cover to the real destination.
+          return awaitSkipSettled?.();
+        }
       );
     } else {
       actions.enterGame();
@@ -585,13 +646,11 @@ function AutoAdvance({ onAdvance }: { onAdvance: () => void }) {
   // Fire the phase transition once on mount and show only a brief "FINAL..." beat, so
   // auto-skip never paints the watched game or the full postgame (the box score would
   // otherwise flash for a frame). The reducer's phase guard and the once-ref keep a
-  // stray re-render from double-firing.
-  //
-  // The two call sites (game -> finishReplay, postgame -> resolveGameResult) MUST pass
-  // distinct `key`s. Without them React reuses this one instance across the
-  // game -> postgame transition (same type, same position), so `firedRef` stays true and
-  // the postgame advance never fires, freezing the run on "FINAL...". Distinct keys force
-  // a fresh instance (and a fresh guard) per phase.
+  // stray re-render from double-firing. If this ever grows a second call site again,
+  // the sites MUST pass distinct `key`s: React would otherwise reuse one instance
+  // across the phase change (same type, same position), `firedRef` would stay true,
+  // and the run would freeze on "FINAL..." (learned the hard way with the old
+  // game -> postgame pair, now composed into one skipToResult dispatch).
   const firedRef = useRef(false);
   useEffect(() => {
     if (firedRef.current) return;

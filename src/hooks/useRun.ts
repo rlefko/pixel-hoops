@@ -284,6 +284,7 @@ export function useRun() {
       enterGame: () => dispatch({ type: 'enterGame' }),
       finishReplay: () => dispatch({ type: 'finishReplay' }),
       resolveGameResult: () => dispatch({ type: 'resolveGameResult' }),
+      skipToResult: () => dispatch({ type: 'skipToResult' }),
       recruit: (player: RosterPlayer) => dispatch({ type: 'recruit', player }),
       rerollRecruit: (index: number) => dispatch({ type: 'rerollRecruit', index }),
       trainPlayer: (index: number, stat: keyof PlayerStats) =>

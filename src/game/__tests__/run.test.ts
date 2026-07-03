@@ -722,6 +722,42 @@ describe('run reducer', () => {
     expect(forgiven.core.map.nodes.g1.result).toBeUndefined();
   });
 
+  it('skipToResult is the literal finishReplay + resolveGameResult composition', () => {
+    // Win path: one dispatch lands exactly where the two-step watched path lands.
+    const pre = withNode(start(), node({ id: 'g1', type: 'game', round: 1 }));
+    const game = runReducer({ ...pre, phase: { kind: 'pregame', nodeId: 'g1' } }, {
+      type: 'enterGame',
+    })!;
+    const twoStep = runReducer(runReducer(game, { type: 'finishReplay' })!, {
+      type: 'resolveGameResult',
+    })!;
+    const oneStep = runReducer(game, { type: 'skipToResult' })!;
+    if (game.game!.result.winner === 'home') {
+      expect(oneStep).toEqual(twoStep);
+    } else {
+      // Loss path: stops at postgame so the full result and RUN IT BACK are kept.
+      expect(oneStep).toEqual(runReducer(game, { type: 'finishReplay' })!);
+      expect(oneStep.phase).toEqual({ kind: 'postgame', nodeId: 'g1', won: false });
+    }
+    // Both branches are pinned regardless of this seed's outcome: force each.
+    const wonGame = {
+      ...game,
+      game: { ...game.game!, result: { ...game.game!.result, winner: 'home' as const } },
+    };
+    expect(runReducer(wonGame, { type: 'skipToResult' })).toEqual(
+      runReducer(runReducer(wonGame, { type: 'finishReplay' })!, { type: 'resolveGameResult' })
+    );
+    const lostGame = {
+      ...game,
+      game: { ...game.game!, result: { ...game.game!.result, winner: 'away' as const } },
+    };
+    expect(runReducer(lostGame, { type: 'skipToResult' })).toEqual(
+      runReducer(lostGame, { type: 'finishReplay' })
+    );
+    // And it no-ops outside the game phase.
+    expect(runReducer(pre, { type: 'skipToResult' })).toBe(pre);
+  });
+
   it('an elite win drops no gear but banks 2 training points', () => {
     const m = withNode(start(), node({ id: 'e1', type: 'elite', round: 2 }));
     const won = runReducer(

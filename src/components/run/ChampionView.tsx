@@ -46,6 +46,13 @@ interface ChampionViewProps {
   stepUp?: { label: string; perks: string; onPress: () => void };
   /** Daily Layer grants this settle paid (ledger lines, never a reveal screen). */
   dailyGrants?: DailyGrants | null;
+  /** Resolves when the tip-off ceremony's reveal has completed. With auto-skip on,
+   * this view mounts BEHIND the held ceremony cover; anchoring the celebration to
+   * the actual reveal (rather than the mount) keeps the burst/fanfare from firing
+   * half-hidden under the mosaic. Already-resolved (or absent) on plain-tap paths,
+   * where the cascade starts immediately, and under reduced motion it simply tracks
+   * the shorter fade. */
+  waitForReveal?: () => Promise<void>;
   onNewRun: () => void;
   onHome: () => void;
 }
@@ -68,6 +75,7 @@ export function ChampionView({
   coinsBanked,
   stepUp,
   dailyGrants = null,
+  waitForReveal,
   onNewRun,
   onHome,
 }: ChampionViewProps) {
@@ -88,41 +96,51 @@ export function ChampionView({
   const [haulShown, setHaulShown] = useState(false);
   const [unlockShown, setUnlockShown] = useState(false);
 
-  // Mount celebration: the tier-scaled burst now, the score climb after a beat, a
+  // Celebration cascade: the tier-scaled burst first, the score climb after a beat, a
   // second confetti pop for legends so the rarest win lands twice, then the coin
   // haul counts in, and a newly unlocked ladder lands last as its own rite-of-passage
-  // beat (whoosh + orange flash + pop) instead of a buried text line.
+  // beat (whoosh + orange flash + pop) instead of a buried text line. Anchored to the
+  // ceremony reveal completing (waitForReveal), not the mount: with auto-skip on this
+  // view commits behind the still-held tip-off cover, and celebration is information
+  // that must land visibly, not under the mosaic.
   useEffect(() => {
-    // Map the victory celebration tier onto the shared rarity-scaled burst (a
-    // championship always lands at least rare-level juice). Silence the burst's own
-    // reward sting and play the grand championship fanfare instead.
-    fire(tier.burst === 'big' ? 'legendary' : tier.burst === 'medium' ? 'epic' : 'rare', {
-      silent: true,
-    });
-    sfx.champion();
-    // The arena answers the fanfare (always a player win here; the roar never
-    // ducks, so it stacks cleanly under the championship sting).
-    sfx.crowdRoar();
-    setBurst((n) => n + 1);
-    const scoreTimer = setTimeout(() => setScoreShown(game.result.finalHome), SCORE_DELAY_MS);
-    const legendTimer = tier.legend
-      ? setTimeout(() => setBurst((n) => n + 1), LEGEND_BURST_DELAY_MS)
-      : undefined;
-    const haulTimer = setTimeout(() => setHaulShown(true), HAUL_DELAY_MS);
-    const unlockTimer = setTimeout(() => {
-      setUnlockShown(true);
-      if (!unlockedClass) return;
-      sfx.whoosh('forward');
-      flashRef.current?.flash(palette.orange, { peak: 0.2 });
-      haptics.success();
-    }, UNLOCK_DELAY_MS);
-    return () => {
-      clearTimeout(scoreTimer);
-      clearTimeout(legendTimer);
-      clearTimeout(haulTimer);
-      clearTimeout(unlockTimer);
+    let cancelled = false;
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    const begin = () => {
+      if (cancelled) return;
+      // Map the victory celebration tier onto the shared rarity-scaled burst (a
+      // championship always lands at least rare-level juice). Silence the burst's own
+      // reward sting and play the grand championship fanfare instead.
+      fire(tier.burst === 'big' ? 'legendary' : tier.burst === 'medium' ? 'epic' : 'rare', {
+        silent: true,
+      });
+      sfx.champion();
+      // The arena answers the fanfare (always a player win here; the roar never
+      // ducks, so it stacks cleanly under the championship sting).
+      sfx.crowdRoar();
+      setBurst((n) => n + 1);
+      timers.push(setTimeout(() => setScoreShown(game.result.finalHome), SCORE_DELAY_MS));
+      if (tier.legend) {
+        timers.push(setTimeout(() => setBurst((n) => n + 1), LEGEND_BURST_DELAY_MS));
+      }
+      timers.push(setTimeout(() => setHaulShown(true), HAUL_DELAY_MS));
+      timers.push(
+        setTimeout(() => {
+          setUnlockShown(true);
+          if (!unlockedClass) return;
+          sfx.whoosh('forward');
+          flashRef.current?.flash(palette.orange, { peak: 0.2 });
+          haptics.success();
+        }, UNLOCK_DELAY_MS)
+      );
     };
-  }, [fire, flashRef, tier.burst, tier.legend, game.result.finalHome, unlockedClass]);
+    if (waitForReveal) void waitForReveal().then(begin);
+    else begin();
+    return () => {
+      cancelled = true;
+      for (const t of timers) clearTimeout(t);
+    };
+  }, [fire, flashRef, tier.burst, tier.legend, game.result.finalHome, unlockedClass, waitForReveal]);
 
   return (
     <Screen style={styles.container} topGap={space(4)} onTouchStart={bump}>

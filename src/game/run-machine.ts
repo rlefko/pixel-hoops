@@ -251,6 +251,9 @@ export type RunAction =
   | { type: 'enterGame' }
   | { type: 'finishReplay' }
   | { type: 'resolveGameResult' }
+  // The auto-skip fast path: finishReplay then, on a win, resolveGameResult as ONE
+  // action, so a skipped win costs one commit instead of two AutoAdvance mounts.
+  | { type: 'skipToResult' }
   | { type: 'recruit'; player: RosterPlayer }
   | { type: 'rerollRecruit'; index: number }
   | { type: 'dropForRecruit'; index: number }
@@ -1109,6 +1112,19 @@ export function runReducer(
       if (model.phase.kind !== 'game' || !model.game) return model;
       const won = model.game.result.winner === 'home';
       return { ...model, phase: { kind: 'postgame', nodeId: model.phase.nodeId, won } };
+    }
+
+    case 'skipToResult': {
+      // A literal composition of the two existing branches (pinned by test), so every
+      // payout / injury / favor / championship rule is inherited, never duplicated. A
+      // loss stops at postgame: the full result and the RUN IT BACK decision are kept,
+      // exactly like the watched path. Fired from AutoAdvance's mount effect, not a
+      // tap, so tripping the dev slow-action warning here is expected on boss wins
+      // (the composed branch carries resolveGameResult's map advance).
+      if (model.phase.kind !== 'game' || !model.game) return model;
+      const post = runReducer(model, { type: 'finishReplay' });
+      if (!post || post.phase.kind !== 'postgame' || !post.phase.won) return post ?? model;
+      return runReducer(post, { type: 'resolveGameResult' }) ?? post;
     }
 
     case 'resolveGameResult': {
