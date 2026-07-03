@@ -171,13 +171,13 @@ export interface HomeRoster {
   teach?: TeachLedger;
 }
 
-// v20 adds the teach ledger (`teach`): the progressive-onboarding state — one-shot
+// v20 adds the teach ledger (`teach`): the progressive-onboarding state: one-shot
 // tip/ceremony ids (`seen`), the terminal-settle counter that opens the Locker Room
 // and the Daily panel (`runsSettled`), and the consecutive-loss streak per
 // (difficulty:class) cell (`lossStreak`). On older saves the ledger backfills by
 // VETERAN status: any prior-progress signal (seenWelcome, a settled or banked run,
-// cleared cells, coins, Hall of Fame entries) graduates the save completely — every
-// tip seen, every hub stage open — so update day never re-locks a feature, re-shows
+// cleared cells, coins, Hall of Fame entries) graduates the save completely (every
+// tip seen, every hub stage open), so update day never re-locks a feature, re-shows
 // a tip, or replays a ceremony. Only a genuinely fresh save (and the Settings reset)
 // gets the guided unfolding.
 // v19 adds the hub "since you left" ledger (`hubSeen`): the coin/crest/copy values the
@@ -326,7 +326,7 @@ export function rememberDraftRotation(
  * Never crosses difficulties, since each difficulty has its own draft point budget.
  */
 export function resolveDraftRotation(
-  home: HomeRoster,
+  home: Pick<HomeRoster, 'rosterMemory'>,
   difficulty: Difficulty,
   ladderClass: LadderClass
 ): string[] | undefined {
@@ -1606,6 +1606,14 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
   // see this same value or a veteran's refund would masquerade as a fresh delta.
   const coins = (typeof data.coins === 'number' ? data.coins : 0) + abilities.refund;
 
+  // Hoisted so the v20 teach backfill below reads the exact RESTORED values the
+  // return object carries (a garbage field must degrade the same way in both).
+  const seenWelcome = typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true;
+  const settledRunId = typeof data.settledRunId === 'string' ? data.settledRunId : undefined;
+  const lastBankedRunId =
+    typeof data.lastBankedRunId === 'string' ? data.lastBankedRunId : undefined;
+  const hallOfFame = sanitizeHallOfFame(data.hallOfFame);
+
   return {
     players,
     collecting,
@@ -1619,13 +1627,13 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     selectedLadderClass,
     rosterMemory,
     legendDryStreak: typeof data.legendDryStreak === 'number' ? data.legendDryStreak : 0,
-    seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
-    hallOfFame: sanitizeHallOfFame(data.hallOfFame),
+    seenWelcome,
+    hallOfFame,
     ownedCoaches,
     selectedCoachId,
-    lastBankedRunId: typeof data.lastBankedRunId === 'string' ? data.lastBankedRunId : undefined,
+    lastBankedRunId,
     lastBankedCoins: typeof data.lastBankedCoins === 'number' ? data.lastBankedCoins : undefined,
-    settledRunId: typeof data.settledRunId === 'string' ? data.settledRunId : undefined,
+    settledRunId,
     // v15: default to [] on older saves (no material retro-grant; the seeded cleared
     // cells block re-farming). Filter against the catalog so stale keys never linger.
     claimedBounties: Array.isArray(data.claimedBounties)
@@ -1654,16 +1662,8 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     // seenWelcome default above means every pre-welcome-era save reads veteran.
     teach: sanitizeTeach(
       data.teach,
-      isVeteranSave({
-        seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
-        settledRunId: typeof data.settledRunId === 'string' ? data.settledRunId : undefined,
-        lastBankedRunId:
-          typeof data.lastBankedRunId === 'string' ? data.lastBankedRunId : undefined,
-        clearedCells,
-        coins,
-        hallOfFame: sanitizeHallOfFame(data.hallOfFame),
-      })
-        ? graduatedTeach(data.settledRunId != null || data.lastBankedRunId != null)
+      isVeteranSave({ seenWelcome, settledRunId, lastBankedRunId, clearedCells, coins, hallOfFame })
+        ? graduatedTeach(settledRunId != null || lastBankedRunId != null)
         : emptyTeach()
     ),
   };

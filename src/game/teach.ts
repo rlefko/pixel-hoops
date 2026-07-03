@@ -20,7 +20,7 @@ import { PLAYER_MACHINES } from './player-gacha';
 /**
  * Every one-shot teaching beat. The first seven are in-run callouts stamped by
  * the run views when they first show; the last five are hub unlock ceremonies
- * stamped by the hub the focus they play. Append-only: removing an id would
+ * stamped by the hub on the focus they play. Append-only: removing an id would
  * resurrect a seen tip on old saves.
  */
 export const TIP_IDS = [
@@ -208,13 +208,13 @@ export const QUIET_CEREMONIES: readonly TipId[] = ['dailyUnlock', 'coachesUnlock
 export function dueHubCeremonies(s: HubStageState): { audible: TipId | null; quiet: TipId[] } {
   const stages = hubStages(s);
   const seen = new Set(s.teach?.seen ?? TIP_IDS);
-  const open: Record<TipId, boolean> = {
+  const open: Partial<Record<TipId, boolean>> = {
     lockerUnlock: stages.locker,
     arcadeUnlock: stages.arcade,
     hofUnlock: stages.hallOfFame,
     dailyUnlock: stages.daily,
     coachesUnlock: stages.coaches,
-  } as Record<TipId, boolean>;
+  };
   const audible = AUDIBLE_CEREMONIES.find((id) => open[id] && !seen.has(id)) ?? null;
   const quiet = QUIET_CEREMONIES.filter((id) => open[id] && !seen.has(id));
   return { audible, quiet };

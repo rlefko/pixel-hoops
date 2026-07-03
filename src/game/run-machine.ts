@@ -269,15 +269,10 @@ function isFrontierRun(home: HomeRoster, ladderClass: LadderClass): boolean {
 }
 
 /** True only for a save that has never finished teaching recruit basics: no
- * cleared cells AND a present, un-graduated teach ledger. Absent ledger =
- * veteran = unpinned, even if PR ordering ever slips (tipSeen reads a missing
- * ledger as graduated, so the explicit null guard is required here). */
+ * cleared cells and an un-graduated teach ledger. An absent ledger is a
+ * veteran (tipSeen reads missing as seen), so it reads unpinned here too. */
 export function isFirstEverRun(home: Pick<HomeRoster, 'clearedCells' | 'teach'>): boolean {
-  return (
-    (home.clearedCells ?? []).length === 0 &&
-    home.teach != null &&
-    !tipSeen(home.teach, 'recruitRental')
-  );
+  return (home.clearedCells ?? []).length === 0 && !tipSeen(home.teach, 'recruitRental');
 }
 
 /** Build a fresh run from a seed and the player's home roster. */

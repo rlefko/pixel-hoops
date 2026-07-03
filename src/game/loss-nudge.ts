@@ -1,5 +1,6 @@
 import { LOSS_NUDGE_STREAK, lossStreakAt, type TeachLedger } from './teach';
-import { LADDER_CLASSES, type Difficulty, type LadderClass } from './difficulty-mode';
+import { resolveDraftRotation } from './home-roster';
+import type { Difficulty, LadderClass } from './difficulty-mode';
 import { POSITIONS, type Position } from '@/types/roster';
 
 /**
@@ -66,11 +67,11 @@ export function classifyRotationShape(rotation: readonly string[]): LineupShape 
 /**
  * The one COACH strategy line for the next draft at (difficulty, ladderClass),
  * or null when the streak is not live there (count < LOSS_NUDGE_STREAK, the
- * streak lives on another cell, or the ledger is absent). The rotation read
- * mirrors resolveDraftRotation in home-roster.ts, exact cell first, then the
- * nearest LOWER ladder class at the SAME difficulty, because that is what the
- * draft will pre-fill; a rotation that cannot be read still shows the
- * 'default' line, since the streak is real even when the shape is not.
+ * streak lives on another cell, or the ledger is absent). The rotation read IS
+ * resolveDraftRotation, the exact rule the draft pre-fills by, so the nudge can
+ * never critique a five the player is not about to see; a rotation that cannot
+ * be read still shows the 'default' line, since the streak is real even when
+ * the shape is not.
  */
 export function lossNudgeLine(
   teach: TeachLedger | undefined,
@@ -79,18 +80,6 @@ export function lossNudgeLine(
   ladderClass: LadderClass
 ): string | null {
   if (lossStreakAt(teach, difficulty, ladderClass) < LOSS_NUDGE_STREAK) return null;
-  const memory = rosterMemory?.[difficulty];
-  let rotation: string[] | undefined;
-  if (memory) {
-    for (let i = LADDER_CLASSES.indexOf(ladderClass); i >= 0; i--) {
-      const remembered = memory[LADDER_CLASSES[i]];
-      // Same bar as resolveDraftRotation: a rotation that cannot field a five
-      // never pre-fills, so it never shapes the nudge either.
-      if (remembered && remembered.length >= 5) {
-        rotation = remembered;
-        break;
-      }
-    }
-  }
+  const rotation = resolveDraftRotation({ rosterMemory }, difficulty, ladderClass);
   return LOSS_NUDGE_LINES[rotation ? classifyRotationShape(rotation) : 'default'];
 }

@@ -8,8 +8,8 @@ import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { DraftSynergyStrip } from '@/components/run/DraftSynergyStrip';
 import { TeachCallout } from '@/components/teach/TeachCallout';
+import { useTipArmed } from '@/components/teach/useTipArmed';
 import { lossNudgeLine } from '@/game/loss-nudge';
-import { tipSeen } from '@/game/teach';
 import { DRAFT_COST_COLOR, CLASS_COLOR } from '@/components/run/class-ui';
 import {
   draftCostFor,
@@ -161,10 +161,11 @@ export function DraftView({
     : 0;
   // After three straight losses at this exact cell, ONE coach strategy line
   // keyed on the remembered (losing) rotation's shape. Captured once at mount
-  // (the memo would pop it in mid-view when the budget beat stamps itself
-  // seen), and suppressed while that beat is unseen: one voice per screen.
+  // (a memo would pop it in mid-view when the budget beat stamps itself seen),
+  // and suppressed while that beat is armed: one voice per screen.
+  const budgetTipArmed = useTipArmed('draftBudget');
   const [nudge] = useState(() =>
-    homeRoster && tipSeen(homeRoster.teach, 'draftBudget')
+    homeRoster && !budgetTipArmed
       ? lossNudgeLine(homeRoster.teach, homeRoster.rosterMemory, difficulty, ladderClass)
       : null
   );
@@ -386,12 +387,19 @@ function Slot({
               { color: cost != null ? DRAFT_COST_COLOR[cost] : palette.inkDim },
             ]}
           >
-            {cost === 0 ? 'FREE' : `${cost}p`}
+            {cost == null ? 'LOCKED' : costLabel(cost)}
           </Text>
         </View>
       ) : null}
     </Pressable>
   );
+}
+
+/** One cost voice across the whole board: the slot chips and the roster badges
+ * both read "FREE" / "1 PT" / "2 PTS" (the handbook's cost chips pluralize the
+ * same way), so one number never wears two formats on one screen. */
+function costLabel(cost: number): string {
+  return cost === 0 ? 'FREE' : `${cost} ${cost === 1 ? 'PT' : 'PTS'}`;
 }
 
 function CostBadge({ cost, affordable = true }: { cost: number | null; affordable?: boolean }) {
@@ -407,9 +415,7 @@ function CostBadge({ cost, affordable = true }: { cost: number | null; affordabl
   const color = affordable ? (DRAFT_COST_COLOR[cost] ?? palette.inkDim) : palette.missRed;
   return (
     <View style={[styles.cost, { borderColor: color }]}>
-      <Text style={[styles.costText, { color }]}>
-        {cost === 0 ? 'FREE' : `${cost} PTS`}
-      </Text>
+      <Text style={[styles.costText, { color }]}>{costLabel(cost)}</Text>
       {!affordable ? <Text style={styles.costOver}>OVER</Text> : null}
     </View>
   );
