@@ -26,6 +26,16 @@ If the diff is empty and no target was named, say so and stop.
 
 Go through the checklist at the bottom of the conventions doc in order, applying each item to the diff. For the mechanical items, run the doc's verification commands (for example the `withRepeat`/`scrollTo` grep) rather than eyeballing. Read the full post-change files around each hit, not just the diff hunks: gates and pauses often live a few lines away.
 
+Additional mechanical sweeps worth running on every diff (each caught a real, shipped defect):
+
+- `git diff origin/main... | grep -E '^\+.*seekTo'` — a `seekTo(0)` followed by `play()` on a shot path races on iOS (play is sync, seekTo is async); rewinds belong in the finish listener, and only the busy-reuse fallback may seek, awaiting it before the play.
+- `git diff origin/main... | grep -E '^\+.*(simulateGame|simulate[A-Z]|settleRunIntoHome|mergeRunGainsIntoHome|previewRunAcquisitions)'` — inside a reducer case or a mount/commit-frame effect, any of these is a blocked tap or a stuttered celebration; they belong behind a sentinel action or an InteractionManager task.
+- `git diff origin/main... | grep -E '^\+.*ceremony\('` — a ceremony action that cascades through more than one commit must return a settlement promise, or the cover reveals a mid-cascade placeholder.
+- A new screen under `app/(home)/` or `src/screens/`: confirm the one-line `useSlowMountWarning` is present.
+- A new or retimed entry in `RAPID_CUE_COOLDOWN_MS`, or a recipe duration/pool change: confirm `npm run gen:sfx` passes its duration/pool invariant and the `recipes.test.ts` coherence suite was not weakened.
+
+When the diff claims a responsiveness win, ask for before/after lines from the standing dev tracers (`[nav] slow transition`, `[nav] slow mount`, `[run] slow action`, `[sfx] slow shot`); a win that moves none of them is unproven.
+
 For each violation, report:
 
 - **file:line** of the offending code.
