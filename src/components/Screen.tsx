@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { type ReactNode, type Ref } from 'react';
 import {
   View,
   ScrollView,
@@ -56,6 +56,8 @@ interface ViewScreenProps extends BaseScreenProps {
 interface ScrollScreenProps extends BaseScreenProps {
   scroll: true;
   contentContainerStyle?: StyleProp<ViewStyle>;
+  /** Ref to the underlying ScrollView, for programmatic jumps (anchor deep links). */
+  scrollRef?: Ref<ScrollView>;
 }
 
 type ScreenProps = ViewScreenProps | ScrollScreenProps;
@@ -82,6 +84,7 @@ export function Screen(props: ScreenProps) {
 
   const body = props.scroll ? (
     <ScrollView
+      ref={props.scrollRef}
       style={[styles.fill, style]}
       contentContainerStyle={[
         // flexGrow lets short content fill the viewport; with bounce off, a page
