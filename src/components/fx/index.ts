@@ -16,5 +16,6 @@ export { PixelCrowd, type PixelCrowdHandle } from './PixelCrowd';
 export { PixelPlayer } from './PixelPlayer';
 export { ParticleBurst, type BurstVariant } from './ParticleBurst';
 export { BallFlight } from './BallFlight';
+export { CoinFly } from './CoinFly';
 export { RimRipple } from './RimRipple';
 export { PixelWipeOverlay, type PixelWipeHandle } from './PixelWipeOverlay';
