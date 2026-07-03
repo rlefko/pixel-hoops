@@ -4,9 +4,11 @@ import { useArcadeRouter } from '@/navigation';
 import { useFeelSettings, sfx, playMusicContext, setGameEnergy } from '@/feel';
 import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
-import { Pop, Counter, TickCounter } from '@/components/fx';
+import { CoinFly, Pop, Counter, TickCounter } from '@/components/fx';
 import { useRun } from '@/hooks/useRun';
 import { useActiveRun } from '@/context/ActiveRunContext';
+import { TeachCallout } from '@/components/teach/TeachCallout';
+import { TeachSlot } from '@/components/teach/TeachSlot';
 import {
   buildHomeTeam,
   buildOpponentTeam,
@@ -569,6 +571,9 @@ function Pregame({ model, actions }: { model: RunModel; actions: RunActions }) {
           <Text style={styles.streakNote}>Protect the streak</Text>
         </View>
       ) : null}
+      {/* One-shot: the auto-sim surprise ("am I supposed to tap?") is defused
+          right above the button that starts the watch. */}
+      <TeachCallout tip="watchDontTap" section="watch" style={styles.teachPregame} />
       <Pressable style={[styles.button, styles.primary]} onPress={tipOff}>
         <Text style={styles.buttonText}>TIP OFF</Text>
       </Pressable>
@@ -622,6 +627,20 @@ function Postgame({
     const timer = setTimeout(() => setShowEarned(true), 700);
     return () => clearTimeout(timer);
   }, []);
+  // Economy juice: the earned coins arc from the final score into the tally.
+  // Decoration only: launched 120ms in so the last coin lands exactly at the
+  // 700ms tally reveal (see CoinFly's timing contract; the showEarned timer
+  // above stays the single source of truth). Endpoints measure off the
+  // headline's own layout, so the flight tracks any layout change.
+  const [flyFrom, setFlyFrom] = useState<{ x: number; y: number } | null>(null);
+  const [flyTo, setFlyTo] = useState<{ x: number; y: number } | null>(null);
+  const [flyTrigger, setFlyTrigger] = useState(0);
+  const postgameWon = model.phase.kind === 'postgame' && model.phase.won;
+  useEffect(() => {
+    if (!postgameWon) return;
+    const timer = setTimeout(() => setFlyTrigger(1), 120);
+    return () => clearTimeout(timer);
+  }, [postgameWon]);
 
   // Result sting once on mount (Postgame remounts per postgame phase, so the ref resets
   // between games; the guard only blocks a dev strict-mode double-invoke). A forgivable
@@ -661,13 +680,26 @@ function Postgame({
             {headline}
           </Text>
         </Pop>
-        <Text style={styles.score}>
-          <Counter value={settled ? result.finalHome : 0} /> -{' '}
-          <Counter value={settled ? result.finalAway : 0} />
-        </Text>
+        <View
+          onLayout={(e) => {
+            const l = e.nativeEvent.layout;
+            setFlyFrom({ x: l.x + l.width / 2, y: l.y + l.height / 2 });
+          }}
+        >
+          <Text style={styles.score}>
+            <Counter value={settled ? result.finalHome : 0} /> -{' '}
+            <Counter value={settled ? result.finalAway : 0} />
+          </Text>
+        </View>
         <Text style={styles.vs}>@ {model.game.opponentName}</Text>
         {earned ? (
-          <View style={styles.earnedRow}>
+          <View
+            style={styles.earnedRow}
+            onLayout={(e) => {
+              const l = e.nativeEvent.layout;
+              setFlyTo({ x: l.x + l.width / 2, y: l.y + l.height / 2 });
+            }}
+          >
             {showEarned ? (
               <>
                 <CoinIcon size={12} color={palette.gold} />
@@ -690,6 +722,14 @@ function Postgame({
             Dropped it, but you've got a timeout. Replay this game.{' '}
             {model.secondChancesRemaining} left.
           </Text>
+        ) : null}
+        {earned && earned.coins > 0 ? (
+          // The first-coins beat waits behind the reward beats (win pop at
+          // mount, coin fly, tally tick at 700ms): reward first, teach second.
+          <TeachSlot tip="coinsEarned" section="bank" delayMs={1600} />
+        ) : null}
+        {won && earned && earned.coins > 0 && flyFrom && flyTo ? (
+          <CoinFly from={flyFrom} to={flyTo} coins={earned.coins} trigger={flyTrigger} />
         ) : null}
       </View>
 
@@ -781,7 +821,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: space(5),
   },
-  postgameHeadline: { alignItems: 'center' },
+  postgameHeadline: { alignItems: 'center', alignSelf: 'stretch' },
+  teachPregame: { alignSelf: 'stretch', marginTop: space(4) },
   postgameBox: {
     flex: 1,
     alignSelf: 'stretch',

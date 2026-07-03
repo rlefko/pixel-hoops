@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from '@/components/StyledText';
 import { MenuButton } from '@/components/MenuButton';
@@ -23,6 +24,9 @@ interface DailyPanelProps {
   claimedTiers: readonly number[];
   /** Attract-pulse gate (the hub's idle pause), mirroring the other menu buttons. */
   attract: boolean;
+  /** Corner overlay forwarded to the spotlight button (the hub's unlock-day
+   * novelty dot); zero layout height, never intercepts the tap. */
+  badge?: ReactNode;
   onPlaySpotlight: () => void;
 }
 
@@ -33,6 +37,7 @@ export function DailyPanel({
   weeklyWins,
   claimedTiers,
   attract,
+  badge,
   onPlaySpotlight,
 }: DailyPanelProps) {
   const cellLabel = `${DIFFICULTY_LABELS[cell.difficulty].name} • ${cell.ladderClass}`;
@@ -53,7 +58,7 @@ export function DailyPanel({
           />
         }
         attract={attract && !claimedToday}
-        attractDelayMs={100}
+        badge={badge}
         onPress={onPlaySpotlight}
       />
       <Pop trigger={weeklyWins}>

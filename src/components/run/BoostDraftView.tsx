@@ -8,6 +8,7 @@ import type { Rarity } from '@/game/rarity';
 import type { RosterPlayer } from '@/types/roster';
 import { offerDef } from './boost-ui';
 import { setHintForOffer, boostFamilyLabels } from './set-ui';
+import { TeachCallout } from '@/components/teach/TeachCallout';
 import { LegendaryHalo, RewardConfetti } from './reward-fx';
 import { RARITY_COLOR, RARITY_LABEL, REWARD_CHROME, SYNERGY_CHROME } from './rarity-ui';
 import { useRewardBurst } from './useRewardBurst';
@@ -126,6 +127,8 @@ export function BoostDraftView({
             {left === 1 ? '' : 's'} left.
           </Text>
         ) : null}
+        {/* One-shot, pointing at the set-hint glow the offers already carry. */}
+        <TeachCallout tip="boostSynergy" section="synergies" style={styles.teach} />
         <ScrollView style={styles.scroll} contentContainerStyle={styles.offers}>
           {offers.map((offer, i) => {
             const def = offerDef(offer);
@@ -207,6 +210,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: space(1.5),
   },
+  teach: { alignSelf: 'stretch', marginTop: space(2) },
   scroll: { flex: 1, alignSelf: 'stretch' },
   offers: { marginTop: space(4), gap: space(3), paddingBottom: space(4) },
   card: {

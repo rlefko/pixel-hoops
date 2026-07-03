@@ -19,6 +19,10 @@ interface TagChipProps {
   glowDelayMs?: number;
   /** Pulse period for the glow. A shorter period reads as faster. Default 1200. */
   glowDurationMs?: number;
+  /** Runtime pause for the glow loop (the host screen's idle flag). Every loop
+   * must gate on reducedMotion AND a runtime pause; the glow holds steady-lit
+   * while paused. */
+  glowPaused?: boolean;
   size?: 'micro' | 'small';
 }
 
@@ -37,10 +41,14 @@ export function TagChip({
   subColor,
   glowDelayMs,
   glowDurationMs = 1200,
+  glowPaused = false,
   size = 'small',
 }: TagChipProps) {
   const glow = glowDelayMs !== undefined;
-  const glowStyle = useGlowPulse(glowDurationMs, { delayMs: glowDelayMs ?? 0, paused: !glow });
+  const glowStyle = useGlowPulse(glowDurationMs, {
+    delayMs: glowDelayMs ?? 0,
+    paused: !glow || glowPaused,
+  });
   const fontSize = size === 'micro' ? FONT_SIZE.micro : FONT_SIZE.small;
 
   return (

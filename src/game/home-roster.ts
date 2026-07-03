@@ -49,6 +49,13 @@ import {
   type DailyCell,
   type WeeklyLedger,
 } from './daily';
+import {
+  emptyTeach,
+  graduatedTeach,
+  sanitizeTeach,
+  settleTeach,
+  type TeachLedger,
+} from './teach';
 
 /**
  * The persistent "home roster" that compounds across runs. It is now an UNCAPPED,
@@ -155,8 +162,24 @@ export interface HomeRoster {
    * (threshold-weighted, see hubCopyTotal). Deltas derive as current minus seen,
    * clamped to gains, so a badge can never fabricate or invert a rise. */
   hubSeen?: HubSeen;
+  /** Progressive-onboarding ledger (v20): one-shot tip/ceremony ids already shown,
+   * the terminal-settle counter that opens the Locker Room and Daily panel, and the
+   * consecutive-loss streak per (difficulty:class) cell for the adaptive draft
+   * nudge. Hub gates DERIVE from state (clearedCells, hallOfFame, coins,
+   * runsSettled) with the seen ceremony flag as a one-way ratchet; see
+   * src/game/teach.ts. A missing ledger reads as fully graduated. */
+  teach?: TeachLedger;
 }
 
+// v20 adds the teach ledger (`teach`): the progressive-onboarding state: one-shot
+// tip/ceremony ids (`seen`), the terminal-settle counter that opens the Locker Room
+// and the Daily panel (`runsSettled`), and the consecutive-loss streak per
+// (difficulty:class) cell (`lossStreak`). On older saves the ledger backfills by
+// VETERAN status: any prior-progress signal (seenWelcome, a settled or banked run,
+// cleared cells, coins, Hall of Fame entries) graduates the save completely (every
+// tip seen, every hub stage open), so update day never re-locks a feature, re-shows
+// a tip, or replays a ceremony. Only a genuinely fresh save (and the Settings reset)
+// gets the guided unfolding.
 // v19 adds the hub "since you left" ledger (`hubSeen`): the coin/crest/copy values the
 // player last acknowledged on the hub, the Hall of Fame, and the roster browser (the
 // gold delta chips and the crest-shelf pop-in derive from it, so it doubles as the
@@ -220,7 +243,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 19;
+const HOME_ROSTER_VERSION = 20;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -303,7 +326,7 @@ export function rememberDraftRotation(
  * Never crosses difficulties, since each difficulty has its own draft point budget.
  */
 export function resolveDraftRotation(
-  home: HomeRoster,
+  home: Pick<HomeRoster, 'rosterMemory'>,
   difficulty: Difficulty,
   ladderClass: LadderClass
 ): string[] | undefined {
@@ -342,6 +365,8 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     favor: {},
     // A fresh install (and the Settings reset) starts fully acknowledged: no deltas.
     hubSeen: { coins: 0, crestCells: [], copyTotal: hubCopyTotal({ players, collecting: [] }) },
+    // ...and fully un-taught: the guided unfolding starts here.
+    teach: emptyTeach(),
   };
 }
 
@@ -1039,6 +1064,14 @@ export function mergeRunGainsIntoHome(
       champion && championEntry
         ? [championEntry, ...(home.hallOfFame ?? [])].slice(0, HALL_OF_FAME_CAP)
         : (home.hallOfFame ?? []),
+    // The ONLY writer of the teach settle counters; exactly-once per run via the
+    // caller's settledRunId guard. A championship breaks the loss streak; a loss
+    // extends it at its exact (difficulty:class) cell.
+    teach: settleTeach(home.teach, {
+      champion,
+      difficulty: playedDifficulty,
+      ladderClass: settle.ladderClass ?? clearedClass ?? home.selectedLadderClass,
+    }),
   };
 }
 
@@ -1573,6 +1606,14 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
   // see this same value or a veteran's refund would masquerade as a fresh delta.
   const coins = (typeof data.coins === 'number' ? data.coins : 0) + abilities.refund;
 
+  // Hoisted so the v20 teach backfill below reads the exact RESTORED values the
+  // return object carries (a garbage field must degrade the same way in both).
+  const seenWelcome = typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true;
+  const settledRunId = typeof data.settledRunId === 'string' ? data.settledRunId : undefined;
+  const lastBankedRunId =
+    typeof data.lastBankedRunId === 'string' ? data.lastBankedRunId : undefined;
+  const hallOfFame = sanitizeHallOfFame(data.hallOfFame);
+
   return {
     players,
     collecting,
@@ -1586,13 +1627,13 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     selectedLadderClass,
     rosterMemory,
     legendDryStreak: typeof data.legendDryStreak === 'number' ? data.legendDryStreak : 0,
-    seenWelcome: typeof data.seenWelcome === 'boolean' ? data.seenWelcome : true,
-    hallOfFame: sanitizeHallOfFame(data.hallOfFame),
+    seenWelcome,
+    hallOfFame,
     ownedCoaches,
     selectedCoachId,
-    lastBankedRunId: typeof data.lastBankedRunId === 'string' ? data.lastBankedRunId : undefined,
+    lastBankedRunId,
     lastBankedCoins: typeof data.lastBankedCoins === 'number' ? data.lastBankedCoins : undefined,
-    settledRunId: typeof data.settledRunId === 'string' ? data.settledRunId : undefined,
+    settledRunId,
     // v15: default to [] on older saves (no material retro-grant; the seeded cleared
     // cells block re-farming). Filter against the catalog so stale keys never linger.
     claimedBounties: Array.isArray(data.claimedBounties)
@@ -1615,7 +1656,38 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     // CURRENT (post-migration) values, never zero: silencing a delta is safe,
     // fabricating one (or replaying the crest ceremony) is not.
     hubSeen: sanitizeHubSeen(data.hubSeen, { coins, clearedCells, players, collecting }),
+    // v20: the teach ledger. Backfills by veteran status (see the version comment):
+    // graduating is safe (silences tips), fresh-starting a veteran is not (re-locks
+    // their hub). The signals are evaluated on the RESTORED values, and the missing
+    // seenWelcome default above means every pre-welcome-era save reads veteran.
+    teach: sanitizeTeach(
+      data.teach,
+      isVeteranSave({ seenWelcome, settledRunId, lastBankedRunId, clearedCells, coins, hallOfFame })
+        ? graduatedTeach(settledRunId != null || lastBankedRunId != null)
+        : emptyTeach()
+    ),
   };
+}
+
+/** Veteran = any prior-progress signal. Used only by the v20 teach backfill: a
+ * veteran graduates (all tips seen, all hub stages open); only a genuinely fresh
+ * save gets the guided unfolding. A refund-only wallet still marks a veteran. */
+function isVeteranSave(s: {
+  seenWelcome: boolean;
+  settledRunId?: string;
+  lastBankedRunId?: string;
+  clearedCells: string[];
+  coins: number;
+  hallOfFame: HallOfFameEntry[];
+}): boolean {
+  return (
+    s.seenWelcome ||
+    s.settledRunId != null ||
+    s.lastBankedRunId != null ||
+    s.clearedCells.length > 0 ||
+    s.coins > 0 ||
+    s.hallOfFame.length > 0
+  );
 }
 
 /** Field-wise validation for the hub ledger: each invalid field falls back to the

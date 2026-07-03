@@ -11,6 +11,22 @@ import type { SynergyResult } from '@/types/team';
 const GUARDS: readonly Position[] = ['PG', 'SG'];
 const BIGS: readonly Position[] = ['PF', 'C'];
 
+export interface SynergyDef {
+  /** The label computeSynergy emits; UIs (the draft strip) match on it. */
+  label: string;
+  /** A representative position shape for glyph rows (the handbook, the strip). */
+  shape: readonly Position[];
+}
+
+/** The four synergies' display identity, in one place so the sim's labels, the
+ * draft strip's chips, and the handbook's grid can never drift apart. */
+export const SYNERGY_DEFS = {
+  backcourtSpeed: { label: 'Backcourt Speed', shape: ['PG', 'SG'] },
+  twinTowers: { label: 'Twin Towers', shape: ['PF', 'C'] },
+  positionless: { label: 'Positionless Basketball', shape: ['PG', 'SG', 'SF', 'PF', 'C'] },
+  specialists: { label: 'Specialists', shape: ['SG', 'SG', 'SG'] },
+} satisfies Record<string, SynergyDef>;
+
 export function computeSynergy(lineup: RosterPlayer[]): SynergyResult {
   const result: SynergyResult = {
     paceBonus: 0,
@@ -38,26 +54,26 @@ export function computeSynergy(lineup: RosterPlayer[]): SynergyResult {
   // Backcourt Speed: two or more guards push the pace.
   if (guardCount >= 2) {
     result.paceBonus += 3;
-    result.labels.push('Backcourt Speed');
+    result.labels.push(SYNERGY_DEFS.backcourtSpeed.label);
   }
 
   // Twin Towers: two or more bigs anchor the paint.
   if (bigCount >= 2) {
     result.defenseBonus += 3;
-    result.labels.push('Twin Towers');
+    result.labels.push(SYNERGY_DEFS.twinTowers.label);
   }
 
   // Positionless Basketball: a balanced one-of-each five plays clutch.
   if (distinctPositions === 5) {
     result.clutchBonus += 2;
     result.offenseBonus += 1;
-    result.labels.push('Positionless Basketball');
+    result.labels.push(SYNERGY_DEFS.positionless.label);
   }
 
   // Specialists: stacking one position concentrates the attack.
   if (maxAtOnePosition >= 3) {
     result.offenseBonus += 2;
-    result.labels.push('Specialists');
+    result.labels.push(SYNERGY_DEFS.specialists.label);
   }
 
   return result;

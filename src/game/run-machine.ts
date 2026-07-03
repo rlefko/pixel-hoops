@@ -40,6 +40,7 @@ import {
   type CoachProfile,
 } from './coaches';
 import { coachForTeamName } from './opponent-coach';
+import { tipSeen } from './teach';
 import { recommendLineup, reorderForCoach, recMinDelta, type CoachRec } from './coach-reco';
 import { legendRecruitFavored } from './player-pool';
 import { FAVOR_CHAMPION_BONUS, FAVOR_WIN_POINTS, addFavor } from './favor';
@@ -267,6 +268,13 @@ function isFrontierRun(home: HomeRoster, ladderClass: LadderClass): boolean {
   return best == null || LADDER_CLASSES.indexOf(ladderClass) > LADDER_CLASSES.indexOf(best);
 }
 
+/** True only for a save that has never finished teaching recruit basics: no
+ * cleared cells and an un-graduated teach ledger. An absent ledger is a
+ * veteran (tipSeen reads missing as seen), so it reads unpinned here too. */
+export function isFirstEverRun(home: Pick<HomeRoster, 'clearedCells' | 'teach'>): boolean {
+  return (home.clearedCells ?? []).length === 0 && !tipSeen(home.teach, 'recruitRental');
+}
+
 /** Build a fresh run from a seed and the player's home roster. */
 export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
   const difficulty = homeRoster.selectedDifficulty ?? 'easy';
@@ -278,6 +286,8 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     mapIndex: 0,
     difficulty,
     ladderLevel: classLevel(ladderClass),
+    // A first-ever run pins map 0's row 1 so the recruit tutorial cannot be missed.
+    firstRun: isFirstEverRun(homeRoster),
   });
   const available = ownedRosterPlayers(homeRoster);
   const { starters: defaultStarters, bench: defaultBench } = defaultLoadout(

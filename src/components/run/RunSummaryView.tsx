@@ -8,6 +8,8 @@ import { CollectionProgressStrip } from './CollectionProgressStrip';
 import { DailyRewardStrip } from './DailyRewardStrip';
 import { FavorStrip } from './FavorStrip';
 import { CoinIcon } from './PixelIcons';
+import { TeachCallout } from '@/components/teach/TeachCallout';
+import { useTipArmed } from '@/components/teach/useTipArmed';
 import { sfx, useIdle, useGlowPulse, HUB_IDLE_MS } from '@/feel';
 import type { DailyGrants, FavorDelta, ProgressedCopy } from '@/game/home-roster';
 import {
@@ -115,6 +117,10 @@ export function RunSummaryView({
 }: RunSummaryViewProps) {
   // The milestone consolation: a deep hard/insane loss still banked one recruit copy.
   const bankedName = bankedRecruit?.player.name ?? (!champion ? progressed[0]?.player.player.name : undefined);
+  // First run-ending loss only: the framing beat swaps in for the standing note.
+  const lossTipArmed = useTipArmed('lossFraming');
+  const [lossTipDismissed, setLossTipDismissed] = useState(false);
+  const showLossTip = !champion && lossTipArmed && !lossTipDismissed;
   // Quiet the unlock banner's reward glow once the player settles on this terminal
   // screen; the next touch wakes it. Mirrors the hub/run-map idle-pause.
   const { idle, bump } = useIdle(HUB_IDLE_MS);
@@ -193,11 +199,22 @@ export function RunSummaryView({
           <Text style={styles.unlock}>{unlockedClass} LADDER UNLOCKED</Text>
         </LiveChip>
       ) : null}
-      <Text style={[styles.note, !champion && styles.noteLost]}>
-        {champion
-          ? 'Recruits carried home.'
-          : 'Run recruits lost. Your coins are safe.'}
-      </Text>
+      {!champion && showLossTip ? (
+        // First run-ending loss: the one-shot framing beat REPLACES the standing
+        // loss note (banked first, losses second); dismissing swaps it back in.
+        <TeachCallout
+          tip="lossFraming"
+          section="bank"
+          style={styles.teach}
+          onDismiss={() => setLossTipDismissed(true)}
+        />
+      ) : (
+        <Text style={[styles.note, !champion && styles.noteLost]}>
+          {champion
+            ? 'Recruits carried home.'
+            : 'Run recruits lost. Your coins are safe.'}
+        </Text>
+      )}
       {!champion && lossMargin != null && lossMargin > 0 && lossMargin <= NEAR_MISS_MARGIN ? (
         <Pop popOnMount>
           <Text style={styles.nearMiss}>
@@ -264,6 +281,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   noteLost: { color: palette.missRedLt },
+  teach: { alignSelf: 'stretch', marginTop: space(2) },
   nearMiss: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.small,

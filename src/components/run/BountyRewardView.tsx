@@ -8,6 +8,7 @@ import { useRewardBurst } from './useRewardBurst';
 import { LegendaryHalo } from './reward-fx';
 import { PlayerCard } from './PlayerCard';
 import { CoinIcon, CrownIcon, StarIcon } from '@/components/run/PixelIcons';
+import { TeachSlot } from '@/components/teach/TeachSlot';
 import { RARITY_COLOR, RARITY_LABEL } from './rarity-ui';
 import { getGachaAbility } from '@/game/abilities-gacha';
 import type { BountyGrant } from '@/game/home-roster';
@@ -84,6 +85,9 @@ export function BountyRewardView({ grant, onNewRun, onHome }: BountyRewardViewPr
           </Pop>
           <Text style={[styles.label, { color: accent }]}>{grant.bounty.label}</Text>
           <Text style={styles.blurb}>{grant.bounty.blurb}</Text>
+          {/* First-ever bounty (the first clear always grants one): the beat
+              waits for the mount burst and counter, reward first, teach second. */}
+          <TeachSlot tip="ladderShape" section="ladder" delayMs={900} />
 
           <View style={styles.rewardWrap}>
             {showPlayerCard && grant.player ? (
