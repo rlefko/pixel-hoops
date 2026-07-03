@@ -1,5 +1,5 @@
 import { difficultyMods, DIFFICULTIES, type Difficulty } from './difficulty-mode';
-import type { RunModel, RunPhase } from './run-machine';
+import { withoutPendingGame, type RunModel } from './run-machine';
 
 /**
  * Serialize / deserialize the in-progress run for the suspend-and-resume slot. Pure
@@ -25,18 +25,11 @@ export interface SerializedActiveRun {
   data: RunModel;
 }
 
-/** A phase with any re-derivable pregame sim blob dropped. */
-function strippedPhase(phase: RunPhase): RunPhase {
-  if (phase.kind !== 'pregame' || !phase.pendingGame) return phase;
-  const { pendingGame: _pendingGame, ...rest } = phase;
-  return rest;
-}
-
 /** Wrap the run for storage, dropping the re-derivable game blobs. */
 export function serializeActiveRun(model: RunModel): SerializedActiveRun {
   return {
     version: ACTIVE_RUN_VERSION,
-    data: { ...model, phase: strippedPhase(model.phase), game: null },
+    data: { ...model, phase: withoutPendingGame(model.phase), game: null },
   };
 }
 
@@ -69,7 +62,7 @@ export function deserializeActiveRun(raw: unknown): RunModel | null {
   const model = data as RunModel;
   return {
     ...model,
-    phase: strippedPhase(model.phase),
+    phase: withoutPendingGame(model.phase),
     mods: difficultyMods(difficulty),
     game: null,
   };

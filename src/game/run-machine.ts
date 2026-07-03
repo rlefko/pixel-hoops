@@ -740,13 +740,14 @@ export function gameSimKey(model: RunModel, nodeId: string): string {
 }
 
 /**
- * A phase captured into `returnTo` (lineup builder, bag): a pregame drops its
- * pendingGame first. The sub-flow edits the exact inputs the key covers, so the
- * cached sim would be discarded on return anyway, and lineup/bag phases ARE
- * auto-saved: carrying the blob would put a full SimResult into every one of those
- * saves' JSON.stringify (the same rationale as active-run's `game: null` strip).
+ * A pregame with its precomputed sim blob dropped (other phases pass through).
+ * Shared by the two places a pregame can be carried somewhere a SimResult must not
+ * go: reducer captures into `returnTo` (the lineup builder and bag edit the exact
+ * inputs the key covers, so the cached sim would be discarded on return anyway, and
+ * lineup/bag phases ARE auto-saved) and active-run's serialize/deserialize (the
+ * same rationale as its `game: null` strip: large, fully re-derivable from the seed).
  */
-function capturedPhase(phase: RunPhase): RunPhase {
+export function withoutPendingGame(phase: RunPhase): RunPhase {
   if (phase.kind !== 'pregame' || !phase.pendingGame) return phase;
   const { pendingGame: _pendingGame, ...rest } = phase;
   return rest;
@@ -1032,7 +1033,7 @@ export function runReducer(
     }
 
     case 'openLineupBuilder':
-      return { ...model, phase: { kind: 'lineup', returnTo: capturedPhase(model.phase) } };
+      return { ...model, phase: { kind: 'lineup', returnTo: withoutPendingGame(model.phase) } };
 
     case 'setLineup': {
       if (model.phase.kind !== 'lineup') return model;
@@ -1423,7 +1424,7 @@ export function runReducer(
     case 'openBag':
       return model.phase.kind === 'bag'
         ? model
-        : { ...model, phase: { kind: 'bag', returnTo: capturedPhase(model.phase) } };
+        : { ...model, phase: { kind: 'bag', returnTo: withoutPendingGame(model.phase) } };
 
     case 'leaveBag':
       return model.phase.kind === 'bag' ? { ...model, phase: model.phase.returnTo } : model;
