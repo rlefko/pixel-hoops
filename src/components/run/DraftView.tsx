@@ -6,6 +6,7 @@ import { LiveChip, Counter } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
+import { DraftSynergyStrip } from '@/components/run/DraftSynergyStrip';
 import { TeachCallout } from '@/components/teach/TeachCallout';
 import { DRAFT_COST_COLOR, CLASS_COLOR } from '@/components/run/class-ui';
 import {
@@ -149,6 +150,13 @@ export function DraftView({
   const picks = [...starters, ...bench];
   const spent = draftSpend(picks, ladderClass);
   const budget = draftPoints(difficulty);
+  // What assigning into the selected slot gives back (its current occupant's
+  // cost); feeds each row's affordability read. Loadout changes flow through
+  // `filtered` and slot changes through extraData, so rows stay current.
+  const selectedOccupant = slots[selected];
+  const selectedRefund = selectedOccupant
+    ? (draftCostFor(selectedOccupant, ladderClass) ?? 0)
+    : 0;
   const confirmable = canConfirmLoadout(
     starters,
     bench,
@@ -176,7 +184,11 @@ export function DraftView({
       <Text style={styles.title}>DRAFT YOUR LINEUP</Text>
       <Text style={styles.subtitle}>
         {DIFFICULTY_LABELS[difficulty].name} · {ladderClass} · POINTS{' '}
-        <Counter value={spent} />/{budget}
+        {/* Over budget reads red immediately; confirm-time reasons stay the
+            enforcement (an over-budget pick is still a legal tap, since
+            assigning refunds the displaced player). */}
+        <Counter value={spent} style={spent > budget ? styles.pointsOver : undefined} />/
+        {budget}
       </Text>
       {replacesSavedRun ? (
         <Text style={styles.replaceNote}>
@@ -214,6 +226,7 @@ export function DraftView({
           );
         })}
       </View>
+      <DraftSynergyStrip starters={starters} />
 
       <Text style={styles.sectionLabel}>
         {slots[selected]
@@ -247,6 +260,10 @@ export function DraftView({
         renderItem={({ item: rp }) => {
           const cost = draftCostFor(rp, ladderClass);
           const barred = cost === null;
+          // Assigning REFUNDS the displaced occupant of the selected slot, so a
+          // cost above the raw remainder is still a legal tap; the badge only
+          // warns (red OVER) and the confirm reason stays the enforcement.
+          const affordable = cost == null || cost <= budget - spent + selectedRefund;
           return (
             <Pressable
               onPress={() => assign(rp)}
@@ -256,7 +273,7 @@ export function DraftView({
               <View style={styles.cardWrap}>
                 <PlayerCard rp={rp} compact showSpecialty />
               </View>
-              <CostBadge cost={cost} />
+              <CostBadge cost={cost} affordable={affordable} />
             </Pressable>
           );
         }}
@@ -365,20 +382,23 @@ function Slot({
   );
 }
 
-function CostBadge({ cost }: { cost: number | null }) {
+function CostBadge({ cost, affordable = true }: { cost: number | null; affordable?: boolean }) {
+  // A null cost means the class is barred for this ladder: say so instead of a
+  // bare dash, since "why is this row grey" was a real new-player wall.
   if (cost === null) {
     return (
       <View style={[styles.cost, { borderColor: palette.inkDim }]}>
-        <Text style={[styles.costText, { color: palette.inkDim }]}>—</Text>
+        <Text style={[styles.costText, { color: palette.inkDim }]}>LOCKED</Text>
       </View>
     );
   }
-  const color = DRAFT_COST_COLOR[cost] ?? palette.inkDim;
+  const color = affordable ? (DRAFT_COST_COLOR[cost] ?? palette.inkDim) : palette.missRed;
   return (
     <View style={[styles.cost, { borderColor: color }]}>
       <Text style={[styles.costText, { color }]}>
-        {cost === 0 ? 'FREE' : `${cost}p`}
+        {cost === 0 ? 'FREE' : `${cost} PTS`}
       </Text>
+      {!affordable ? <Text style={styles.costOver}>OVER</Text> : null}
     </View>
   );
 }
@@ -484,7 +504,7 @@ const styles = StyleSheet.create({
   rowBarred: { opacity: 0.35 },
   cardWrap: { flex: 1 },
   cost: {
-    minWidth: 40,
+    minWidth: 52,
     alignItems: 'center',
     paddingVertical: space(0.5),
     paddingHorizontal: space(1),
@@ -493,6 +513,8 @@ const styles = StyleSheet.create({
     marginLeft: space(1),
   },
   costText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro },
+  costOver: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.missRed },
+  pointsOver: { color: palette.missRed },
   empty: {
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.body,
