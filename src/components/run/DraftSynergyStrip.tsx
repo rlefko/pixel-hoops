@@ -3,9 +3,9 @@ import { View, StyleSheet } from 'react-native';
 import { TagChip } from '@/components/howtoplay/TagChip';
 import { PositionPips } from '@/components/howtoplay/PositionPips';
 import { SYNERGY_CHROME } from './rarity-ui';
-import { computeSynergy } from '@/game/synergy';
+import { computeSynergy, SYNERGY_DEFS, type SynergyDef } from '@/game/synergy';
 import { palette, space } from '@/theme';
-import type { Position, RosterPlayer } from '@/types/roster';
+import type { RosterPlayer } from '@/types/roster';
 
 /**
  * The draft board's live synergy readout: the four lineup-shape bonuses as a
@@ -16,11 +16,11 @@ import type { Position, RosterPlayer } from '@/types/roster';
  * unlock bonuses" stops being handbook prose and becomes confirmable in-run.
  */
 
-const CHIPS: { label: string; match: string; shape: Position[] }[] = [
-  { label: 'SPEED', match: 'Backcourt Speed', shape: ['PG', 'SG'] },
-  { label: 'TOWERS', match: 'Twin Towers', shape: ['PF', 'C'] },
-  { label: 'POSITIONLESS', match: 'Positionless Basketball', shape: ['PG', 'SG', 'SF', 'PF', 'C'] },
-  { label: 'SPECIALISTS', match: 'Specialists', shape: ['SG', 'SG', 'SG'] },
+const CHIPS: { label: string; def: SynergyDef }[] = [
+  { label: 'SPEED', def: SYNERGY_DEFS.backcourtSpeed },
+  { label: 'TOWERS', def: SYNERGY_DEFS.twinTowers },
+  { label: 'POSITIONLESS', def: SYNERGY_DEFS.positionless },
+  { label: 'SPECIALISTS', def: SYNERGY_DEFS.specialists },
 ];
 
 export function DraftSynergyStrip({ starters }: { starters: RosterPlayer[] }) {
@@ -29,11 +29,11 @@ export function DraftSynergyStrip({ starters }: { starters: RosterPlayer[] }) {
   return (
     <View style={styles.row}>
       {CHIPS.map((chip) => {
-        const lit = active.has(chip.match);
+        const lit = active.has(chip.def.label);
         const color = lit ? SYNERGY_CHROME : palette.inkDim;
         return (
           <View key={chip.label} style={[styles.cell, !lit && styles.cellDim]}>
-            <PositionPips positions={chip.shape} size={6} />
+            <PositionPips positions={[...chip.def.shape]} size={6} />
             <TagChip label={chip.label} color={color} size="micro" />
           </View>
         );

@@ -39,6 +39,7 @@ import type { MapNodeType } from '@/types/run-map';
 import type { PlayerClass } from '@/game/ratings';
 import type { HandbookSection } from '@/navigation';
 import { COPIES_TO_OWN } from '@/game/collection';
+import { SYNERGY_DEFS } from '@/game/synergy';
 import { MAX_DRAFT_ROTATION, draftPoints } from '@/game/draft';
 import { classCost } from '@/game/classes';
 import { DIFFICULTIES, difficultyMods, type Difficulty } from '@/game/difficulty-mode';
@@ -91,11 +92,13 @@ interface Synergy {
   effectColor: string;
 }
 
+// Display names and effect words are presentation; the shapes come from the
+// sim's own SYNERGY_DEFS so this grid can never drift from the real bonuses.
 const SYNERGIES: Synergy[] = [
-  { name: 'BACKCOURT SPEED', shape: ['PG', 'SG'], effect: 'PACE', effectColor: palette.makeGreenLt },
-  { name: 'TWIN TOWERS', shape: ['PF', 'C'], effect: 'DEFENSE', effectColor: palette.steelBlue },
-  { name: 'POSITIONLESS', shape: ['PG', 'SG', 'SF', 'PF', 'C'], effect: 'CLUTCH', effectColor: palette.gold },
-  { name: 'SPECIALISTS', shape: ['SG', 'SG', 'SG'], effect: 'OFFENSE', effectColor: palette.orange },
+  { name: 'BACKCOURT SPEED', shape: [...SYNERGY_DEFS.backcourtSpeed.shape], effect: 'PACE', effectColor: palette.makeGreenLt },
+  { name: 'TWIN TOWERS', shape: [...SYNERGY_DEFS.twinTowers.shape], effect: 'DEFENSE', effectColor: palette.steelBlue },
+  { name: 'POSITIONLESS', shape: [...SYNERGY_DEFS.positionless.shape], effect: 'CLUTCH', effectColor: palette.gold },
+  { name: 'SPECIALISTS', shape: [...SYNERGY_DEFS.specialists.shape], effect: 'OFFENSE', effectColor: palette.orange },
 ];
 
 interface HowToPlayScreenProps {
@@ -193,13 +196,13 @@ export default function HowToPlayScreen({ initialSection }: HowToPlayScreenProps
         >
           <View style={styles.centerRow}>
             {POSITIONS.map((p, i) => (
-              <TagChip key={p} label={p} color={POSITION_COLOR[p]} size="micro" glowDelayMs={i * 120} />
+              <TagChip key={p} label={p} color={POSITION_COLOR[p]} size="micro" glowPaused={idle} glowDelayMs={i * 120} />
             ))}
             <TagChip label={`+${BENCH_SPOTS} BENCH`} color={palette.inkDim} size="micro" />
           </View>
           <View style={[styles.ladderRow, styles.rowGap]}>
             {COST_CHIPS.map((c, i) => (
-              <TagChip key={c.label} label={c.label} color={c.color} size="micro" sub={c.sub} glowDelayMs={i * 120} />
+              <TagChip key={c.label} label={c.label} color={c.color} size="micro" sub={c.sub} glowPaused={idle} glowDelayMs={i * 120} />
             ))}
           </View>
           <MonoText style={[styles.note, styles.stackNote]}>{BUDGET_LINE}</MonoText>
@@ -228,7 +231,7 @@ export default function HowToPlayScreen({ initialSection }: HowToPlayScreenProps
                   sub={s.effect}
                   subColor={s.effectColor}
                   size="micro"
-                  glowDelayMs={i * 150}
+                  glowPaused={idle} glowDelayMs={i * 150}
                 />
               </View>
             ))}
@@ -315,7 +318,7 @@ export default function HowToPlayScreen({ initialSection }: HowToPlayScreenProps
                 color={CLASS_COLOR[c]}
                 size="micro"
                 sub={`${COPIES_TO_OWN[c]}x`}
-                glowDelayMs={i * 150}
+                glowPaused={idle} glowDelayMs={i * 150}
               />
             ))}
             <TagChip
@@ -324,7 +327,7 @@ export default function HowToPlayScreen({ initialSection }: HowToPlayScreenProps
               size="micro"
               sub="RARE"
               icon={<StarIcon size={12} color={palette.gold} />}
-              glowDelayMs={600}
+              glowPaused={idle} glowDelayMs={600}
             />
           </View>
           <View style={[styles.ladderRow, styles.rowGap]}>
@@ -336,7 +339,7 @@ export default function HowToPlayScreen({ initialSection }: HowToPlayScreenProps
                 size="micro"
                 sub={c.sub}
                 icon={<FavorIcon size={12} color={c.color} />}
-                glowDelayMs={i * 120}
+                glowPaused={idle} glowDelayMs={i * 120}
               />
             ))}
           </View>
@@ -357,27 +360,27 @@ export default function HowToPlayScreen({ initialSection }: HowToPlayScreenProps
         >
           <View style={styles.ladderRow}>
             {LADDER.map((c, i) => (
-              <TagChip key={c} label={c} color={CLASS_COLOR[c]} size="small" glowDelayMs={i * 150} />
+              <TagChip key={c} label={c} color={CLASS_COLOR[c]} size="small" glowPaused={idle} glowDelayMs={i * 150} />
             ))}
             <CrownIcon size={14} color={palette.gold} />
           </View>
           <View style={[styles.ladderRow, styles.rowGap]}>
-            <TagChip label="COINS" color={palette.gold} size="micro" icon={<CoinIcon size={12} color={palette.gold} />} glowDelayMs={0} />
-            <TagChip label="STARS" color={palette.steelBlue} size="micro" icon={<RecruitIcon size={12} color={palette.steelBlue} />} glowDelayMs={120} />
-            <TagChip label="ABILITIES" color={SYNERGY_CHROME} size="micro" icon={<StarIcon size={12} color={SYNERGY_CHROME} />} glowDelayMs={240} />
-            <TagChip label="LEGENDS" color={palette.gold} size="micro" icon={<CrownIcon size={12} color={palette.gold} />} glowDelayMs={360} />
+            <TagChip label="COINS" color={palette.gold} size="micro" icon={<CoinIcon size={12} color={palette.gold} />} glowPaused={idle} glowDelayMs={0} />
+            <TagChip label="STARS" color={palette.steelBlue} size="micro" icon={<RecruitIcon size={12} color={palette.steelBlue} />} glowPaused={idle} glowDelayMs={120} />
+            <TagChip label="ABILITIES" color={SYNERGY_CHROME} size="micro" icon={<StarIcon size={12} color={SYNERGY_CHROME} />} glowPaused={idle} glowDelayMs={240} />
+            <TagChip label="LEGENDS" color={palette.gold} size="micro" icon={<CrownIcon size={12} color={palette.gold} />} glowPaused={idle} glowDelayMs={360} />
           </View>
           <View style={[styles.ladderRow, styles.rowGap]}>
-            <TagChip label="MEDIUM" color={palette.steelBlue} size="micro" sub={`x${difficultyMods('medium').copiesMul} COPIES`} glowDelayMs={0} />
-            <TagChip label="HARD" color={palette.orange} size="micro" sub={`x${difficultyMods('hard').copiesMul} COPIES`} glowDelayMs={150} />
-            <TagChip label="INSANE" color={palette.missRedLt} size="micro" sub={`x${difficultyMods('insane').copiesMul} COPIES`} glowDelayMs={300} />
+            <TagChip label="MEDIUM" color={palette.steelBlue} size="micro" sub={`x${difficultyMods('medium').copiesMul} COPIES`} glowPaused={idle} glowDelayMs={0} />
+            <TagChip label="HARD" color={palette.orange} size="micro" sub={`x${difficultyMods('hard').copiesMul} COPIES`} glowPaused={idle} glowDelayMs={150} />
+            <TagChip label="INSANE" color={palette.missRedLt} size="micro" sub={`x${difficultyMods('insane').copiesMul} COPIES`} glowPaused={idle} glowDelayMs={300} />
             <TagChip
               label="LEGENDS"
               color={palette.gold}
               size="micro"
               sub="SIGNINGS"
               icon={<CrownIcon size={12} color={palette.gold} />}
-              glowDelayMs={450}
+              glowPaused={idle} glowDelayMs={450}
             />
           </View>
           <MonoText style={[styles.note, styles.stackNote]}>{TIMEOUT_LINE}</MonoText>
