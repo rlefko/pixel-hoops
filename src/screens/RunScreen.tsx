@@ -411,16 +411,29 @@ export default function RunScreen() {
           />
         );
       }
-      // From the celebration, exits lead INTO the first applicable reveal (bounty, players, coaches).
-      const firstReveal = bounty
-        ? () => setShowBountyReveal(true)
-        : unlockedPlayers.length > 0
-          ? toPlayerReveal
-          : wonCoaches.length > 0
-            ? toCoachReveal
-            : null;
-      const exitHome = firstReveal ?? goMenu;
-      const exitNewRun = firstReveal ?? actions.newRun;
+      // From the celebration, exits lead INTO the first applicable reveal (bounty,
+      // players, coaches). Routed at TAP time from the settled outputs: the champion
+      // settle is deferred off the celebration's commit frame, so a render-baked
+      // closure could be looking at pre-settle (empty) grants; ensureSettled() lands
+      // it synchronously if the deferred task has not run yet and returns what it
+      // banked. By the reveal screens themselves the context has caught up, so their
+      // chained exits keep reading render props as before.
+      const exitVia = (leave: () => void) => () => {
+        const settled = actions.ensureSettled();
+        const grants = settled
+          ? {
+              bounty: champion ? settled.bounty : null,
+              unlocked: champion ? settled.acquisitions.unlocked : [],
+              coachCount: champion ? settled.wonCoachIds.length : 0,
+            }
+          : { bounty, unlocked: unlockedPlayers, coachCount: wonCoaches.length };
+        if (grants.bounty) setShowBountyReveal(true);
+        else if (grants.unlocked.length > 0) toPlayerReveal();
+        else if (grants.coachCount > 0) toCoachReveal();
+        else leave();
+      };
+      const exitHome = exitVia(goMenu);
+      const exitNewRun = exitVia(actions.newRun);
       // A won ladder gets the full champion celebration (it needs the final game's
       // score and five). Losses, and the defensive champion-without-game case, fall
       // back to the flat summary.

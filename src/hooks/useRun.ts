@@ -1,29 +1,23 @@
-import { useReducer, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useReducer, useEffect, useMemo, useRef } from 'react';
 import { InteractionManager } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { runReducer, computeCoachRec, computeGameSim, gameSimKey } from '@/game/run-machine';
 import { withSlowActionWarning } from '@/game/dev-timing';
 import {
-  mergeRunGainsIntoHome,
-  previewRunAcquisitions,
-  claimRunBounty,
   collectingCopyMap,
   playerKey,
   rememberDraftRotation,
   selectCoach,
-  settleDailyRewards,
   type AcquisitionDelta,
   type BountyGrant,
   type DailyGrants,
   type FavorDelta,
+  type HomeRoster,
 } from '@/game/home-roster';
-import { dayKey, weekKey } from '@/game/daily';
-import { createRNG, deriveSeed } from '@/game/rng';
+import { settleRunIntoHome, type RunSettleResult } from '@/game/run-settle';
 import type { Difficulty } from '@/game/difficulty-mode';
 import { copiesToOwn } from '@/game/collection';
 import { playerDraftClass } from '@/game/draft';
-import { coachesWonByClear } from '@/game/coaches';
-import { buildHallOfFameEntry } from '@/game/hall-of-fame';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import type { RosterPlayer } from '@/types/roster';
@@ -71,6 +65,17 @@ export function useRun() {
   const dailyGrantsRef = useRef<DailyGrants | null>(null);
   // The favor this run's settle banked/converted (win or lose), for the summary strip.
   const favorDeltaRef = useRef<FavorDelta[]>([]);
+  // The landed settle's outputs, memoized per run so a deferred champion settle and
+  // the tap-time ensureSettled fallback can never both bank (idempotence on top of
+  // the persisted settledRunId guard). `scheduled` keeps the deferral once-per-run.
+  const settledRef = useRef<{ runId: string; outputs: RunSettleResult } | null>(null);
+  const settleScheduledRef = useRef<string | null>(null);
+  // Live snapshots for tap-time handlers (ensureSettled), so their identity never
+  // churns on model/homeRoster changes.
+  const modelRef = useRef(model);
+  modelRef.current = model;
+  const homeRosterRef = useRef(homeRoster);
+  homeRosterRef.current = homeRoster;
 
   // Start the run once, after both the home roster and the saved-run slot have hydrated.
   // The home screen passes `mode` 'new' or 'resume'; only 'resume' (with a saved run)
@@ -158,17 +163,56 @@ export function useRun() {
     );
   }, [model, homeRoster, saveHomeRoster]);
 
+  // Land a computed settle exactly once: publish the reveal-beat refs, write the
+  // settled home, and only THEN drop the saved slot (never before the settle write is
+  // queued, so a crash can never clear the slot with the rewards unbanked; a
+  // resumed-then-resettled run is a no-op via settledRunId + the coin ledger).
+  const landSettle = useCallback(
+    (runId: string, outputs: RunSettleResult) => {
+      if (settledRef.current?.runId === runId) return;
+      settledRef.current = { runId, outputs };
+      wonCoachRef.current = outputs.wonCoachIds;
+      wonPlayersRef.current = outputs.acquisitions;
+      favorDeltaRef.current = outputs.favorDelta;
+      bountyGrantRef.current = outputs.bounty;
+      dailyGrantsRef.current = outputs.daily;
+      saveHomeRoster(outputs.home);
+      clearActiveRun();
+    },
+    [saveHomeRoster, clearActiveRun]
+  );
+
+  // The tap-time settle guarantee for the summary's exit handlers: returns the landed
+  // outputs, computing and landing them synchronously if the deferred task has not
+  // run yet, so reveal routing and the next run's baseline always read settled data
+  // (never a render-baked snapshot). Null outside a summary.
+  const ensureSettled = useCallback((): RunSettleResult | null => {
+    const m = modelRef.current;
+    const home = homeRosterRef.current;
+    if (!m || !home || m.phase.kind !== 'summary') return null;
+    const runId = String(m.core.seed);
+    if (settledRef.current?.runId === runId) return settledRef.current.outputs;
+    if (home.settledRunId === runId) return null; // already settled in a prior hook life
+    const outputs = settleRunIntoHome(home, m, Date.now());
+    landSettle(runId, outputs);
+    return outputs;
+  }, [landSettle]);
+
   // Bank the run into the home roster in a single write:
   //  (a) coins as-earned: bank the delta since this run last banked. The delta self-corrects
   //      (earned - already-banked), so it lands exactly once even across resumes/crashes.
-  //  (b) terminal settle at the summary: fold in recruits/ladder/coaches/Hall of Fame/
-  //      reputation once (guarded by settledRunId), then clear the saved slot.
+  //  (b) terminal settle at the summary (guarded by settledRunId): fold in recruits/
+  //      ladder/coaches/Hall of Fame/reputation once, then clear the saved slot. A
+  //      champion settle is O(collection) and its summary commits behind the held
+  //      tip-off ceremony cover, so it runs one InteractionManager task later instead
+  //      of on the frame that mounts the celebration; a loss summary arrives from a
+  //      plain coverless tap whose strips mount with the settle's data, so it settles
+  //      inline exactly as before. ensureSettled() above closes the only tap-timing
+  //      window the deferral opens.
   useEffect(() => {
     if (!model || !homeRoster) return;
     const runId = String(model.core.seed);
     const isSummary = model.phase.kind === 'summary';
-    // Narrow on the discriminant directly: the compiler does not track `isSummary` back
-    // to model.phase here.
     const champion = model.phase.kind === 'summary' ? model.phase.champion : false;
     // Don't let a prior championship's won-coach reveal leak into a later run.
     if (!isSummary) {
@@ -177,95 +221,44 @@ export function useRun() {
       bountyGrantRef.current = null;
       dailyGrantsRef.current = null;
       favorDeltaRef.current = [];
+      if (settleScheduledRef.current !== runId) settleScheduledRef.current = null;
+      if (settledRef.current && settledRef.current.runId !== runId) settledRef.current = null;
     }
 
+    const needsSettle =
+      isSummary && homeRoster.settledRunId !== runId && settledRef.current?.runId !== runId;
+    if (needsSettle) {
+      if (champion) {
+        if (settleScheduledRef.current === runId) return;
+        settleScheduledRef.current = runId;
+        // No cleanup-cancel: leaving the summary fast must never skip a settle
+        // (landSettle + ensureSettled keep a late task idempotent).
+        InteractionManager.runAfterInteractions(() => {
+          const m = modelRef.current;
+          const home = homeRosterRef.current;
+          if (!m || !home || String(m.core.seed) !== runId) return;
+          if (home.settledRunId === runId || settledRef.current?.runId === runId) return;
+          landSettle(runId, settleRunIntoHome(home, m, Date.now()));
+        });
+      } else {
+        landSettle(runId, settleRunIntoHome(homeRoster, model, Date.now()));
+      }
+      return;
+    }
+
+    // Mid-run (or an already-settled summary): bank any as-earned coin delta.
     const earned = model.core.rewards.coins;
     const priorBanked =
       homeRoster.lastBankedRunId === runId ? (homeRoster.lastBankedCoins ?? 0) : 0;
     const coinDelta = Math.max(0, earned - priorBanked);
-    const needsSettle = isSummary && homeRoster.settledRunId !== runId;
-    if (coinDelta === 0 && !needsSettle) return;
-
-    let next = homeRoster;
-    if (coinDelta > 0) {
-      next = { ...next, coins: next.coins + coinDelta, lastBankedRunId: runId, lastBankedCoins: earned };
-    }
-    if (needsSettle) {
-      // The coach(es) this championship wins, captured against the PRE-merge owned set
-      // (the merge below grants them, so the diff would be empty afterward).
-      wonCoachRef.current = champion
-        ? coachesWonByClear(
-            next.ladderProgress,
-            model.difficulty,
-            model.ladderClass,
-            new Set(next.ownedCoaches)
-          )
-        : [];
-      // The players this settle unlocks/progresses (a milestone-banked loss included)
-      // and its favor movement, captured against the PRE-merge collection (the merge
-      // below deposits them), for the scouted-player reveal + the summary strips.
-      const preview = previewRunAcquisitions(next, model.core.roster, {
-        champion,
-        playedDifficulty: model.difficulty,
-        bossWins: model.core.currentMapIndex,
-        ladderClass: model.ladderClass,
-        runFavor: model.favor ?? {},
-      });
-      wonPlayersRef.current = { unlocked: preview.unlocked, progressed: preview.progressed };
-      favorDeltaRef.current = preview.favorDelta;
-      // A championship banks a Hall of Fame snapshot of the final game. Date.now() lives
-      // here (the hook), keeping the merge and the entry builder clock-free.
-      const now = Date.now();
-      const championEntry =
-        champion && model.game
-          ? buildHallOfFameEntry(model.game, model.difficulty, model.ladderClass, model.wins, now)
-          : undefined;
-      // Grant this cell's one-time bounty against the PRE-merge home (its clearedCells set
-      // does not hold this cell yet, which the cell-exact first-clear test reads). Seeded off
-      // the run so a resumed settle reproduces the same grant; the merge spreads the granted
-      // home.
-      const { home: withBounty, granted: bountyGrant } = claimRunBounty(
-        next,
-        model.difficulty,
-        model.ladderClass,
-        champion,
-        createRNG(deriveSeed(model.core.seed, 'bounty'))
-      );
-      bountyGrantRef.current = bountyGrant;
-      // The Daily Layer settle: weekly wins bank on EVERY settle (losses included);
-      // the first-win purse and Spotlight bounty are champion-gated inside. Runs
-      // against the pre-merge home (its clearedCells derived the spotlight the hub
-      // showed) with its own rng label, so a crash-resumed settle reproduces the
-      // exact grants. The stamps land in the same atomic write as everything else.
-      const { home: withDaily, granted: dailyGrants } = settleDailyRewards(withBounty, {
-        runCell: { difficulty: model.difficulty, ladderClass: model.ladderClass },
-        today: dayKey(now),
-        week: weekKey(now),
-        champion,
-        wins: model.wins,
-        rng: createRNG(deriveSeed(model.core.seed, 'daily')),
-      });
-      dailyGrantsRef.current = dailyGrants;
-      next = {
-        ...mergeRunGainsIntoHome(withDaily, model.core.roster, {
-          rewards: model.core.rewards,
-          legendOffered: model.legend.offeredThisRun,
-          champion,
-          clearedClass: model.ladderClass,
-          playedDifficulty: model.difficulty,
-          championEntry,
-          bossWins: model.core.currentMapIndex,
-          ladderClass: model.ladderClass,
-          runFavor: model.favor ?? {},
-        }),
-        settledRunId: runId,
-      };
-    }
-    saveHomeRoster(next);
-    // Best-effort: the saved slot is dropped on settle. Correctness does not depend on this
-    // landing (a resumed-then-resettled run is a no-op via settledRunId + the coin ledger).
-    if (isSummary) clearActiveRun();
-  }, [model, homeRoster, saveHomeRoster, clearActiveRun]);
+    if (coinDelta === 0) return;
+    saveHomeRoster({
+      ...homeRoster,
+      coins: homeRoster.coins + coinDelta,
+      lastBankedRunId: runId,
+      lastBankedCoins: earned,
+    });
+  }, [model, homeRoster, saveHomeRoster, landSettle]);
 
   // Dispatch-only actions, memoized once: dispatch from useReducer is identity-stable,
   // so these callbacks never change and memoized children (the run-map tiles) keep
@@ -316,31 +309,48 @@ export function useRun() {
     []
   );
 
+  // The home roster a new run must build from: the live context snapshot once it
+  // reflects this run's settle (it may also carry later edits, like an equip from the
+  // coach reveal), otherwise the settle's own output via ensureSettled, so a fast
+  // "New Run" tap can never race the deferred settle and draft from pre-settle data.
+  const settledHomeBase = useCallback((): HomeRoster | null => {
+    const home = homeRosterRef.current;
+    const m = modelRef.current;
+    if (!home) return null;
+    if (!m || m.phase.kind !== 'summary') return home;
+    if (home.settledRunId === String(m.core.seed)) return home;
+    return ensureSettled()?.home ?? home;
+  }, [ensureSettled]);
+
   // Home-roster actions carry their live snapshot, so only these re-memoize on saves.
   const homeActions = useMemo(
     () => ({
       // Equip a newly-won coach for the next run (a home mutation, not a run action),
       // straight from the unlock reveal so it feeds the next run.
       equipCoach: (id: string) => homeRoster && saveHomeRoster(selectCoach(homeRoster, id)),
-      // Start a fresh run from the summary. The finished run already settled, so drop its
-      // saved slot before the new run's first auto-save takes it over.
+      // The tap-time settle guarantee for the summary exits (see ensureSettled above).
+      ensureSettled,
+      // Start a fresh run from the summary. The finished run settles first (ensured),
+      // so drop its saved slot before the new run's first auto-save takes it over.
       newRun: () => {
-        if (!homeRoster) return;
+        const base = settledHomeBase();
+        if (!base) return;
         clearActiveRun();
-        dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster });
+        dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster: base });
       },
       // The victory step-up: run it back one difficulty up, from the win screen (the
       // confidence peak). Saves the selection AND starts the run from the same updated
       // roster object, so the new run can never race the context write.
       stepUpRun: (difficulty: Difficulty) => {
-        if (!homeRoster) return;
-        const next = { ...homeRoster, selectedDifficulty: difficulty };
+        const base = settledHomeBase();
+        if (!base) return;
+        const next = { ...base, selectedDifficulty: difficulty };
         saveHomeRoster(next);
         clearActiveRun();
         dispatch({ type: 'newRun', seed: `run-${Date.now()}`, homeRoster: next });
       },
     }),
-    [homeRoster, saveHomeRoster, clearActiveRun]
+    [homeRoster, saveHomeRoster, clearActiveRun, ensureSettled, settledHomeBase]
   );
 
   const actions = useMemo(
