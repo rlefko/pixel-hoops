@@ -58,7 +58,6 @@ export function DailyPanel({
           />
         }
         attract={attract && !claimedToday}
-        attractDelayMs={100}
         badge={badge}
         onPress={onPlaySpotlight}
       />

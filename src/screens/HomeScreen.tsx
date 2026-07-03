@@ -154,7 +154,7 @@ export default function HomeScreen() {
   // this focus may play, and the single attract pulse. Called before the welcome
   // early-return so the hook order is stable.
   const spotlightClaimed = homeRoster?.daily?.spotlightClaimedDay === day;
-  const { stages, ceremony, dailyJustUnlocked, coachesJustUnlocked } = useHubUnlocks({
+  const { stages, ceremony, dailyJustUnlocked, coachesJustUnlocked, pulse } = useHubUnlocks({
     hasSavedRun: savedRun != null,
     spotlightClaimed,
   });
@@ -379,7 +379,7 @@ export default function HomeScreen() {
             claimedToday={spotlightClaimed}
             weeklyWins={weekly.gameWins}
             claimedTiers={weekly.claimedTiers}
-            attract={!idle}
+            attract={!idle && pulse === 'daily'}
             badge={
               <DeltaChip
                 amount={dailyJustUnlocked ? 1 : 0}
@@ -395,12 +395,14 @@ export default function HomeScreen() {
       ) : null}
 
       <View style={styles.menu}>
+        {/* Exactly ONE element pulses per hub screen (hubPulseTarget): multiple
+            competing glows train blindness, so the pulse IS the "do this next". */}
         <MenuButton
           variant="hero"
           label="NEW RUN"
           color={palette.gold}
           icon={<BasketballIcon size={28} color={palette.gold} />}
-          attract={!idle}
+          attract={!idle && pulse === 'newRun'}
           onPress={() =>
             nav.push({ pathname: '/run', params: { mode: 'new' } }, 'run')
           }
@@ -422,8 +424,7 @@ export default function HomeScreen() {
                 <BasketballIcon size={22} color={palette.orange} />
               )
             }
-            attract={!idle}
-            attractDelayMs={200}
+            attract={!idle && pulse === 'resume'}
             onPress={() =>
               nav.push({ pathname: '/run', params: { mode: 'resume' } }, 'run')
             }
@@ -437,8 +438,7 @@ export default function HomeScreen() {
                 label="LOCKER ROOM"
                 color={palette.makeGreen}
                 icon={<LockerIcon size={24} color={palette.makeGreen} />}
-                attract={!idle}
-                attractDelayMs={150}
+                attract={!idle && pulse === 'locker'}
                 badge={
                   <DeltaChip
                     amount={ceremony === 'lockerUnlock' ? 1 : 0}
@@ -461,8 +461,7 @@ export default function HomeScreen() {
                 label="ARCADE"
                 color={palette.flame}
                 icon={<JoystickIcon size={24} color={palette.flame} />}
-                attract={!idle}
-                attractDelayMs={300}
+                attract={!idle && pulse === 'arcade'}
                 badge={
                   <DeltaChip
                     amount={ceremony === 'arcadeUnlock' ? 1 : 0}
@@ -507,6 +506,7 @@ export default function HomeScreen() {
                 label="HALL OF FAME"
                 color={palette.gold}
                 icon={<CrownIcon size={24} color={palette.gold} />}
+                attract={!idle && pulse === 'hallOfFame'}
                 // A dot, not a number: "something new on the shelf" is the message.
                 // On the unlock focus the ceremony dot takes the single badge slot.
                 badge={
