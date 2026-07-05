@@ -877,6 +877,7 @@ export function simulateGame(config: SimConfig): SimResult {
     }
 
     // Box accumulation (fixed draw order: assist, then rebound/steal/block).
+    let assist: { name: string; position: Position } | undefined;
     if (result === 'score' || result === 'and-one') {
       scorer.box.fga += 1;
       scorer.box.fgm += 1;
@@ -888,7 +889,15 @@ export function simulateGame(config: SimConfig): SimResult {
       const assistP = ASSIST_RATE * (offense.aggregate.playmaking / 20);
       const others = offense.onCourt.filter((p) => p !== scorer);
       if (others.length > 0 && rng.chance(assistP)) {
-        pickByPower(others, 'playmaking', ASSIST_POWER).box.ast += 1;
+        const assister = pickByPower(others, 'playmaking', ASSIST_POWER);
+        assister.box.ast += 1;
+        // Record the passer for the watch. The slot is the assister's court
+        // position: onCourt is exactly the five, index === POSITIONS slot. No new
+        // RNG draw, so the result stays byte-identical to before this field.
+        assist = {
+          name: assister.rp.player.name,
+          position: POSITIONS[offense.onCourt.indexOf(assister)],
+        };
       }
     } else if (result === 'block') {
       scorer.box.fga += 1;
@@ -933,6 +942,7 @@ export function simulateGame(config: SimConfig): SimResult {
       isBigPlay,
       callout: calloutFor(action, result),
       text: textFor(scorer.rp.player.name, action, result),
+      assist,
       onCourt: snapshot(),
       subs: subs.length > 0 ? subs : undefined,
     });
