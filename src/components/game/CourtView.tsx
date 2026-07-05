@@ -6,6 +6,7 @@ import Animated, {
   withSequence,
   withTiming,
   withDelay,
+  withRepeat,
   cancelAnimation,
   interpolate,
   Easing,
@@ -24,16 +25,15 @@ import { ApronCrowd, type ApronCrowdHandle } from '@/components/game/ApronCrowd'
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { COURT } from '@/components/game/courtDimensions';
+import { idleBobFor, DUNK, WINNER_TIME_SCALE } from '@/components/game/possession';
 import {
-  idleBobFor,
-  moveOffsetFor,
-  roleFor,
-  MOVE,
-  DUNK,
-  WINNER_TIME_SCALE,
-} from '@/components/game/possession';
+  spriteKey,
+  fracToPx,
+  type PossessionPlan,
+  type Waypoint,
+} from '@/components/game/choreography';
 import { useFeelSettings, useBobPulse, useGlowPulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
-import { FLIGHT_DURATION_MAX } from '@/feel/useBallFlight';
+import { FLIGHT_DURATION_MAX } from '@/feel/ballPath';
 import type { ArenaTier } from '@/game/arena-tier';
 import type { CrowdPulsePlan } from '@/game/crowd-pulse';
 import { palette, FONT, FONT_SIZE } from '@/theme';
@@ -56,6 +56,8 @@ interface CourtViewProps {
   awayTeam: Team;
   /** The play currently being shown, or null before tip-off. */
   current: SimEvent | null;
+  /** The possession plan driving the floor movement and the ball path. */
+  plan?: PossessionPlan | null;
   /** `${side}-${position}` keys of players who are currently on fire. */
   hotKeys?: string[];
   /** `${side}-${position}` keys of players heating up (the warm tease tier). */
@@ -129,6 +131,7 @@ interface Burst {
  */
 function burstFor(
   e: SimEvent | null,
+  plan: PossessionPlan | null | undefined,
   homeTeam: Team,
   awayTeam: Team,
   width: number,
@@ -139,8 +142,11 @@ function burstFor(
   const rim = rimCenterPx(side, width, height);
   if (e.result === 'block' || e.result === 'steal') {
     return {
-      // The defender/ball is at the player's stable base, so pass null to match.
-      origin: spotPx(side, e.scorerPosition, width, height, null),
+      // The contested shot happens at the shooter's spot; with a plan that's the
+      // advanced spot they ran to, else the sprite's static base.
+      origin: plan
+        ? fracToPx(plan.igniteFrac, width, height)
+        : spotPx(side, e.scorerPosition, width, height, null),
       variant: 'cool',
       count: e.result === 'block' ? 6 : 5,
     };
@@ -181,6 +187,19 @@ const DUNK_KF = [
 /** A sprite's hot-hand tier: on fire pulses, warm is the steady half-lit tease. */
 type HeatTier = 'none' | 'warm' | 'fire';
 
+/** Run-cycle hop (finite, possession-scoped: never an idle loop on the floor). */
+const STRIDE_MS = 200;
+const STRIDE_HOP = 2;
+
+/** Per-sprite pixel keyframes for this possession, resolved from the plan waypoints. */
+interface MovePath {
+  times: number[]; // normalized 0..1
+  xs: number[];
+  ys: number[];
+  baseX: number;
+  baseY: number;
+}
+
 const SpriteAt = memo(function SpriteAt({
   side,
   position,
@@ -190,6 +209,11 @@ const SpriteAt = memo(function SpriteAt({
   width,
   height,
   heat,
+  waypoints,
+  isDunker,
+  preShotMs,
+  totalMs,
+  timeScale,
 }: {
   side: SimTeamSide;
   position: Position;
@@ -199,21 +223,24 @@ const SpriteAt = memo(function SpriteAt({
   width: number;
   height: number;
   heat: HeatTier;
+  /** This sprite's fractional path this possession, or undefined if it holds. */
+  waypoints?: Waypoint[];
+  /** True when this sprite throws down the dunk (drives the slam squash). */
+  isDunker: boolean;
+  preShotMs: number;
+  totalMs: number;
+  timeScale: number;
 }) {
   const { reducedMotion, simSpeed } = useFeelSettings();
   const speed = SIM_SPEED_FACTOR[simSpeed];
   const rp = playerAt(team, position, side, current, roster);
 
-  const role = roleFor(current, side, position);
   const active =
     current != null && current.team === side && current.scorerPosition === position;
-  const isDunker = role === 'dunker';
   const seq = current?.seq ?? -1;
 
-  // Stable base: the floor holds a fixed defensive set and does NOT reposition
-  // per possession (that read as jumpy). The ball flight and the active
-  // shooter/driver/dunker carry the possession. Static percent placement avoids
-  // a pre-layout jump.
+  // Stable base: static percent placement avoids a pre-layout jump. The plan's
+  // travel rides on top of this as a transform, so the SVG never re-renders.
   const { left, top } = spotPercent(side, position, null);
 
   // Idle breathe, detuned per sprite so the floor undulates instead of marching.
@@ -223,36 +250,78 @@ const SpriteAt = memo(function SpriteAt({
     bobAmplitude: bob.bobAmplitude,
   });
 
-  // Possession motion: a driver steps to the rim, a defender leans in, a jumper
-  // shooter rises. The dunker owns its own travel (below), so it skips this.
-  const offset = useMemo(
-    () => moveOffsetFor(current, side, position, width, height),
-    [current, side, position, width, height]
-  );
-  const move = useSharedValue(0);
+  // Possession travel: run the plan's waypoints. Resolve the fractions to px once
+  // per possession; only the shared progress value animates on the UI thread.
+  const path = useMemo<MovePath | null>(() => {
+    if (!waypoints || waypoints.length < 2 || width === 0 || height === 0) return null;
+    const total = waypoints[waypoints.length - 1].atMs || 1;
+    const pts = waypoints.map((w) => fracToPx(w.frac, width, height));
+    return {
+      times: waypoints.map((w) => w.atMs / total),
+      xs: pts.map((p) => p.x),
+      ys: pts.map((p) => p.y),
+      baseX: pts[0].x,
+      baseY: pts[0].y,
+    };
+  }, [waypoints, width, height]);
+  const moves = path != null;
+
+  const t = useSharedValue(0);
+  // Keyed on the possession (seq), not on speed/totalMs: like the ball's lastSeq
+  // guard, a mid-possession speed or mode toggle does not restart the run in
+  // flight (it would jump sprites back to base while the ball kept flying); the
+  // new pacing takes effect on the next possession.
   useEffect(() => {
-    if (reducedMotion || isDunker || (offset.dx === 0 && offset.dy === 0)) {
-      move.value = 0;
+    if (reducedMotion || !moves) {
+      t.value = 0;
       return;
     }
-    move.value = 0;
-    move.value = withSequence(
-      withTiming(1, { duration: scaled(MOVE.out, speed), easing: Easing.out(Easing.cubic) }),
-      withDelay(
-        scaled(MOVE.hold, speed),
-        withTiming(0, { duration: scaled(MOVE.back, speed), easing: Easing.out(Easing.quad) })
-      )
-    );
-  }, [seq, offset.dx, offset.dy, reducedMotion, isDunker, speed, move]);
-  const moveStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: offset.dx * move.value },
-      { translateY: offset.dy * move.value },
-    ],
-  }));
+    t.value = 0;
+    t.value = withTiming(1, {
+      duration: scaled(totalMs * timeScale, speed),
+      easing: Easing.linear,
+    });
+    return () => cancelAnimation(t);
+  }, [seq, reducedMotion, moves, t]);
+  const posStyle = useAnimatedStyle(() => {
+    if (!path) return {};
+    const x = interpolate(t.value, path.times, path.xs) - path.baseX;
+    const y = interpolate(t.value, path.times, path.ys) - path.baseY;
+    return { transform: [{ translateX: Math.round(x) }, { translateY: Math.round(y) }] };
+  });
 
-  // The dunk: gather (squash), leap (stretch up toward the rim), slam (squash
-  // down, the ball arrives), hang, recover. One progress value drives it all.
+  // Run tell: a small vertical hop while this sprite travels. Finite (a fixed
+  // number of cycles sized to the possession), so it self-terminates and never
+  // becomes an always-on loop; idle sprites never run it.
+  const stride = useSharedValue(0);
+  useEffect(() => {
+    if (reducedMotion || !moves) {
+      stride.value = 0;
+      return;
+    }
+    const dur = scaled(totalMs * timeScale, speed);
+    const hop = scaled(STRIDE_MS, speed);
+    const cycles = Math.max(2, Math.round(dur / hop));
+    stride.value = 0;
+    stride.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: Math.round(hop / 2), easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: Math.round(hop / 2), easing: Easing.in(Easing.quad) })
+      ),
+      cycles,
+      false
+    );
+    return () => cancelAnimation(stride);
+    // Keyed on the possession (seq), matching the travel effect above.
+  }, [seq, reducedMotion, moves, stride]);
+  const strideStyle = useAnimatedStyle(() => {
+    if (!moves) return {};
+    return { transform: [{ translateY: -Math.round(STRIDE_HOP * stride.value) }] };
+  });
+
+  // The dunk squash overlay, timed to the slam: gather, leap, slam (the ball
+  // arrives), hang, recover. Delayed to the shot beat so it lands with the ball;
+  // the travel to the rim is the plan's waypoints, so this is scale/lift only.
   const dunk = useSharedValue(0);
   useEffect(() => {
     if (reducedMotion || !isDunker) {
@@ -260,25 +329,19 @@ const SpriteAt = memo(function SpriteAt({
       return;
     }
     dunk.value = 0;
-    dunk.value = withTiming(1, { duration: scaled(DUNK_TOTAL, speed), easing: Easing.linear });
+    dunk.value = withDelay(
+      scaled(preShotMs * timeScale, speed),
+      withTiming(1, { duration: scaled(DUNK_TOTAL * timeScale, speed), easing: Easing.linear })
+    );
     return () => cancelAnimation(dunk);
-  }, [seq, isDunker, reducedMotion, speed, dunk]);
+    // Keyed on the possession (seq), matching the travel effect above.
+  }, [seq, isDunker, reducedMotion, dunk]);
   const dunkStyle = useAnimatedStyle(() => {
     const p = dunk.value;
-    // Values per beat: rest, gather (squash), leap (stretch up), slam (squash
-    // down), hang, recover.
-    const travel = interpolate(p, DUNK_KF, [0, 0.4, 1, 1, 1, 0]);
     const lift = interpolate(p, DUNK_KF, [0, 0, -DUNK.lift, 0, 0, 0]);
     const sx = interpolate(p, DUNK_KF, [1, 1.08, 0.88, 1.16, 1.1, 1]);
     const sy = interpolate(p, DUNK_KF, [1, 0.86, 1.22, 0.82, 0.88, 1]);
-    return {
-      transform: [
-        { translateX: Math.round(offset.dx * travel) },
-        { translateY: Math.round(offset.dy * travel + lift) },
-        { scaleX: sx },
-        { scaleY: sy },
-      ],
-    };
+    return { transform: [{ translateY: Math.round(lift) }, { scaleX: sx }, { scaleY: sy }] };
   });
 
   // On-fire aura: a flame glow behind a hot scorer (NBA Jam). Steady under reduced
@@ -311,16 +374,18 @@ const SpriteAt = memo(function SpriteAt({
 
   return (
     <View style={[styles.sprite, { left, top }]}>
-      <Animated.View style={moveStyle}>
-        <Animated.View style={bobStyle}>
-          <Animated.View style={dunkStyle}>
-            {isDunker ? (
-              inner
-            ) : (
-              <Pop trigger={active ? current!.seq : `idle-${side}-${position}`}>
-                {inner}
-              </Pop>
-            )}
+      <Animated.View style={posStyle}>
+        <Animated.View style={strideStyle}>
+          <Animated.View style={bobStyle}>
+            <Animated.View style={dunkStyle}>
+              {isDunker ? (
+                inner
+              ) : (
+                <Pop trigger={active ? current!.seq : `idle-${side}-${position}`}>
+                  {inner}
+                </Pop>
+              )}
+            </Animated.View>
           </Animated.View>
         </Animated.View>
       </Animated.View>
@@ -336,6 +401,7 @@ function CourtViewImpl({
   homeTeam,
   awayTeam,
   current,
+  plan,
   hotKeys = NO_HOT_KEYS,
   warmKeys = NO_HOT_KEYS,
   ignite = false,
@@ -392,18 +458,20 @@ function CourtViewImpl({
   );
 
   const burst = useMemo(
-    () => burstFor(arrival, homeTeam, awayTeam, size.width, size.height),
-    [arrival, homeTeam, awayTeam, size.width, size.height]
+    () => burstFor(arrival, plan, homeTeam, awayTeam, size.width, size.height),
+    [arrival, plan, homeTeam, awayTeam, size.width, size.height]
   );
 
   // The ignite moment (a scorer's third straight make) fires a flame spark at the
-  // shooter, layered over the rim burst so the milestone is felt, not just read.
+  // shooter's shot spot, layered over the rim burst so the milestone is felt.
   const igniteOrigin = useMemo(
     () =>
       ignite && arrival && size.width > 0
-        ? spotPx(arrival.team, arrival.scorerPosition, size.width, size.height, null)
+        ? plan
+          ? fracToPx(plan.igniteFrac, size.width, size.height)
+          : spotPx(arrival.team, arrival.scorerPosition, size.width, size.height, null)
         : null,
-    [ignite, arrival, size.width, size.height]
+    [ignite, arrival, plan, size.width, size.height]
   );
 
   // The shooter entered this possession already on fire: the ball flies flaming.
@@ -421,21 +489,27 @@ function CourtViewImpl({
       return;
     }
     const speed = SIM_SPEED_FACTOR[simSpeed];
-    zoom.value = withSequence(
-      withTiming(CINEMA_ZOOM, {
-        duration: scaled(FLIGHT_DURATION_MAX * WINNER_TIME_SCALE, speed),
-        easing: Easing.out(Easing.quad),
-      }),
-      withDelay(
-        scaled(CINEMA_HOLD_MS, speed),
-        withTiming(1, {
-          duration: scaled(CINEMA_SNAP_BACK_MS, speed),
+    // Lean in as the shot goes up (after the possession's pre-shot beats), so the
+    // slow-mo hangs on the deciding ball, not the run-up.
+    const preShot = plan ? scaled(plan.preShotMs * plan.timeScale, speed) : 0;
+    zoom.value = withDelay(
+      preShot,
+      withSequence(
+        withTiming(CINEMA_ZOOM, {
+          duration: scaled(FLIGHT_DURATION_MAX * WINNER_TIME_SCALE, speed),
           easing: Easing.out(Easing.quad),
-        })
+        }),
+        withDelay(
+          scaled(CINEMA_HOLD_MS, speed),
+          withTiming(1, {
+            duration: scaled(CINEMA_SNAP_BACK_MS, speed),
+            easing: Easing.out(Easing.quad),
+          })
+        )
       )
     );
     return () => cancelAnimation(zoom);
-  }, [cinema, currentSeq, reducedMotion, simSpeed, zoom]);
+  }, [cinema, currentSeq, reducedMotion, simSpeed, plan, zoom]);
   const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
 
   return (
@@ -476,28 +550,37 @@ function CourtViewImpl({
           {awayTeam.name.toUpperCase()}
         </Text>
         {(['away', 'home'] as SimTeamSide[]).map((side) =>
-          POSITIONS.map((position) => (
-            <SpriteAt
-              key={`${side}-${position}`}
-              side={side}
-              position={position}
-              team={side === 'home' ? homeTeam : awayTeam}
-              roster={side === 'home' ? homeRoster : awayRoster}
-              current={current}
-              width={size.width}
-              height={size.height}
-              heat={
-                hotKeys.includes(`${side}-${position}`)
-                  ? 'fire'
-                  : warmKeys.includes(`${side}-${position}`)
-                    ? 'warm'
-                    : 'none'
-              }
-            />
-          ))
+          POSITIONS.map((position) => {
+            const key = spriteKey(side, position);
+            return (
+              <SpriteAt
+                key={key}
+                side={side}
+                position={position}
+                team={side === 'home' ? homeTeam : awayTeam}
+                roster={side === 'home' ? homeRoster : awayRoster}
+                current={current}
+                width={size.width}
+                height={size.height}
+                heat={
+                  hotKeys.includes(key)
+                    ? 'fire'
+                    : warmKeys.includes(key)
+                      ? 'warm'
+                      : 'none'
+                }
+                waypoints={plan?.movers[key]}
+                isDunker={plan?.dunk === true && plan.shooterKey === key}
+                preShotMs={plan?.preShotMs ?? 0}
+                totalMs={plan?.totalMs ?? 0}
+                timeScale={plan?.timeScale ?? 1}
+              />
+            );
+          })
         )}
         <BallFlight
           event={current}
+          plan={plan}
           width={size.width}
           height={size.height}
           hot={ballHot}
