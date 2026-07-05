@@ -83,7 +83,9 @@ const DEFAULTS: FeelSettings = {
   scanlinesEnabled: true,
   arcadeExtras: true,
   simSpeed: 'brisk',
-  highlightsOnly: false,
+  // Highlights is the default fast path: it dramatizes the buckets and assist
+  // passes in ~30s. Full mode (opt-in) runs the whole floor every possession.
+  highlightsOnly: true,
   autoSkipGames: false,
 };
 

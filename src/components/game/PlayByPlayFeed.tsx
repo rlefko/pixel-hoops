@@ -17,7 +17,7 @@ import {
   Pop,
 } from '@/components/fx';
 import { CourtView } from '@/components/game/CourtView';
-import { eventGapMs } from '@/components/game/possession';
+import { buildPossessionPlan, planDurationMs } from '@/components/game/choreography';
 import type { ArenaTier } from '@/game/arena-tier';
 import { computeCrowdPulses, type CrowdPulsePlan } from '@/game/crowd-pulse';
 import { computeMomentum, type MomentumInfo } from '@/game/momentum';
@@ -166,28 +166,40 @@ export function PlayByPlayFeed({
   // riding the first QUARTER_NOTE_EVENTS events of the new quarter), and the
   // crowd plan (which beats pulse the edges / stir the apron crowd, budget-capped
   // in computeCrowdPulses). Purely derived, so there are no timers to clean up.
-  const { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan } = useMemo(() => {
-    const momentum = computeMomentum(timeline);
-    let crunchStartSeq = -1;
-    const cinemaSeqs = new Set<number>();
-    const quarterNotes = new Map<number, { text: string; first: boolean }>();
-    for (let i = 0; i < timeline.length; i++) {
-      const e = timeline[i];
-      const m = momentum.get(e.seq);
-      if (crunchStartSeq < 0 && m?.crunch) crunchStartSeq = e.seq;
-      if (isWinner(e) || m?.clincher) cinemaSeqs.add(e.seq);
-      const prev = i > 0 ? timeline[i - 1] : undefined;
-      if (prev && e.quarter > prev.quarter) {
-        const text = `END Q${prev.quarter} · ${prev.homeScore}-${prev.awayScore}`;
-        for (let j = i; j < Math.min(i + QUARTER_NOTE_EVENTS, timeline.length); j++) {
-          if (timeline[j].quarter !== e.quarter) break;
-          quarterNotes.set(timeline[j].seq, { text, first: j === i });
+  const { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan, plansFull, plansHl } =
+    useMemo(() => {
+      const momentum = computeMomentum(timeline);
+      let crunchStartSeq = -1;
+      const cinemaSeqs = new Set<number>();
+      const quarterNotes = new Map<number, { text: string; first: boolean }>();
+      for (let i = 0; i < timeline.length; i++) {
+        const e = timeline[i];
+        const m = momentum.get(e.seq);
+        if (crunchStartSeq < 0 && m?.crunch) crunchStartSeq = e.seq;
+        if (isWinner(e) || m?.clincher) cinemaSeqs.add(e.seq);
+        const prev = i > 0 ? timeline[i - 1] : undefined;
+        if (prev && e.quarter > prev.quarter) {
+          const text = `END Q${prev.quarter} · ${prev.homeScore}-${prev.awayScore}`;
+          for (let j = i; j < Math.min(i + QUARTER_NOTE_EVENTS, timeline.length); j++) {
+            if (timeline[j].quarter !== e.quarter) break;
+            quarterNotes.set(timeline[j].seq, { text, first: j === i });
+          }
         }
       }
-    }
-    const crowdPlan = computeCrowdPulses(timeline, momentum);
-    return { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan };
-  }, [timeline]);
+      const crowdPlan = computeCrowdPulses(timeline, momentum);
+      // The possession-theater plans, derived once for both watch modes so a
+      // highlights toggle is a pointer swap, not a recompute (budgets in the plan).
+      const plansFull = timeline.map((e) => buildPossessionPlan(e, 'full', cinemaSeqs.has(e.seq)));
+      const plansHl = timeline.map((e) => buildPossessionPlan(e, 'highlights', cinemaSeqs.has(e.seq)));
+      return { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan, plansFull, plansHl };
+    }, [timeline]);
+
+  // The active mode's plans (swapped, not rebuilt, when highlights toggles).
+  const plans = highlightsOnly ? plansHl : plansFull;
+  const plan = cursor >= 0 ? plans[cursor] : null;
+  // Read by the one-shot completion timer without being a dep.
+  const plansRef = useRef(plans);
+  plansRef.current = plans;
 
   // Outcome feedback, tiered so routine plays stay quiet and only special moments
   // pop. Fired when the ball reaches the rim (see CourtView onArrival).
@@ -348,22 +360,13 @@ export function PlayByPlayFeed({
     if (skipped || timeline.length === 0 || cursor >= timeline.length - 1)
       return;
     const nextIdx = cursor + 1;
-    // Show the current event for its OWN duration before advancing (the first
-    // event reveals immediately). Pacing by the next event would cut a peak
-    // short when a routine play follows, notably in highlights mode.
-    const gap =
-      cursor < 0
-        ? 0
-        : eventGapMs(
-            timeline[cursor],
-            reducedMotion,
-            speed,
-            highlightsOnly,
-            cinemaSeqs.has(timeline[cursor].seq)
-          );
+    // Show the current possession for its OWN full duration before advancing (the
+    // first event reveals immediately). The plan owns the budget: the sum of its
+    // beats, scaled by speed, so the ball and the floor finish before the next play.
+    const gap = cursor < 0 ? 0 : planDurationMs(plans[cursor], reducedMotion, speed);
     const timer = setTimeout(() => setCursor(nextIdx), gap);
     return () => clearTimeout(timer);
-  }, [cursor, timeline, skipped, reducedMotion, speed, highlightsOnly, cinemaSeqs]);
+  }, [cursor, timeline, skipped, reducedMotion, speed, plans]);
 
   // Fire onComplete once the timeline finishes, after the final ball has had time
   // to land and celebrate (so the game-winner isn't cut off by the transition).
@@ -373,14 +376,14 @@ export function PlayByPlayFeed({
     if (completedRef.current || timeline.length === 0 || cursor < timeline.length - 1)
       return;
     completedRef.current = true;
-    const last = timeline[timeline.length - 1];
+    const lastPlan = plansRef.current[timeline.length - 1];
     const p = pacingRef.current;
     const timer = setTimeout(
       () => onCompleteRef.current(),
-      eventGapMs(last, p.reducedMotion, p.speed, p.highlightsOnly, cinemaSeqs.has(last.seq))
+      planDurationMs(lastPlan, p.reducedMotion, p.speed)
     );
     return () => clearTimeout(timer);
-  }, [cursor, timeline, cinemaSeqs]);
+  }, [cursor, timeline]);
 
   const skip = useCallback(() => {
     // Jump to the final beat; its ball still arcs and lands the payoff via
@@ -463,6 +466,7 @@ export function PlayByPlayFeed({
           homeTeam={homeTeam}
           awayTeam={awayTeam}
           current={current}
+          plan={plan}
           hotKeys={landedHot?.hotKeys}
           warmKeys={landedHot?.warmKeys}
           ignite={landedHot?.igniting ?? false}
