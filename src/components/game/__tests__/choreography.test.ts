@@ -189,6 +189,97 @@ describe('buildPossessionPlan', () => {
   });
 });
 
+describe('motion: hold-and-settle, a ball glued to the handler', () => {
+  const sampleAt = (wps: { atMs: number; frac: { x: number; y: number } }[], t: number) => {
+    if (t <= wps[0].atMs) return wps[0].frac;
+    const last = wps[wps.length - 1];
+    if (t >= last.atMs) return last.frac;
+    for (let i = 1; i < wps.length; i++) {
+      if (t <= wps[i].atMs) {
+        const a = wps[i - 1];
+        const b = wps[i];
+        const f = (t - a.atMs) / (b.atMs - a.atMs || 1);
+        return { x: a.frac.x + (b.frac.x - a.frac.x) * f, y: a.frac.y + (b.frac.y - a.frac.y) * f };
+      }
+    }
+    return last.frac;
+  };
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  it('the shooter plants at the shot spot and releases from a dead stop', () => {
+    for (const over of [
+      { action: 'three' as SimActionId, assist: { name: 'x', position: 'PG' as const } }, // dho (seq 4)
+      { action: 'drive' as SimActionId, assist: { name: 'x', position: 'PG' as const } }, // pnr
+      { action: 'post' as SimActionId, scorerPosition: 'C' as const, assist: { name: 'x', position: 'SG' as const } }, // postUp
+      { action: 'midrange' as SimActionId }, // iso
+    ]) {
+      const plan = buildPossessionPlan(makeEvent(over), 'full', false);
+      const wps = plan.movers[plan.shooterKey]!;
+      const arrive = plan.moverBursts[plan.shooterKey]!.endMs;
+      // Planted on the spot by its arrive, and pinned exactly to it on release.
+      expect(dist(sampleAt(wps, arrive), plan.ball.origin)).toBeLessThan(0.02);
+      expect(dist(sampleAt(wps, plan.preShotMs), plan.ball.origin)).toBeLessThan(1e-9);
+      // The gather is a settle, not a move: tiny net travel from the plant to the shot.
+      expect(dist(sampleAt(wps, arrive), sampleAt(wps, plan.preShotMs))).toBeLessThan(0.02);
+    }
+  });
+
+  it('off-ball spacers plant early and hold dead still through the shot', () => {
+    const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    let checked = 0;
+    for (const pos of POSITIONS) {
+      const key = spriteKey('home', pos);
+      const b = plan.moverBursts[key];
+      const wps = plan.movers[key];
+      if (!b || !wps || key === plan.shooterKey) continue;
+      if (b.endMs > plan.preShotMs * 0.35) continue; // the late feeder isn't a spacer
+      // From the plant all the way to the release: not a pixel of drift.
+      expect(dist(sampleAt(wps, b.endMs), sampleAt(wps, plan.preShotMs))).toBeLessThan(1e-9);
+      checked++;
+    }
+    expect(checked).toBeGreaterThanOrEqual(2); // the set really does have planted spacers
+  });
+
+  it('at most three offensive players are moving at any beat', () => {
+    const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    const d = 8;
+    for (const frac of [0.3, 0.5, 0.7, 0.85]) {
+      const t = plan.preShotMs * frac;
+      let moving = 0;
+      for (const pos of POSITIONS) {
+        const wps = plan.movers[spriteKey('home', pos)];
+        if (!wps) continue;
+        if (dist(sampleAt(wps, Math.max(0, t - d)), sampleAt(wps, t + d)) > 0.004) moving++;
+      }
+      expect(moving).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('a carried ball rides the dribbler’s exact baked path (never floats off)', () => {
+    // A pure iso (seq % 3 === 0, unassisted) is a single carry by the scorer.
+    const plan = buildPossessionPlan(makeEvent({ action: 'midrange', seq: 9 }), 'full', false);
+    const carry = plan.ball.legs[plan.ball.legs.length - 1];
+    expect(carry.kind).toBe('carry');
+    expect(carry.path).toBeDefined();
+    const wps = plan.movers[plan.shooterKey]!;
+    const path = carry.path!;
+    expect(path.length).toBeGreaterThanOrEqual(2);
+    for (let i = 0; i < path.length - 1; i++) {
+      const atMs = carry.startMs + (carry.ms * i) / (path.length - 1);
+      expect(dist(path[i], sampleAt(wps, atMs))).toBeLessThan(1e-9); // exactly on the handler
+    }
+    expect(path[path.length - 1]).toEqual(plan.ball.origin); // the release pinned to the shot spot
+  });
+
+  it('a pass/hand-off/lob stays a straight two-point arc (no dense path)', () => {
+    const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    for (const leg of plan.ball.legs) {
+      if (leg.kind === 'carry') expect(leg.path).toBeDefined();
+      else expect(leg.path).toBeUndefined();
+    }
+  });
+});
+
 describe('camera plan', () => {
   it('is monotonic, in bounds, and opens/closes wide (full mode)', () => {
     const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'home-PG', position: 'PG' } }), 'full', false);
