@@ -1,31 +1,36 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { useBallFlight, type Pt } from '@/feel/useBallFlight';
+import { useBallFlight } from '@/feel/useBallFlight';
+import type { Pt } from '@/feel/ballPath';
 import { useFeelSettings } from '@/feel';
 import { spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { shotShapeFor, isNoteworthy, WINNER_TIME_SCALE } from '@/components/game/possession';
+import { fracToPx, type PossessionPlan } from '@/components/game/choreography';
 import { palette } from '@/theme';
 import { type SimEvent } from '@/types/sim';
 
 /**
- * The game ball. On every shot it leaves the shooter and arcs to the rim they
- * attack, then resolves: a make drops through the net, a miss clanks off the
- * iron, a block gets swatted away, a steal is knocked loose. `onArrival` fires
- * the instant the ball reaches the rim so the make/miss flourish lands with it.
- * Hidden between shots. Skipped under reduced motion (the held ball on the active
- * sprite is the read), but `onArrival` still fires so the beat resolves.
+ * The game ball. It is dribbled up the floor, fed to the shooter on an assist,
+ * then arcs to the rim they attack and resolves: a make drops through the net, a
+ * miss clanks off the iron, a block gets swatted, a steal is knocked loose.
+ * `onArrival` fires the instant the shot reaches the rim so the make/miss flourish
+ * lands with it. Hidden between possessions. Skipped under reduced motion (the held
+ * ball on the active sprite is the read) and on a routine highlights blow-past, but
+ * `onArrival` still fires so the beat resolves.
  */
 
 interface BallFlightProps {
   /** The event being shown, or null before tip-off. */
   event: SimEvent | null;
+  /** The possession plan (carry/pass path + shot origin), or null pre-tipoff. */
+  plan?: PossessionPlan | null;
   /** Measured court size, for converting court fractions to pixels. */
   width: number;
   height: number;
   /** The shooter entered this possession on fire: the ball flies flame-trailed. */
   hot?: boolean;
-  /** The game-deciding shot: both flight legs stretch to slow motion. */
+  /** The game-deciding shot: every leg stretches to slow motion. */
   cinema?: boolean;
   /** Fired when the ball reaches the rim, to sync the landing flourish. */
   onArrival?: (e: SimEvent) => void;
@@ -49,6 +54,7 @@ function lerp(a: Pt, b: Pt, t: number): Pt {
 
 export function BallFlight({
   event,
+  plan,
   width,
   height,
   hot = false,
@@ -75,9 +81,11 @@ export function BallFlight({
     }
 
     const shape = shotShapeFor(event);
-    // The ball leaves the shooter at its stable base (the floor no longer
-    // advances per possession), so pass null and the ball matches the sprite.
-    const origin = spotPx(event.team, event.scorerPosition, width, height, null);
+    // The ball leaves the shooter at the plan's shot spot (the advanced position the
+    // shooter runs to); with no plan it falls back to the sprite's static base.
+    const origin: Pt = plan
+      ? fracToPx(plan.ball.origin, width, height)
+      : spotPx(event.team, event.scorerPosition, width, height, null);
     const rim = rimCenterPx(event.team, width, height);
     // Mid-court is +y from the top hoop and -y from the bottom hoop.
     const dropSign = event.team === 'home' ? 1 : -1;
@@ -101,15 +109,33 @@ export function BallFlight({
       resolve = { x: rim.x, y: rim.y + dropSign * drop }; // ram/drop through the net
     }
 
+    // The pre-shot legs: the ball dribbled up, then the assist pass (if any).
+    const carry = plan?.ball.carry
+      ? {
+          from: fracToPx(plan.ball.carry.from, width, height),
+          to: fracToPx(plan.ball.carry.to, width, height),
+          ms: plan.ball.carry.ms,
+        }
+      : undefined;
+    const pass = plan?.ball.pass
+      ? {
+          from: fracToPx(plan.ball.pass.from, width, height),
+          to: fracToPx(plan.ball.pass.to, width, height),
+          ms: plan.ball.pass.ms,
+        }
+      : undefined;
+
     fire({
+      carry,
+      pass,
       origin,
       target,
       resolve,
       shape,
-      timeScale: cinemaRef.current ? WINNER_TIME_SCALE : 1,
+      timeScale: plan?.timeScale ?? (cinemaRef.current ? WINNER_TIME_SCALE : 1),
       onArrival: arrival,
     });
-  }, [event, width, height, fire, onArrival, highlightsOnly]);
+  }, [event, plan, width, height, fire, onArrival, highlightsOnly]);
 
   if (reducedMotion) return null;
   return (

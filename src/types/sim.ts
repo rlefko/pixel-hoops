@@ -118,6 +118,12 @@ export interface SimEvent {
   callout?: string;
   /** Full play-by-play line, e.g. "Jonez drains a three!". */
   text: string;
+  /**
+   * The passer credited with the assist on a made shot, so the watch can show
+   * the pass that set it up. Presentation only: the box-score `ast` tally is the
+   * same one, recorded here too. Absent on unassisted makes and on non-scores.
+   */
+  assist?: { name: string; position: Position };
   /** Both sides' on-court fives at this moment (the watch reads sprites here). */
   onCourt: OnCourtSnapshot;
   /** Substitutions that happened just before this possession (for the watch). */
