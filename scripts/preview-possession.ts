@@ -102,10 +102,13 @@ function renderSlice(plan: PossessionPlan, atMs: number, label: string): Canvas 
   const c = new Canvas(W, H + HEADER, NAVY);
   const court = new Canvas(W, H, NAVY);
   drawCourt(court);
-  // Ball path (faint) across the whole possession.
+  // Ball path (faint) across the whole possession. A carry rides a dense polyline.
   const legs = plan.ball.legs;
   for (const leg of legs) {
-    court.line(fracX(leg.from.x), fracY(leg.from.y), fracX(leg.to.x), fracY(leg.to.y), [90, 80, 40, 255]);
+    const pts = leg.path ?? [leg.from, leg.to];
+    for (let i = 1; i < pts.length; i++) {
+      court.line(fracX(pts[i - 1].x), fracY(pts[i - 1].y), fracX(pts[i].x), fracY(pts[i].y), [90, 80, 40, 255]);
+    }
   }
   // Shot leg to the rim the shooter's team attacks (home top, away bottom).
   const rimYFrac = plan.shooterKey.startsWith('home') ? RIM.cy / COURT.length : 1 - RIM.cy / COURT.length;
@@ -149,11 +152,16 @@ function ballAt(plan: PossessionPlan, atMs: number): Frac | undefined {
   for (const leg of plan.ball.legs) {
     if (atMs >= leg.startMs && atMs <= leg.startMs + leg.ms) {
       const t = (atMs - leg.startMs) / (leg.ms || 1);
-      return { x: leg.from.x + (leg.to.x - leg.from.x) * t, y: leg.from.y + (leg.to.y - leg.from.y) * t };
+      const pts = leg.path ?? [leg.from, leg.to];
+      if (pts.length <= 1) return pts[0];
+      const seg = t * (pts.length - 1);
+      const i = Math.min(pts.length - 2, Math.floor(seg));
+      const f = seg - i;
+      return { x: pts[i].x + (pts[i + 1].x - pts[i].x) * f, y: pts[i].y + (pts[i + 1].y - pts[i].y) * f };
     }
   }
   if (atMs >= plan.preShotMs) return plan.ball.origin;
-  return plan.ball.legs[0]?.from ?? plan.ball.origin;
+  return plan.ball.legs[0]?.path?.[0] ?? plan.ball.legs[0]?.from ?? plan.ball.origin;
 }
 
 function camAt(plan: PossessionPlan, atMs: number): { center: Frac; zoom: number } | undefined {
@@ -212,8 +220,8 @@ function toJimp(c: Canvas) {
 
 async function filmstrip(name: string, event: SimEvent, prev?: SimEvent): Promise<void> {
   const plan = buildPossessionPlan(event, 'full', false, prev);
-  const times = [0, plan.preShotMs * 0.5, plan.preShotMs, Math.min(plan.totalMs, plan.preShotMs + 260), plan.totalMs];
-  const tags = ['t=0 bringup', 'set', 'shot release', 'ball at rim', 'reset'];
+  const times = [0, plan.preShotMs * 0.4, plan.preShotMs * 0.65, plan.preShotMs, Math.min(plan.totalMs, plan.preShotMs + 260), plan.totalMs];
+  const tags = ['t=0 bringup', 'cut', 'plant', 'shot release', 'ball at rim', 'reset'];
   const panels = times.map((t, i) => renderSlice(plan, t, `${tags[i]}  ${Math.round(t)}ms`));
   const stripW = panels.length * W + (panels.length - 1) * GAP;
   const strip = new Canvas(stripW, H + HEADER, [10, 10, 20, 255]);
@@ -228,8 +236,30 @@ async function filmstrip(name: string, event: SimEvent, prev?: SimEvent): Promis
   img.resize({ w: strip.w * factor, h: strip.h * factor, mode: ResizeStrategy.NEAREST_NEIGHBOR });
   const outPath = join(outDir, `${name}.png`);
   await img.write(outPath as `${string}.png`);
+  // Stillness check: how far any offensive mover drifts between its plant (burst end)
+  // and the shot. Should be ~0 (a small residual is only the shooter's gather dip,
+  // which returns to the shot spot), so stillness is machine-checkable from the CLI.
+  const off = event.team;
+  let maxSettle = 0;
+  let settleWho = '';
+  for (const pos of POSITIONS) {
+    const key = `${off}-${pos}`;
+    const wps = plan.movers[key];
+    const b = plan.moverBursts[key];
+    if (!wps || !b) continue;
+    const a = sampleAt(wps, b.endMs);
+    const s = sampleAt(wps, plan.preShotMs);
+    if (!a || !s) continue;
+    const d = Math.hypot(s.x - a.x, s.y - a.y);
+    if (d > maxSettle) {
+      maxSettle = d;
+      settleWho = pos;
+    }
+  }
   const shot = plan.ball.origin;
-  console.log(`ok  ${name}.png  shooter=${plan.shooterKey}  shotSpot=(x${shot.x.toFixed(2)},y${shot.y.toFixed(2)})  preShot=${Math.round(plan.preShotMs)}ms  legs=${plan.ball.legs.length}`);
+  console.log(
+    `ok  ${name}.png  shooter=${plan.shooterKey}  shotSpot=(x${shot.x.toFixed(2)},y${shot.y.toFixed(2)})  preShot=${Math.round(plan.preShotMs)}ms  legs=${plan.ball.legs.length}  settle=${maxSettle.toFixed(3)}@${settleWho || 'none'}`
+  );
 }
 
 const outDir = join(process.cwd(), 'preview-out');
