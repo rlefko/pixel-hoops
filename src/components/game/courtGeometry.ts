@@ -12,12 +12,12 @@ import type { SimTeamSide } from '@/types/sim';
  * from here so a single source defines the floor and nothing drifts.
  *
  * Home defends the bottom half and attacks the top rim; away mirrors it. The
- * sprite BASE layout is the stable defensive set (`attackingSide = null`): the
- * floor does not reposition per possession (that read as jumpy). The advanced
- * offensive depth is used only as a launch anchor for the ball origin and the
- * active shooter/driver/dunker step, so possession still reads from the ball and
- * the moving player, not a whole-floor shuffle. `depth` runs 0 (own baseline) to
- * 1 (the attacking rim).
+ * sprite BASE layout is the defensive set (`attackingSide = null`), where the
+ * floor rests between possessions. In Full mode the possession theater
+ * (choreography.ts) runs the offense up into the front court each possession via
+ * the advanced offensive depth (`attackingSide = side`); Highlights and reduced
+ * motion hold the base set and let the ball and the shooter carry the beat.
+ * `depth` runs 0 (own baseline) to 1 (the attacking rim).
  */
 
 interface Spot {
@@ -36,8 +36,8 @@ interface Spot {
  * three-point apex (~0.70), the wings on the arc (~0.76), and the bigs on the
  * blocks near the rim (~0.84 and ~0.88). The x values keep the bigs inside the
  * 16 ft lane (x 0.34..0.66) and the wings out on the perimeter. `offTargetDepth`
- * is retained for the (currently unused) offensive-advance path; only `x` and
- * `defDepth` are rendered today.
+ * drives the Full-mode offensive-advance path (the offense runs up to it each
+ * possession); the base defensive set uses `x` and `defDepth`.
  */
 export const FORMATION: Record<Position, Spot> = {
   PG: { x: 0.5, defDepth: 0.32, offTargetDepth: 0.62 },
@@ -96,20 +96,26 @@ export function spotPx(
 }
 
 /**
- * Pixel center of the rim a side attacks (home attacks the top rim, away the
- * bottom), given the measured court size. Possession-independent.
+ * Fractional (0..1) center of the rim a side attacks (home attacks the top rim,
+ * away the bottom). The single source for rim placement, so the ball, the rim
+ * ripple, the particles, and the choreography's shot spots all agree.
+ */
+export function rimCenterFraction(side: SimTeamSide): { x: number; y: number } {
+  return {
+    x: RIM_CENTER_FRACTION_X,
+    y: side === 'home' ? RIM_CENTER_FRACTION_Y : 1 - RIM_CENTER_FRACTION_Y,
+  };
+}
+
+/**
+ * Pixel center of the rim a side attacks, given the measured court size.
+ * Possession-independent.
  */
 export function rimCenterPx(
   side: SimTeamSide,
   width: number,
   height: number
 ): { x: number; y: number } {
-  // Fractional, so the ball, rim ripple, and particles all land on the rim the
-  // SVG court draws (5.25 ft from the baseline). Home attacks the top rim.
-  const x = width * RIM_CENTER_FRACTION_X;
-  const y =
-    side === 'home'
-      ? height * RIM_CENTER_FRACTION_Y
-      : height * (1 - RIM_CENTER_FRACTION_Y);
-  return { x, y };
+  const { x, y } = rimCenterFraction(side);
+  return { x: x * width, y: y * height };
 }
