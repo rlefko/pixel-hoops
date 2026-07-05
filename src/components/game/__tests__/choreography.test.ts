@@ -95,16 +95,64 @@ describe('buildPossessionPlan', () => {
     }
   });
 
-  it('shows a credited pass only when assisted; iso is a single carry', () => {
+  it('an assisted set swings the ball; a pure iso just carries', () => {
     const assisted = buildPossessionPlan(
       makeEvent({ action: 'three', assist: { name: 'home-PG', position: 'PG' } }),
       'full',
       false
     );
-    expect(assisted.ball.legs.some((l) => l.kind === 'pass' || l.kind === 'handoff' || l.kind === 'lob')).toBe(true);
+    // The credited assist is the final pass, and there is at least one earlier swing.
+    expect(assisted.ball.legs.filter((l) => l.kind === 'pass' || l.kind === 'handoff' || l.kind === 'lob').length).toBeGreaterThanOrEqual(2);
 
-    const iso = buildPossessionPlan(makeEvent({ action: 'midrange' }), 'full', false);
-    expect(iso.ball.legs.every((l) => l.kind === 'carry')).toBe(true);
+    // A pure iso (seq % 3 === 0, unassisted) is a single carry — a true isolation.
+    const pureIso = buildPossessionPlan(makeEvent({ action: 'midrange', seq: 9 }), 'full', false);
+    expect(pureIso.ball.legs.every((l) => l.kind === 'carry')).toBe(true);
+    // The final ball leg of any unassisted possession is a carry (no phantom assist).
+    expect(pureIso.ball.legs[pureIso.ball.legs.length - 1].kind).toBe('carry');
+  });
+
+  it('an unassisted set play (post/leak-out dunk) still shows a ball and ends on a carry', () => {
+    // Unassisted post-up and unassisted dunk route to templates whose scripted final
+    // leg is a pass; the ball must still show and finish as a carry (no phantom assist).
+    for (const action of ['post', 'dunk'] as SimActionId[]) {
+      const full = buildPossessionPlan(makeEvent({ action, scorerPosition: 'C', points: 2, seq: 5 }), 'full', false);
+      expect(full.ball.legs.length).toBeGreaterThan(0);
+      expect(full.ball.legs[full.ball.legs.length - 1].kind).toBe('carry');
+      const hl = buildPossessionPlan(makeEvent({ action, scorerPosition: 'C', points: 2, isBigPlay: true, seq: 5 }), 'highlights', false);
+      expect(hl.ball.legs.length).toBeGreaterThan(0); // the ball never silently vanishes
+    }
+  });
+
+  it('every shot originates from a real front-court spot (never mid-court)', () => {
+    const cases: Array<[SimActionId, number]> = [
+      ['three', 0.4],
+      ['midrange', 0.32],
+      ['drive', 0.22],
+      ['layup', 0.16],
+      ['dunk', 0.16],
+      ['post', 0.26],
+    ];
+    for (const [action, maxY] of cases) {
+      const plan = buildPossessionPlan(makeEvent({ action, assist: { name: 'x', position: 'PG' } }), 'full', false);
+      expect(plan.ball.origin.y).toBeLessThan(maxY); // home attacks the top rim (y small)
+    }
+    // Away mirrors: an away three sits in the bottom front court (y large).
+    const away = buildPossessionPlan(makeEvent({ team: 'away', action: 'three' }), 'full', false);
+    expect(away.ball.origin.y).toBeGreaterThan(0.6);
+  });
+
+  it('the whole offense is a front-court set at the shot (nobody stranded at mid-court)', () => {
+    const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    const sampleAt = (wps: { atMs: number; frac: { x: number; y: number } }[], t: number) => {
+      for (let i = 1; i < wps.length; i++) if (t <= wps[i].atMs) return wps[i - 1].frac;
+      return wps[wps.length - 1].frac;
+    };
+    for (const pos of POSITIONS) {
+      const wps = plan.movers[spriteKey('home', pos)];
+      expect(wps).toBeDefined();
+      const at = sampleAt(wps!, plan.preShotMs);
+      expect(at.y).toBeLessThan(0.45); // home offense is in the front court, not past mid-court
+    }
   });
 
   it('reserves rebound time on a miss/block and never passes on them', () => {

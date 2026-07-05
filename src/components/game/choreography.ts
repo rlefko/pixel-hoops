@@ -1,4 +1,4 @@
-import { spotFraction, rimCenterFraction } from './courtGeometry';
+import { spotFraction, rimCenterFraction, attackFrac } from './courtGeometry';
 import { shotShapeFor, WINNER_TIME_SCALE } from './possession';
 import {
   TEMPLATES,
@@ -6,6 +6,7 @@ import {
   assignRoles,
   deriveContest,
   instantiateTemplate,
+  type TemplateId,
 } from './playTemplates';
 import {
   lerpFrac,
@@ -101,14 +102,21 @@ export interface PossessionPlan {
 
 const otherSide = (side: SimTeamSide): SimTeamSide => (side === 'home' ? 'away' : 'home');
 
-// --- Pre-shot windows (unscaled). Real NBA ratios, compressed for a skippable watch:
-// half-court possessions develop over a real trip up the floor; transition is quicker. ---
-const PRESHOT = {
-  halfCourt: 640, // advance -> initiate -> primary action
-  halfCourtAssistBonus: 100, // room for the extra pass
-  transition: 460, // compressed: sprint lanes -> finish
-  highlights: 220, // a brief settle before the shot
-  highlightsAssistBonus: 160, // the assist pass
+// --- Pre-shot windows (unscaled). Vary by play so possessions don't feel
+// interchangeable: a quick iso, a deliberate post-up, a fast break. Compressed for
+// a skippable watch but keeping the RATIOS real (iso quickest, post-up slowest). ---
+const PRESHOT_FULL: Record<TemplateId, number> = {
+  iso: 560, // quick isolation attack (the plurality of possessions)
+  pnr: 720, // handler uses the screen, ball reversed, feeds the roller
+  dho: 700, // dribble hand-off into the shot
+  pindown: 760, // shooter curls off the down-screen
+  spotUp: 820, // drive-and-kick with a reversal
+  postUp: 880, // deliberate: perimeter swing, entry, slow back-down
+  transition: 460, // sprint lanes to the finish
+};
+const PRESHOT_HL = {
+  base: 220, // a brief settle before the shot
+  assistBonus: 160, // the assist pass
 } as const;
 
 const POST = {
@@ -136,23 +144,34 @@ const CAM = {
   rebound: 1.2,
 } as const;
 
-/** The scorer's spot when the shot goes up, biased toward the rim by the action. */
-function shotSpotFor(event: SimEvent): Frac {
-  const adv = spotFraction(event.team, event.scorerPosition, event.team);
-  const rim = rimCenterFraction(event.team);
+/**
+ * The scorer's spot when the shot goes up, authored at a REAL front-court location
+ * in the attacking frame (depth 1 = the rim), not derived from the shallow
+ * offensive-advance. `terminalX` is where the scorer's role stands (from the
+ * template), so a corner three stays in the corner; rim finishes converge toward
+ * the lane. depth: three 0.72 (corners 0.85), midrange 0.80, drive 0.87, layup
+ * 0.92, dunk 0.94, post 0.86 on the block.
+ */
+function shotSpotFor(event: SimEvent, terminalX: number): Frac {
+  const team = event.team;
+  // Pull x toward the rim lane (0.5) as the finish attacks the basket.
+  const towardLane = (x: number, f: number) => x + (0.5 - x) * f;
   switch (event.action) {
     case 'dunk':
-      return lerpFrac(adv, rim, 0.72);
+      return attackFrac(team, towardLane(terminalX, 0.7), 0.94);
     case 'layup':
+      return attackFrac(team, towardLane(terminalX, 0.6), 0.92);
     case 'drive':
-      return lerpFrac(adv, rim, 0.5);
+      return attackFrac(team, towardLane(terminalX, 0.4), 0.87);
     case 'post':
-      return lerpFrac(adv, rim, 0.34);
+      return attackFrac(team, terminalX < 0.5 ? 0.42 : 0.58, 0.86);
     case 'midrange':
-      return lerpFrac(adv, rim, 0.18);
+      return attackFrac(team, towardLane(terminalX, 0.15), 0.8);
     case 'three':
-    default:
-      return adv;
+    default: {
+      const corner = Math.abs(terminalX - 0.5) > 0.34;
+      return attackFrac(team, terminalX, corner ? 0.85 : 0.72);
+    }
   }
 }
 
@@ -239,7 +258,12 @@ export function buildPossessionPlan(
 ): PossessionPlan {
   const shape = shotShapeFor(event);
   const shooterKey = spriteKey(event.team, event.scorerPosition);
-  const shotSpot = shotSpotFor(event);
+  // Select the play first so the shot spot can sit where the scorer's role stands
+  // (a corner three stays in the corner, a post-up on the block).
+  const templateId = selectTemplate(event, prevEvent);
+  const template = TEMPLATES[templateId];
+  const termControl = template.roles[template.terminal]!.control;
+  const shotSpot = shotSpotFor(event, termControl[termControl.length - 1][0]);
   const timeScale = cinema ? WINNER_TIME_SCALE : 1;
   const reducedBaseMs = reducedBaseFor(event);
   const flight = FLIGHT_DURATION_MAX + resolveDurationFor(shape);
@@ -264,18 +288,17 @@ export function buildPossessionPlan(
     };
   }
 
-  const template = TEMPLATES[selectTemplate(event, prevEvent)];
   const roles = assignRoles(template, event);
   const contest = deriveContest(event);
 
-  // Pre-shot window + total budget.
+  // Pre-shot window + total budget. Per-template in full mode; a contested,
+  // non-big shot is rushed (late-clock / heavily-guarded feel).
   let preShotMs: number;
   if (mode === 'highlights') {
-    preShotMs = PRESHOT.highlights + (assisted ? PRESHOT.highlightsAssistBonus : 0);
-  } else if (template.transition) {
-    preShotMs = PRESHOT.transition + (assisted ? PRESHOT.halfCourtAssistBonus * 0.5 : 0);
+    preShotMs = PRESHOT_HL.base + (assisted ? PRESHOT_HL.assistBonus : 0);
   } else {
-    preShotMs = PRESHOT.halfCourt + (assisted ? PRESHOT.halfCourtAssistBonus : 0);
+    preShotMs = PRESHOT_FULL[templateId];
+    if (contest === 'contested' && !event.isBigPlay) preShotMs = Math.round(preShotMs * 0.82);
   }
   const postMs =
     mode === 'highlights'

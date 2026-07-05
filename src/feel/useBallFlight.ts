@@ -35,6 +35,10 @@ import {
 /** Max pre-shot legs (carry + up to three passes/handoffs) — small and bounded. */
 export const MAX_BALL_LEGS = 4;
 
+/** A pre-shot leg renders for at least this long (scaled ms) so a pass reads as
+ *  ball movement rather than a 1-2 frame flicker at the faster default speed. */
+const MIN_LEG_MS = 90;
+
 /** One pre-shot leg in court pixels, with a resolved arc peak and easing. */
 export interface BallLegPx {
   from: Pt;
@@ -176,12 +180,17 @@ export function useBallFlight() {
 
       // Reset all leg progresses, then schedule each leg as a FRACTION of the shot
       // delay, so the last pre-shot leg lands exactly when the shot fires (no
-      // per-leg rounding/floor skew between the ball and the slam).
+      // per-leg rounding/floor skew between the ball and the slam). A pre-shot leg
+      // gets at least MIN_LEG_MS so a pass reads as ball movement, not a flicker,
+      // even at the faster default speed, but never past the next leg's start (the
+      // last leg is pinned to the shot).
+      const delayAt = (ms: number) => Math.round((shotDelay * ms) / (shotStartMs || 1));
       for (let i = 0; i < MAX_BALL_LEGS; i++) progRefs[i].value = 0;
       for (let i = 0; i < n; i++) {
         const leg = legs[i];
-        const s = shotStartMs > 0 ? Math.round((shotDelay * leg.startMs) / shotStartMs) : 0;
-        const e = shotStartMs > 0 ? Math.round((shotDelay * (leg.startMs + leg.ms)) / shotStartMs) : shotDelay;
+        const s = delayAt(leg.startMs);
+        const next = i < n - 1 ? delayAt(legs[i + 1].startMs) : shotDelay;
+        const e = Math.min(next, Math.max(delayAt(leg.startMs + leg.ms), s + MIN_LEG_MS));
         progRefs[i].value = withDelay(s, withTiming(1, { duration: Math.max(1, e - s), easing: leg.ease }));
       }
       p1.value = 0;
