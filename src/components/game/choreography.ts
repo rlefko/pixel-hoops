@@ -55,6 +55,13 @@ export interface BallLeg {
   /** Unscaled duration; the renderer scales by speed x timeScale. */
   ms: number;
   kind: BallLegKind;
+  /**
+   * A dense polyline the ball rides (a `carry`: the dribbler's exact baked path,
+   * resampled on the same time basis so the ball stays glued to the handler rather
+   * than chording across the curve). Undefined for a straight two-point arc
+   * (pass/handoff/lob); when present, `from`/`to` equal its first/last point.
+   */
+  path?: Frac[];
 }
 
 /** The live ball's pre-shot path (the shot leg itself is derived by the renderer). */
@@ -96,6 +103,12 @@ export interface PossessionPlan {
   dunk: boolean;
   igniteFrac: Frac;
   movers: Partial<Record<SpriteKey, Waypoint[]>>;
+  /**
+   * Per-mover travel window `[startMs, endMs]` (the burst before the plant). The
+   * renderer runs the stride run-hop only inside it, so a sprite that has arrived
+   * stops hopping (no perpetual run-in-place). A mover with no entry never hops.
+   */
+  moverBursts: Partial<Record<SpriteKey, { startMs: number; endMs: number }>>;
   ball: BallPlan;
   camera: CameraPlan;
 }
@@ -283,6 +296,7 @@ export function buildPossessionPlan(
       dunk: false,
       igniteFrac: shotSpot,
       movers: {},
+      moverBursts: {},
       ball: { legs: [], origin: shotSpot },
       camera: { keys: [{ atMs: 0, center: CENTER, zoom: CAM.rest }, { atMs: HL_ROUTINE_MS, center: CENTER, zoom: CAM.rest }] },
     };
@@ -319,6 +333,7 @@ export function buildPossessionPlan(
     contest
   );
   const movers = inst.movers;
+  const moverBursts = inst.moverBursts;
 
   // The rebounder steps to the rim on a miss/block (cosmetic; the box owns the stat).
   if (rebounds && mode === 'full') {
@@ -337,6 +352,9 @@ export function buildPossessionPlan(
       { atMs: Math.min(secureAt + POST.rebound, totalMs - 1), frac: lerpFrac(base, rim, 0.55) },
       { atMs: totalMs, frac: base },
     ];
+    // The crash is this sprite's real travel now (it overwrote its set path), so hop
+    // while it works to the glass rather than during a stale spacer window.
+    moverBursts[k] = { startMs: 0, endMs: secureAt };
   }
 
   const camera = buildCameraPlan(event, mode, cinema, cameraFollow, {
@@ -358,6 +376,7 @@ export function buildPossessionPlan(
     dunk: shape === 'dunk',
     igniteFrac: shotSpot,
     movers,
+    moverBursts,
     ball: { legs: inst.ball, origin: shotSpot },
     camera,
   };

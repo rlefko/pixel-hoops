@@ -203,6 +203,7 @@ const SpriteAt = memo(function SpriteAt({
   height,
   heat,
   waypoints,
+  burst,
   isDunker,
   preShotMs,
   totalMs,
@@ -218,6 +219,8 @@ const SpriteAt = memo(function SpriteAt({
   heat: HeatTier;
   /** This sprite's fractional path this possession, or undefined if it holds. */
   waypoints?: Waypoint[];
+  /** This sprite's travel window `[startMs, endMs]`; the run-hop fires only inside it. */
+  burst?: { startMs: number; endMs: number };
   /** True when this sprite throws down the dunk (drives the slam squash). */
   isDunker: boolean;
   preShotMs: number;
@@ -283,30 +286,33 @@ const SpriteAt = memo(function SpriteAt({
     return { transform: [{ translateX: Math.round(x) }, { translateY: Math.round(y) }] };
   });
 
-  // Run tell: a small vertical hop while this sprite travels. Finite (a fixed
-  // number of cycles sized to the possession), so it self-terminates and never
-  // becomes an always-on loop; idle sprites never run it.
+  // Run tell: a small vertical hop, but ONLY while this sprite is actually traveling
+  // (its burst window). A sprite that has planted stops hopping (no run-in-place), and
+  // an idle/held sprite with no burst never hops. Finite, so it self-terminates.
   const stride = useSharedValue(0);
   useEffect(() => {
-    if (reducedMotion || !moves) {
+    if (reducedMotion || !moves || !burst) {
       stride.value = 0;
       return;
     }
-    const dur = scaled(totalMs * timeScale, speed);
     const hop = scaled(STRIDE_MS, speed);
-    const cycles = Math.max(2, Math.round(dur / hop));
+    const travelMs = scaled((burst.endMs - burst.startMs) * timeScale, speed);
+    const cycles = Math.max(1, Math.round(travelMs / hop));
     stride.value = 0;
-    stride.value = withRepeat(
-      withSequence(
-        withTiming(1, { duration: Math.round(hop / 2), easing: Easing.out(Easing.quad) }),
-        withTiming(0, { duration: Math.round(hop / 2), easing: Easing.in(Easing.quad) })
-      ),
-      cycles,
-      false
+    stride.value = withDelay(
+      scaled(burst.startMs * timeScale, speed),
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: Math.round(hop / 2), easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: Math.round(hop / 2), easing: Easing.in(Easing.quad) })
+        ),
+        cycles,
+        false
+      )
     );
     return () => cancelAnimation(stride);
     // Keyed on the possession (seq), matching the travel effect above.
-  }, [seq, reducedMotion, moves, stride]);
+  }, [seq, reducedMotion, moves, burst, stride]);
   const strideStyle = useAnimatedStyle(() => {
     if (!moves) return {};
     return { transform: [{ translateY: -Math.round(STRIDE_HOP * stride.value) }] };
@@ -577,6 +583,7 @@ function CourtViewImpl({
                       : 'none'
                 }
                 waypoints={plan?.movers[key]}
+                burst={plan?.moverBursts?.[key]}
                 isDunker={plan?.dunk === true && plan.shooterKey === key}
                 preShotMs={plan?.preShotMs ?? 0}
                 totalMs={plan?.totalMs ?? 0}

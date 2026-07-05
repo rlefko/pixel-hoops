@@ -88,10 +88,20 @@ interface RoleSpec {
   control: AttackPt[];
   /** Fraction of preShotMs when the role starts moving from its base (stagger). */
   start: number;
-  /** Fraction of preShotMs when the role settles at its final spot (arrive-decel). */
+  /**
+   * Fraction of preShotMs when the role PLANTS (fully stops) at its final spot. Early
+   * for spacers (they set and hold), a beat before the shot for the shooter, so nobody
+   * is still drifting when the ball goes up. Only 1-3 roles travel at any beat.
+   */
   arrive: number;
   /** Screener only: fraction of preShotMs to hold at the screen spot (contact beat). */
   contact?: number;
+  /**
+   * Shooter only: a small gather-dip-and-rise ending exactly at the shot, as a
+   * fraction of preShotMs (the settle a shooter makes rising from a planted stop). No
+   * gather on a dunk (the slam overlay owns that beat).
+   */
+  gather?: number;
 }
 
 /** One pre-shot ball leg. Times are FRACTIONS of preShotMs; the last ends at 1.0. */
@@ -136,11 +146,11 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
     terminal: 'corner',
     feeder: 'ballHandler',
     roles: {
-      ballHandler: { control: [[0.5, 0.6], [0.44, 0.8], [0.41, 0.85]], start: 0, arrive: 0.72 },
-      corner: { control: [[0.2, 0.72], [0.1, 0.74], [0.09, 0.72]], start: 0.32, arrive: 0.98 },
-      strongWing: { control: [[0.8, 0.72], [0.85, 0.72]], start: 0.1, arrive: 0.78 },
-      weakWing: { control: [[0.32, 0.6], [0.24, 0.66]], start: 0.1, arrive: 0.8 },
-      post: { control: [[0.6, 0.86], [0.66, 0.85]], start: 0, arrive: 0.78 },
+      ballHandler: { control: [[0.5, 0.6], [0.44, 0.8], [0.41, 0.85]], start: 0.05, arrive: 0.44 },
+      corner: { control: [[0.2, 0.72], [0.1, 0.74], [0.09, 0.72]], start: 0.42, arrive: 0.66, gather: 0.2 },
+      strongWing: { control: [[0.8, 0.72], [0.85, 0.72]], start: 0.05, arrive: 0.22 },
+      weakWing: { control: [[0.32, 0.6], [0.24, 0.66]], start: 0.05, arrive: 0.24 },
+      post: { control: [[0.6, 0.86], [0.66, 0.85]], start: 0, arrive: 0.2 },
     },
     // Ball reversal then a drive-and-kick: the ball swings weak-side and back
     // before the creator drives and kicks to the spotting-up shooter (the assist).
@@ -157,11 +167,11 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
     terminal: 'receiver',
     feeder: 'ballHandler',
     roles: {
-      ballHandler: { control: [[0.62, 0.7], [0.52, 0.68], [0.5, 0.64]], start: 0, arrive: 0.55, contact: 0.18 },
-      receiver: { control: [[0.4, 0.66], [0.48, 0.66], [0.5, 0.72]], start: 0.2, arrive: 0.96 },
-      strongWing: { control: [[0.82, 0.72], [0.86, 0.72]], start: 0.1, arrive: 0.8 },
-      weakWing: { control: [[0.2, 0.72], [0.16, 0.72]], start: 0.1, arrive: 0.8 },
-      post: { control: [[0.62, 0.87], [0.6, 0.88]], start: 0, arrive: 0.8 },
+      ballHandler: { control: [[0.62, 0.7], [0.52, 0.68], [0.5, 0.64]], start: 0.05, arrive: 0.42, contact: 0.18 },
+      receiver: { control: [[0.4, 0.66], [0.48, 0.66], [0.5, 0.72]], start: 0.3, arrive: 0.62, gather: 0.2 },
+      strongWing: { control: [[0.82, 0.72], [0.86, 0.72]], start: 0.05, arrive: 0.22 },
+      weakWing: { control: [[0.2, 0.72], [0.16, 0.72]], start: 0.05, arrive: 0.22 },
+      post: { control: [[0.62, 0.87], [0.6, 0.88]], start: 0, arrive: 0.2 },
     },
     // A quick reversal, back to the handler, then the hand-off (the assist).
     ball: [
@@ -177,11 +187,11 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
     terminal: 'shooter',
     feeder: 'passer',
     roles: {
-      passer: { control: [[0.5, 0.62], [0.52, 0.64]], start: 0, arrive: 0.5 },
-      shooter: { control: [[0.3, 0.88], [0.32, 0.78], [0.28, 0.72]], start: 0.28, arrive: 0.96 },
-      screener: { control: [[0.34, 0.86], [0.36, 0.82]], start: 0.05, arrive: 0.5, contact: 0.22 },
-      weakWing: { control: [[0.8, 0.72], [0.84, 0.72]], start: 0.1, arrive: 0.8 },
-      corner: { control: [[0.9, 0.72], [0.91, 0.72]], start: 0, arrive: 0.8 },
+      passer: { control: [[0.5, 0.62], [0.52, 0.64]], start: 0.05, arrive: 0.4 },
+      shooter: { control: [[0.3, 0.88], [0.32, 0.78], [0.28, 0.72]], start: 0.3, arrive: 0.64, gather: 0.22 },
+      screener: { control: [[0.34, 0.86], [0.36, 0.82]], start: 0.05, arrive: 0.42, contact: 0.22 },
+      weakWing: { control: [[0.8, 0.72], [0.84, 0.72]], start: 0.05, arrive: 0.22 },
+      corner: { control: [[0.9, 0.72], [0.91, 0.72]], start: 0, arrive: 0.2 },
     },
     // Swing to the corner and back to move the defense, then hit the curling shooter.
     ball: [
@@ -197,11 +207,11 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
     terminal: 'rollMan',
     feeder: 'ballHandler',
     roles: {
-      ballHandler: { control: [[0.5, 0.62], [0.56, 0.72], [0.58, 0.82]], start: 0, arrive: 0.75 },
-      rollMan: { control: [[0.58, 0.7], [0.56, 0.82], [0.53, 0.9]], start: 0.1, arrive: 0.95, contact: 0.28 },
-      strongWing: { control: [[0.2, 0.72], [0.14, 0.72]], start: 0.1, arrive: 0.8 },
-      weakWing: { control: [[0.8, 0.72], [0.86, 0.72]], start: 0.1, arrive: 0.8 },
-      corner: { control: [[0.1, 0.72], [0.09, 0.72]], start: 0, arrive: 0.8 },
+      ballHandler: { control: [[0.5, 0.62], [0.56, 0.72], [0.58, 0.82]], start: 0.05, arrive: 0.48 },
+      rollMan: { control: [[0.58, 0.7], [0.56, 0.82], [0.53, 0.9]], start: 0.1, arrive: 0.68, contact: 0.28, gather: 0.18 },
+      strongWing: { control: [[0.2, 0.72], [0.14, 0.72]], start: 0.05, arrive: 0.22 },
+      weakWing: { control: [[0.8, 0.72], [0.86, 0.72]], start: 0.05, arrive: 0.22 },
+      corner: { control: [[0.1, 0.72], [0.09, 0.72]], start: 0, arrive: 0.2 },
     },
     // Ball swings to initiate, comes back, then the handler attacks off the screen
     // and hits the roller (the assist).
@@ -218,11 +228,11 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
     terminal: 'post',
     feeder: 'entry',
     roles: {
-      entry: { control: [[0.28, 0.7], [0.34, 0.74]], start: 0, arrive: 0.55 },
-      post: { control: [[0.58, 0.82], [0.57, 0.87], [0.56, 0.89]], start: 0.05, arrive: 0.95 },
-      weakWing: { control: [[0.8, 0.72], [0.86, 0.72]], start: 0.1, arrive: 0.8 },
-      corner: { control: [[0.1, 0.72], [0.09, 0.72]], start: 0, arrive: 0.8 },
-      strongWing: { control: [[0.34, 0.86], [0.32, 0.84]], start: 0.1, arrive: 0.8 },
+      entry: { control: [[0.28, 0.7], [0.34, 0.74]], start: 0.05, arrive: 0.4 },
+      post: { control: [[0.58, 0.82], [0.57, 0.87], [0.56, 0.89]], start: 0.05, arrive: 0.62, gather: 0.22 },
+      weakWing: { control: [[0.8, 0.72], [0.86, 0.72]], start: 0.05, arrive: 0.22 },
+      corner: { control: [[0.1, 0.72], [0.09, 0.72]], start: 0, arrive: 0.2 },
+      strongWing: { control: [[0.34, 0.86], [0.32, 0.84]], start: 0.05, arrive: 0.22 },
     },
     // Perimeter swing to move the help, then the entry pass into the post (the assist).
     ball: [
@@ -239,11 +249,11 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
     id: 'iso',
     terminal: 'ballHandler',
     roles: {
-      ballHandler: { control: [[0.5, 0.62], [0.5, 0.72], [0.5, 0.8]], start: 0, arrive: 0.95 },
-      weakWing: { control: [[0.82, 0.72], [0.88, 0.7]], start: 0.05, arrive: 0.7 },
-      strongWing: { control: [[0.86, 0.86], [0.9, 0.84]], start: 0.05, arrive: 0.7 },
-      corner: { control: [[0.9, 0.72], [0.92, 0.72]], start: 0, arrive: 0.7 },
-      post: { control: [[0.14, 0.86], [0.1, 0.84]], start: 0.05, arrive: 0.7 },
+      ballHandler: { control: [[0.5, 0.62], [0.5, 0.72], [0.5, 0.8]], start: 0.1, arrive: 0.64, gather: 0.2 },
+      weakWing: { control: [[0.82, 0.72], [0.88, 0.7]], start: 0.02, arrive: 0.18 },
+      strongWing: { control: [[0.86, 0.86], [0.9, 0.84]], start: 0.02, arrive: 0.18 },
+      corner: { control: [[0.9, 0.72], [0.92, 0.72]], start: 0, arrive: 0.16 },
+      post: { control: [[0.14, 0.86], [0.1, 0.84]], start: 0.02, arrive: 0.18 },
     },
     ball: [
       { kind: 'carry', from: 'ballHandler', to: 'ballHandler', start: 0, end: 0.24 },
@@ -259,11 +269,11 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
     feeder: 'ballHandler',
     transition: true,
     roles: {
-      ballHandler: { control: [[0.5, 0.28], [0.5, 0.55], [0.5, 0.72]], start: 0, arrive: 0.75 },
-      rimRunner: { control: [[0.56, 0.26], [0.53, 0.7], [0.51, 0.9]], start: 0, arrive: 0.96 },
-      wingL: { control: [[0.2, 0.32], [0.14, 0.62], [0.16, 0.8]], start: 0, arrive: 0.85 },
-      wingR: { control: [[0.8, 0.32], [0.86, 0.62], [0.84, 0.8]], start: 0, arrive: 0.85 },
-      trailer: { control: [[0.5, 0.2], [0.5, 0.5]], start: 0, arrive: 0.8 },
+      ballHandler: { control: [[0.5, 0.28], [0.5, 0.55], [0.5, 0.72]], start: 0, arrive: 0.7 },
+      rimRunner: { control: [[0.56, 0.26], [0.53, 0.7], [0.51, 0.9]], start: 0, arrive: 0.8, gather: 0.12 },
+      wingL: { control: [[0.2, 0.32], [0.14, 0.62], [0.16, 0.8]], start: 0, arrive: 0.82 },
+      wingR: { control: [[0.8, 0.32], [0.86, 0.62], [0.84, 0.8]], start: 0, arrive: 0.82 },
+      trailer: { control: [[0.5, 0.2], [0.5, 0.5]], start: 0, arrive: 0.7 },
     },
     ball: [
       { kind: 'carry', from: 'ballHandler', to: 'ballHandler', start: 0, end: 0.72 },
@@ -375,6 +385,8 @@ export function assignRoles(template: PlayTemplate, event: SimEvent): RoleAssign
 // --- Baking (curves, arrive-decel, stagger, separation, defenders) ---
 
 const SAMPLES = 6; // dense samples per curved role (piecewise-linear reads as a curve)
+const CARRY_SAMPLES = 6; // dense points a carried ball rides along the dribbler's path
+const GATHER_DIP = 0.006; // gather knee-bend, as a court-length fraction toward mid-court (~2px)
 // How tightly a defender sits on his man, as a lerp from the man toward the rim.
 const CONTEST_TIGHT = 0.14; // the matched on-ball defender, in the shooter's airspace
 const HELP_TIGHT = 0.16; // an off-ball defender, goal-side of his man
@@ -386,14 +398,32 @@ function easeOutArrive(u: number): number {
   return 1 - (1 - u) * (1 - u);
 }
 
-/** Sample a spline over `[startMs, arriveMs]` (arrive-eased), holding through the shot then resetting. */
+/** A shooter's optional gather-into-the-shot beat, timed to the release. */
+interface GatherSpec {
+  /** Width of the gather-dip (unscaled ms), ending exactly at `shotMs`. */
+  ms: number;
+  /** The release time (== preShotMs): the dip resolves back to the shot spot here. */
+  shotMs: number;
+  /** The dipped position (the shot spot nudged a hair toward mid-court, a knee-bend). */
+  dip: Frac;
+}
+
+/**
+ * Bake a role's path: hold at base, a short arrive-eased BURST up to the plant, a
+ * DEAD-STILL hold at the final spot through the shot, then a jog back to base. The
+ * burst ends early (see each role's `arrive`), so the player is stopped well before
+ * the ball goes up. The optional `gather` inserts a small settle-and-rise into the
+ * shot from that planted spot (a shooter loading up), landing exactly on the shot spot
+ * at release so `ball.origin` stays registered.
+ */
 function sampleRolePath(
   base: Frac,
   control: Frac[],
   startMs: number,
   arriveMs: number,
   holdUntil: number,
-  totalMs: number
+  totalMs: number,
+  gather?: GatherSpec
 ): Waypoint[] {
   const combined = [base, ...control]; // run from the defensive base up through the role path
   const final = control[control.length - 1];
@@ -404,8 +434,16 @@ function sampleRolePath(
     const atMs = startMs + easeOutArrive(u) * (arriveMs - startMs);
     wps.push({ atMs, frac: catmullRom(combined, u) });
   }
-  if (holdUntil > arriveMs + 1) wps.push({ atMs: holdUntil, frac: final });
-  wps.push({ atMs: totalMs, frac: base });
+  // Shooter gather: stay planted, dip, then rise back to the shot spot at release.
+  if (gather && gather.ms > 1 && gather.shotMs > arriveMs + 2) {
+    const dipStart = gather.shotMs - gather.ms;
+    const dipLow = gather.shotMs - gather.ms * 0.45;
+    if (dipStart > arriveMs + 1) wps.push({ atMs: dipStart, frac: final }); // hold planted first
+    wps.push({ atMs: dipLow, frac: gather.dip });
+    wps.push({ atMs: gather.shotMs, frac: final }); // exactly at the shot spot on release
+  }
+  if (holdUntil > arriveMs + 1) wps.push({ atMs: holdUntil, frac: final }); // still through the shot
+  wps.push({ atMs: totalMs, frac: base }); // jog back to base after the play resolves
   return strictlyIncreasingByMs(wps);
 }
 
@@ -433,6 +471,8 @@ export interface Budget {
 
 export interface Instantiated {
   movers: Partial<Record<SpriteKey, Waypoint[]>>;
+  /** Each mover's travel window `[startMs, endMs]` (the burst before the plant). */
+  moverBursts: Partial<Record<SpriteKey, { startMs: number; endMs: number }>>;
   ball: BallLeg[];
 }
 
@@ -484,7 +524,13 @@ export function instantiateTemplate(
   }
 
   const movers: Partial<Record<SpriteKey, Waypoint[]>> = {};
+  const moverBursts: Partial<Record<SpriteKey, { startMs: number; endMs: number }>> = {};
   const highlightsRoles = new Set<RoleId>([template.terminal, template.feeder ?? template.terminal]);
+
+  // The shooter's gather-dip: the shot spot nudged a hair toward mid-court (a knee-bend
+  // load), suppressed on a dunk where the slam overlay owns that beat.
+  const dipDir = shotSpot.y < 0.5 ? 1 : -1;
+  const gatherDip: Frac = { x: shotSpot.x, y: clampToCourt(shotSpot.y + dipDir * GATHER_DIP) };
 
   // Offense.
   for (const roleId of roleIds) {
@@ -495,14 +541,13 @@ export function instantiateTemplate(
     const base = spotFraction(off, pos, null);
     const startMs = spec.start * preShotMs;
     const arriveMs = Math.max(startMs + 1, spec.arrive * preShotMs);
-    movers[spriteKey(off, pos)] = sampleRolePath(
-      base,
-      roleControl[roleId]!,
-      startMs,
-      arriveMs,
-      holdUntil,
-      totalMs
-    );
+    const key = spriteKey(off, pos);
+    const gather =
+      roleId === template.terminal && spec.gather && event.action !== 'dunk'
+        ? { ms: spec.gather * preShotMs, shotMs: preShotMs, dip: gatherDip }
+        : undefined;
+    movers[key] = sampleRolePath(base, roleControl[roleId]!, startMs, arriveMs, holdUntil, totalMs, gather);
+    moverBursts[key] = { startMs, endMs: arriveMs };
   }
 
   // Defense: each defender leaves his base to actually guard his man, arriving IN
@@ -523,13 +568,15 @@ export function instantiateTemplate(
       const arriveFrac = matched ? (contest === 'open' ? 1.0 : 0.9) : 0.72;
       const arriveMs = Math.min(totalMs - 2, preShotMs * arriveFrac);
       const midMs = Math.max(1, Math.min(arriveMs - 1, arriveMs * 0.5));
-      movers[spriteKey(def, pos)] = strictlyIncreasingByMs([
+      const defKey = spriteKey(def, pos);
+      movers[defKey] = strictlyIncreasingByMs([
         { atMs: 0, frac: defBase },
         { atMs: midMs, frac: lerpFrac(defBase, guardSpot, 0.6) },
         { atMs: arriveMs, frac: guardSpot },
         { atMs: Math.min(totalMs - 1, holdUntil), frac: guardSpot }, // hold the contest through the shot
         { atMs: totalMs, frac: defBase },
       ]);
+      moverBursts[defKey] = { startMs: 0, endMs: arriveMs }; // hop while closing out, still on arrival
     }
   }
 
@@ -563,12 +610,30 @@ export function instantiateTemplate(
     const endMs = leg.end * preShotMs;
     // An assisted dunk to a rim finisher reads as an alley-oop: arc it as a lob.
     const kind: BallLegKind = isFinal && leg.kind === 'pass' && event.action === 'dunk' ? 'lob' : leg.kind;
+    const from = sampleAt(movers[spriteKey(off, fromPos)], startMs) ?? spotFraction(off, fromPos, null);
+    const to = isFinal ? shotSpot : sampleAt(movers[spriteKey(off, toPos)], endMs) ?? finalOf[roles.roleOf[toPos]]!;
+    // A carry rides the dribbler's EXACT baked path (dense, same time basis) so the
+    // ball stays glued to the handler instead of chording across the curve; a pass,
+    // hand-off, or lob stays a straight two-point arc.
+    let path: Frac[] | undefined;
+    if (kind === 'carry') {
+      const wps = movers[spriteKey(off, fromPos)];
+      if (wps) {
+        path = [];
+        for (let i = 0; i < CARRY_SAMPLES; i++) {
+          const atMs = startMs + ((endMs - startMs) * i) / (CARRY_SAMPLES - 1);
+          path.push(sampleAt(wps, atMs) ?? from);
+        }
+        if (isFinal) path[path.length - 1] = shotSpot; // pin the release to the shot spot
+      }
+    }
     ball.push({
       kind,
-      from: sampleAt(movers[spriteKey(off, fromPos)], startMs) ?? spotFraction(off, fromPos, null),
-      to: isFinal ? shotSpot : sampleAt(movers[spriteKey(off, toPos)], endMs) ?? finalOf[roles.roleOf[toPos]]!,
+      from: path ? path[0] : from,
+      to: path ? path[path.length - 1] : to,
       startMs,
       ms: endMs - startMs,
+      path,
     });
   }
   // Guarantee the ball ends at the shot spot exactly when the shot fires.
@@ -576,9 +641,10 @@ export function instantiateTemplate(
     const last = ball[ball.length - 1];
     last.to = shotSpot;
     last.ms = preShotMs - last.startMs;
+    if (last.path) last.path[last.path.length - 1] = shotSpot;
   }
 
-  return { movers, ball };
+  return { movers, moverBursts, ball };
 }
 
 /** The frac a mover occupies at time `atMs` (piecewise-linear over its waypoints). */
