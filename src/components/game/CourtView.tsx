@@ -25,7 +25,7 @@ import { ApronCrowd, type ApronCrowdHandle } from '@/components/game/ApronCrowd'
 import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
 import { spotPercent, spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { COURT } from '@/components/game/courtDimensions';
-import { idleBobFor, DUNK, WINNER_TIME_SCALE } from '@/components/game/possession';
+import { idleBobFor, DUNK } from '@/components/game/possession';
 import {
   spriteKey,
   fracToPx,
@@ -33,7 +33,6 @@ import {
   type Waypoint,
 } from '@/components/game/choreography';
 import { useFeelSettings, useBobPulse, useGlowPulse, scaled, SIM_SPEED_FACTOR } from '@/feel';
-import { FLIGHT_DURATION_MAX } from '@/feel/ballPath';
 import type { ArenaTier } from '@/game/arena-tier';
 import type { CrowdPulsePlan } from '@/game/crowd-pulse';
 import { palette, FONT, FONT_SIZE } from '@/theme';
@@ -166,12 +165,6 @@ function burstFor(
     color: side === 'home' ? homeTeam.colorHex : awayTeam.colorHex,
   };
 }
-
-// Game-winner cinema: the court leans in this much while the deciding ball hangs,
-// holds through the impact, then snaps back.
-const CINEMA_ZOOM = 1.05;
-const CINEMA_HOLD_MS = 300;
-const CINEMA_SNAP_BACK_MS = 120;
 
 /** Cumulative time fractions of the dunk beats, for interpolating the sequence. */
 const DUNK_TOTAL = DUNK.gather + DUNK.leap + DUNK.slam + DUNK.hang + DUNK.recover;
@@ -478,39 +471,53 @@ function CourtViewImpl({
   const ballHot =
     current != null && hotKeys.includes(`${current.team}-${current.scorerPosition}`);
 
-  // Game-winner cinema: the court leans in 5% while the deciding ball hangs in
-  // slow motion, holds through the impact, then snaps back. Transform-only, and
-  // only ever on this one event per game.
+  // The broadcast camera: a single transform on the court box (translate + scale)
+  // that follows the ball, pushes into the attacking half for a half-court set,
+  // leans on the shot, and pulls back on the rebound/reset. Everything inside the
+  // box rides along registered (it's all placed by court fraction). Subsumes the
+  // old game-winner cinema zoom (the `cinema` prop drives a hotter zoom in the plan).
   const currentSeq = current?.seq ?? -1;
-  const zoom = useSharedValue(1);
+  const camPath = useMemo(() => {
+    const cam = plan?.camera;
+    if (!cam || cam.keys.length === 0 || size.width === 0 || size.height === 0) return null;
+    const total = cam.keys[cam.keys.length - 1].atMs || 1;
+    return {
+      times: cam.keys.map((k) => k.atMs / total),
+      sx: cam.keys.map((k) => k.zoom),
+      tx: cam.keys.map((k) => -(k.center.x - 0.5) * size.width * k.zoom),
+      ty: cam.keys.map((k) => -(k.center.y - 0.5) * size.height * k.zoom),
+    };
+  }, [plan?.camera, size.width, size.height]);
+  // Read the (identity-stable-per-possession) camera inputs through a ref so the
+  // driver keys ONLY on seq: a mid-possession speed/mode toggle must not restart
+  // the pan while the ball keeps flying (matches the sprite travel effects).
+  const camInputs = useRef({ camPath, dur: 0 });
+  camInputs.current = {
+    camPath,
+    dur: scaled((plan?.totalMs ?? 0) * (plan?.timeScale ?? 1), SIM_SPEED_FACTOR[simSpeed]),
+  };
+  const camP = useSharedValue(0);
   useEffect(() => {
-    if (!cinema || reducedMotion || currentSeq < 0) {
-      zoom.value = 1;
+    const { camPath: cp, dur } = camInputs.current;
+    if (reducedMotion || !cp || currentSeq < 0) {
+      camP.value = 0;
       return;
     }
-    const speed = SIM_SPEED_FACTOR[simSpeed];
-    // Lean in as the shot goes up (after the possession's pre-shot beats), so the
-    // slow-mo hangs on the deciding ball, not the run-up.
-    const preShot = plan ? scaled(plan.preShotMs * plan.timeScale, speed) : 0;
-    zoom.value = withDelay(
-      preShot,
-      withSequence(
-        withTiming(CINEMA_ZOOM, {
-          duration: scaled(FLIGHT_DURATION_MAX * WINNER_TIME_SCALE, speed),
-          easing: Easing.out(Easing.quad),
-        }),
-        withDelay(
-          scaled(CINEMA_HOLD_MS, speed),
-          withTiming(1, {
-            duration: scaled(CINEMA_SNAP_BACK_MS, speed),
-            easing: Easing.out(Easing.quad),
-          })
-        )
-      )
-    );
-    return () => cancelAnimation(zoom);
-  }, [cinema, currentSeq, reducedMotion, simSpeed, plan, zoom]);
-  const zoomStyle = useAnimatedStyle(() => ({ transform: [{ scale: zoom.value }] }));
+    camP.value = 0;
+    camP.value = withTiming(1, { duration: dur, easing: Easing.inOut(Easing.quad) });
+    return () => cancelAnimation(camP);
+  }, [currentSeq, reducedMotion, camP]);
+  const camStyle = useAnimatedStyle(() => {
+    // Reduced motion (or no plan) holds the fixed wide view (identity).
+    if (reducedMotion || !camPath) return {};
+    return {
+      transform: [
+        { translateX: Math.round(interpolate(camP.value, camPath.times, camPath.tx)) },
+        { translateY: Math.round(interpolate(camP.value, camPath.times, camPath.ty)) },
+        { scale: interpolate(camP.value, camPath.times, camPath.sx) },
+      ],
+    };
+  });
 
   return (
     <View style={styles.wrap} onLayout={onLayout}>
@@ -526,7 +533,7 @@ function CourtViewImpl({
         />
       ) : null}
       <Animated.View
-        style={[styles.courtBox, { width: size.width, height: size.height }, zoomStyle]}
+        style={[styles.courtBox, { width: size.width, height: size.height }, camStyle]}
       >
         <SvgCourt
           floorColor={theme.floorColor}
@@ -631,6 +638,9 @@ const styles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    // Clip the camera-zoomed floor to the court boundary so the panned-away half
+    // and apron never overpaint the ticker.
+    overflow: 'hidden',
     // The out-of-bounds apron framing the aspect-locked court.
     backgroundColor: palette.bgDeep,
   },

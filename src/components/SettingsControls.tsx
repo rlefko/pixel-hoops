@@ -23,6 +23,7 @@ export function SettingsControls() {
     reducedMotionSetting,
     lowPowerMode,
     arcadeExtras,
+    cameraFollow,
     autoSkipGames,
     update,
   } = useFeelSettings();
@@ -106,6 +107,13 @@ export function SettingsControls() {
         description={reduceMotionDescription}
         checked={reducedMotionSetting}
         onToggle={(next) => update({ reducedMotion: next })}
+      />
+
+      <CheckboxRow
+        label="Broadcast Camera"
+        description="Follow the play and zoom into the action; off for a fixed wide view"
+        checked={cameraFollow}
+        onToggle={(next) => update({ cameraFollow: next })}
       />
 
       <Text style={styles.section}>ARCADE</Text>

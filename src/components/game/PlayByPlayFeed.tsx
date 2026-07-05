@@ -129,7 +129,8 @@ export function PlayByPlayFeed({
   arenaTier = 'routine',
   onComplete,
 }: PlayByPlayFeedProps) {
-  const { reducedMotion, simSpeed, highlightsOnly, arcadeExtras, update } = useFeelSettings();
+  const { reducedMotion, simSpeed, highlightsOnly, arcadeExtras, cameraFollow, update } =
+    useFeelSettings();
   const insets = useSafeAreaInsets();
   const speed = SIM_SPEED_FACTOR[simSpeed];
   const [cursor, setCursor] = useState(-1);
@@ -189,10 +190,15 @@ export function PlayByPlayFeed({
       const crowdPlan = computeCrowdPulses(timeline, momentum);
       // The possession-theater plans, derived once for both watch modes so a
       // highlights toggle is a pointer swap, not a recompute (budgets in the plan).
-      const plansFull = timeline.map((e) => buildPossessionPlan(e, 'full', cinemaSeqs.has(e.seq)));
-      const plansHl = timeline.map((e) => buildPossessionPlan(e, 'highlights', cinemaSeqs.has(e.seq)));
+      // The previous event drives transition-vs-halfcourt; the camera setting frames it.
+      const plansFull = timeline.map((e, i) =>
+        buildPossessionPlan(e, 'full', cinemaSeqs.has(e.seq), timeline[i - 1], cameraFollow)
+      );
+      const plansHl = timeline.map((e, i) =>
+        buildPossessionPlan(e, 'highlights', cinemaSeqs.has(e.seq), timeline[i - 1], cameraFollow)
+      );
       return { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan, plansFull, plansHl };
-    }, [timeline]);
+    }, [timeline, cameraFollow]);
 
   // The active mode's plans (swapped, not rebuilt, when highlights toggles).
   const plans = highlightsOnly ? plansHl : plansFull;
