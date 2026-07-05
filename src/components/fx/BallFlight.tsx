@@ -52,8 +52,9 @@ function lerp(a: Pt, b: Pt, t: number): Pt {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
-/** Arc peak (px) for each pre-shot leg kind: a low dribble, a flat pass, a hanging lob. */
-const LEG_PEAK: Record<BallLegKind, number> = { carry: 8, handoff: 6, pass: 14, lob: 40 };
+/** Arc peak (px) for each pre-shot leg kind: a low dribble, a readable passing arc,
+ *  a hanging lob. Passes arc high enough to read as ball movement, not a snap. */
+const LEG_PEAK: Record<BallLegKind, number> = { carry: 6, handoff: 8, pass: 24, lob: 42 };
 const legEase = (kind: BallLegKind) =>
   kind === 'carry' ? Easing.linear : kind === 'pass' ? Easing.out(Easing.quad) : Easing.inOut(Easing.quad);
 

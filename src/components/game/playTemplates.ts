@@ -163,9 +163,12 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
       weakWing: { control: [[0.2, 0.72], [0.16, 0.72]], start: 0.1, arrive: 0.8 },
       post: { control: [[0.62, 0.87], [0.6, 0.88]], start: 0, arrive: 0.8 },
     },
+    // A quick reversal, back to the handler, then the hand-off (the assist).
     ball: [
-      { kind: 'carry', from: 'ballHandler', to: 'ballHandler', start: 0, end: 0.5 },
-      { kind: 'handoff', from: 'ballHandler', to: 'receiver', start: 0.62, end: 1 },
+      { kind: 'carry', from: 'ballHandler', to: 'ballHandler', start: 0, end: 0.2 },
+      { kind: 'pass', from: 'ballHandler', to: 'strongWing', start: 0.22, end: 0.36 },
+      { kind: 'pass', from: 'strongWing', to: 'ballHandler', start: 0.48, end: 0.6 },
+      { kind: 'handoff', from: 'ballHandler', to: 'receiver', start: 0.82, end: 1 },
     ],
   },
   // Shooter runs off a down-screen to catch-and-shoot.
@@ -180,9 +183,12 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
       weakWing: { control: [[0.8, 0.72], [0.84, 0.72]], start: 0.1, arrive: 0.8 },
       corner: { control: [[0.9, 0.72], [0.91, 0.72]], start: 0, arrive: 0.8 },
     },
+    // Swing to the corner and back to move the defense, then hit the curling shooter.
     ball: [
-      { kind: 'carry', from: 'passer', to: 'passer', start: 0, end: 0.55 },
-      { kind: 'pass', from: 'passer', to: 'shooter', start: 0.7, end: 1 },
+      { kind: 'carry', from: 'passer', to: 'passer', start: 0, end: 0.2 },
+      { kind: 'pass', from: 'passer', to: 'corner', start: 0.22, end: 0.36 },
+      { kind: 'pass', from: 'corner', to: 'passer', start: 0.48, end: 0.6 },
+      { kind: 'pass', from: 'passer', to: 'shooter', start: 0.8, end: 1 },
     ],
   },
   // Pick-and-roll: the screener holds a contact beat then rolls to the rim to finish.
@@ -197,9 +203,13 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
       weakWing: { control: [[0.8, 0.72], [0.86, 0.72]], start: 0.1, arrive: 0.8 },
       corner: { control: [[0.1, 0.72], [0.09, 0.72]], start: 0, arrive: 0.8 },
     },
+    // Ball swings to initiate, comes back, then the handler attacks off the screen
+    // and hits the roller (the assist).
     ball: [
-      { kind: 'carry', from: 'ballHandler', to: 'ballHandler', start: 0, end: 0.72 },
-      { kind: 'pass', from: 'ballHandler', to: 'rollMan', start: 0.8, end: 1 },
+      { kind: 'carry', from: 'ballHandler', to: 'ballHandler', start: 0, end: 0.22 },
+      { kind: 'pass', from: 'ballHandler', to: 'weakWing', start: 0.24, end: 0.38 },
+      { kind: 'pass', from: 'weakWing', to: 'ballHandler', start: 0.5, end: 0.64 },
+      { kind: 'pass', from: 'ballHandler', to: 'rollMan', start: 0.84, end: 1 },
     ],
   },
   // Post-up: wing entry pass to the block; the post backs down; the weak-side big lifts.
@@ -214,12 +224,17 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
       corner: { control: [[0.1, 0.72], [0.09, 0.72]], start: 0, arrive: 0.8 },
       strongWing: { control: [[0.34, 0.86], [0.32, 0.84]], start: 0.1, arrive: 0.8 },
     },
+    // Perimeter swing to move the help, then the entry pass into the post (the assist).
     ball: [
-      { kind: 'carry', from: 'entry', to: 'entry', start: 0, end: 0.5 },
-      { kind: 'pass', from: 'entry', to: 'post', start: 0.62, end: 1 },
+      { kind: 'carry', from: 'entry', to: 'entry', start: 0, end: 0.22 },
+      { kind: 'pass', from: 'entry', to: 'weakWing', start: 0.24, end: 0.38 },
+      { kind: 'pass', from: 'weakWing', to: 'entry', start: 0.5, end: 0.62 },
+      { kind: 'pass', from: 'entry', to: 'post', start: 0.78, end: 1 },
     ],
   },
-  // Isolation: four clear to the weak side; the handler attacks 1-on-1 (0 passes).
+  // Isolation: four clear to the weak side; the handler attacks 1-on-1. The ball is
+  // reversed once to move the defense before the iso (dropped ~1/3 of the time for a
+  // true, no-pass iso; see instantiateTemplate).
   iso: {
     id: 'iso',
     terminal: 'ballHandler',
@@ -230,7 +245,12 @@ export const TEMPLATES: Record<TemplateId, PlayTemplate> = {
       corner: { control: [[0.9, 0.72], [0.92, 0.72]], start: 0, arrive: 0.7 },
       post: { control: [[0.14, 0.86], [0.1, 0.84]], start: 0.05, arrive: 0.7 },
     },
-    ball: [{ kind: 'carry', from: 'ballHandler', to: 'ballHandler', start: 0, end: 1 }],
+    ball: [
+      { kind: 'carry', from: 'ballHandler', to: 'ballHandler', start: 0, end: 0.24 },
+      { kind: 'pass', from: 'ballHandler', to: 'weakWing', start: 0.26, end: 0.4 },
+      { kind: 'pass', from: 'weakWing', to: 'ballHandler', start: 0.5, end: 0.62 },
+      { kind: 'carry', from: 'ballHandler', to: 'ballHandler', start: 0.62, end: 1 },
+    ],
   },
   // Transition: a three-lane sprint; a lead pass/lob finishes at the rim.
   transition: {
@@ -355,9 +375,9 @@ export function assignRoles(template: PlayTemplate, event: SimEvent): RoleAssign
 // --- Baking (curves, arrive-decel, stagger, separation, defenders) ---
 
 const SAMPLES = 6; // dense samples per curved role (piecewise-linear reads as a curve)
-const GOAL_SIDE = 0.06; // how far goal-side of his man a defender sits (attacking-frame depth)
-const DEF_LATENCY = 0.16; // defender reaction, as a fraction of preShotMs
-const DEF_OPEN_LATENCY = 0.12; // extra latency when the shot reads open (late closeout)
+// How tightly a defender sits on his man, as a lerp from the man toward the rim.
+const CONTEST_TIGHT = 0.14; // the matched on-ball defender, in the shooter's airspace
+const HELP_TIGHT = 0.16; // an off-ball defender, goal-side of his man
 const MIN_GAP = 0.18; // min spacing between offensive spots (aspect-corrected fraction)
 const ASPECT = COURT.length / COURT.width; // to compare gaps on both axes fairly
 
@@ -485,64 +505,68 @@ export function instantiateTemplate(
     );
   }
 
-  // Defense: each defender pursues his man goal-side, a reaction beat late (full mode).
+  // Defense: each defender leaves his base to actually guard his man, arriving IN
+  // POSITION during the play (not after the shot). The matched defender contests
+  // the shooter's airspace; on an open kickout he arrives right at the shot (a late
+  // closeout = "open but contested"), otherwise a hair early (on-ball pressure).
   if (mode === 'full') {
     const rim = rimCenterFraction(off); // the rim the defense protects
-    const latency = (DEF_LATENCY + (contest === 'open' ? DEF_OPEN_LATENCY : 0)) * preShotMs;
     for (const pos of POSITIONS) {
       const roleId = roles.roleOf[pos];
       const manFinal = roleId ? finalOf[roleId]! : spotFraction(off, pos, off);
       const defBase = spotFraction(def, pos, null);
       const matched = pos === event.scorerPosition;
-      // Sit between his man and the rim (a tighter contest on the scorer).
       const guardSpot = matched
-        ? lerpFrac(shotSpot, rim, 0.26)
-        : lerpFrac(manFinal, rim, GOAL_SIDE * 2);
-      const arriveMs = Math.min(totalMs - 2, preShotMs + latency);
-      const midMs = Math.min(arriveMs - 1, preShotMs * 0.6 + latency);
+        ? lerpFrac(shotSpot, rim, CONTEST_TIGHT)
+        : lerpFrac(manFinal, rim, HELP_TIGHT);
+      // When the defender arrives at his man, as a fraction of the pre-shot window.
+      const arriveFrac = matched ? (contest === 'open' ? 1.0 : 0.9) : 0.72;
+      const arriveMs = Math.min(totalMs - 2, preShotMs * arriveFrac);
+      const midMs = Math.max(1, Math.min(arriveMs - 1, arriveMs * 0.5));
       movers[spriteKey(def, pos)] = strictlyIncreasingByMs([
         { atMs: 0, frac: defBase },
-        { atMs: midMs, frac: lerpFrac(defBase, guardSpot, 0.55) },
+        { atMs: midMs, frac: lerpFrac(defBase, guardSpot, 0.6) },
         { atMs: arriveMs, frac: guardSpot },
-        { atMs: Math.min(totalMs - 1, holdUntil + latency), frac: guardSpot },
+        { atMs: Math.min(totalMs - 1, holdUntil), frac: guardSpot }, // hold the contest through the shot
         { atMs: totalMs, frac: defBase },
       ]);
     }
   }
 
   // Ball script: resolve each leg's endpoints to the role's spot AT the leg's time.
+  // The credited assist is always the final pass (assisted plays only); an
+  // unassisted possession ends on a carry (the scorer creates and finishes).
   const ball: BallLeg[] = [];
   const assisted = !!event.assist && isMadeShot(event);
-  const legSpecs =
-    mode === 'highlights'
-      ? template.ball.filter((l) => l.kind !== 'carry' || template.ball.length === 1)
-      : template.ball;
+  const finalLeg = template.ball[template.ball.length - 1];
+  const soloCarry: BallLegSpec = { kind: 'carry', from: template.terminal, to: template.terminal, start: 0, end: 1 };
+  let legSpecs: BallLegSpec[];
+  if (mode === 'highlights') {
+    // Tight window: just the credited pass on an assist, else a carry to the shooter.
+    legSpecs = assisted && finalLeg.kind !== 'carry' ? [finalLeg] : [soloCarry];
+  } else if (!assisted && finalLeg.kind !== 'carry') {
+    // Unassisted using a set template (a post-up or a leak-out dunk): no credited
+    // pass, so the scorer simply carries into the finish.
+    legSpecs = [soloCarry];
+  } else if (template.id === 'iso' && event.seq % 3 === 0) {
+    // A true, no-pass iso ~1/3 of the time (the star just creates).
+    legSpecs = [soloCarry];
+  } else {
+    legSpecs = template.ball;
+  }
   for (const leg of legSpecs) {
-    // Drop the credited (final) pass entirely when the play was unassisted; the
-    // ball is simply carried to the shooter instead.
-    const isFinal = leg === template.ball[template.ball.length - 1];
+    const isFinal = leg === legSpecs[legSpecs.length - 1];
     const fromPos = roles.posOf[leg.from];
     const toPos = roles.posOf[leg.to];
     if (!fromPos || !toPos) continue;
-    if (isFinal && leg.kind !== 'carry' && !assisted) {
-      // Extend a preceding carry to the shooter instead of a phantom pass.
-      const carry = ball[ball.length - 1];
-      if (carry) {
-        carry.to = sampleAt(movers[spriteKey(off, toPos)], leg.end * preShotMs) ?? finalOf[template.terminal]!;
-        carry.ms = leg.end * preShotMs - carry.startMs;
-      }
-      continue;
-    }
-    const fromWps = movers[spriteKey(off, fromPos)];
-    const toWps = movers[spriteKey(off, toPos)];
     const startMs = leg.start * preShotMs;
     const endMs = leg.end * preShotMs;
     // An assisted dunk to a rim finisher reads as an alley-oop: arc it as a lob.
     const kind: BallLegKind = isFinal && leg.kind === 'pass' && event.action === 'dunk' ? 'lob' : leg.kind;
     ball.push({
       kind,
-      from: sampleAt(fromWps, startMs) ?? spotFraction(off, fromPos, null),
-      to: isFinal ? shotSpot : sampleAt(toWps, endMs) ?? finalOf[roles.roleOf[toPos]]!,
+      from: sampleAt(movers[spriteKey(off, fromPos)], startMs) ?? spotFraction(off, fromPos, null),
+      to: isFinal ? shotSpot : sampleAt(movers[spriteKey(off, toPos)], endMs) ?? finalOf[roles.roleOf[toPos]]!,
       startMs,
       ms: endMs - startMs,
     });
