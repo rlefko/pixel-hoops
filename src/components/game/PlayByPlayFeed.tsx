@@ -238,8 +238,10 @@ export function PlayByPlayFeed({
   // agent sims would freeze the mount frame). Cached by mode+index; the cache resets
   // when the timeline / camera / rosters change.
   const planCacheRef = useRef<Map<string, PossessionPlan>>(new Map());
+  const ctxCacheRef = useRef<Map<number, ReturnType<typeof resolveMotionCtx>>>(new Map());
   useMemo(() => {
     planCacheRef.current = new Map();
+    ctxCacheRef.current = new Map();
   }, [timeline, cameraFollow, gameMotionData]);
   const getPlan = useCallback(
     (mode: WatchMode, index: number): PossessionPlan => {
@@ -247,8 +249,14 @@ export function PlayByPlayFeed({
       const hit = planCacheRef.current.get(key);
       if (hit) return hit;
       const e = timeline[index];
-      const { ctx, seed } = resolveMotionCtx(gameMotionData, e);
-      const built = buildPossessionPlan(e, mode, cinemaSeqs.has(e.seq), timeline[index - 1], cameraFollow, ctx, seed);
+      // Resolve the roster/coach context once per event (identical across modes), so
+      // the ~10 derivePlaystyle calls don't repeat when highlights and full both build.
+      let resolved = ctxCacheRef.current.get(index);
+      if (!resolved) {
+        resolved = resolveMotionCtx(gameMotionData, e);
+        ctxCacheRef.current.set(index, resolved);
+      }
+      const built = buildPossessionPlan(e, mode, cinemaSeqs.has(e.seq), timeline[index - 1], cameraFollow, resolved.ctx, resolved.seed);
       planCacheRef.current.set(key, built);
       return built;
     },

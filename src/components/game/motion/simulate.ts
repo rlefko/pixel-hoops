@@ -136,7 +136,11 @@ export function simulate(input: MotionInput, script: PossessionScript, budget: M
     return vlerp(manM, midBallRim, helpDepth);
   };
 
-  for (let t = 0; t <= totalMs + 1; t += DT_MS) {
+  // Step in DT_MS increments but always land the FINAL frame exactly on totalMs (a
+  // pacing value is rarely a multiple of DT_MS), so every agent's track covers the
+  // whole [0, totalMs] window the bake step and renderer expect.
+  for (let step = 0; ; step++) {
+    const t = Math.min(step * DT_MS, totalMs);
     const frac = preShotMs > 0 ? Math.min(1, t / preShotMs) : 1;
     const holder = holderRoleAt(script, frac);
     const holderPos = posOfRole(script.offRoles, holder) ?? finisherPos;
@@ -163,6 +167,7 @@ export function simulate(input: MotionInput, script: PossessionScript, budget: M
       a.vel = k.vel;
       a.frames.push({ atMs: t, frac: toFrac(a.pos) });
     }
+    if (t >= totalMs) break;
   }
 
   return { agents, byKey, offSide, preShotMs, holdUntil, totalMs, shotSpot, ballHolders };
