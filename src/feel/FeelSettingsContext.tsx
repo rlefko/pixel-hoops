@@ -58,6 +58,8 @@ export interface FeelSettings {
   simSpeed: SimSpeed;
   /** Condensed watch: routine non-scoring plays whip by, big plays keep full juice. */
   highlightsOnly: boolean;
+  /** Broadcast camera: follow the ball and push into the attacking half so plays read. */
+  cameraFollow: boolean;
   /** Skip the watched play-by-play and jump straight to the game result. */
   autoSkipGames: boolean;
 }
@@ -86,6 +88,9 @@ const DEFAULTS: FeelSettings = {
   // Highlights is the default fast path: it dramatizes the buckets and assist
   // passes in ~30s. Full mode (opt-in) runs the whole floor every possession.
   highlightsOnly: true,
+  // The broadcast camera follows the play and frames the attacking half so the
+  // action reads at phone size. Gentle by default; off = a fixed wide view.
+  cameraFollow: true,
   autoSkipGames: false,
 };
 

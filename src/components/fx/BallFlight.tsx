@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { StyleSheet } from 'react-native';
-import Animated from 'react-native-reanimated';
-import { useBallFlight } from '@/feel/useBallFlight';
+import Animated, { Easing } from 'react-native-reanimated';
+import { useBallFlight, type BallLegPx } from '@/feel/useBallFlight';
 import type { Pt } from '@/feel/ballPath';
 import { useFeelSettings } from '@/feel';
 import { spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { shotShapeFor, isNoteworthy, WINNER_TIME_SCALE } from '@/components/game/possession';
-import { fracToPx, type PossessionPlan } from '@/components/game/choreography';
+import { fracToPx, type BallLegKind, type PossessionPlan } from '@/components/game/choreography';
 import { palette } from '@/theme';
 import { type SimEvent } from '@/types/sim';
 
@@ -51,6 +51,11 @@ const DUNK_DROP_THROUGH = 22; // a dunk rams the ball harder through the net
 function lerp(a: Pt, b: Pt, t: number): Pt {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
+
+/** Arc peak (px) for each pre-shot leg kind: a low dribble, a flat pass, a hanging lob. */
+const LEG_PEAK: Record<BallLegKind, number> = { carry: 8, handoff: 6, pass: 14, lob: 40 };
+const legEase = (kind: BallLegKind) =>
+  kind === 'carry' ? Easing.linear : kind === 'pass' ? Easing.out(Easing.quad) : Easing.inOut(Easing.quad);
 
 export function BallFlight({
   event,
@@ -109,25 +114,19 @@ export function BallFlight({
       resolve = { x: rim.x, y: rim.y + dropSign * drop }; // ram/drop through the net
     }
 
-    // The pre-shot legs: the ball dribbled up, then the assist pass (if any).
-    const carry = plan?.ball.carry
-      ? {
-          from: fracToPx(plan.ball.carry.from, width, height),
-          to: fracToPx(plan.ball.carry.to, width, height),
-          ms: plan.ball.carry.ms,
-        }
-      : undefined;
-    const pass = plan?.ball.pass
-      ? {
-          from: fracToPx(plan.ball.pass.from, width, height),
-          to: fracToPx(plan.ball.pass.to, width, height),
-          ms: plan.ball.pass.ms,
-        }
-      : undefined;
+    // The pre-shot legs: the ball dribbled up, swung, and fed to the shooter.
+    const legs: BallLegPx[] = (plan?.ball.legs ?? []).map((leg) => ({
+      from: fracToPx(leg.from, width, height),
+      to: fracToPx(leg.to, width, height),
+      startMs: leg.startMs,
+      ms: leg.ms,
+      peak: LEG_PEAK[leg.kind],
+      ease: legEase(leg.kind),
+    }));
 
     fire({
-      carry,
-      pass,
+      legs,
+      shotStartMs: plan?.preShotMs ?? 0,
       origin,
       target,
       resolve,

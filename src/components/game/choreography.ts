@@ -1,32 +1,40 @@
 import { spotFraction, rimCenterFraction } from './courtGeometry';
 import { shotShapeFor, WINNER_TIME_SCALE } from './possession';
+import {
+  TEMPLATES,
+  selectTemplate,
+  assignRoles,
+  deriveContest,
+  instantiateTemplate,
+} from './playTemplates';
+import {
+  lerpFrac,
+  spriteKey,
+  strictlyIncreasingByMs,
+  type Frac,
+  type SpriteKey,
+} from './courtMath';
 import { FLIGHT_DURATION_MAX, resolveDurationFor, type ShotShape } from '@/feel/ballPath';
 import { scaled } from '@/feel/timings';
-import { POSITIONS, type Position } from '@/types/roster';
+import { type Position } from '@/types/roster';
 import { isMadeShot, type SimEvent, type SimTeamSide } from '@/types/sim';
 
+// Re-exported so the renderer keeps importing court primitives from one place.
+export { spriteKey, fracToPx, type Frac, type SpriteKey } from './courtMath';
+
 /**
- * Possession theater: pure, deterministic choreography that turns one SimEvent
- * (an outcome) into a timed plan the watch dramatizes: the offense runs the floor
- * into a set, the passer feeds the shooter on an assist, the shot goes up, the
- * ball resolves, a rebounder secures a miss, then everyone resets. No React, no
- * randomness (every "choice" is a pure function of seq), no court size baked in
- * beyond fractions (0..1). The renderer (CourtView / BallFlight) scales the beat
- * durations by playback speed and resolves the fractions to pixels.
+ * Possession theater: pure, deterministic choreography that turns one SimEvent (an
+ * outcome) into a believable NBA possession. A play-template library (playTemplates.ts)
+ * picks a real action from the statistical fields (pick-and-roll, hand-off, pin-down,
+ * post-up, iso, spot-up, transition), assigns the five on-court positions to its roles,
+ * and bakes curved, staggered, decelerating movement + a multi-pass ball + reacting
+ * defenders. A ball-following camera plan frames it all. No React, no randomness (every
+ * choice is a pure function of `seq`), no court size baked in beyond fractions (0..1).
  *
- * The sim is untouched: this only reads the recorded event. Under reduced motion
- * or highlights' routine plays the renderer ignores the movement and the plan just
- * supplies the snappy gap (planDurationMs), so those paths behave exactly as before.
+ * The sim is untouched: this only reads the recorded event. Under reduced motion or
+ * highlights' routine plays the renderer ignores the movement and the plan just supplies
+ * the snappy gap (planDurationMs), so those paths behave exactly as before.
  */
-
-/** A fractional court position (0..1 on each axis). */
-export interface Frac {
-  x: number;
-  y: number;
-}
-
-/** `${side}-${position}`, e.g. 'home-PG'. Identifies a sprite on the floor. */
-export type SpriteKey = `${SimTeamSide}-${Position}`;
 
 /** One point on a sprite's path: be at `frac` by `atMs` (cumulative, unscaled). */
 export interface Waypoint {
@@ -34,22 +42,38 @@ export interface Waypoint {
   frac: Frac;
 }
 
-/** A pre-shot ball leg: the ball carried up the floor, or the assist pass. */
+/** How a ball leg reads in the air (selects its arc peak + easing at render). */
+export type BallLegKind = 'carry' | 'handoff' | 'pass' | 'lob';
+
+/** One pre-shot ball leg: the ball dribbled, handed off, passed, or lobbed. */
 export interface BallLeg {
   from: Frac;
   to: Frac;
+  /** When the leg begins (cumulative, unscaled) — legs may have gaps (ball held). */
+  startMs: number;
   /** Unscaled duration; the renderer scales by speed x timeScale. */
   ms: number;
+  kind: BallLegKind;
 }
 
-/** Where the ball goes before and up to the shot release. */
+/** The live ball's pre-shot path (the shot leg itself is derived by the renderer). */
 export interface BallPlan {
-  /** The ball dribbled up the floor with the handler (absent when there's no lead-in). */
-  carry?: BallLeg;
-  /** The assist pass from the credited passer to the shooter (assisted makes only). */
-  pass?: BallLeg;
+  /** Ordered pre-shot legs; the last ends at `origin` (the credited assist). */
+  legs: BallLeg[];
   /** The shot origin: the shooter's spot when the ball leaves their hands. */
   origin: Frac;
+}
+
+/** One frame of the broadcast camera: center court fraction + zoom, at `atMs`. */
+export interface CameraKeyframe {
+  atMs: number;
+  center: Frac;
+  zoom: number;
+}
+
+/** The per-possession camera track (identity keyframes = a fixed wide view). */
+export interface CameraPlan {
+  keys: CameraKeyframe[];
 }
 
 /** Which watch mode a plan was built for. */
@@ -57,48 +81,37 @@ export type WatchMode = 'full' | 'highlights';
 
 /**
  * The full choreography for one possession. `movers` lists only the sprites that
- * move (others hold their defensive base and just idle-bob, as before). `ball`
- * drives the live ball. `totalMs`/`reducedBaseMs`/`timeScale` own the pacing so
- * the scheduler and the renderer read one budget (feel convention: budgets live
- * in the plan).
+ * move; others hold their defensive base and idle-bob. `totalMs`/`reducedBaseMs`/
+ * `timeScale` own the pacing so the scheduler and the renderer read one budget.
  */
 export interface PossessionPlan {
   seq: number;
-  /** Full unscaled possession length; the scheduler waits scaled(totalMs x timeScale). */
   totalMs: number;
-  /** Unscaled time from possession start to the shot release (ball leaves for the rim). */
   preShotMs: number;
-  /** The snappy gap under reduced motion (the former reduced-motion pacing, now removed). */
   reducedBaseMs: number;
-  /** 1, or WINNER_TIME_SCALE on the one game-deciding shot (slow-mo cinema). */
   timeScale: number;
-  /** How the shot reads in the air. */
   shape: ShotShape;
-  /** The scorer's sprite key. */
   shooterKey: SpriteKey;
-  /** True when the scorer throws down a dunk (drives the slam squash overlay). */
   dunk: boolean;
-  /** The shooter's shot spot (the ignite burst and hot-ball origin anchor here). */
   igniteFrac: Frac;
-  /** Per-sprite waypoint paths for the sprites that move this possession. */
   movers: Partial<Record<SpriteKey, Waypoint[]>>;
   ball: BallPlan;
+  camera: CameraPlan;
 }
 
-export function spriteKey(side: SimTeamSide, position: Position): SpriteKey {
-  return `${side}-${position}`;
-}
+const otherSide = (side: SimTeamSide): SimTeamSide => (side === 'home' ? 'away' : 'home');
 
-/** Resolve a court fraction (0..1) to pixels for the measured floor. */
-export function fracToPx(f: Frac, width: number, height: number): { x: number; y: number } {
-  return { x: f.x * width, y: f.y * height };
-}
+// --- Pre-shot windows (unscaled). Real NBA ratios, compressed for a skippable watch:
+// half-court possessions develop over a real trip up the floor; transition is quicker. ---
+const PRESHOT = {
+  halfCourt: 640, // advance -> initiate -> primary action
+  halfCourtAssistBonus: 100, // room for the extra pass
+  transition: 460, // compressed: sprint lanes -> finish
+  highlights: 220, // a brief settle before the shot
+  highlightsAssistBonus: 160, // the assist pass
+} as const;
 
-// --- Beat durations (unscaled). Tuned so a full possession reads as a real trip
-// up the floor while staying skippable; highlights stay tight. ---
-const FULL = {
-  advance: 520, // offense runs base -> set, ball dribbled up
-  pass: 200, // the assist pass leg
+const POST = {
   rebound: 240, // a rebounder secures a miss/block
   reset: 200, // everyone drifts back toward the set
   lingerWinner: 300,
@@ -107,21 +120,21 @@ const FULL = {
   lingerOther: 40,
 } as const;
 
-const HL = {
-  pad: 220, // a brief settle so a highlight doesn't hard-cut into the shot
-  pass: 200,
-  lingerBig: 140,
-  lingerMake: 90,
-} as const;
+const HL_LINGER = { big: 140, make: 90 } as const;
 
 /** The routine-highlights blow-past gap (the former 60ms scheduler floor). */
 const HL_ROUTINE_MS = 60;
 
-const otherSide = (side: SimTeamSide): SimTeamSide => (side === 'home' ? 'away' : 'home');
-
-function lerpFrac(a: Frac, b: Frac, t: number): Frac {
-  return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
-}
+// --- Camera framing (kept gentle: a broadcast lean, not a lurch, since it fires
+// every possession on a phone-size court) ---
+const CAM = {
+  rest: 1.0,
+  advance: 1.2,
+  attack: 1.5,
+  shot: 1.6,
+  cinemaShot: 1.75,
+  rebound: 1.2,
+} as const;
 
 /** The scorer's spot when the shot goes up, biased toward the rim by the action. */
 function shotSpotFor(event: SimEvent): Frac {
@@ -129,74 +142,25 @@ function shotSpotFor(event: SimEvent): Frac {
   const rim = rimCenterFraction(event.team);
   switch (event.action) {
     case 'dunk':
-      return lerpFrac(adv, rim, 0.72); // rises right at the rim
+      return lerpFrac(adv, rim, 0.72);
     case 'layup':
     case 'drive':
-      return lerpFrac(adv, rim, 0.5); // attacks into the paint
+      return lerpFrac(adv, rim, 0.5);
     case 'post':
-      return lerpFrac(adv, rim, 0.34); // backs down on the block
+      return lerpFrac(adv, rim, 0.34);
     case 'midrange':
-      return lerpFrac(adv, rim, 0.18); // steps into a pull-up
+      return lerpFrac(adv, rim, 0.18);
     case 'three':
     default:
-      return adv; // spots up behind the arc
+      return adv;
   }
-}
-
-/**
- * The offensive set spot for a non-scorer: their advanced spot, nudged by the
- * play so the floor reads as spacing/cutting rather than five men jogging in
- * parallel. Deterministic in seq so a replay is identical.
- */
-function offSetFor(event: SimEvent, position: Position): Frac {
-  const adv = spotFraction(event.team, position, event.team);
-  const rim = rimCenterFraction(event.team);
-  // A rim attack clears the strong-side wing to the corner (one cutter, seq-picked).
-  const cutter = event.seq % 2 === 0 ? 'SG' : 'SF';
-  if ((event.action === 'drive' || event.action === 'layup' || event.action === 'dunk') && position === cutter) {
-    return { x: adv.x < 0.5 ? adv.x - 0.06 : adv.x + 0.06, y: lerpFrac(adv, rim, 0.12).y };
-  }
-  // A post-up sends the other big to the weak-side block for a spacing look.
-  if (event.action === 'post' && (position === 'PF' || position === 'C') && position !== event.scorerPosition) {
-    return lerpFrac(adv, rim, 0.22);
-  }
-  return adv;
-}
-
-/**
- * The defender's spot: goal-side of the man they guard. The matched defender (the
- * scorer's slot) steps up to contest; the rest collapse a touch toward their rim.
- */
-function defSpotFor(event: SimEvent, position: Position): Frac {
-  const defSide = otherSide(event.team);
-  const base = spotFraction(defSide, position, null);
-  const rim = rimCenterFraction(event.team); // the rim the defense protects
-  if (position === event.scorerPosition) {
-    // Contest: sit between the shooter's spot and the rim.
-    return lerpFrac(shotSpotFor(event), rim, 0.28);
-  }
-  // Help: a small shift toward the offensive man's set and the rim.
-  const man = offSetFor(event, position);
-  return lerpFrac(base, lerpFrac(man, rim, 0.4), 0.4);
-}
-
-/** Waypoints that go base -> target by preShot, hold through the shot, then reset. */
-function movePath(base: Frac, target: Frac, preShotMs: number, holdMs: number, totalMs: number): Waypoint[] {
-  const holdAt = Math.min(preShotMs + holdMs, totalMs - 1);
-  const path: Waypoint[] = [
-    { atMs: 0, frac: base },
-    { atMs: preShotMs, frac: target },
-  ];
-  if (holdAt > preShotMs) path.push({ atMs: holdAt, frac: target });
-  path.push({ atMs: totalMs, frac: base });
-  return path;
 }
 
 function lingerFullFor(event: SimEvent): number {
-  if (event.callout === 'BUZZER BEATER!') return FULL.lingerWinner;
-  if (event.isBigPlay) return FULL.lingerBig;
-  if (isMadeShot(event)) return FULL.lingerMake;
-  return FULL.lingerOther;
+  if (event.callout === 'BUZZER BEATER!') return POST.lingerWinner;
+  if (event.isBigPlay) return POST.lingerBig;
+  if (isMadeShot(event)) return POST.lingerMake;
+  return POST.lingerOther;
 }
 
 /** The former reduced-motion gap for an event (kept identical to preserve that path). */
@@ -206,14 +170,72 @@ function reducedBaseFor(event: SimEvent): number {
   return 90;
 }
 
+/** Clamp a camera center so the frame never leaves the court (dead apron out of shot). */
+function clampCenter(center: Frac, zoom: number): Frac {
+  const half = 0.5 / zoom;
+  return {
+    x: Math.max(half, Math.min(1 - half, center.x)),
+    y: Math.max(half, Math.min(1 - half, center.y)),
+  };
+}
+
+const CENTER: Frac = { x: 0.5, y: 0.5 };
+
 /**
- * Build the possession plan for one event in the given watch mode. `cinema` marks
- * the one game-deciding shot (slow-mo). Pure and deterministic.
+ * The broadcast camera track: wide for transition, pushed into the attacking half for
+ * a half-court set, a small lean on the shot, wide again on the rebound/reset. Every
+ * possession ends wide so the swing to the other end reads as a cut, not a hard pan.
+ */
+function buildCameraPlan(
+  event: SimEvent,
+  mode: WatchMode,
+  cinema: boolean,
+  cameraFollow: boolean,
+  ctx: { preShotMs: number; flight: number; totalMs: number; shotSpot: Frac; rebounds: boolean }
+): CameraPlan {
+  const { preShotMs, flight, totalMs, shotSpot, rebounds } = ctx;
+  if (!cameraFollow || preShotMs <= 0) {
+    return { keys: [{ atMs: 0, center: CENTER, zoom: CAM.rest }, { atMs: Math.max(1, totalMs), center: CENTER, zoom: CAM.rest }] };
+  }
+  const rim = rimCenterFraction(event.team);
+  const setCenter = lerpFrac(shotSpot, rim, 0.25);
+  const shotZoom = cinema ? CAM.cinemaShot : CAM.shot;
+  // Each keyframe's center is clamped to ITS zoom so the frame never leaves the court.
+  const key = (atMs: number, center: Frac, zoom: number): CameraKeyframe => ({
+    atMs,
+    center: clampCenter(center, zoom),
+    zoom,
+  });
+  const keys: CameraKeyframe[] = [];
+  if (mode === 'highlights') {
+    const advZoom = CAM.advance + 0.15;
+    keys.push(key(0, setCenter, advZoom));
+    keys.push(key(preShotMs, setCenter, CAM.attack));
+    keys.push(key(preShotMs + flight, shotSpot, shotZoom));
+    keys.push({ atMs: totalMs, center: CENTER, zoom: CAM.rest });
+    return { keys: strictlyIncreasingByMs(keys) };
+  }
+  keys.push({ atMs: 0, center: CENTER, zoom: CAM.rest });
+  keys.push(key(preShotMs * 0.45, lerpFrac(CENTER, setCenter, 0.6), CAM.advance));
+  keys.push(key(preShotMs, setCenter, CAM.attack));
+  keys.push(key(preShotMs + flight * 0.6, shotSpot, shotZoom));
+  keys.push(key(preShotMs + flight, shotSpot, shotZoom));
+  if (rebounds) keys.push(key(preShotMs + flight + POST.rebound, lerpFrac(shotSpot, CENTER, 0.6), CAM.rebound));
+  keys.push({ atMs: totalMs, center: CENTER, zoom: CAM.rest });
+  return { keys: strictlyIncreasingByMs(keys) };
+}
+
+/**
+ * Build the possession plan for one event in the given watch mode. `cinema` marks the
+ * one game-deciding shot (slow-mo). `prevEvent` lets us read transition-vs-halfcourt.
+ * Pure and deterministic.
  */
 export function buildPossessionPlan(
   event: SimEvent,
   mode: WatchMode,
-  cinema: boolean
+  cinema: boolean,
+  prevEvent?: SimEvent,
+  cameraFollow = true
 ): PossessionPlan {
   const shape = shotShapeFor(event);
   const shooterKey = spriteKey(event.team, event.scorerPosition);
@@ -237,99 +259,70 @@ export function buildPossessionPlan(
       dunk: false,
       igniteFrac: shotSpot,
       movers: {},
-      ball: { origin: shotSpot },
+      ball: { legs: [], origin: shotSpot },
+      camera: { keys: [{ atMs: 0, center: CENTER, zoom: CAM.rest }, { atMs: HL_ROUTINE_MS, center: CENTER, zoom: CAM.rest }] },
     };
   }
 
+  const template = TEMPLATES[selectTemplate(event, prevEvent)];
+  const roles = assignRoles(template, event);
+  const contest = deriveContest(event);
+
+  // Pre-shot window + total budget.
+  let preShotMs: number;
   if (mode === 'highlights') {
-    // A noteworthy highlight: a short pad, the assist pass if any, the shot.
-    const preShotMs = HL.pad + (assisted ? HL.pass : 0);
-    const linger = event.isBigPlay ? HL.lingerBig : HL.lingerMake;
-    const totalMs = preShotMs + flight + linger;
-    const movers: Partial<Record<SpriteKey, Waypoint[]>> = {};
-    // Only the shooter (and passer) move, so highlights stay tight.
-    const shooterBase = spotFraction(event.team, event.scorerPosition, null);
-    movers[shooterKey] = movePath(shooterBase, shotSpot, preShotMs, flight, totalMs);
-    const ball: BallPlan = { origin: shotSpot };
-    if (assisted && event.assist) {
-      const passerKey = spriteKey(event.team, event.assist.position);
-      const passerSpot = offSetFor(event, event.assist.position);
-      const passerBase = spotFraction(event.team, event.assist.position, null);
-      if (passerKey !== shooterKey) {
-        movers[passerKey] = movePath(passerBase, passerSpot, HL.pad, flight, totalMs);
-      }
-      ball.pass = { from: passerSpot, to: shotSpot, ms: HL.pass };
-    }
-    return {
-      seq: event.seq,
-      totalMs,
-      preShotMs,
-      reducedBaseMs,
-      timeScale,
-      shape,
-      shooterKey,
-      dunk: shape === 'dunk',
-      igniteFrac: shotSpot,
-      movers,
-      ball,
-    };
+    preShotMs = PRESHOT.highlights + (assisted ? PRESHOT.highlightsAssistBonus : 0);
+  } else if (template.transition) {
+    preShotMs = PRESHOT.transition + (assisted ? PRESHOT.halfCourtAssistBonus * 0.5 : 0);
+  } else {
+    preShotMs = PRESHOT.halfCourt + (assisted ? PRESHOT.halfCourtAssistBonus : 0);
   }
-
-  // Full mode: the whole floor runs the possession.
-  const preShotMs = FULL.advance + (assisted ? FULL.pass : 0);
-  const postMs = (rebounds ? FULL.rebound : 0) + FULL.reset + lingerFullFor(event);
+  const postMs =
+    mode === 'highlights'
+      ? event.isBigPlay
+        ? HL_LINGER.big
+        : HL_LINGER.make
+      : (rebounds ? POST.rebound : 0) + POST.reset + lingerFullFor(event);
   const totalMs = preShotMs + flight + postMs;
+  const holdUntil = preShotMs + flight;
 
-  const movers: Partial<Record<SpriteKey, Waypoint[]>> = {};
+  const inst = instantiateTemplate(
+    template,
+    event,
+    roles,
+    { preShotMs, totalMs, holdUntil },
+    mode,
+    shotSpot,
+    contest
+  );
+  const movers = inst.movers;
 
-  // Offense advances into its set; the scorer ends at the shot spot.
-  for (const pos of POSITIONS) {
-    const k = spriteKey(event.team, pos);
-    const base = spotFraction(event.team, pos, null);
-    const target = pos === event.scorerPosition ? shotSpot : offSetFor(event, pos);
-    movers[k] = movePath(base, target, preShotMs, flight, totalMs);
-  }
-
-  // Defense shifts to guard; the matched defender contests.
-  const defSide = otherSide(event.team);
-  for (const pos of POSITIONS) {
-    const k = spriteKey(defSide, pos);
-    const base = spotFraction(defSide, pos, null);
-    movers[k] = movePath(base, defSpotFor(event, pos), preShotMs, flight, totalMs);
-  }
-
-  // The rebounder steps to the rim on a miss/block (cosmetic; the box owns the
-  // stat). Defense grabs it ~73% of the time (matching the sim's rebound bias).
-  const rim = rimCenterFraction(event.team);
-  if (rebounds) {
+  // The rebounder steps to the rim on a miss/block (cosmetic; the box owns the stat).
+  if (rebounds && mode === 'full') {
+    const rim = rimCenterFraction(event.team);
+    const defSide = otherSide(event.team);
     const defensiveBoard = event.seq % 100 >= 27; // ~73% defensive
     const boardSide = defensiveBoard ? defSide : event.team;
-    // Pick a big by a seq walk so back-to-back boards vary.
     const bigs: Position[] = ['C', 'PF', 'SF'];
     const rebPos = bigs[event.seq % bigs.length];
     const k = spriteKey(boardSide, rebPos);
     const base = spotFraction(boardSide, rebPos, null);
-    const secureAt = preShotMs + flight; // the ball is at the rim by now
-    // Step to the glass, secure, then drift out.
+    const secureAt = preShotMs + flight;
     movers[k] = [
       { atMs: 0, frac: base },
       { atMs: secureAt, frac: lerpFrac(base, rim, 0.7) },
-      { atMs: Math.min(secureAt + FULL.rebound, totalMs - 1), frac: lerpFrac(base, rim, 0.55) },
+      { atMs: Math.min(secureAt + POST.rebound, totalMs - 1), frac: lerpFrac(base, rim, 0.55) },
       { atMs: totalMs, frac: base },
     ];
   }
 
-  // The live ball: dribbled up by the handler, passed on an assist, then shot.
-  const ball: BallPlan = { origin: shotSpot };
-  if (assisted && event.assist) {
-    const passerSpot = offSetFor(event, event.assist.position);
-    const passerBase = spotFraction(event.team, event.assist.position, null);
-    ball.carry = { from: passerBase, to: passerSpot, ms: FULL.advance };
-    ball.pass = { from: passerSpot, to: shotSpot, ms: FULL.pass };
-  } else {
-    const shooterBase = spotFraction(event.team, event.scorerPosition, null);
-    ball.carry = { from: shooterBase, to: shotSpot, ms: FULL.advance };
-  }
+  const camera = buildCameraPlan(event, mode, cinema, cameraFollow, {
+    preShotMs,
+    flight,
+    totalMs,
+    shotSpot,
+    rebounds,
+  });
 
   return {
     seq: event.seq,
@@ -342,14 +335,14 @@ export function buildPossessionPlan(
     dunk: shape === 'dunk',
     igniteFrac: shotSpot,
     movers,
-    ball,
+    ball: { legs: inst.ball, origin: shotSpot },
+    camera,
   };
 }
 
 /**
  * The scheduler gap for a possession: scaled(total x timeScale) normally, or the
- * snappy reduced-motion gap. `scaled` is the single speed knob, applied once (the
- * whole watch's pacing flows through it, as the former eventGapMs did).
+ * snappy reduced-motion gap. `scaled` is the single speed knob, applied once.
  */
 export function planDurationMs(plan: PossessionPlan, reducedMotion: boolean, speed: number): number {
   if (reducedMotion) return scaled(plan.reducedBaseMs, speed);

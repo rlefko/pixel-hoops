@@ -73,6 +73,23 @@ export function spotFraction(
   return { x, y };
 }
 
+/**
+ * Convert an attacking-frame point `(x, depth)` to a court fraction for `side`.
+ * `x` is 0 (left as the attacking team faces its rim) .. 1 (right), mirrored for
+ * away; `depth` is 0 (the offense's own baseline) .. 1 (the attacking rim). This
+ * is the anchor the play templates author their control points in, so one
+ * template serves both ends of the floor.
+ */
+export function attackFrac(
+  side: SimTeamSide,
+  x: number,
+  depth: number
+): { x: number; y: number } {
+  const mx = side === 'home' ? x : 1 - x;
+  const y = side === 'home' ? 1 - depth * SPAN : depth * SPAN;
+  return { x: mx, y };
+}
+
 /** Percent-string position for absolute layout (the static sprite base). */
 export function spotPercent(
   side: SimTeamSide,
