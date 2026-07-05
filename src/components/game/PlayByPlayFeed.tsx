@@ -17,7 +17,11 @@ import {
   Pop,
 } from '@/components/fx';
 import { CourtView } from '@/components/game/CourtView';
-import { buildPossessionPlan, planDurationMs } from '@/components/game/choreography';
+import { buildPossessionPlan, planDurationMs, type PossessionPlan, type WatchMode } from '@/components/game/choreography';
+import { resolveMotionCtx, type GameMotionData } from '@/components/game/motion';
+import type { CoachIdentity } from '@/components/game/motion/types';
+import { deriveArchetype } from '@/game/team-archetype';
+import type { RosterPlayer } from '@/types/roster';
 import type { ArenaTier } from '@/game/arena-tier';
 import { computeCrowdPulses, type CrowdPulsePlan } from '@/game/crowd-pulse';
 import { computeMomentum, type MomentumInfo } from '@/game/momentum';
@@ -113,6 +117,38 @@ function TeamChip({ team }: { team: Team }) {
   );
 }
 
+/** A coach identity for the movement layer, read off the team's resolved game plan
+ *  (which already folds in the coach's pace/focus/star lean). */
+function coachIdentityFor(team: Team): CoachIdentity {
+  return {
+    name: team.name,
+    prefPace: team.tactic.pace,
+    prefFocus: team.tactic.focus,
+    usage: team.tactic.starPlayerIndex != null ? 'star' : 'balanced',
+    rotation: 9,
+  };
+}
+
+/** Name -> RosterPlayer across a team (starters win over the bench on a clash). */
+function rosterByNameFor(team: Team): Map<string, RosterPlayer> {
+  const map = new Map<string, RosterPlayer>();
+  for (const rp of team.bench) map.set(rp.player.name, rp);
+  for (const rp of team.lineup.players) map.set(rp.player.name, rp);
+  return map;
+}
+
+/** Assemble the per-game movement inputs the agent engine reads (rosters + coach +
+ *  archetype per side, plus a stable per-game seed for deterministic sampling). */
+function buildGameMotionData(home: Team, away: Team, timelineLen: number): GameMotionData {
+  const side = (team: Team) => ({
+    rosterByName: rosterByNameFor(team),
+    starters: team.lineup.players,
+    coach: coachIdentityFor(team),
+    archetype: deriveArchetype(team),
+  });
+  return { home: side(home), away: side(away), gameSeed: `${home.name}|${away.name}|${timelineLen}` };
+}
+
 interface PlayByPlayFeedProps {
   timeline: SimEvent[];
   homeTeam: Team;
@@ -167,45 +203,67 @@ export function PlayByPlayFeed({
   // riding the first QUARTER_NOTE_EVENTS events of the new quarter), and the
   // crowd plan (which beats pulse the edges / stir the apron crowd, budget-capped
   // in computeCrowdPulses). Purely derived, so there are no timers to clean up.
-  const { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan, plansFull, plansHl } =
-    useMemo(() => {
-      const momentum = computeMomentum(timeline);
-      let crunchStartSeq = -1;
-      const cinemaSeqs = new Set<number>();
-      const quarterNotes = new Map<number, { text: string; first: boolean }>();
-      for (let i = 0; i < timeline.length; i++) {
-        const e = timeline[i];
-        const m = momentum.get(e.seq);
-        if (crunchStartSeq < 0 && m?.crunch) crunchStartSeq = e.seq;
-        if (isWinner(e) || m?.clincher) cinemaSeqs.add(e.seq);
-        const prev = i > 0 ? timeline[i - 1] : undefined;
-        if (prev && e.quarter > prev.quarter) {
-          const text = `END Q${prev.quarter} · ${prev.homeScore}-${prev.awayScore}`;
-          for (let j = i; j < Math.min(i + QUARTER_NOTE_EVENTS, timeline.length); j++) {
-            if (timeline[j].quarter !== e.quarter) break;
-            quarterNotes.set(timeline[j].seq, { text, first: j === i });
-          }
+  const { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan } = useMemo(() => {
+    const momentum = computeMomentum(timeline);
+    let crunchStartSeq = -1;
+    const cinemaSeqs = new Set<number>();
+    const quarterNotes = new Map<number, { text: string; first: boolean }>();
+    for (let i = 0; i < timeline.length; i++) {
+      const e = timeline[i];
+      const m = momentum.get(e.seq);
+      if (crunchStartSeq < 0 && m?.crunch) crunchStartSeq = e.seq;
+      if (isWinner(e) || m?.clincher) cinemaSeqs.add(e.seq);
+      const prev = i > 0 ? timeline[i - 1] : undefined;
+      if (prev && e.quarter > prev.quarter) {
+        const text = `END Q${prev.quarter} · ${prev.homeScore}-${prev.awayScore}`;
+        for (let j = i; j < Math.min(i + QUARTER_NOTE_EVENTS, timeline.length); j++) {
+          if (timeline[j].quarter !== e.quarter) break;
+          quarterNotes.set(timeline[j].seq, { text, first: j === i });
         }
       }
-      const crowdPlan = computeCrowdPulses(timeline, momentum);
-      // The possession-theater plans, derived once for both watch modes so a
-      // highlights toggle is a pointer swap, not a recompute (budgets in the plan).
-      // The previous event drives transition-vs-halfcourt; the camera setting frames it.
-      const plansFull = timeline.map((e, i) =>
-        buildPossessionPlan(e, 'full', cinemaSeqs.has(e.seq), timeline[i - 1], cameraFollow)
-      );
-      const plansHl = timeline.map((e, i) =>
-        buildPossessionPlan(e, 'highlights', cinemaSeqs.has(e.seq), timeline[i - 1], cameraFollow)
-      );
-      return { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan, plansFull, plansHl };
-    }, [timeline, cameraFollow]);
+    }
+    const crowdPlan = computeCrowdPulses(timeline, momentum);
+    return { momentum, crunchStartSeq, cinemaSeqs, quarterNotes, crowdPlan };
+  }, [timeline]);
 
-  // The active mode's plans (swapped, not rebuilt, when highlights toggles).
-  const plans = highlightsOnly ? plansHl : plansFull;
-  const plan = cursor >= 0 ? plans[cursor] : null;
-  // Read by the one-shot completion timer without being a dep.
-  const plansRef = useRef(plans);
-  plansRef.current = plans;
+  // Per-game movement inputs (rosters, coaches, archetypes, seed), resolved once so
+  // ratings + coach identity drive the agent engine: a fast player runs faster, a
+  // lockdown coach's defense switches/drops. Outcomes stay untouched.
+  const gameMotionData = useMemo(
+    () => buildGameMotionData(homeTeam, awayTeam, timeline.length),
+    [homeTeam, awayTeam, timeline.length]
+  );
+
+  // Possession plans are built LAZILY per reveal (an eager full-game build of ~480
+  // agent sims would freeze the mount frame). Cached by mode+index; the cache resets
+  // when the timeline / camera / rosters change.
+  const planCacheRef = useRef<Map<string, PossessionPlan>>(new Map());
+  const ctxCacheRef = useRef<Map<number, ReturnType<typeof resolveMotionCtx>>>(new Map());
+  useMemo(() => {
+    planCacheRef.current = new Map();
+    ctxCacheRef.current = new Map();
+  }, [timeline, cameraFollow, gameMotionData]);
+  const getPlan = useCallback(
+    (mode: WatchMode, index: number): PossessionPlan => {
+      const key = `${mode}-${index}`;
+      const hit = planCacheRef.current.get(key);
+      if (hit) return hit;
+      const e = timeline[index];
+      // Resolve the roster/coach context once per event (identical across modes), so
+      // the ~10 derivePlaystyle calls don't repeat when highlights and full both build.
+      let resolved = ctxCacheRef.current.get(index);
+      if (!resolved) {
+        resolved = resolveMotionCtx(gameMotionData, e);
+        ctxCacheRef.current.set(index, resolved);
+      }
+      const built = buildPossessionPlan(e, mode, cinemaSeqs.has(e.seq), timeline[index - 1], cameraFollow, resolved.ctx, resolved.seed);
+      planCacheRef.current.set(key, built);
+      return built;
+    },
+    [timeline, cameraFollow, gameMotionData, cinemaSeqs]
+  );
+  const activeMode: WatchMode = highlightsOnly ? 'highlights' : 'full';
+  const plan = cursor >= 0 ? getPlan(activeMode, cursor) : null;
 
   // Outcome feedback, tiered so routine plays stay quiet and only special moments
   // pop. Fired when the ball reaches the rim (see CourtView onArrival).
@@ -369,10 +427,10 @@ export function PlayByPlayFeed({
     // Show the current possession for its OWN full duration before advancing (the
     // first event reveals immediately). The plan owns the budget: the sum of its
     // beats, scaled by speed, so the ball and the floor finish before the next play.
-    const gap = cursor < 0 ? 0 : planDurationMs(plans[cursor], reducedMotion, speed);
+    const gap = cursor < 0 ? 0 : planDurationMs(getPlan(activeMode, cursor), reducedMotion, speed);
     const timer = setTimeout(() => setCursor(nextIdx), gap);
     return () => clearTimeout(timer);
-  }, [cursor, timeline, skipped, reducedMotion, speed, plans]);
+  }, [cursor, timeline, skipped, reducedMotion, speed, activeMode, getPlan]);
 
   // Fire onComplete once the timeline finishes, after the final ball has had time
   // to land and celebrate (so the game-winner isn't cut off by the transition).
@@ -382,8 +440,8 @@ export function PlayByPlayFeed({
     if (completedRef.current || timeline.length === 0 || cursor < timeline.length - 1)
       return;
     completedRef.current = true;
-    const lastPlan = plansRef.current[timeline.length - 1];
     const p = pacingRef.current;
+    const lastPlan = getPlan(p.highlightsOnly ? 'highlights' : 'full', timeline.length - 1);
     const timer = setTimeout(
       () => onCompleteRef.current(),
       planDurationMs(lastPlan, p.reducedMotion, p.speed)

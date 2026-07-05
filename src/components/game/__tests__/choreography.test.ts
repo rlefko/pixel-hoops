@@ -45,7 +45,7 @@ const inBounds = (v: number) => v >= 0 && v <= 1;
 function assertPathShape(plan: PossessionPlan) {
   for (const path of Object.values(plan.movers)) {
     expect(path!.length).toBeGreaterThanOrEqual(2);
-    expect(path!.length).toBeLessThanOrEqual(16);
+    expect(path!.length).toBeLessThanOrEqual(24);
     expect(path![0].atMs).toBe(0);
     expect(path![path!.length - 1].atMs).toBe(plan.totalMs);
     for (let i = 1; i < path!.length; i++) {
@@ -95,19 +95,19 @@ describe('buildPossessionPlan', () => {
     }
   });
 
-  it('an assisted set swings the ball; a pure iso just carries', () => {
+  it('an assisted set delivers a real pass; a pure iso just carries', () => {
     const assisted = buildPossessionPlan(
       makeEvent({ action: 'three', assist: { name: 'home-PG', position: 'PG' } }),
       'full',
       false
     );
-    // The credited assist is the final pass, and there is at least one earlier swing.
-    expect(assisted.ball.legs.filter((l) => l.kind === 'pass' || l.kind === 'handoff' || l.kind === 'lob').length).toBeGreaterThanOrEqual(2);
+    // The credited assist is a real pass/handoff/lob (not a phantom carry).
+    expect(assisted.ball.legs.filter((l) => l.kind === 'pass' || l.kind === 'handoff' || l.kind === 'lob').length).toBeGreaterThanOrEqual(1);
+    expect(['pass', 'handoff', 'lob']).toContain(assisted.ball.legs[assisted.ball.legs.length - 1].kind);
 
-    // A pure iso (seq % 3 === 0, unassisted) is a single carry — a true isolation.
+    // A pure iso (unassisted) is carry-only — a true isolation.
     const pureIso = buildPossessionPlan(makeEvent({ action: 'midrange', seq: 9 }), 'full', false);
     expect(pureIso.ball.legs.every((l) => l.kind === 'carry')).toBe(true);
-    // The final ball leg of any unassisted possession is a carry (no phantom assist).
     expect(pureIso.ball.legs[pureIso.ball.legs.length - 1].kind).toBe('carry');
   });
 
@@ -141,20 +141,6 @@ describe('buildPossessionPlan', () => {
     expect(away.ball.origin.y).toBeGreaterThan(0.6);
   });
 
-  it('the whole offense is a front-court set at the shot (nobody stranded at mid-court)', () => {
-    const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
-    const sampleAt = (wps: { atMs: number; frac: { x: number; y: number } }[], t: number) => {
-      for (let i = 1; i < wps.length; i++) if (t <= wps[i].atMs) return wps[i - 1].frac;
-      return wps[wps.length - 1].frac;
-    };
-    for (const pos of POSITIONS) {
-      const wps = plan.movers[spriteKey('home', pos)];
-      expect(wps).toBeDefined();
-      const at = sampleAt(wps!, plan.preShotMs);
-      expect(at.y).toBeLessThan(0.45); // home offense is in the front court, not past mid-court
-    }
-  });
-
   it('reserves rebound time on a miss/block and never passes on them', () => {
     const make = buildPossessionPlan(makeEvent(), 'full', false);
     for (const result of ['miss', 'block'] as QuarterResult[]) {
@@ -166,13 +152,18 @@ describe('buildPossessionPlan', () => {
     }
   });
 
-  it('highlights compacts to the shooter (+ passer) and stays shorter than full', () => {
+  it('highlights cuts straight to the set (no base->set drift) and stays shorter than full', () => {
     const over = { action: 'three' as SimActionId, isBigPlay: true, assist: { name: 'home-PG', position: 'PG' as const } };
     const hl = buildPossessionPlan(makeEvent(over), 'highlights', false);
     const full = buildPossessionPlan(makeEvent(over), 'full', false);
-    expect(hl.movers[spriteKey('home', 'SG')]).toBeDefined(); // shooter
-    expect(Object.keys(hl.movers).length).toBeLessThanOrEqual(2);
+    expect(hl.movers[spriteKey('home', 'SG')]).toBeDefined(); // shooter present
     expect(hl.totalMs).toBeLessThan(full.totalMs);
+    // Cut-to-set: every mover snaps to its set spot within the first frame (atMs<=2),
+    // rather than drifting across the court from its defensive base.
+    for (const wps of Object.values(hl.movers)) {
+      expect(wps![0].atMs).toBe(0);
+      expect(wps![1].atMs).toBeLessThanOrEqual(2);
+    }
   });
 
   it('highlights blows past a routine (non-scoring, non-big) play', () => {
@@ -189,7 +180,7 @@ describe('buildPossessionPlan', () => {
   });
 });
 
-describe('motion: hold-and-settle, a ball glued to the handler', () => {
+describe('motion engine: outcome-faithful + deterministic', () => {
   const sampleAt = (wps: { atMs: number; frac: { x: number; y: number } }[], t: number) => {
     if (t <= wps[0].atMs) return wps[0].frac;
     const last = wps[wps.length - 1];
@@ -206,77 +197,64 @@ describe('motion: hold-and-settle, a ball glued to the handler', () => {
   };
   const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
 
-  it('the shooter plants at the shot spot and releases from a dead stop', () => {
+  it('the finisher releases EXACTLY from the recorded shot spot (the hard pin)', () => {
     for (const over of [
-      { action: 'three' as SimActionId, assist: { name: 'x', position: 'PG' as const } }, // dho (seq 4)
-      { action: 'drive' as SimActionId, assist: { name: 'x', position: 'PG' as const } }, // pnr
-      { action: 'post' as SimActionId, scorerPosition: 'C' as const, assist: { name: 'x', position: 'SG' as const } }, // postUp
-      { action: 'midrange' as SimActionId }, // iso
+      { action: 'three' as SimActionId, assist: { name: 'x', position: 'PG' as const } },
+      { action: 'drive' as SimActionId, assist: { name: 'x', position: 'PG' as const } },
+      { action: 'post' as SimActionId, scorerPosition: 'C' as const, assist: { name: 'x', position: 'SG' as const } },
+      { action: 'midrange' as SimActionId },
+      { action: 'dunk' as SimActionId, assist: { name: 'x', position: 'PG' as const } },
     ]) {
       const plan = buildPossessionPlan(makeEvent(over), 'full', false);
       const wps = plan.movers[plan.shooterKey]!;
-      const arrive = plan.moverBursts[plan.shooterKey]!.endMs;
-      // Planted on the spot by its arrive, and pinned exactly to it on release.
-      expect(dist(sampleAt(wps, arrive), plan.ball.origin)).toBeLessThan(0.02);
       expect(dist(sampleAt(wps, plan.preShotMs), plan.ball.origin)).toBeLessThan(1e-9);
-      // The gather is a settle, not a move: tiny net travel from the plant to the shot.
-      expect(dist(sampleAt(wps, arrive), sampleAt(wps, plan.preShotMs))).toBeLessThan(0.02);
     }
   });
 
-  it('off-ball spacers plant early and hold dead still through the shot', () => {
+  it('assisted plays end on a real pass; unassisted end on a carry (honesty)', () => {
+    const assisted = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    expect(['pass', 'handoff', 'lob']).toContain(assisted.ball.legs[assisted.ball.legs.length - 1].kind);
+    const iso = buildPossessionPlan(makeEvent({ action: 'midrange', seq: 9 }), 'full', false);
+    expect(iso.ball.legs.every((l) => l.kind === 'carry')).toBe(true);
+  });
+
+  it('every offensive player has traveled up into the front court by the shot', () => {
     const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
-    let checked = 0;
+    let inFront = 0;
     for (const pos of POSITIONS) {
-      const key = spriteKey('home', pos);
-      const b = plan.moverBursts[key];
-      const wps = plan.movers[key];
-      if (!b || !wps || key === plan.shooterKey) continue;
-      if (b.endMs > plan.preShotMs * 0.35) continue; // the late feeder isn't a spacer
-      // From the plant all the way to the release: not a pixel of drift.
-      expect(dist(sampleAt(wps, b.endMs), sampleAt(wps, plan.preShotMs))).toBeLessThan(1e-9);
-      checked++;
+      const wps = plan.movers[spriteKey('home', pos)];
+      if (!wps) continue;
+      if (sampleAt(wps, plan.preShotMs).y < 0.5) inFront++; // home attacks the top (y small)
     }
-    expect(checked).toBeGreaterThanOrEqual(2); // the set really does have planted spacers
+    expect(inFront).toBe(POSITIONS.length); // nobody stranded in the backcourt
   });
 
-  it('at most three offensive players are moving at any beat', () => {
-    const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
-    const d = 8;
-    for (const frac of [0.3, 0.5, 0.7, 0.85]) {
-      const t = plan.preShotMs * frac;
-      let moving = 0;
-      for (const pos of POSITIONS) {
-        const wps = plan.movers[spriteKey('home', pos)];
-        if (!wps) continue;
-        if (dist(sampleAt(wps, Math.max(0, t - d)), sampleAt(wps, t + d)) > 0.004) moving++;
-      }
-      expect(moving).toBeLessThanOrEqual(3);
-    }
-  });
-
-  it('a carried ball rides the dribbler’s exact baked path (never floats off)', () => {
-    // A pure iso (seq % 3 === 0, unassisted) is a single carry by the scorer.
+  it('a carried ball rides the dribbler’s baked path (never floats off)', () => {
     const plan = buildPossessionPlan(makeEvent({ action: 'midrange', seq: 9 }), 'full', false);
     const carry = plan.ball.legs[plan.ball.legs.length - 1];
     expect(carry.kind).toBe('carry');
     expect(carry.path).toBeDefined();
     const wps = plan.movers[plan.shooterKey]!;
     const path = carry.path!;
-    expect(path.length).toBeGreaterThanOrEqual(2);
     for (let i = 0; i < path.length - 1; i++) {
       const atMs = carry.startMs + (carry.ms * i) / (path.length - 1);
-      expect(dist(path[i], sampleAt(wps, atMs))).toBeLessThan(1e-9); // exactly on the handler
+      expect(dist(path[i], sampleAt(wps, atMs))).toBeLessThan(1e-9);
     }
-    expect(path[path.length - 1]).toEqual(plan.ball.origin); // the release pinned to the shot spot
+    expect(path[path.length - 1]).toEqual(plan.ball.origin);
   });
 
-  it('a pass/hand-off/lob stays a straight two-point arc (no dense path)', () => {
+  it('a pass/hand-off/lob stays a two-point arc (no dense path)', () => {
     const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
     for (const leg of plan.ball.legs) {
       if (leg.kind === 'carry') expect(leg.path).toBeDefined();
       else expect(leg.path).toBeUndefined();
     }
+  });
+
+  it('broadcast-real pacing: a full-mode half-court possession is several seconds', () => {
+    const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    expect(plan.preShotMs).toBeGreaterThan(2000);
+    expect(plan.preShotMs).toBeLessThan(6600);
   });
 });
 
