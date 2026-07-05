@@ -52,11 +52,15 @@ function lerp(a: Pt, b: Pt, t: number): Pt {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
-/** Arc peak (px) for each pre-shot leg kind: a low dribble, a readable passing arc,
- *  a hanging lob. Passes arc high enough to read as ball movement, not a snap. */
-const LEG_PEAK: Record<BallLegKind, number> = { carry: 6, handoff: 8, pass: 24, lob: 42 };
+/** Arc peak (px) for each pre-shot leg kind. A carry rides the dribbler's baked path,
+ *  so it hugs the floor (~flat); a hand-off is a short toss; a pass is a crisp, near-flat
+ *  line (not a floaty lob); the shot is the only high arc, and an alley-oop lob still
+ *  hangs. */
+const LEG_PEAK: Record<BallLegKind, number> = { carry: 1, handoff: 3, pass: 11, lob: 42 };
+/** Dribble bounce amplitude (px) for a carry; other legs don't bounce. */
+const CARRY_BOUNCE = 3;
 const legEase = (kind: BallLegKind) =>
-  kind === 'carry' ? Easing.linear : kind === 'pass' ? Easing.out(Easing.quad) : Easing.inOut(Easing.quad);
+  kind === 'carry' ? Easing.linear : kind === 'pass' ? Easing.out(Easing.cubic) : Easing.inOut(Easing.quad);
 
 export function BallFlight({
   event,
@@ -115,15 +119,20 @@ export function BallFlight({
       resolve = { x: rim.x, y: rim.y + dropSign * drop }; // ram/drop through the net
     }
 
-    // The pre-shot legs: the ball dribbled up, swung, and fed to the shooter.
-    const legs: BallLegPx[] = (plan?.ball.legs ?? []).map((leg) => ({
-      from: fracToPx(leg.from, width, height),
-      to: fracToPx(leg.to, width, height),
-      startMs: leg.startMs,
-      ms: leg.ms,
-      peak: LEG_PEAK[leg.kind],
-      ease: legEase(leg.kind),
-    }));
+    // The pre-shot legs: the ball dribbled up (glued to the handler's path), swung,
+    // and fed to the shooter. A carry carries a dense polyline; others are two-point.
+    const legs: BallLegPx[] = (plan?.ball.legs ?? []).map((leg) => {
+      const pts = (leg.path ?? [leg.from, leg.to]).map((f) => fracToPx(f, width, height));
+      return {
+        xs: pts.map((p) => p.x),
+        ys: pts.map((p) => p.y),
+        startMs: leg.startMs,
+        ms: leg.ms,
+        peak: LEG_PEAK[leg.kind],
+        bounce: leg.kind === 'carry' ? CARRY_BOUNCE : 0,
+        ease: legEase(leg.kind),
+      };
+    });
 
     fire({
       legs,

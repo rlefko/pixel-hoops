@@ -39,15 +39,24 @@ export const MAX_BALL_LEGS = 4;
  *  ball movement rather than a 1-2 frame flicker at the faster default speed. */
 const MIN_LEG_MS = 90;
 
-/** One pre-shot leg in court pixels, with a resolved arc peak and easing. */
+/** Taps toward the floor across a dribble carry (the ball's bounce cadence). */
+const DRIBBLES = 3;
+
+/** One pre-shot leg in court pixels: a polyline the ball rides, with an arc peak,
+ *  a dribble bounce, and easing. A dense `xs`/`ys` (a carry) hugs the handler; a
+ *  two-point leg (pass/hand-off/lob) is a straight arc. */
 export interface BallLegPx {
-  from: Pt;
-  to: Pt;
+  /** Polyline points in court px (>= 1). Two points = a straight arc. */
+  xs: number[];
+  ys: number[];
   /** When the leg starts (unscaled, cumulative from possession start). */
   startMs: number;
   /** Unscaled duration. */
   ms: number;
+  /** Arc peak (px) for a two-point leg; ~0 for a dense carry that hugs the handler. */
   peak: number;
+  /** Dribble bounce amplitude (px) for a carry; 0 otherwise. */
+  bounce: number;
   ease: (t: number) => number;
 }
 
@@ -68,11 +77,40 @@ interface FireConfig {
 }
 
 interface LegGeom {
-  fx: number;
-  fy: number;
-  tx: number;
-  ty: number;
+  xs: number[];
+  ys: number[];
   peak: number;
+  bounce: number;
+}
+
+/**
+ * Sample a pre-shot leg's polyline at progress `prog` (0..1): piecewise-linear along
+ * the points, plus a two-point arc lift and/or a dribble bounce. A UI-thread worklet
+ * so the ball rides the dribbler's exact baked path rather than chording across it.
+ */
+function polyPoint(g: LegGeom, prog: number): { x: number; y: number } {
+  'worklet';
+  const { xs, ys, peak, bounce } = g;
+  const n = xs.length;
+  const p = prog < 0 ? 0 : prog > 1 ? 1 : prog;
+  let x: number;
+  let y: number;
+  if (n <= 1) {
+    x = xs[0];
+    y = ys[0];
+  } else {
+    const seg = p * (n - 1);
+    let i = Math.floor(seg);
+    if (i > n - 2) i = n - 2;
+    const f = seg - i;
+    x = xs[i] + (xs[i + 1] - xs[i]) * f;
+    y = ys[i] + (ys[i + 1] - ys[i]) * f;
+  }
+  // A straight two-point leg arcs; a dense carry hugs the floor (peak ~0).
+  if (n === 2 && peak > 0) y -= peak * Math.sin(p * Math.PI);
+  // Dribble bounce: the carried ball taps toward the floor a few times.
+  if (bounce > 0) y += bounce * Math.abs(Math.sin(p * DRIBBLES * Math.PI));
+  return { x, y };
 }
 
 export function useBallFlight() {
@@ -112,7 +150,7 @@ export function useBallFlight() {
     const progs = [l0.value, l1.value, l2.value, l3.value];
     for (let i = MAX_BALL_LEGS - 1; i >= 0; i--) {
       if (progs[i] > 0 && g[i]) {
-        const pt = arcPoint(g[i].fx, g[i].tx, g[i].fy, g[i].ty, g[i].peak, progs[i]);
+        const pt = polyPoint(g[i], progs[i]);
         return { opacity: o, transform: [{ translateX: pt.x }, { translateY: pt.y }] };
       }
     }
@@ -163,14 +201,14 @@ export function useBallFlight() {
       const n = Math.min(legs.length, MAX_BALL_LEGS);
       for (let i = 0; i < MAX_BALL_LEGS; i++) {
         if (i < n) {
-          geom.push({ fx: legs[i].from.x, fy: legs[i].from.y, tx: legs[i].to.x, ty: legs[i].to.y, peak: legs[i].peak });
+          geom.push({ xs: legs[i].xs, ys: legs[i].ys, peak: legs[i].peak, bounce: legs[i].bounce });
         } else {
-          geom.push({ fx: 0, fy: 0, tx: 0, ty: 0, peak: 0 });
+          geom.push({ xs: [0], ys: [0], peak: 0, bounce: 0 });
         }
       }
       legGeom.value = geom;
 
-      const start = legs[0]?.from ?? origin;
+      const start = { x: legs[0]?.xs[0] ?? origin.x, y: legs[0]?.ys[0] ?? origin.y };
       sx0.value = start.x;
       sy0.value = start.y;
       opacity.value = 1;
