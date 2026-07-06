@@ -186,6 +186,8 @@ export interface MotionOutput {
   movers: Partial<Record<SpriteKey, import('../choreography').Waypoint[]>>;
   moverBursts: Partial<Record<SpriteKey, { startMs: number; endMs: number }>>;
   ball: import('../choreography').BallLeg[];
+  /** Per-sprite windows during which that sprite holds the ball (the live handler). */
+  handler: Partial<Record<SpriteKey, { startMs: number; endMs: number }[]>>;
   /** The engine-owned pacing, back out to choreography for the camera + plan. */
   preShotMs: number;
   totalMs: number;
@@ -194,7 +196,7 @@ export interface MotionOutput {
 }
 
 /** Just the baked movement (bake/highlights produce this; index adds pacing). */
-export type MotionMovement = Pick<MotionOutput, 'movers' | 'moverBursts' | 'ball'>;
+export type MotionMovement = Pick<MotionOutput, 'movers' | 'moverBursts' | 'ball' | 'handler'>;
 
 /** A neutral rating hint (used when no roster is threaded, e.g. Node tests). */
 export const NEUTRAL_HINT: SteeringHint = {

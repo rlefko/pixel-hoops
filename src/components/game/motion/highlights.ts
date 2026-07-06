@@ -69,7 +69,7 @@ export function bakeHighlights(input: MotionInput, script: PossessionScript, bud
     movers[key] = cutPath(base, guardSpot, [{ atMs: holdAt, frac: guardSpot }], totalMs);
   }
 
-  return { movers, moverBursts, ball: buildHighlightBall(script, movers, offSide, finisher, shotSpot, preShotMs) };
+  return { movers, moverBursts, ball: buildHighlightBall(script, movers, offSide, finisher, shotSpot, preShotMs), handler: {} };
 }
 
 function movesInAction(role: OffRole): boolean {

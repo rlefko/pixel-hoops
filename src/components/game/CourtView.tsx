@@ -204,6 +204,7 @@ const SpriteAt = memo(function SpriteAt({
   heat,
   waypoints,
   burst,
+  handlerWindows,
   isDunker,
   preShotMs,
   totalMs,
@@ -221,6 +222,8 @@ const SpriteAt = memo(function SpriteAt({
   waypoints?: Waypoint[];
   /** This sprite's travel window `[startMs, endMs]`; the run-hop fires only inside it. */
   burst?: { startMs: number; endMs: number };
+  /** Windows (unscaled ms) during which this sprite holds the ball (rings the handler). */
+  handlerWindows?: { startMs: number; endMs: number }[];
   /** True when this sprite throws down the dunk (drives the slam squash). */
   isDunker: boolean;
   preShotMs: number;
@@ -355,6 +358,21 @@ const SpriteAt = memo(function SpriteAt({
   // that the next make ignites, with no loop at all.
   const glowStyle = useGlowPulse(560, { paused: heat !== 'fire' });
 
+  // Ball-handler ring: a gold floor ring under whoever holds the ball right now, so the
+  // live handler is obvious as the ball changes hands (NBA 2K style). Driven by the
+  // possession progress `t` against this sprite's handler windows (normalized to total).
+  const handlerTimes = useMemo(() => {
+    if (!handlerWindows || handlerWindows.length === 0 || totalMs <= 0) return null;
+    return handlerWindows.map((w) => [w.startMs / totalMs, w.endMs / totalMs] as const);
+  }, [handlerWindows, totalMs]);
+  const handlerRingStyle = useAnimatedStyle(() => {
+    if (reducedMotion || !handlerTimes) return { opacity: 0 };
+    for (let i = 0; i < handlerTimes.length; i++) {
+      if (t.value >= handlerTimes[i][0] && t.value <= handlerTimes[i][1]) return { opacity: 1 };
+    }
+    return { opacity: 0 };
+  });
+
   if (!rp) return null;
   const inner = (
     <>
@@ -379,6 +397,7 @@ const SpriteAt = memo(function SpriteAt({
   return (
     <View style={[styles.sprite, { left, top }]}>
       <Animated.View style={posStyle}>
+        <Animated.View pointerEvents="none" style={[styles.handlerRing, handlerRingStyle]} />
         <Animated.View style={strideStyle}>
           <Animated.View style={bobStyle}>
             <Animated.View style={dunkStyle}>
@@ -589,6 +608,7 @@ function CourtViewImpl({
                 }
                 waypoints={plan?.movers[key]}
                 burst={plan?.moverBursts?.[key]}
+                handlerWindows={plan?.ballHandler?.[key]}
                 isDunker={plan?.dunk === true && plan.shooterKey === key}
                 preShotMs={plan?.preShotMs ?? 0}
                 totalMs={plan?.totalMs ?? 0}
@@ -677,6 +697,16 @@ const styles = StyleSheet.create({
     marginLeft: -SPRITE_W / 2,
     marginTop: -SPRITE_W * 0.75,
     alignItems: 'center',
+  },
+  handlerRing: {
+    position: 'absolute',
+    bottom: 1,
+    left: SPRITE_W / 2 - 10,
+    width: 20,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: palette.gold,
   },
   aura: {
     position: 'absolute',

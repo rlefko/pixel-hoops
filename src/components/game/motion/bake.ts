@@ -206,7 +206,23 @@ export function bake(sim: SimResult, script: PossessionScript, finisherPos: Posi
     if (last.path) last.path[last.path.length - 1] = shotSpot;
   }
 
-  return { movers, moverBursts, ball: legs };
+  // Ball-handler windows per sprite (the times each sprite holds the ball pre-shot),
+  // so the renderer can ring the LIVE handler as it hands off, not just the scorer.
+  const handler: Partial<Record<SpriteKey, { startMs: number; endMs: number }[]>> = {};
+  let curKey: SpriteKey | undefined;
+  let segStart = 0;
+  for (const s of sim.ballHolders) {
+    if (s.atMs > preShotMs) break;
+    const key = roleKey(s.holderRole);
+    if (key !== curKey) {
+      if (curKey) (handler[curKey] ??= []).push({ startMs: segStart, endMs: s.atMs });
+      curKey = key;
+      segStart = s.atMs;
+    }
+  }
+  if (curKey) (handler[curKey] ??= []).push({ startMs: segStart, endMs: preShotMs });
+
+  return { movers, moverBursts, ball: legs, handler };
 }
 
 function sampleShotFallback(shotSpot: Frac): Frac {
