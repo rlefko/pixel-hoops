@@ -29,36 +29,33 @@ export function startType(prev: SimEvent | undefined, event: SimEvent): StartTyp
 
 /**
  * The player positions at the boundary between possession A (`a`) and B (`b`), used as
- * A's RESET target AND B's SPAWN. For a live-ball steal/turnover flip it returns a
- * transition snapshot (B pushing a break toward its rim; A strung out sprinting back to
- * defend); otherwise it returns `{}` (both possessions use their defensive base, so a
- * made-basket inbound or a half-court set spawns/resets normally). Because A's reset and
- * B's spawn call this with the SAME two events, they match exactly -> zero boundary jump.
+ * A's RESET target AND B's SPAWN. A live-ball steal/turnover flip returns a fast-break
+ * snapshot (B pushing hard, A trailing behind the ball); a defensive-rebound OUTLET
+ * returns a gentler mid-transition snapshot (B filling the lanes from deeper, A already
+ * mid-retreat ahead of the ball) so the possession flows instead of snapping to the deep
+ * base and charging back up. A made-basket inbound (or any same-team continuation) stays
+ * `{}` — a dead ball spawns/resets from base normally. Because A's reset and B's spawn
+ * call this with the SAME two events, they match exactly -> zero boundary jump.
  */
 export function boundaryState(a: SimEvent | undefined, b: SimEvent | undefined): Partial<Record<SpriteKey, Frac>> {
-  if (!a || !b || !isLiveFlip(a, b)) return {};
-  const off: SimTeamSide = b.team; // the team on the break (stole the ball)
+  if (!a || !b) return {};
+  const live = isLiveFlip(a, b);
+  const outlet = !live && startType(a, b) === 'outlet';
+  if (!live && !outlet) return {}; // made-basket inbound / same-team: normal base spawn
+  const off: SimTeamSide = b.team; // the team going the other way
   const def: SimTeamSide = off === 'home' ? 'away' : 'home';
   const out: Partial<Record<SpriteKey, Frac>> = {};
 
-  // Offense (B) pushing a three-lane break: handler in the middle, wings ahead in the
-  // outside lanes, bigs trailing. depth 1 = B's attacking rim.
-  const offSpot: Record<string, [number, number]> = {
-    PG: [0.5, 0.42],
-    SG: [0.16, 0.56],
-    SF: [0.84, 0.56],
-    PF: [0.42, 0.3],
-    C: [0.58, 0.28],
-  };
-  // Defense (A) strung out behind the ball, sprinting back to protect B's rim (the bigs
-  // furthest back). Same attacking frame, so they read as trailing the break.
-  const defSpot: Record<string, [number, number]> = {
-    PG: [0.5, 0.34],
-    SG: [0.3, 0.22],
-    SF: [0.7, 0.22],
-    PF: [0.45, 0.12],
-    C: [0.55, 0.1],
-  };
+  // Offense (B). A steal breaks with the ball already pushed up; an outlet fills the
+  // lanes from deeper (it starts near B's own glass). depth 1 = B's attacking rim.
+  const offSpot: Record<string, [number, number]> = live
+    ? { PG: [0.5, 0.42], SG: [0.16, 0.56], SF: [0.84, 0.56], PF: [0.42, 0.3], C: [0.58, 0.28] }
+    : { PG: [0.5, 0.3], SG: [0.2, 0.4], SF: [0.8, 0.4], PF: [0.44, 0.2], C: [0.56, 0.16] };
+  // Defense (A). On a steal it is beaten and trailing BEHIND the ball; on an outlet it is
+  // mid-retreat, already ahead of the ball, sinking back to protect B's rim.
+  const defSpot: Record<string, [number, number]> = live
+    ? { PG: [0.5, 0.34], SG: [0.3, 0.22], SF: [0.7, 0.22], PF: [0.45, 0.12], C: [0.55, 0.1] }
+    : { PG: [0.5, 0.5], SG: [0.3, 0.44], SF: [0.7, 0.44], PF: [0.46, 0.56], C: [0.54, 0.6] };
 
   for (const pos of POSITIONS) {
     out[spriteKey(off, pos)] = attackFrac(off, offSpot[pos][0], offSpot[pos][1]);

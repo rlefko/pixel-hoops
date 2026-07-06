@@ -32,8 +32,9 @@ import {
  * rides in front of an unchanged shot.
  */
 
-/** Max pre-shot legs (carry + up to three passes/handoffs) — small and bounded. */
-export const MAX_BALL_LEGS = 4;
+/** Max pre-shot legs — small and bounded. Six lets a full ball reversal stay
+ *  contiguous (carry / pass / carry / pass / carry / pass) with no held-ball gap. */
+export const MAX_BALL_LEGS = 6;
 
 /** A pre-shot leg renders for at least this long (scaled ms) so a pass reads as
  *  ball movement rather than a 1-2 frame flicker at the faster default speed. */
@@ -133,6 +134,8 @@ export function useBallFlight() {
   const l1 = useSharedValue(0);
   const l2 = useSharedValue(0);
   const l3 = useSharedValue(0);
+  const l4 = useSharedValue(0);
+  const l5 = useSharedValue(0);
   const { reducedMotion, simSpeed } = useFeelSettings();
 
   const ballStyle = useAnimatedStyle(() => {
@@ -147,7 +150,7 @@ export function useBallFlight() {
       return { opacity: o, transform: [{ translateX: pt.x }, { translateY: pt.y }] };
     }
     const g = legGeom.value;
-    const progs = [l0.value, l1.value, l2.value, l3.value];
+    const progs = [l0.value, l1.value, l2.value, l3.value, l4.value, l5.value];
     for (let i = MAX_BALL_LEGS - 1; i >= 0; i--) {
       if (progs[i] > 0 && g[i]) {
         const pt = polyPoint(g[i], progs[i]);
@@ -171,7 +174,7 @@ export function useBallFlight() {
   const trail3 = useAnimatedStyle(() => ghost(0.15, 0.12));
   const trailStyles = [trail1, trail2, trail3];
 
-  const progRefs = [l0, l1, l2, l3];
+  const progRefs = [l0, l1, l2, l3, l4, l5];
 
   const fire = useCallback(
     (cfg: FireConfig) => {
@@ -251,7 +254,7 @@ export function useBallFlight() {
     [
       reducedMotion, simSpeed,
       ox, oy, tx, ty, rx, ry, peak1, peak2, p1, p2, opacity, sx0, sy0,
-      legGeom, l0, l1, l2, l3,
+      legGeom, l0, l1, l2, l3, l4, l5,
     ]
   );
 

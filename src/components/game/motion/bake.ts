@@ -18,6 +18,7 @@ const EPS_FRAC = 0.006;
 const CARRY_SAMPLES = 6;
 const MOVE_EPS = 0.012; // total travel below this = a non-mover
 const STEP_EPS = 0.0015; // per-20ms displacement above this = "moving" (burst)
+const EPS_SELF = 0.02; // frac: a non-carry leg shorter than this collapses -> demote to carry
 
 type Frame = { atMs: number; frac: Frac };
 
@@ -161,9 +162,15 @@ export function bake(sim: SimResult, script: PossessionScript, finisherPos: Posi
     return `${offSide}-${pos}` as SpriteKey;
   };
   const pathOf = (key: SpriteKey): Waypoint[] | undefined => movers[key];
-  const spotAt = (key: SpriteKey, atMs: number, fallback: Frac): Frac => {
+  // Resolve a sprite's spot at a time from its baked mover path, else from its raw
+  // 50Hz frame track (a "static" sprite was dropped from `movers` but still has real
+  // frames). NEVER fall back to the shot spot, or a pass from/to a non-mover would
+  // collapse onto the rim and read as a pass to nowhere / to self.
+  const spotAt = (key: SpriteKey, atMs: number): Frac => {
     const wp = pathOf(key);
-    return wp ? sampleAt(wp, atMs) : fallback;
+    if (wp) return sampleAt(wp, atMs);
+    const ag = sim.byKey.get(key);
+    return ag && ag.frames.length ? sampleAt(ag.frames, atMs) : shotSpot;
   };
 
   const legs: BallLeg[] = [];
@@ -174,9 +181,15 @@ export function bake(sim: SimResult, script: PossessionScript, finisherPos: Posi
     const toKey = roleKey(tch.toRole);
     const startMs = tch.startFrac * preShotMs;
     const endMs = tch.endFrac * preShotMs;
-    const kind: BallLegKind = tch.kind;
-    const from = spotAt(fromKey, startMs, sampleShotFallback(shotSpot));
-    const to = isFinal ? shotSpot : spotAt(toKey, endMs, shotSpot);
+    let kind: BallLegKind = tch.kind;
+    const from = spotAt(fromKey, startMs);
+    const to = isFinal ? shotSpot : spotAt(toKey, endMs);
+    // A non-final pass whose ends collapse onto (nearly) the same spot would render as
+    // a "pass to self" (two roles resolved to one sprite, or a degenerate touch). Demote
+    // it to a carry so the ball just stays glued to the holder — never an arc to nowhere.
+    if (kind !== 'carry' && !isFinal && Math.hypot(from.x - to.x, from.y - to.y) < EPS_SELF) {
+      kind = 'carry';
+    }
     let path: Frac[] | undefined;
     if (kind === 'carry') {
       const wp = pathOf(fromKey);
@@ -222,9 +235,10 @@ export function bake(sim: SimResult, script: PossessionScript, finisherPos: Posi
   }
   if (curKey) (handler[curKey] ??= []).push({ startMs: segStart, endMs: preShotMs });
 
-  return { movers, moverBursts, ball: legs, handler };
-}
+  // The play-making defender (a steal/block lunge) gets a single contest window to ring.
+  const defender: Partial<Record<SpriteKey, { startMs: number; endMs: number }[]>> = sim.playmaker
+    ? { [sim.playmaker.key]: [{ startMs: sim.playmaker.startMs, endMs: sim.playmaker.endMs }] }
+    : {};
 
-function sampleShotFallback(shotSpot: Frac): Frac {
-  return shotSpot;
+  return { movers, moverBursts, ball: legs, handler, defender };
 }

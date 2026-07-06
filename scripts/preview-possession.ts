@@ -266,13 +266,26 @@ const outDir = join(process.cwd(), 'preview-out');
 
 async function main(): Promise<void> {
   mkdirSync(outDir, { recursive: true });
-  const steal = ev({ team: 'away', result: 'steal', action: 'drive' });
-  await filmstrip('01-corner-three', ev({ scorerPosition: 'SF', action: 'three', assist: { name: 'x', position: 'PG' }, seq: 6 }));
-  await filmstrip('02-top-three-iso', ev({ scorerPosition: 'PG', action: 'three', seq: 4 }));
-  await filmstrip('03-pnr-dunk', ev({ scorerPosition: 'C', action: 'dunk', assist: { name: 'x', position: 'PG' }, seq: 5 }));
-  await filmstrip('04-postup', ev({ scorerPosition: 'PF', action: 'post', assist: { name: 'x', position: 'SG' }, seq: 5 }));
-  await filmstrip('05-transition-layup', ev({ scorerPosition: 'SG', action: 'layup', seq: 3 }), steal);
-  await filmstrip('06-miss-rebound', ev({ scorerPosition: 'SG', action: 'midrange', result: 'miss', points: 0, seq: 5 }));
+  const stealPrev = ev({ team: 'away', result: 'steal', action: 'drive' });
+  const missPrev = ev({ team: 'away', result: 'miss', action: 'three', points: 0 });
+  const madePrev = ev({ team: 'away', result: 'score', action: 'layup' });
+  // Glued ball: an off-ball spot-up three off an outlet (no inbound) -> the 6-leg ball
+  // reversal, fully contiguous (the ball is never frozen between passes).
+  await filmstrip('01-reversal', ev({ scorerPosition: 'SF', action: 'three', assist: { name: 'x', position: 'PG' }, seq: 1 }), missPrev);
+  // Drive: the finisher bursts to the rim and the on-ball defender is beaten (trails off it).
+  await filmstrip('02-drive-beaten', ev({ scorerPosition: 'SG', action: 'drive', assist: { name: 'x', position: 'PG' }, seq: 4 }));
+  // Steal: an away defender picks the pocket and pokes it forward (ring + forward deflection).
+  await filmstrip('03-steal', ev({ scorerPosition: 'PG', action: 'drive', result: 'steal', points: 0, seq: 7 }));
+  // Block: an away defender rises into the shot (ring + swat away from the rim).
+  await filmstrip('04-block', ev({ scorerPosition: 'C', action: 'layup', result: 'block', points: 0, seq: 5 }));
+  // Outlet continuity: this possession spawns mid-transition after the away miss (no snap+charge).
+  await filmstrip('05-outlet', ev({ scorerPosition: 'SG', action: 'layup', seq: 3 }), missPrev);
+  // Steal-break continuity: a live steal flows straight into the layup.
+  await filmstrip('06-steal-break', ev({ scorerPosition: 'SG', action: 'layup', seq: 3 }), stealPrev);
+  // Made-basket inbound: a dead ball, the trailing big inbounds from the baseline.
+  await filmstrip('07-inbound', ev({ scorerPosition: 'PG', action: 'three', assist: { name: 'x', position: 'SG' }, seq: 8 }), madePrev);
+  // Backcourt discipline: a half-court set, nobody drifts back over mid-court.
+  await filmstrip('08-postup', ev({ scorerPosition: 'PF', action: 'post', assist: { name: 'x', position: 'SG' }, seq: 5 }));
   console.log(`\ninspect:  qlmanage -t -s 1400 -o /tmp ${outDir}/*.png && open /tmp/*.png.png`);
 }
 

@@ -48,21 +48,26 @@ function buildTouches(
   const finalKind: ScriptTouch['kind'] = action === 'dho' ? 'handoff' : sa === 'dunk' ? 'lob' : 'pass';
   const swingRole: OffRole | undefined = posOfRole(offRoles, 'wing') ? 'wing' : posOfRole(offRoles, 'corner') ? 'corner' : undefined;
   const offBall = action === 'spotUp' || action === 'pindown' || action === 'floppy' || action === 'flare' || action === 'motion';
-  // The ball can carry at most 4 legs (renderer cap). A reversal (4 legs) only runs
-  // when there is no inbound to spend one of them on; with an inbound the off-ball
-  // play trims to bring-up + the credited pass.
+  // Every touch script is CONTIGUOUS (each leg starts where the prior ended) and every
+  // held window is a carry glued to the holder, so the ball is never frozen at a stale
+  // spot between passes (the "ball moves without the handler" desync). A reversal needs
+  // 6 legs (renderer cap is 6) and only runs when there is no inbound to spend one on;
+  // with an inbound the off-ball play trims to bring-up + the credited pass.
   if (offBall && swingRole && !lead.length) {
     return [
       { fromRole: 'initiator', toRole: 'initiator', kind: 'carry', startFrac: 0, endFrac: 0.34 },
       { fromRole: 'initiator', toRole: swingRole, kind: 'pass', startFrac: 0.34, endFrac: 0.44 },
+      { fromRole: swingRole, toRole: swingRole, kind: 'carry', startFrac: 0.44, endFrac: 0.56 },
       { fromRole: swingRole, toRole: 'initiator', kind: 'pass', startFrac: 0.56, endFrac: 0.66 },
+      { fromRole: 'initiator', toRole: 'initiator', kind: 'carry', startFrac: 0.66, endFrac: 0.84 },
       { fromRole: 'initiator', toRole: 'finisher', kind: finalKind, startFrac: 0.84, endFrac: 1 },
     ];
   }
   // Screen / drive-kick (or an inbounded off-ball play): bring it up, deliver the assist.
+  // The carry runs right up to the final pass so there is no held-ball gap.
   return [
     ...lead,
-    { fromRole: 'initiator', toRole: 'initiator', kind: 'carry', startFrac: carryStart, endFrac: 0.74 },
+    { fromRole: 'initiator', toRole: 'initiator', kind: 'carry', startFrac: carryStart, endFrac: 0.84 },
     { fromRole: 'initiator', toRole: 'finisher', kind: finalKind, startFrac: 0.84, endFrac: 1 },
   ];
 }

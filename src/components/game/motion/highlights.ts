@@ -82,7 +82,7 @@ export function bakeHighlights(input: MotionInput, script: PossessionScript, bud
     ], totalMs);
   }
 
-  return { movers, moverBursts, ball: buildHighlightBall(script, movers, offSide, finisher, shotSpot, preShotMs), handler: {} };
+  return { movers, moverBursts, ball: buildHighlightBall(script, movers, offSide, finisher, shotSpot, preShotMs), handler: {}, defender: {} };
 }
 
 function movesInAction(role: OffRole): boolean {

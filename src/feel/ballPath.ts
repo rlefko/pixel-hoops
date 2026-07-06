@@ -78,6 +78,33 @@ export function resolvePeakFor(shape: ShotShape): number {
   return RESOLVE_PEAK[shape];
 }
 
+const LOOSE_LEAD = 0.3; // a steal pokes the ball this far toward the stealing team's rim
+const BLOCK_AWAY = 34; // a block spikes it this far back off the rim (px)
+const DEFLECT_SIDE = 26; // sideways kick on a knocked-away ball (px)
+
+/**
+ * Where a knocked-away ball resolves, keyed to the outcome so the deflection reads:
+ * a steal ('loose') is poked FORWARD toward the stealing team's basket (`otherRim`),
+ * seeding the break; a block is swatted AWAY from the rim, back toward the shooter.
+ * `caromSide` (+/-1) varies the sideways kick. Pure (px in, px out), Node-testable.
+ */
+export function deflectResolve(shape: ShotShape, target: Pt, rim: Pt, otherRim: Pt, caromSide: number): Pt {
+  if (shape === 'loose') {
+    return {
+      x: target.x + (otherRim.x - target.x) * LOOSE_LEAD + caromSide * DEFLECT_SIDE,
+      y: target.y + (otherRim.y - target.y) * LOOSE_LEAD,
+    };
+  }
+  // block: swat it away from the rim (the reverse of the incoming shot direction).
+  const dx = target.x - rim.x;
+  const dy = target.y - rim.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return {
+    x: target.x + (dx / len) * BLOCK_AWAY + caromSide * DEFLECT_SIDE,
+    y: target.y + (dy / len) * BLOCK_AWAY,
+  };
+}
+
 /**
  * A point on the parabolic shot path at progress t (0..1) for a given arc peak.
  * `4 * t * (1 - t)` peaks at 1.0 (t = 0.5); the bow is always toward screen-up,

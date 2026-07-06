@@ -2,9 +2,9 @@ import { rimCenterFraction } from '../courtGeometry';
 import { type Frac, type SpriteKey } from '../courtMath';
 import { POSITIONS, type Position } from '@/types/roster';
 import { toFrac, toMetric, lerp as vlerp, add, scale, dist, clampBox, type Vec } from './vec';
-import { arrive, separation, containment } from './behaviors';
+import { arrive, seek, separation, containment } from './behaviors';
 import { integrate } from './kinematics';
-import { buildAgents, defenderBox, frontCourtBox, type SimAgent } from './agents';
+import { buildAgents, defenderBox, frontCourtBox, frontCourtBoxTight, isRimAttack, type SimAgent } from './agents';
 import type { MotionBudget, MotionInput, OffRole, PossessionScript } from './types';
 
 /**
@@ -26,6 +26,10 @@ const RE_ENGAGE = 0.11; // planted agent un-plants once its target drifts this f
 const ADVANCE_FLOOR = 0.78; // min offense speed while bringing it up, so slow bigs keep pace
 const ON_BALL_TIGHT = 0.1; // on-ball defender sits this far off his man toward the rim
 const CONTEST_TIGHT = 0.13; // closeout into the shooter's airspace
+const DRIVE_BURST = 1.15; // finisher's speed multiplier while attacking the rim
+const DEF_BEATEN = 0.12; // beaten on-ball defender trails this far off the drive's back hip
+const BLOCK_FIRE = 0.15; // a block lunge fires this far past the action start
+const STRIP_FIRE = 0.1; // a strip/steal lunge fires this far past the action start
 
 export interface BallSample {
   atMs: number;
@@ -41,6 +45,9 @@ export interface SimResult {
   totalMs: number;
   shotSpot: Frac;
   ballHolders: BallSample[];
+  /** The defender who made the play (a steal/block lunge) + its contest window, so the
+   *  bake can ring him. Undefined on a normal make/miss. */
+  playmaker?: { key: SpriteKey; startMs: number; endMs: number };
 }
 
 /** Position playing a role (1:1). */
@@ -89,18 +96,26 @@ export function simulate(
   const shotSpot = input.shotSpot;
   const rimM = toMetric(rimCenterFraction(offSide));
   const shotSpotM = toMetric(shotSpot);
-  const box = frontCourtBox(offSide);
+  const boxLoose = frontCourtBox(offSide);
+  const boxTight = frontCourtBoxTight(offSide);
   const defBox = defenderBox(offSide);
   const actionStart = script.family === 'transition' ? ACTION_START_TRANS : ACTION_START_HALF;
 
   const offAgents = agents.filter((a) => a.team === 'off');
   const defAgents = agents.filter((a) => a.team === 'def');
   const finisherPos = input.event.scorerPosition;
+  const rimAttack = isRimAttack(input.event.action);
+  const result = input.event.result;
+  const isBlock = result === 'block';
+  const isStrip = result === 'steal' || result === 'turnover';
   const screenerPos = posOfRole(script.offRoles, 'screener');
   const cov = script.defense.coverage;
   const helpDepth = script.defense.helpDepth;
 
   const ballHolders: BallSample[] = [];
+  // The first defender to lunge (steal/block) is the play-maker we ring.
+  let playmakerKey: SpriteKey | undefined;
+  let playmakerStart = 0;
 
   const offTargetSpot = (a: SimAgent, t: number, frac: number, ballM: Vec): Vec => {
     if (t >= holdUntil) return toMetric(a.resetTo); // reset (flows into a break if next flips)
@@ -136,10 +151,25 @@ export function simulate(
       }
     }
 
-    // On-ball defender: sit tight, goal-side; close out hard on the finisher near the shot.
+    // On-ball defender, dramatized by the recorded outcome so a steal/block/drive reads.
     if (ballHasMan) {
-      const tight = guardingFinisher && inAction ? CONTEST_TIGHT : ON_BALL_TIGHT;
-      const anchor = guardingFinisher && inAction ? shotSpotM : manM;
+      const contestFinisher = guardingFinisher && inAction;
+      // Strip/steal: pick the ball-handler's pocket — lunge onto the ball and poke it
+      // forward into the open floor (seeds the break).
+      if (isStrip && frac > actionStart + STRIP_FIRE) {
+        return clamp(vlerp(ballM, rimM, -0.04));
+      }
+      // Block: rise INTO the shot at the rim (a hard contest/swat), not a soft closeout.
+      if (contestFinisher && isBlock && frac > actionStart + BLOCK_FIRE) {
+        return clamp(vlerp(shotSpotM, rimM, 0.12));
+      }
+      // Beaten on a live drive (not blocked/stripped): trail on the back hip so the
+      // finish reads as a blow-by, not a wall.
+      if (contestFinisher && rimAttack && !isBlock && !isStrip) {
+        return clamp(vlerp(shotSpotM, rimM, -DEF_BEATEN));
+      }
+      const tight = contestFinisher ? CONTEST_TIGHT : ON_BALL_TIGHT;
+      const anchor = contestFinisher ? shotSpotM : manM;
       return clamp(vlerp(anchor, rimM, tight));
     }
 
@@ -154,14 +184,14 @@ export function simulate(
   // Advance one agent one step, honoring the IDLE/planted state: once it arrives
   // (within STOP_R) it SNAPS to the target, zeros velocity, and holds dead-still with
   // no steering until its target moves (TARGET_EPS) - genuine stillness, not drift.
-  const stepAgent = (a: SimAgent, target: Vec, sameTeam: SimAgent[], t: number, agentBox: { min: Vec; max: Vec }, maxSpeed: number) => {
+  const stepAgent = (a: SimAgent, target: Vec, sameTeam: SimAgent[], t: number, agentBox: { min: Vec; max: Vec }, maxSpeed: number, burst = false) => {
     // Un-plant when the target drifts RE_ENGAGE from where the agent PLANTED (not from
     // the last step): a target creeping away slowly (a defender's man moving at a normal
     // clip, < STOP_R per step) still eventually pulls the agent off its spot. The
     // hysteresis (RE_ENGAGE > STOP_R) stops plant/un-plant flip-flop.
     if (a.planted && dist(target, a.pos) > RE_ENGAGE) a.planted = false;
     if (!a.planted) {
-      const steer = blend(a, target, sameTeam, agentBox, maxSpeed);
+      const steer = blend(a, target, sameTeam, agentBox, maxSpeed, burst);
       const k = integrate(a.pos, a.vel, steer, a.maxAccel * DT_SEC, maxSpeed, DT_SEC);
       a.pos = k.pos;
       a.vel = k.vel;
@@ -189,24 +219,52 @@ export function simulate(
     // Players run FASTER while getting up (or back down) the floor than in a set, so
     // slow bigs keep pace and defenders sprint back on a break.
     const traveling = frac < actionStart || t >= holdUntil;
+    // While bringing it up (or breaking out on a reset) the offense may live in its
+    // own backcourt; once the ball is up and set, clamp it to the true front court so
+    // a spacer or slow big can't drift back over mid-court.
+    const offBox = traveling ? boxLoose : boxTight;
+    // Defenders sprint ONLY when actually getting back (the reset) or on a genuine break;
+    // a half-court pickup extends at closeout speed, so they don't "charge" to half court.
+    const defSprint = t >= holdUntil || script.family === 'transition';
     // Offense first, so defenders react to updated positions this step.
     for (const a of offAgents) {
-      const spd = traveling ? Math.max(a.maxSpeed, ADVANCE_FLOOR) : a.maxSpeed;
-      stepAgent(a, offTargetSpot(a, t, frac, ballM), offAgents, t, box, spd);
+      // The rim attacker bursts through the action beat (accelerating drive), then plants.
+      const burst = !!a.attackBurst && frac >= actionStart && t < preShotMs;
+      const spd = burst ? a.maxSpeed * DRIVE_BURST : traveling ? Math.max(a.maxSpeed, ADVANCE_FLOOR) : a.maxSpeed;
+      stepAgent(a, offTargetSpot(a, t, frac, ballM), offAgents, t, offBox, spd, burst);
     }
     for (const a of defAgents) {
-      const spd = traveling ? Math.max(a.maxSpeed, ADVANCE_FLOOR) : a.maxSpeed;
-      stepAgent(a, defTargetSpot(a, t, frac, ballM, a.guards === holderPos), defAgents, t, defBox, spd);
+      const onBall = a.guards === holderPos;
+      // The play-making defender lunges (a burst) to swat the shot / pick the pocket.
+      const lunge = onBall && t < preShotMs && ((isBlock && frac > actionStart + BLOCK_FIRE) || (isStrip && frac > actionStart + STRIP_FIRE));
+      if (lunge && !playmakerKey) {
+        playmakerKey = a.key;
+        playmakerStart = t;
+      }
+      const spd = lunge ? a.maxSpeed * DRIVE_BURST : defSprint ? Math.max(a.maxSpeed, ADVANCE_FLOOR) : a.maxSpeed;
+      stepAgent(a, defTargetSpot(a, t, frac, ballM, onBall), defAgents, t, defBox, spd, lunge);
     }
     if (t >= totalMs) break;
   }
 
-  return { agents, byKey, offSide, preShotMs, holdUntil, totalMs, shotSpot, ballHolders };
+  return {
+    agents,
+    byKey,
+    offSide,
+    preShotMs,
+    holdUntil,
+    totalMs,
+    shotSpot,
+    ballHolders,
+    playmaker: playmakerKey ? { key: playmakerKey, startMs: playmakerStart, endMs: preShotMs } : undefined,
+  };
 }
 
-/** Weighted blend: arrive at the target + separation from teammates + containment. */
-function blend(a: SimAgent, target: Vec, sameTeam: SimAgent[], box: { min: Vec; max: Vec }, maxSpeed: number): Vec {
-  const primary = arrive(a.pos, a.vel, target, maxSpeed, SLOW_R);
+/** Weighted blend: arrive at (or, on a burst, seek/attack) the target + separation +
+ *  containment. A burst skips the arrive-decelerate so a drive/lunge reads as an
+ *  accelerating attack that only stops when it snaps onto the spot. */
+function blend(a: SimAgent, target: Vec, sameTeam: SimAgent[], box: { min: Vec; max: Vec }, maxSpeed: number, burst = false): Vec {
+  const primary = burst ? seek(a.pos, a.vel, target, maxSpeed) : arrive(a.pos, a.vel, target, maxSpeed, SLOW_R);
   const others: Vec[] = [];
   for (const o of sameTeam) if (o !== a) others.push(o.pos);
   const sep = separation(a.pos, others, 0.14, maxSpeed);
