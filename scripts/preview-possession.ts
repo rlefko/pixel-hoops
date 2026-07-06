@@ -17,6 +17,7 @@ import { Jimp, ResizeStrategy } from 'jimp';
 import { Canvas, type RGBA } from '../src/art/pixelCanvas';
 import { drawText } from '../src/art/pixelFont';
 import { buildPossessionPlan, type Frac, type PossessionPlan, type Waypoint } from '../src/components/game/choreography';
+import { neutralCtx } from '../src/components/game/motion';
 import { COURT, CENTER_LINE_Y, CENTER_CIRCLE, LANE, FT_CIRCLE, RIM, BACKBOARD, THREE } from '../src/components/game/courtDimensions';
 import { POSITIONS } from '../src/types/roster';
 import type { OnCourtFive, SimActionId, SimEvent, SimTeamSide } from '../src/types/sim';
@@ -218,8 +219,8 @@ function toJimp(c: Canvas) {
   return img;
 }
 
-async function filmstrip(name: string, event: SimEvent, prev?: SimEvent): Promise<void> {
-  const plan = buildPossessionPlan(event, 'full', false, prev);
+async function filmstrip(name: string, event: SimEvent, prev?: SimEvent, ctx?: ReturnType<typeof neutralCtx>, seed?: number): Promise<void> {
+  const plan = buildPossessionPlan(event, 'full', false, prev, true, ctx, seed);
   const times = [0, plan.preShotMs * 0.4, plan.preShotMs * 0.65, plan.preShotMs, Math.min(plan.totalMs, plan.preShotMs + 260), plan.totalMs];
   const tags = ['t=0 bringup', 'cut', 'plant', 'shot release', 'ball at rim', 'reset'];
   const panels = times.map((t, i) => renderSlice(plan, t, `${tags[i]}  ${Math.round(t)}ms`));
@@ -264,28 +265,36 @@ async function filmstrip(name: string, event: SimEvent, prev?: SimEvent): Promis
 
 const outDir = join(process.cwd(), 'preview-out');
 
+/** A neutral ctx with the offense's coach + archetype overridden (for ball-movement style). */
+function offStyle(event: SimEvent, coach: Record<string, unknown>, archetype: string): ReturnType<typeof neutralCtx> {
+  const c = neutralCtx(event);
+  return { ...c, offense: { ...c.offense, coach: { ...c.offense.coach, ...coach }, archetype: archetype as typeof c.offense.archetype } };
+}
+
 async function main(): Promise<void> {
   mkdirSync(outDir, { recursive: true });
-  const stealPrev = ev({ team: 'away', result: 'steal', action: 'drive' });
   const missPrev = ev({ team: 'away', result: 'miss', action: 'three', points: 0 });
   const madePrev = ev({ team: 'away', result: 'score', action: 'layup' });
-  // Glued ball: an off-ball spot-up three off an outlet (no inbound) -> the 6-leg ball
-  // reversal, fully contiguous (the ball is never frozen between passes).
-  await filmstrip('01-reversal', ev({ scorerPosition: 'SF', action: 'three', assist: { name: 'x', position: 'PG' }, seq: 1 }), missPrev);
-  // Drive: the finisher bursts to the rim and the on-ball defender is beaten (trails off it).
-  await filmstrip('02-drive-beaten', ev({ scorerPosition: 'SG', action: 'drive', assist: { name: 'x', position: 'PG' }, seq: 4 }));
-  // Steal: an away defender picks the pocket and pokes it forward (ring + forward deflection).
-  await filmstrip('03-steal', ev({ scorerPosition: 'PG', action: 'drive', result: 'steal', points: 0, seq: 7 }));
-  // Block: an away defender rises into the shot (ring + swat away from the rim).
-  await filmstrip('04-block', ev({ scorerPosition: 'C', action: 'layup', result: 'block', points: 0, seq: 5 }));
-  // Outlet continuity: this possession spawns mid-transition after the away miss (no snap+charge).
-  await filmstrip('05-outlet', ev({ scorerPosition: 'SG', action: 'layup', seq: 3 }), missPrev);
-  // Steal-break continuity: a live steal flows straight into the layup.
-  await filmstrip('06-steal-break', ev({ scorerPosition: 'SG', action: 'layup', seq: 3 }), stealPrev);
-  // Made-basket inbound: a dead ball, the trailing big inbounds from the baseline.
-  await filmstrip('07-inbound', ev({ scorerPosition: 'PG', action: 'three', assist: { name: 'x', position: 'SG' }, seq: 8 }), madePrev);
-  // Backcourt discipline: a half-court set, nobody drifts back over mid-court.
-  await filmstrip('08-postup', ev({ scorerPosition: 'PF', action: 'post', assist: { name: 'x', position: 'SG' }, seq: 5 }));
+  const threeE = (seq: number) => ev({ scorerPosition: 'SF', action: 'three', assist: { name: 'x', position: 'PG' }, seq });
+  const motion = (e: SimEvent) => offStyle(e, { usage: 'egalitarian', prefPace: 'slow', prefFocus: 'outside' }, 'pace-and-space');
+  const iso = (e: SimEvent) => offStyle(e, { usage: 'star', prefPace: 'fast', prefFocus: 'inside' }, 'iso-heavy');
+  // Ball movement: a MOTION team swings the ball side to side. Off an outlet (no inbound leg)
+  // it can run the FULL 2-reversal, 8-leg swing; a first-possession inbound trims to one.
+  await filmstrip('01-motion-swing', threeE(2), missPrev, motion(threeE(2)), 2);
+  await filmstrip('02-motion-swing', threeE(5), missPrev, motion(threeE(5)), 5);
+  // An ISO/star team stays direct (few passes) for contrast.
+  await filmstrip('03-iso-direct', threeE(2), undefined, iso(threeE(2)), 2);
+  // Live handler + spacing + deny defense: a plain half-court set (the handler probes, the
+  // five hold a real spread, defenders pick up at the arc).
+  await filmstrip('04-halfcourt-set', ev({ scorerPosition: 'SG', action: 'midrange', assist: { name: 'x', position: 'PG' }, seq: 6 }));
+  // Post: the post defender walls up goal-side between his man and the rim.
+  await filmstrip('05-postup', ev({ scorerPosition: 'PF', action: 'post', assist: { name: 'x', position: 'SG' }, seq: 5 }));
+  // Drive: the finisher bursts to the rim, the on-ball defender is beaten.
+  await filmstrip('06-drive-beaten', ev({ scorerPosition: 'SG', action: 'drive', assist: { name: 'x', position: 'PG' }, seq: 4 }));
+  // Made-basket inbound: the trailing big inbounds from the baseline and TRAILS behind the ball.
+  await filmstrip('07-inbound-trailer', ev({ scorerPosition: 'PG', action: 'three', assist: { name: 'x', position: 'SG' }, seq: 8 }), madePrev);
+  // Outlet: spawns mid-transition after the away miss (no snap+charge), offense stays front-court.
+  await filmstrip('08-outlet', ev({ scorerPosition: 'SG', action: 'layup', seq: 3 }), missPrev);
   console.log(`\ninspect:  qlmanage -t -s 1400 -o /tmp ${outDir}/*.png && open /tmp/*.png.png`);
 }
 
