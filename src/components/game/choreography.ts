@@ -109,6 +109,9 @@ export interface PossessionPlan {
   /** Per-sprite windows during which that sprite holds the ball, so the renderer can
    *  ring the LIVE ball handler as it changes hands (not just the eventual scorer). */
   ballHandler: Partial<Record<SpriteKey, { startMs: number; endMs: number }[]>>;
+  /** Per-sprite windows during which that sprite is the play-making defender (a steal or
+   *  block lunge), so the renderer flashes a defensive ring on the man making the play. */
+  defenderRing: Partial<Record<SpriteKey, { startMs: number; endMs: number }[]>>;
   ball: BallPlan;
   camera: CameraPlan;
 }
@@ -305,6 +308,7 @@ export function buildPossessionPlan(
       movers: {},
       moverBursts: {},
       ballHandler: {},
+      defenderRing: {},
       ball: { legs: [], origin: shotSpot },
       camera: { keys: [{ atMs: 0, center: CENTER, zoom: CAM.rest }, { atMs: HL_ROUTINE_MS, center: CENTER, zoom: CAM.rest }] },
     };
@@ -377,6 +381,7 @@ export function buildPossessionPlan(
     movers,
     moverBursts,
     ballHandler: motion.handler,
+    defenderRing: motion.defender,
     ball: { legs: motion.ball, origin: shotSpot },
     camera,
   };

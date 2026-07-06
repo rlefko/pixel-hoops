@@ -188,6 +188,9 @@ export interface MotionOutput {
   ball: import('../choreography').BallLeg[];
   /** Per-sprite windows during which that sprite holds the ball (the live handler). */
   handler: Partial<Record<SpriteKey, { startMs: number; endMs: number }[]>>;
+  /** Per-sprite windows during which that sprite is the play-making defender (a steal or
+   *  block lunge), so the renderer can flash a defensive ring on the man making the play. */
+  defender: Partial<Record<SpriteKey, { startMs: number; endMs: number }[]>>;
   /** The engine-owned pacing, back out to choreography for the camera + plan. */
   preShotMs: number;
   totalMs: number;
@@ -196,7 +199,7 @@ export interface MotionOutput {
 }
 
 /** Just the baked movement (bake/highlights produce this; index adds pacing). */
-export type MotionMovement = Pick<MotionOutput, 'movers' | 'moverBursts' | 'ball' | 'handler'>;
+export type MotionMovement = Pick<MotionOutput, 'movers' | 'moverBursts' | 'ball' | 'handler' | 'defender'>;
 
 /** A neutral rating hint (used when no roster is threaded, e.g. Node tests). */
 export const NEUTRAL_HINT: SteeringHint = {

@@ -205,6 +205,7 @@ const SpriteAt = memo(function SpriteAt({
   waypoints,
   burst,
   handlerWindows,
+  defenderWindows,
   isDunker,
   preShotMs,
   totalMs,
@@ -224,6 +225,8 @@ const SpriteAt = memo(function SpriteAt({
   burst?: { startMs: number; endMs: number };
   /** Windows (unscaled ms) during which this sprite holds the ball (rings the handler). */
   handlerWindows?: { startMs: number; endMs: number }[];
+  /** Windows (unscaled ms) during which this sprite is the play-making defender (steal/block). */
+  defenderWindows?: { startMs: number; endMs: number }[];
   /** True when this sprite throws down the dunk (drives the slam squash). */
   isDunker: boolean;
   preShotMs: number;
@@ -373,6 +376,20 @@ const SpriteAt = memo(function SpriteAt({
     return { opacity: 0 };
   });
 
+  // Play-making-defender ring: a cool (steal/block) floor ring under the defender who
+  // makes the play, at the moment of the lunge, so a steal or block reads clearly.
+  const defenderTimes = useMemo(() => {
+    if (!defenderWindows || defenderWindows.length === 0 || totalMs <= 0) return null;
+    return defenderWindows.map((w) => [w.startMs / totalMs, w.endMs / totalMs] as const);
+  }, [defenderWindows, totalMs]);
+  const defenderRingStyle = useAnimatedStyle(() => {
+    if (reducedMotion || !defenderTimes) return { opacity: 0 };
+    for (let i = 0; i < defenderTimes.length; i++) {
+      if (t.value >= defenderTimes[i][0] && t.value <= defenderTimes[i][1]) return { opacity: 1 };
+    }
+    return { opacity: 0 };
+  });
+
   if (!rp) return null;
   const inner = (
     <>
@@ -398,6 +415,7 @@ const SpriteAt = memo(function SpriteAt({
     <View style={[styles.sprite, { left, top }]}>
       <Animated.View style={posStyle}>
         <Animated.View pointerEvents="none" style={[styles.handlerRing, handlerRingStyle]} />
+        <Animated.View pointerEvents="none" style={[styles.defenderRing, defenderRingStyle]} />
         <Animated.View style={strideStyle}>
           <Animated.View style={bobStyle}>
             <Animated.View style={dunkStyle}>
@@ -609,6 +627,7 @@ function CourtViewImpl({
                 waypoints={plan?.movers[key]}
                 burst={plan?.moverBursts?.[key]}
                 handlerWindows={plan?.ballHandler?.[key]}
+                defenderWindows={plan?.defenderRing?.[key]}
                 isDunker={plan?.dunk === true && plan.shooterKey === key}
                 preShotMs={plan?.preShotMs ?? 0}
                 totalMs={plan?.totalMs ?? 0}
@@ -707,6 +726,16 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     borderWidth: 2,
     borderColor: palette.gold,
+  },
+  defenderRing: {
+    position: 'absolute',
+    bottom: 1,
+    left: SPRITE_W / 2 - 10,
+    width: 20,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: palette.steelBlue,
   },
   aura: {
     position: 'absolute',

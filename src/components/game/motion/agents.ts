@@ -42,7 +42,15 @@ export interface SimAgent {
    *  (no steering) until its target drifts away. This is the explicit IDLE state that
    *  gives real basketball stillness instead of perpetual micro-drift. */
   planted: boolean;
+  /** The finisher on a rim attack (drive/layup/dunk): in the action beat it seeks the
+   *  rim with a burst (no arrive-decelerate) so the drive reads as an attacking blow-by. */
+  attackBurst?: boolean;
   frames: { atMs: number; frac: Frac }[];
+}
+
+/** Actions that finish AT the rim off an attacking move (the finisher bursts). */
+export function isRimAttack(action: string): boolean {
+  return action === 'drive' || action === 'layup' || action === 'dunk';
 }
 
 /** When each offensive role leaves its base (screener sets late, at the action). */
@@ -114,6 +122,7 @@ export function buildAgents(
       pos: toMetric(spawn),
       vel: { x: 0, y: 0 },
       planted: false,
+      attackBurst: pos === event.scorerPosition && isRimAttack(event.action),
       frames: [],
     };
     agents.push(agent);
@@ -155,13 +164,23 @@ function findRole(offRoles: Record<Position, OffRole>, role: OffRole): Position 
   return POSITIONS.find((p) => offRoles[p] === role);
 }
 
-/** The metric-space set box that keeps agents in the front court (containment). */
+/** The LOOSE set box used during bring-up (and the reset break-out): the offense
+ *  legally lives in its own backcourt while it advances the ball, so only a true
+ *  wanderer gets pushed back. Home attacks the top (small y); away the bottom. */
 export function frontCourtBox(offSide: SimTeamSide): { min: Vec; max: Vec } {
-  // Home attacks the top (small y); away the bottom. Keep a generous margin so
-  // only true wanderers get pushed back.
   return offSide === 'home'
     ? { min: toMetric({ x: 0.02, y: 0.02 }), max: toMetric({ x: 0.98, y: 0.78 }) }
     : { min: toMetric({ x: 0.02, y: 0.22 }), max: toMetric({ x: 0.98, y: 0.98 }) };
+}
+
+/** The TIGHT set box used once the ball is up (the action/set phase): a real
+ *  half-court set keeps all five in the front court (the backcourt-violation rule
+ *  bars returning the ball), so a spacer or a slow big can't drift past mid-court.
+ *  Home's front court is small y (max ~0.58, just past the mid-court line); mirror. */
+export function frontCourtBoxTight(offSide: SimTeamSide): { min: Vec; max: Vec } {
+  return offSide === 'home'
+    ? { min: toMetric({ x: 0.02, y: 0.02 }), max: toMetric({ x: 0.98, y: 0.58 }) }
+    : { min: toMetric({ x: 0.02, y: 0.42 }), max: toMetric({ x: 0.98, y: 0.98 }) };
 }
 
 /**
