@@ -71,11 +71,16 @@ export function inbounderRole(offRoles: Record<Position, OffRole>): OffRole | un
   return undefined;
 }
 
+/** The position that inbounds the ball after a made basket (then trails the play). */
+export function inbounderPos(offRoles: Record<Position, OffRole>): Position | undefined {
+  const role = inbounderRole(offRoles);
+  return role ? POSITIONS.find((p) => offRoles[p] === role) : undefined;
+}
+
 /** The inbounder starts out of bounds at the offense's own baseline (deep backcourt)
  *  and becomes the trailer. Returns a spawn override for just that sprite. */
 export function inboundSpawn(offSide: SimTeamSide, offRoles: Record<Position, OffRole>): Partial<Record<SpriteKey, Frac>> {
-  const role = inbounderRole(offRoles);
-  const pos = role ? POSITIONS.find((p) => offRoles[p] === role) : undefined;
+  const pos = inbounderPos(offRoles);
   if (!pos) return {};
   return { [spriteKey(offSide, pos)]: attackFrac(offSide, 0.5, 0.03) };
 }

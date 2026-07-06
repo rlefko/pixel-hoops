@@ -1,4 +1,4 @@
-import { rimCenterFraction } from '../courtGeometry';
+import { attackFrac, rimCenterFraction } from '../courtGeometry';
 import { type Frac, type SpriteKey } from '../courtMath';
 import { POSITIONS, type Position } from '@/types/roster';
 import { toFrac, toMetric, lerp as vlerp, add, scale, dist, clampBox, type Vec } from './vec';
@@ -30,6 +30,13 @@ const DRIVE_BURST = 1.15; // finisher's speed multiplier while attacking the rim
 const DEF_BEATEN = 0.12; // beaten on-ball defender trails this far off the drive's back hip
 const BLOCK_FIRE = 0.15; // a block lunge fires this far past the action start
 const STRIP_FIRE = 0.1; // a strip/steal lunge fires this far past the action start
+const ONE_PASS = 0.34; // metric: a man within this of the ball is "one pass away" (deny, not help)
+const PAINT_R = 0.35; // metric: a man within this of the rim is a paint threat (defender walls goal-side)
+const LEAD_SEC = 0.12; // how many seconds of the man's velocity a defender leads (anticipation)
+const PROBE_BASE_AMP = 0.05; // live-dribble amplitude floor toward the rim (metric)
+const PROBE_AMP_SCALE = 0.12; // extra probe amplitude per probeScale point (metric)
+const PROBE_PERIOD_MS = 850; // the in-and-out dribble rhythm (~0.85s)
+const PROBE_SWAY_MS = 1250; // the lateral sway rhythm (~1.25s)
 
 export interface BallSample {
   atMs: number;
@@ -76,9 +83,12 @@ function cutTarget(type: string, base: Vec, rimM: Vec, ballM: Vec, offSide: 'hom
     case 'relocate':
     case 'flare':
     default: {
-      // Drift to the nearer weak-side corner depth.
-      const cornerY = offSide === 'home' ? toMetric({ x: 0, y: 0.8 }).y : toMetric({ x: 0, y: 0.2 }).y;
-      return { x: base.x < 0.5 ? toMetric({ x: 0.1, y: 0 }).x : toMetric({ x: 0.9, y: 0 }).x, y: cornerY };
+      // Relocate to the near FRONT-COURT corner (beyond the arc) on the cutter's own side,
+      // keeping the driving lane open. NOT back toward the offense's own backcourt: the old
+      // raw-y 0.8 target was deep in home's backcourt (own baseline y=1), which read as a
+      // player wandering behind half court.
+      const cornerX = base.x < 0.5 ? 0.1 : 0.9; // screen-space side (metric x == frac x)
+      return toMetric(attackFrac(offSide, offSide === 'home' ? cornerX : 1 - cornerX, 0.83));
     }
   }
 }
@@ -111,6 +121,7 @@ export function simulate(
   const screenerPos = posOfRole(script.offRoles, 'screener');
   const cov = script.defense.coverage;
   const helpDepth = script.defense.helpDepth;
+  const ballPressure = script.defense.ballPressure;
 
   const ballHolders: BallSample[] = [];
   // The first defender to lunge (steal/block) is the play-maker we ring.
@@ -125,6 +136,17 @@ export function simulate(
     const cut = script.cuts.find((c) => a.role === c.role);
     if (cut && frac >= cut.fireFrac && frac < cut.fireFrac + 0.28) {
       return cutTarget(cut.type, toMetric(a.setSpot ?? a.base), rimM, ballM, offSide);
+    }
+    // The on-ball handler stays LIVE through the set: a probe dribble toward the paint and
+    // back (amplitude scaled by probeScale = ratings/coach), instead of hard-planting at the
+    // top. Deterministic in `t`. It follows its actionSpot once the action beat begins.
+    if (a.liveHandler && frac < actionStart) {
+      const set = toMetric(a.setSpot!);
+      const amp = PROBE_BASE_AMP + PROBE_AMP_SCALE * (a.probeScale ?? 0);
+      const inOut = 0.5 + 0.5 * Math.sin((t / PROBE_PERIOD_MS) * Math.PI * 2); // 0..1
+      const probe = vlerp(set, rimM, amp * inOut); // drift toward the rim and back
+      const sway = PROBE_BASE_AMP * (a.probeScale ?? 0) * Math.sin((t / PROBE_SWAY_MS) * Math.PI * 2);
+      return { x: probe.x + sway, y: probe.y };
     }
     return frac < actionStart ? toMetric(a.setSpot!) : toMetric(a.actionSpot!);
   };
@@ -164,27 +186,47 @@ export function simulate(
         return clamp(vlerp(shotSpotM, rimM, 0.12));
       }
       // Beaten on a live drive (not blocked/stripped): trail on the back hip so the
-      // finish reads as a blow-by, not a wall.
+      // finish reads as a blow-by, not a wall. (No anticipation lead here.)
       if (contestFinisher && rimAttack && !isBlock && !isStrip) {
         return clamp(vlerp(shotSpotM, rimM, -DEF_BEATEN));
       }
-      const tight = contestFinisher ? CONTEST_TIGHT : ON_BALL_TIGHT;
-      const anchor = contestFinisher ? shotSpotM : manM;
+      // Normal on-ball: sit goal-side, tighter with ball pressure, and LEAD the handler by
+      // his velocity so a smart defender stays in front instead of trailing his live spot.
+      const tight = (contestFinisher ? CONTEST_TIGHT : ON_BALL_TIGHT) * (1 - 0.3 * ballPressure);
+      const lead = man ? scale(man.vel, LEAD_SEC * (0.4 + (a.anticipation ?? 0.5))) : { x: 0, y: 0 };
+      const anchor = contestFinisher ? shotSpotM : add(manM, lead);
       return clamp(vlerp(anchor, rimM, tight));
     }
 
-    // Off-ball: weak-side help up the ball-you-man line (goal-side), tag the roller late.
+    // A man in the paint (post/roll/dunker): WALL UP goal-side, between the man and the rim,
+    // proactively — not reacting to his live spot (fixes bigs losing their man in the paint).
+    if (dist(manM, rimM) < PAINT_R && inAction) {
+      return clamp(vlerp(manM, rimM, 0.3));
+    }
+
+    // Tag the roller briefly near the rim (drop/hedge coverage).
     if (script.defense.tagRoller && a.guards !== finisherPos && inAction && frac > actionStart + 0.1 && frac < actionStart + 0.3) {
-      return clamp(vlerp(rimM, manM, 0.5)); // brief tag near the rim
+      return clamp(vlerp(rimM, manM, 0.5));
+    }
+
+    // Off-ball ball-you-man: DENY one-pass-away (pick up tight at the arc, up the passing
+    // line toward the ball, tighter with pressure), HELP two-passes-away (sag toward the
+    // paint, a touch less when pressuring). Fixes "defenders wait at half court".
+    const manToBall = dist(manM, ballM);
+    if (manToBall < ONE_PASS) {
+      const denyStep = 0.1 + 0.14 * ballPressure; // 0.10..0.24 up the line toward the ball
+      const lead = man ? scale(man.vel, LEAD_SEC * (a.anticipation ?? 0.5)) : { x: 0, y: 0 };
+      return clamp(add(vlerp(manM, ballM, denyStep), lead));
     }
     const midBallRim = vlerp(ballM, rimM, 0.5);
-    return clamp(vlerp(manM, midBallRim, helpDepth));
+    const help = helpDepth * (1 - 0.3 * ballPressure);
+    return clamp(vlerp(manM, midBallRim, help));
   };
 
   // Advance one agent one step, honoring the IDLE/planted state: once it arrives
   // (within STOP_R) it SNAPS to the target, zeros velocity, and holds dead-still with
   // no steering until its target moves (TARGET_EPS) - genuine stillness, not drift.
-  const stepAgent = (a: SimAgent, target: Vec, sameTeam: SimAgent[], t: number, agentBox: { min: Vec; max: Vec }, maxSpeed: number, burst = false) => {
+  const stepAgent = (a: SimAgent, target: Vec, sameTeam: SimAgent[], t: number, agentBox: { min: Vec; max: Vec }, maxSpeed: number, burst = false, noPlant = false) => {
     // Un-plant when the target drifts RE_ENGAGE from where the agent PLANTED (not from
     // the last step): a target creeping away slowly (a defender's man moving at a normal
     // clip, < STOP_R per step) still eventually pulls the agent off its spot. The
@@ -195,7 +237,9 @@ export function simulate(
       const k = integrate(a.pos, a.vel, steer, a.maxAccel * DT_SEC, maxSpeed, DT_SEC);
       a.pos = k.pos;
       a.vel = k.vel;
-      if (dist(a.pos, target) < STOP_R) {
+      // A live handler never plants during the set (its probe target keeps moving); every
+      // other agent snaps onto its spot and holds dead-still (the genuine idle state).
+      if (!noPlant && dist(a.pos, target) < STOP_R) {
         a.pos = { x: target.x, y: target.y }; // snap onto the spot
         a.vel = { x: 0, y: 0 };
         a.planted = true;
@@ -230,8 +274,14 @@ export function simulate(
     for (const a of offAgents) {
       // The rim attacker bursts through the action beat (accelerating drive), then plants.
       const burst = !!a.attackBurst && frac >= actionStart && t < preShotMs;
-      const spd = burst ? a.maxSpeed * DRIVE_BURST : traveling ? Math.max(a.maxSpeed, ADVANCE_FLOOR) : a.maxSpeed;
-      stepAgent(a, offTargetSpot(a, t, frac, ballM), offAgents, t, offBox, spd, burst);
+      // The trailer never gets the bring-up speed floor, so it lags BEHIND the ball.
+      const spd = burst
+        ? a.maxSpeed * DRIVE_BURST
+        : traveling && !a.isTrailer
+          ? Math.max(a.maxSpeed, ADVANCE_FLOOR)
+          : a.maxSpeed;
+      const noPlant = !!a.liveHandler && frac < actionStart;
+      stepAgent(a, offTargetSpot(a, t, frac, ballM), offAgents, t, offBox, spd, burst, noPlant);
     }
     for (const a of defAgents) {
       const onBall = a.guards === holderPos;
@@ -269,5 +319,7 @@ function blend(a: SimAgent, target: Vec, sameTeam: SimAgent[], box: { min: Vec; 
   for (const o of sameTeam) if (o !== a) others.push(o.pos);
   const sep = separation(a.pos, others, 0.14, maxSpeed);
   const con = containment(a.pos, box.min, box.max, maxSpeed);
-  return add(add(primary, scale(sep, 0.35)), scale(con, 0.25));
+  // Separation weight bumped 0.35->0.42 for a touch more floor spacing (the radius stays
+  // 0.14 so no NEW pairs trigger, keeping clean plants and the idle stillness intact).
+  return add(add(primary, scale(sep, 0.42)), scale(con, 0.25));
 }
