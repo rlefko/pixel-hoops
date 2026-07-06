@@ -1,6 +1,7 @@
 import { isMadeShot, type SimEvent } from '@/types/sim';
 import type { RNG } from '@/game/rng';
 import { POSITIONS, type Position } from '@/types/roster';
+import { isLiveFlip } from './start';
 import { meanStat, norm01, resolvedPace } from './composite';
 import type {
   CutType,
@@ -26,6 +27,9 @@ const PACE_BOOST: Record<string, number> = { fast: 1.9, balanced: 1.0, slow: 0.5
 /** A live turnover the other way runs a break; a made basket must be inbounded. */
 export function sampleFamily(event: SimEvent, prev: SimEvent | undefined, offense: MotionTeam, rng: RNG): PlayFamily {
   const a = event.action;
+  // A live-ball steal/turnover the other way ALWAYS flows into a break (it also drives
+  // the cross-possession continuity snapshot, so the two must agree).
+  if (isLiveFlip(prev, event)) return 'transition';
   // Putback: a low-rate unassisted rim finish reads as a second-chance bucket.
   if ((a === 'layup' || a === 'dunk') && !event.assist && event.successRate < 45 && rng.chance(0.3)) {
     return 'putback';

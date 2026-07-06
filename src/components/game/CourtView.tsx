@@ -252,14 +252,19 @@ const SpriteAt = memo(function SpriteAt({
     if (!waypoints || waypoints.length < 2 || width === 0 || height === 0) return null;
     const total = waypoints[waypoints.length - 1].atMs || 1;
     const pts = waypoints.map((w) => fracToPx(w.frac, width, height));
+    // Anchor the transform to the STATIC defensive base (not the first waypoint) so a
+    // possession can spawn the sprite AWAY from base (a live-ball transition carried
+    // over from the prior possession) and render it there without a teleport. For a
+    // base-start possession this is identical (the first waypoint IS the base).
+    const staticBase = spotPx(side, position, width, height, null);
     return {
       times: waypoints.map((w) => w.atMs / total),
       xs: pts.map((p) => p.x),
       ys: pts.map((p) => p.y),
-      baseX: pts[0].x,
-      baseY: pts[0].y,
+      baseX: staticBase.x,
+      baseY: staticBase.y,
     };
-  }, [waypoints, width, height]);
+  }, [waypoints, width, height, side, position]);
   const moves = path != null;
 
   const t = useSharedValue(0);

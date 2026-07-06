@@ -75,8 +75,14 @@ function cutTarget(type: string, base: Vec, rimM: Vec, ballM: Vec, offSide: 'hom
   }
 }
 
-export function simulate(input: MotionInput, script: PossessionScript, budget: MotionBudget): SimResult {
-  const built = buildAgents(input, script);
+export function simulate(
+  input: MotionInput,
+  script: PossessionScript,
+  budget: MotionBudget,
+  startPositions: Partial<Record<SpriteKey, Frac>>,
+  resetPositions: Partial<Record<SpriteKey, Frac>>
+): SimResult {
+  const built = buildAgents(input, script, startPositions, resetPositions);
   const { agents, byKey, formation, offSide } = built;
   const { preShotMs, totalMs, holdUntil } = budget;
   const shotSpot = input.shotSpot;
@@ -96,9 +102,9 @@ export function simulate(input: MotionInput, script: PossessionScript, budget: M
   const ballHolders: BallSample[] = [];
 
   const offTargetSpot = (a: SimAgent, t: number, frac: number, ballM: Vec): Vec => {
-    if (t >= holdUntil) return toMetric(a.base); // reset
+    if (t >= holdUntil) return toMetric(a.resetTo); // reset (flows into a break if next flips)
     if (t >= preShotMs) return toMetric(a.actionSpot!); // hold through the shot
-    if (frac < a.startMoveFrac) return toMetric(a.base); // stagger at base
+    if (frac < a.startMoveFrac) return toMetric(a.spawn); // stagger at the spawn
     // A fired cut overrides the spacer's target for its window.
     const cut = script.cuts.find((c) => a.role === c.role);
     if (cut && frac >= cut.fireFrac && frac < cut.fireFrac + 0.28) {
@@ -108,7 +114,7 @@ export function simulate(input: MotionInput, script: PossessionScript, budget: M
   };
 
   const defTargetSpot = (a: SimAgent, t: number, frac: number, ballM: Vec, ballHasMan: boolean): Vec => {
-    if (t >= holdUntil) return toMetric(a.base); // reset
+    if (t >= holdUntil) return toMetric(a.resetTo); // reset (sprint back if the next is a break)
     const man = byKey.get(`${offSide}-${a.guards}` as SpriteKey);
     const manM = man ? man.pos : toMetric(a.base);
     const guardingFinisher = a.guards === finisherPos;

@@ -256,7 +256,7 @@ export function PlayByPlayFeed({
         resolved = resolveMotionCtx(gameMotionData, e);
         ctxCacheRef.current.set(index, resolved);
       }
-      const built = buildPossessionPlan(e, mode, cinemaSeqs.has(e.seq), timeline[index - 1], cameraFollow, resolved.ctx, resolved.seed);
+      const built = buildPossessionPlan(e, mode, cinemaSeqs.has(e.seq), timeline[index - 1], cameraFollow, resolved.ctx, resolved.seed, timeline[index + 1]);
       planCacheRef.current.set(key, built);
       return built;
     },

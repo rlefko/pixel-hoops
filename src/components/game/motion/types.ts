@@ -167,6 +167,9 @@ export interface MotionBudget {
 export interface MotionInput {
   event: SimEvent;
   prevEvent?: SimEvent;
+  /** The NEXT possession's event, for cross-possession continuity (this possession's
+   *  reset flows into a live-ball break the other way). */
+  nextEvent?: SimEvent;
   mode: WatchMode;
   contest: Contest;
   /** The authored shot spot (from shotSpotFor), the finisher's release point. */

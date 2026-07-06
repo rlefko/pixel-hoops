@@ -23,10 +23,14 @@ export interface SimAgent {
   position: Position;
   team: 'off' | 'def';
   base: Frac;
+  /** Where the agent STARTS this possession (base, or a carried-over transition spot). */
+  spawn: Frac;
+  /** Where the agent RESETS to at the end (base, or the boundary into the next break). */
+  resetTo: Frac;
   role?: OffRole;
   setSpot?: Frac;
   actionSpot?: Frac;
-  /** Fraction of preShotMs when this agent leaves its base (stagger). */
+  /** Fraction of preShotMs when this agent leaves its spawn (stagger). */
   startMoveFrac: number;
   /** Defense: the offensive position this defender guards (post-switch). */
   guards?: Position;
@@ -64,7 +68,12 @@ export interface BuiltAgents {
   defSide: SimTeamSide;
 }
 
-export function buildAgents(input: MotionInput, script: PossessionScript): BuiltAgents {
+export function buildAgents(
+  input: MotionInput,
+  script: PossessionScript,
+  startPositions: Partial<Record<SpriteKey, Frac>>,
+  resetPositions: Partial<Record<SpriteKey, Frac>>
+): BuiltAgents {
   const { ctx, shotSpot, event } = input;
   const { offense, defense, offSide, defSide } = ctx;
   const formation = buildFormation(
@@ -83,22 +92,28 @@ export function buildAgents(input: MotionInput, script: PossessionScript): Built
   // Offense.
   for (const pos of POSITIONS) {
     const role = script.offRoles[pos];
+    const key = spriteKey(offSide, pos);
     const base = spotFraction(offSide, pos, null);
+    const spawn = startPositions[key] ?? base;
+    const resetTo = resetPositions[key] ?? base;
     const spots = formation.spots[pos];
     const hint = offense.five[pos].hint;
     const agent: SimAgent = {
-      key: spriteKey(offSide, pos),
+      key,
       side: offSide,
       position: pos,
       team: 'off',
       base,
+      spawn,
+      resetTo,
       role,
       setSpot: spots.setSpot,
       actionSpot: spots.actionSpot,
-      startMoveFrac: offStartFrac(role),
+      // A carried-over break spawn is already up the floor, so it moves immediately.
+      startMoveFrac: startPositions[key] ? 0 : offStartFrac(role),
       maxSpeed: BASE_SPEED * hint.speed,
       maxAccel: BASE_ACCEL * hint.accel,
-      pos: toMetric(base),
+      pos: toMetric(spawn),
       vel: { x: 0, y: 0 },
       planted: false,
       frames: [],
@@ -109,19 +124,24 @@ export function buildAgents(input: MotionInput, script: PossessionScript): Built
 
   // Defense: each defender guards its matchup (post-switch) offensive position.
   for (const pos of POSITIONS) {
+    const key = spriteKey(defSide, pos);
     const base = spotFraction(defSide, pos, null);
+    const spawn = startPositions[key] ?? base;
+    const resetTo = resetPositions[key] ?? base;
     const hint = defense.five[pos].hint;
     const agent: SimAgent = {
-      key: spriteKey(defSide, pos),
+      key,
       side: defSide,
       position: pos,
       team: 'def',
       base,
+      spawn,
+      resetTo,
       startMoveFrac: 0,
       guards: script.matchup[pos],
       maxSpeed: BASE_SPEED * hint.closeoutSpeed,
       maxAccel: BASE_ACCEL * hint.accel,
-      pos: toMetric(base),
+      pos: toMetric(spawn),
       vel: { x: 0, y: 0 },
       planted: false,
       frames: [],

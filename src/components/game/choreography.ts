@@ -274,7 +274,8 @@ export function buildPossessionPlan(
   prevEvent?: SimEvent,
   cameraFollow = true,
   motionCtx?: MotionCtx,
-  seed?: number
+  seed?: number,
+  nextEvent?: SimEvent
 ): PossessionPlan {
   const shape = shotShapeFor(event);
   const shooterKey = spriteKey(event.team, event.scorerPosition);
@@ -318,6 +319,7 @@ export function buildPossessionPlan(
   const motion = buildMotionPlan({
     event,
     prevEvent,
+    nextEvent,
     mode,
     contest,
     shotSpot,
