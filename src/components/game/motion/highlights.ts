@@ -53,20 +53,33 @@ export function bakeHighlights(input: MotionInput, script: PossessionScript, bud
         { atMs: holdAt, frac: spots.actionSpot },
       ];
     } else {
-      action = [{ atMs: holdAt, frac: spots.setSpot }];
+      // Off-ball players are NOT frozen: a subtle relocation toward the ball side reads
+      // as spacing/lift, not a statue (the uncanny-still highlights complaint).
+      const relo = lerpFrac(spots.setSpot, shotSpot, 0.1);
+      action = [
+        { atMs: preShotMs * 0.4, frac: spots.setSpot },
+        { atMs: preShotMs, frac: relo },
+        { atMs: holdAt, frac: relo },
+      ];
     }
     movers[key] = cutPath(base, spots.setSpot, action, totalMs);
   }
 
-  // Defenders snap to a coverage-ready spot (goal-side of their man's set spot).
+  // Defenders snap to a coverage-ready spot, then close out / sink a touch (not frozen).
   for (const pos of POSITIONS) {
     const key = `${defSide}-${pos}` as SpriteKey;
     const base = spotFraction(defSide, pos, null);
     const manPos = script.matchup[pos];
     const manSet = formation.spots[manPos]?.setSpot ?? spotFraction(offSide, manPos, null);
-    const tight = manPos === finisher ? CONTEST_TIGHT : HELP_TIGHT;
-    const guardSpot = lerpFrac(manPos === finisher ? shotSpot : manSet, rim, tight);
-    movers[key] = cutPath(base, guardSpot, [{ atMs: holdAt, frac: guardSpot }], totalMs);
+    const isFin = manPos === finisher;
+    const tight = isFin ? CONTEST_TIGHT : HELP_TIGHT;
+    const guardSpot = lerpFrac(isFin ? shotSpot : manSet, rim, tight);
+    const closeSpot = lerpFrac(guardSpot, isFin ? shotSpot : rim, 0.12);
+    movers[key] = cutPath(base, guardSpot, [
+      { atMs: preShotMs * 0.5, frac: guardSpot },
+      { atMs: preShotMs, frac: closeSpot },
+      { atMs: holdAt, frac: closeSpot },
+    ], totalMs);
   }
 
   return { movers, moverBursts, ball: buildHighlightBall(script, movers, offSide, finisher, shotSpot, preShotMs), handler: {} };
