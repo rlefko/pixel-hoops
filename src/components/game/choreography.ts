@@ -106,6 +106,9 @@ export interface PossessionPlan {
    * stops hopping (no perpetual run-in-place). A mover with no entry never hops.
    */
   moverBursts: Partial<Record<SpriteKey, { startMs: number; endMs: number }>>;
+  /** Per-sprite windows during which that sprite holds the ball, so the renderer can
+   *  ring the LIVE ball handler as it changes hands (not just the eventual scorer). */
+  ballHandler: Partial<Record<SpriteKey, { startMs: number; endMs: number }[]>>;
   ball: BallPlan;
   camera: CameraPlan;
 }
@@ -274,7 +277,8 @@ export function buildPossessionPlan(
   prevEvent?: SimEvent,
   cameraFollow = true,
   motionCtx?: MotionCtx,
-  seed?: number
+  seed?: number,
+  nextEvent?: SimEvent
 ): PossessionPlan {
   const shape = shotShapeFor(event);
   const shooterKey = spriteKey(event.team, event.scorerPosition);
@@ -300,6 +304,7 @@ export function buildPossessionPlan(
       igniteFrac: shotSpot,
       movers: {},
       moverBursts: {},
+      ballHandler: {},
       ball: { legs: [], origin: shotSpot },
       camera: { keys: [{ atMs: 0, center: CENTER, zoom: CAM.rest }, { atMs: HL_ROUTINE_MS, center: CENTER, zoom: CAM.rest }] },
     };
@@ -318,6 +323,7 @@ export function buildPossessionPlan(
   const motion = buildMotionPlan({
     event,
     prevEvent,
+    nextEvent,
     mode,
     contest,
     shotSpot,
@@ -370,6 +376,7 @@ export function buildPossessionPlan(
     igniteFrac: shotSpot,
     movers,
     moverBursts,
+    ballHandler: motion.handler,
     ball: { legs: motion.ball, origin: shotSpot },
     camera,
   };

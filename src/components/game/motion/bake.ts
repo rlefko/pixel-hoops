@@ -74,7 +74,7 @@ function nearestIdx(frames: Frame[], ms: number): number {
 }
 
 /** Simplify one agent's frames to a capped Waypoint[], force-keeping anchors. */
-function simplify(frames: Frame[], base: Frac, totalMs: number, mustKeepMs: number[], pin?: { ms: number; frac: Frac }): Waypoint[] {
+function simplify(frames: Frame[], spawn: Frac, resetTo: Frac, totalMs: number, mustKeepMs: number[], pin?: { ms: number; frac: Frac }): Waypoint[] {
   let eps = EPS_FRAC;
   let wps: Waypoint[] = [];
   for (let attempt = 0; attempt < 6; attempt++) {
@@ -86,9 +86,10 @@ function simplify(frames: Frame[], base: Frac, totalMs: number, mustKeepMs: numb
     if (wps.length <= MAX_WP) break;
     eps *= 1.6;
   }
-  // Pin exact anchors: base at both ends, the shot frame for the finisher.
-  wps[0] = { atMs: 0, frac: base };
-  wps[wps.length - 1] = { atMs: totalMs, frac: base };
+  // Pin exact anchors: the spawn at atMs 0, the reset target at totalMs (a live-ball
+  // transition carries these away from base), the shot frame for the finisher.
+  wps[0] = { atMs: 0, frac: spawn };
+  wps[wps.length - 1] = { atMs: totalMs, frac: resetTo };
   if (pin) {
     const i = wps.findIndex((w) => Math.abs(w.atMs - pin.ms) < 30);
     if (i >= 0) wps[i] = { atMs: pin.ms, frac: pin.frac };
@@ -151,7 +152,7 @@ export function bake(sim: SimResult, script: PossessionScript, finisherPos: Posi
     const mustKeep = [sim.holdUntil];
     if (b) mustKeep.push(b.endMs);
     if (a.key === finisherKey) mustKeep.push(preShotMs);
-    movers[a.key] = simplify(frames, a.base, totalMs, mustKeep, pin);
+    movers[a.key] = simplify(frames, a.spawn, a.resetTo, totalMs, mustKeep, pin);
   }
 
   // Ball legs from the touch script, resolved against the baked mover paths.
@@ -205,7 +206,23 @@ export function bake(sim: SimResult, script: PossessionScript, finisherPos: Posi
     if (last.path) last.path[last.path.length - 1] = shotSpot;
   }
 
-  return { movers, moverBursts, ball: legs };
+  // Ball-handler windows per sprite (the times each sprite holds the ball pre-shot),
+  // so the renderer can ring the LIVE handler as it hands off, not just the scorer.
+  const handler: Partial<Record<SpriteKey, { startMs: number; endMs: number }[]>> = {};
+  let curKey: SpriteKey | undefined;
+  let segStart = 0;
+  for (const s of sim.ballHolders) {
+    if (s.atMs > preShotMs) break;
+    const key = roleKey(s.holderRole);
+    if (key !== curKey) {
+      if (curKey) (handler[curKey] ??= []).push({ startMs: segStart, endMs: s.atMs });
+      curKey = key;
+      segStart = s.atMs;
+    }
+  }
+  if (curKey) (handler[curKey] ??= []).push({ startMs: segStart, endMs: preShotMs });
+
+  return { movers, moverBursts, ball: legs, handler };
 }
 
 function sampleShotFallback(shotSpot: Frac): Frac {

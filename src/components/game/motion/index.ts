@@ -3,6 +3,7 @@ import { sampleScript } from './script';
 import { simulate } from './simulate';
 import { bake } from './bake';
 import { bakeHighlights } from './highlights';
+import { boundaryState, inboundSpawn, startType } from './start';
 import { budgetFrom, fullPreShot, highlightPreShot } from './pacing';
 import { resolvedPace } from './composite';
 import type { MotionInput, MotionOutput } from './types';
@@ -31,10 +32,22 @@ export function buildMotionPlan(input: MotionInput): MotionOutput {
         );
   const budget = budgetFrom(preShotMs, input.flight, input.postMs);
 
+  // Cross-possession continuity: this possession SPAWNS from the boundary with the
+  // previous event and RESETS to the boundary with the next. For a live steal/turnover
+  // both are a transition snapshot; otherwise both are empty (base). A's reset and B's
+  // spawn call boundaryState on the same two events, so they match exactly.
+  const startPositions = boundaryState(input.prevEvent, input.event);
+  const resetPositions = boundaryState(input.event, input.nextEvent);
+  // On a made-basket inbound (full mode), a trailing big spawns at the baseline to
+  // inbound it (it then trails the play up the floor).
+  if (input.mode !== 'highlights' && startType(input.prevEvent, input.event) === 'inbound') {
+    Object.assign(startPositions, inboundSpawn(input.ctx.offSide, script.offRoles));
+  }
+
   const out =
     input.mode === 'highlights'
       ? bakeHighlights(input, script, budget)
-      : bake(simulate(input, script, budget), script, input.event.scorerPosition, input.shotSpot);
+      : bake(simulate(input, script, budget, startPositions, resetPositions), script, input.event.scorerPosition, input.shotSpot);
 
   return { ...out, preShotMs: budget.preShotMs, totalMs: budget.totalMs, holdUntil: budget.holdUntil, family: script.family };
 }
