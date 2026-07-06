@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, { Easing } from 'react-native-reanimated';
 import { useBallFlight, type BallLegPx } from '@/feel/useBallFlight';
-import type { Pt } from '@/feel/ballPath';
+import { deflectResolve, type Pt } from '@/feel/ballPath';
 import { useFeelSettings } from '@/feel';
 import { spotPx, rimCenterPx } from '@/components/game/courtGeometry';
 import { shotShapeFor, isNoteworthy, WINNER_TIME_SCALE } from '@/components/game/possession';
@@ -41,8 +41,6 @@ const BALL = 9;
 // Where the ball ends up after it reaches the rim, by outcome.
 const BLOCK_REACH = 0.82; // a block meets the ball this far toward the rim
 const LOOSE_REACH = 0.35; // a steal/turnover knocks it loose this early
-const DEFLECT_DX = 30; // sideways kick on a block
-const DEFLECT_DY = 22; // ...and back toward mid-court
 const CAROM_DX = 34; // sideways kick on a miss off the iron
 const CAROM_DY = 24; // ...and back toward mid-court
 const DROP_THROUGH = 10; // a make drops this far down through the net
@@ -97,6 +95,8 @@ export function BallFlight({
       ? fracToPx(plan.ball.origin, width, height)
       : spotPx(event.team, event.scorerPosition, width, height, null);
     const rim = rimCenterPx(event.team, width, height);
+    // The stealing team attacks the OTHER rim; a steal is poked that way (the break).
+    const otherRim = rimCenterPx(event.team === 'home' ? 'away' : 'home', width, height);
     // Mid-court is +y from the top hoop and -y from the bottom hoop.
     const dropSign = event.team === 'home' ? 1 : -1;
     // Alternate the carom side by sequence so back-to-back misses don't bounce
@@ -108,10 +108,10 @@ export function BallFlight({
     let resolve: Pt;
     if (shape === 'block') {
       target = lerp(origin, rim, BLOCK_REACH); // met short of the rim
-      resolve = { x: target.x + caromSide * DEFLECT_DX, y: target.y + dropSign * DEFLECT_DY };
+      resolve = deflectResolve(shape, target, rim, otherRim, caromSide); // swatted away
     } else if (shape === 'loose') {
       target = lerp(origin, rim, LOOSE_REACH); // knocked loose early
-      resolve = { x: target.x + caromSide * DEFLECT_DX, y: target.y };
+      resolve = deflectResolve(shape, target, rim, otherRim, caromSide); // poked up the floor
     } else if (shape === 'miss') {
       resolve = { x: rim.x + caromSide * CAROM_DX, y: rim.y + dropSign * CAROM_DY }; // carom off iron
     } else {
