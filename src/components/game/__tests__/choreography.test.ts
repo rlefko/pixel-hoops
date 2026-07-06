@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildPossessionPlan, planDurationMs, spriteKey, type PossessionPlan } from '../choreography';
+import { rimCenterFraction } from '../courtGeometry';
+import { deflectResolve } from '@/feel/ballPath';
 import { scaled } from '@/feel/timings';
 import { POSITIONS } from '@/types/roster';
 import type { OnCourtFive, QuarterResult, SimActionId, SimEvent } from '@/types/sim';
@@ -81,7 +83,7 @@ describe('buildPossessionPlan', () => {
     ]) {
       const plan = buildPossessionPlan(makeEvent(over), 'full', false);
       expect(plan.ball.legs.length).toBeGreaterThanOrEqual(1);
-      expect(plan.ball.legs.length).toBeLessThanOrEqual(4);
+      expect(plan.ball.legs.length).toBeLessThanOrEqual(6);
       const last = plan.ball.legs[plan.ball.legs.length - 1];
       expect(last.startMs + last.ms).toBeCloseTo(plan.preShotMs, 5);
       expect(last.to).toEqual(plan.ball.origin);
@@ -330,6 +332,135 @@ describe('motion realism: idle, defense, continuity, inbound', () => {
     expect(first.kind).toBe('pass');
     expect(first.from.y).toBeGreaterThan(0.9); // home inbounds from the bottom baseline
     expect(first.startMs).toBe(0);
+  });
+});
+
+describe('motion realism: glued ball, drives, clear steals/blocks, flowing transition', () => {
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+  const sampleAt = (wps: { atMs: number; frac: { x: number; y: number } }[], t: number) => {
+    if (t <= wps[0].atMs) return wps[0].frac;
+    const last = wps[wps.length - 1];
+    if (t >= last.atMs) return last.frac;
+    for (let i = 1; i < wps.length; i++) {
+      if (t <= wps[i].atMs) {
+        const a = wps[i - 1];
+        const b = wps[i];
+        const f = (t - a.atMs) / (b.atMs - a.atMs || 1);
+        return { x: a.frac.x + (b.frac.x - a.frac.x) * f, y: a.frac.y + (b.frac.y - a.frac.y) * f };
+      }
+    }
+    return last.frac;
+  };
+  const matrix: Partial<SimEvent>[] = [
+    { action: 'three', assist: { name: 'x', position: 'PG' } },
+    { action: 'drive', assist: { name: 'x', position: 'PG' } },
+    { action: 'midrange' },
+    { action: 'dunk', assist: { name: 'x', position: 'PG' } },
+    { action: 'post', scorerPosition: 'C', assist: { name: 'x', position: 'SG' } },
+  ];
+  // No prev = an inbound start; a miss the other way = an outlet start (no inbound), which
+  // is the ONLY way the 6-leg ball reversal runs, so both prevs must be covered.
+  const outletPrev = makeEvent({ seq: 2, team: 'away', action: 'three', result: 'miss', points: 0 });
+  const prevs = [undefined, outletPrev];
+
+  it('pre-shot ball legs are contiguous (no held-ball gap that desyncs the ball)', () => {
+    for (const prev of prevs) {
+      for (const over of matrix) {
+        for (const seq of [4, 5, 7, 9, 12]) {
+          const legs = buildPossessionPlan(makeEvent({ ...over, seq }), 'full', false, prev).ball.legs;
+          expect(legs[0].startMs).toBe(0);
+          for (let i = 1; i < legs.length; i++) {
+            expect(legs[i].startMs).toBeCloseTo(legs[i - 1].startMs + legs[i - 1].ms, 6);
+          }
+        }
+      }
+    }
+  });
+
+  it('no pre-shot leg is a pass-to-self (every non-carry leg connects distinct spots)', () => {
+    let sawReversal = false;
+    for (const prev of prevs) {
+      for (const over of matrix) {
+        for (const seq of [4, 5, 7, 9, 12, 30, 31]) {
+          const legs = buildPossessionPlan(makeEvent({ ...over, seq }), 'full', false, prev).ball.legs;
+          if (legs.length >= 5) sawReversal = true;
+          for (let i = 0; i < legs.length; i++) {
+            const leg = legs[i];
+            if (leg.kind === 'carry') continue;
+            if (i === legs.length - 1) continue; // the final assist is authored honest
+            expect(dist(leg.from, leg.to)).toBeGreaterThanOrEqual(0.02);
+          }
+        }
+      }
+    }
+    expect(sawReversal).toBe(true); // the multi-pass reversal path is actually exercised
+  });
+
+  it('offense stays in the front court during the set (no backcourt drift)', () => {
+    const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    for (const pos of POSITIONS) {
+      const wps = plan.movers[spriteKey('home', pos)];
+      if (!wps) continue;
+      for (let t = plan.preShotMs * 0.62; t <= plan.preShotMs; t += 100) {
+        expect(sampleAt(wps, t).y).toBeLessThanOrEqual(0.6); // home front court (attacks small y)
+      }
+    }
+  });
+
+  it('a drive beats the on-ball defender (he trails off the rim)', () => {
+    const rim = rimCenterFraction('home');
+    const plan = buildPossessionPlan(makeEvent({ action: 'drive', result: 'score', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    const finAt = sampleAt(plan.movers[spriteKey('home', 'SG')]!, plan.preShotMs); // scorer = SG
+    const defAt = sampleAt(plan.movers[spriteKey('away', 'SG')]!, plan.preShotMs); // away-SG guards him
+    expect(dist(defAt, rim)).toBeGreaterThan(dist(finAt, rim)); // beaten: further from the rim
+  });
+
+  it('a steal and a block ring the play-making defender; a clean make does not', () => {
+    const steal = buildPossessionPlan(makeEvent({ action: 'drive', result: 'steal', points: 0 }), 'full', false);
+    const block = buildPossessionPlan(makeEvent({ action: 'drive', result: 'block', points: 0 }), 'full', false);
+    const score = buildPossessionPlan(makeEvent({ action: 'drive', result: 'score' }), 'full', false);
+    expect(Object.keys(steal.defenderRing).length).toBeGreaterThanOrEqual(1);
+    expect(Object.keys(block.defenderRing).length).toBeGreaterThanOrEqual(1);
+    expect(Object.keys(score.defenderRing).length).toBe(0);
+    // The ringed defender is on the DEFENSE (away), and his window ends at the contest.
+    const [key] = Object.keys(steal.defenderRing);
+    expect(key.startsWith('away-')).toBe(true);
+    expect(steal.defenderRing[key as keyof typeof steal.defenderRing]![0].endMs).toBeCloseTo(steal.preShotMs, 5);
+  });
+
+  it('deflectResolve sends a steal forward (toward the other rim) and swats a block away', () => {
+    const target = { x: 100, y: 100 };
+    const rim = { x: 100, y: 40 }; // the attacked rim is "up" from the ball
+    const otherRim = { x: 100, y: 300 }; // the stealing team's rim is "down"
+    const steal = deflectResolve('loose', target, rim, otherRim, 1);
+    const block = deflectResolve('block', target, rim, otherRim, 1);
+    expect(steal.y).toBeGreaterThan(target.y); // poked down the floor toward the break
+    // A block is swatted the OPPOSITE way from the incoming shot (away from the rim).
+    expect(Math.sign(block.y - target.y)).toBe(Math.sign(target.y - rim.y));
+  });
+
+  it('an outlet (defensive rebound the other way) flows continuously with zero jump', () => {
+    const A = makeEvent({ seq: 50, team: 'away', action: 'three', result: 'miss', points: 0 });
+    const B = makeEvent({ seq: 51, team: 'home', action: 'layup', result: 'score' });
+    const planA = buildPossessionPlan(A, 'full', false, undefined, true, undefined, 1, B); // A, next = B
+    const planB = buildPossessionPlan(B, 'full', false, A, true, undefined, 2); // B, prev = A
+    let matched = 0;
+    let total = 0;
+    for (const side of ['home', 'away'] as const) {
+      for (const pos of POSITIONS) {
+        const key = spriteKey(side, pos);
+        const aw = planA.movers[key];
+        const bw = planB.movers[key];
+        if (!aw || !bw) continue;
+        total++;
+        if (dist(aw[aw.length - 1].frac, bw[0].frac) < 1e-9) matched++; // A.reset === B.spawn
+      }
+    }
+    // All but the lone rebounder (a cosmetic crash-to-base override) flow exactly.
+    expect(matched).toBeGreaterThanOrEqual(total - 1);
+    // B spawns off its deep base (a mid-transition bring-up), not from the baseline.
+    const sgSpawn = planB.movers[spriteKey('home', 'SG')]![0].frac;
+    expect(dist(sgSpawn, { x: 0.24, y: 0.76 })).toBeGreaterThan(0.1);
   });
 });
 
