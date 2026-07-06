@@ -258,6 +258,81 @@ describe('motion engine: outcome-faithful + deterministic', () => {
   });
 });
 
+describe('motion realism: idle, defense, continuity, inbound', () => {
+  const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y);
+
+  it('players genuinely plant and hold DEAD-STILL (flat idle segments, not drift)', () => {
+    // The idle/planted state bakes a hold as two waypoints with IDENTICAL fracs across a
+    // real time gap (a frozen player). The old perpetual-drift steering NEVER produced a
+    // single one, so the total dead-still time across a few possessions is substantial.
+    let stillMs = 0;
+    for (const seq of [4, 5, 7, 12]) {
+      const plan = buildPossessionPlan(makeEvent({ seq, action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
+      for (const wps of Object.values(plan.movers)) {
+        for (let i = 1; i < wps!.length; i++) {
+          const gap = wps![i].atMs - wps![i - 1].atMs;
+          if (gap > 300 && dist(wps![i].frac, wps![i - 1].frac) < 1e-9) stillMs += gap;
+        }
+      }
+    }
+    expect(stillMs).toBeGreaterThan(2000);
+  });
+
+  it('no defender chases into the offense’s backcourt', () => {
+    const plan = buildPossessionPlan(makeEvent({ action: 'drive', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    // Home attacks the top (y small); the away defense must stay in its half (y small),
+    // never following a lagging man to the far baseline.
+    for (const pos of POSITIONS) {
+      const wps = plan.movers[spriteKey('away', pos)];
+      if (!wps) continue;
+      for (const w of wps) expect(w.frac.y).toBeLessThanOrEqual(0.64);
+    }
+  });
+
+  it('a steal flows into the break with ZERO boundary jump (continuity)', () => {
+    const A = makeEvent({ seq: 30, team: 'away', action: 'drive', result: 'steal', points: 0 });
+    const B = makeEvent({ seq: 31, team: 'home', action: 'layup', result: 'score' });
+    const planA = buildPossessionPlan(A, 'full', false, undefined, true, undefined, 1, B); // A, next = B
+    const planB = buildPossessionPlan(B, 'full', false, A, true, undefined, 2); // B, prev = A
+    let matched = 0;
+    for (const side of ['home', 'away'] as const) {
+      for (const pos of POSITIONS) {
+        const key = spriteKey(side, pos);
+        const aw = planA.movers[key];
+        const bw = planB.movers[key];
+        if (!aw || !bw) continue;
+        expect(dist(aw[aw.length - 1].frac, bw[0].frac)).toBeLessThan(1e-9); // A.reset === B.spawn
+        matched++;
+      }
+    }
+    expect(matched).toBeGreaterThanOrEqual(8);
+    // B is a break: it spawns players away from their defensive base (mid-floor).
+    const bBase = { x: 0.24, y: 0.76 }; // home-SG base (roughly)
+    const sgSpawn = planB.movers[spriteKey('home', 'SG')]![0].frac;
+    expect(dist(sgSpawn, bBase)).toBeGreaterThan(0.2);
+  });
+
+  it('the ball-handler track hands off across the possession and covers the pre-shot window', () => {
+    const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
+    const segs = Object.values(plan.ballHandler).flat();
+    expect(segs.length).toBeGreaterThanOrEqual(1);
+    const earliest = Math.min(...segs.map((s) => s!.startMs));
+    const latest = Math.max(...segs.map((s) => s!.endMs));
+    expect(earliest).toBe(0);
+    expect(latest).toBeCloseTo(plan.preShotMs, 5);
+  });
+
+  it('a made basket is inbounded: the first ball leg is a pass from the baseline', () => {
+    // prev = the away team made a shot -> home inbounds from its own baseline.
+    const prev = makeEvent({ seq: 40, team: 'away', action: 'layup', result: 'score' });
+    const plan = buildPossessionPlan(makeEvent({ seq: 41, team: 'home', action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false, prev);
+    const first = plan.ball.legs[0];
+    expect(first.kind).toBe('pass');
+    expect(first.from.y).toBeGreaterThan(0.9); // home inbounds from the bottom baseline
+    expect(first.startMs).toBe(0);
+  });
+});
+
 describe('camera plan', () => {
   it('is monotonic, in bounds, and opens/closes wide (full mode)', () => {
     const plan = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'home-PG', position: 'PG' } }), 'full', false);
