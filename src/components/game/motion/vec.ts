@@ -59,6 +59,14 @@ export function lerp(a: Vec, b: Vec, t: number): Vec {
   return { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t };
 }
 
+/** Clamp a point inside an axis-aligned box (min/max in the same space). */
+export function clampBox(v: Vec, min: Vec, max: Vec): Vec {
+  return {
+    x: Math.max(min.x, Math.min(max.x, v.x)),
+    y: Math.max(min.y, Math.min(max.y, v.y)),
+  };
+}
+
 /** Raw court fraction -> metric (aspect-corrected) space. */
 export function toMetric(f: Frac): Vec {
   return { x: f.x, y: f.y * ASPECT };

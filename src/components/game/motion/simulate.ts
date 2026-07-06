@@ -1,10 +1,10 @@
 import { rimCenterFraction } from '../courtGeometry';
 import { type Frac, type SpriteKey } from '../courtMath';
 import { POSITIONS, type Position } from '@/types/roster';
-import { toFrac, toMetric, lerp as vlerp, add, scale, type Vec } from './vec';
+import { toFrac, toMetric, lerp as vlerp, add, scale, dist, clampBox, type Vec } from './vec';
 import { arrive, separation, containment } from './behaviors';
 import { integrate } from './kinematics';
-import { buildAgents, frontCourtBox, type SimAgent } from './agents';
+import { buildAgents, defenderBox, frontCourtBox, type SimAgent } from './agents';
 import type { MotionBudget, MotionInput, OffRole, PossessionScript } from './types';
 
 /**
@@ -21,6 +21,8 @@ const DT_SEC = DT_MS / 1000;
 const ACTION_START_HALF = 0.62; // fraction of preShot when the action beat begins
 const ACTION_START_TRANS = 0.45;
 const SLOW_R = 0.14; // metric arrive-slowdown radius (plant, not overshoot)
+const STOP_R = 0.045; // within this of the target, SNAP and plant (dead-still hold)
+const TARGET_EPS = 0.03; // a target move bigger than this un-plants the agent
 const ON_BALL_TIGHT = 0.1; // on-ball defender sits this far off his man toward the rim
 const CONTEST_TIGHT = 0.13; // closeout into the shooter's airspace
 
@@ -81,6 +83,7 @@ export function simulate(input: MotionInput, script: PossessionScript, budget: M
   const rimM = toMetric(rimCenterFraction(offSide));
   const shotSpotM = toMetric(shotSpot);
   const box = frontCourtBox(offSide);
+  const defBox = defenderBox(offSide);
   const actionStart = script.family === 'transition' ? ACTION_START_TRANS : ACTION_START_HALF;
 
   const offAgents = agents.filter((a) => a.team === 'off');
@@ -111,13 +114,18 @@ export function simulate(input: MotionInput, script: PossessionScript, budget: M
     const guardingFinisher = a.guards === finisherPos;
     const inAction = frac >= actionStart;
 
+    // Every defender's target is clamped to the get-back box: he sinks to help and
+    // guards his man, but NEVER chases into the offense's backcourt (no accidental
+    // full-court chase when a lagging man drifts back).
+    const clamp = (v: Vec) => clampBox(v, defBox.min, defBox.max);
+
     // Screen coverage geometry for the screener's defender (no switch: switch swapped the man).
     if (screenerPos && a.guards === screenerPos && cov !== 'switch' && cov !== 'none' && inAction && frac < 1.0) {
       if (formation.screen) {
         const screenM = toMetric(formation.screen.screenSpot);
-        if (cov === 'drop') return vlerp(screenM, rimM, 0.8);
-        if (cov === 'hedge') return frac < actionStart + 0.15 ? screenM : vlerp(manM, rimM, 0.2);
-        if (cov === 'ice') return vlerp(screenM, rimM, 0.5);
+        if (cov === 'drop') return clamp(vlerp(screenM, rimM, 0.8));
+        if (cov === 'hedge') return clamp(frac < actionStart + 0.15 ? screenM : vlerp(manM, rimM, 0.2));
+        if (cov === 'ice') return clamp(vlerp(screenM, rimM, 0.5));
       }
     }
 
@@ -125,15 +133,35 @@ export function simulate(input: MotionInput, script: PossessionScript, budget: M
     if (ballHasMan) {
       const tight = guardingFinisher && inAction ? CONTEST_TIGHT : ON_BALL_TIGHT;
       const anchor = guardingFinisher && inAction ? shotSpotM : manM;
-      return vlerp(anchor, rimM, tight);
+      return clamp(vlerp(anchor, rimM, tight));
     }
 
     // Off-ball: weak-side help up the ball-you-man line (goal-side), tag the roller late.
     if (script.defense.tagRoller && a.guards !== finisherPos && inAction && frac > actionStart + 0.1 && frac < actionStart + 0.3) {
-      return vlerp(rimM, manM, 0.5); // brief tag near the rim
+      return clamp(vlerp(rimM, manM, 0.5)); // brief tag near the rim
     }
     const midBallRim = vlerp(ballM, rimM, 0.5);
-    return vlerp(manM, midBallRim, helpDepth);
+    return clamp(vlerp(manM, midBallRim, helpDepth));
+  };
+
+  // Advance one agent one step, honoring the IDLE/planted state: once it arrives
+  // (within STOP_R) it SNAPS to the target, zeros velocity, and holds dead-still with
+  // no steering until its target moves (TARGET_EPS) - genuine stillness, not drift.
+  const stepAgent = (a: SimAgent, target: Vec, sameTeam: SimAgent[], t: number, agentBox: { min: Vec; max: Vec }) => {
+    if (!a.lastTarget || dist(target, a.lastTarget) > TARGET_EPS) a.planted = false;
+    a.lastTarget = target;
+    if (!a.planted) {
+      const steer = blend(a, target, sameTeam, agentBox);
+      const k = integrate(a.pos, a.vel, steer, a.maxAccel * DT_SEC, a.maxSpeed, DT_SEC);
+      a.pos = k.pos;
+      a.vel = k.vel;
+      if (dist(a.pos, target) < STOP_R) {
+        a.pos = { x: target.x, y: target.y }; // snap onto the spot
+        a.vel = { x: 0, y: 0 };
+        a.planted = true;
+      }
+    }
+    a.frames.push({ atMs: t, frac: toFrac(a.pos) });
   };
 
   // Step in DT_MS increments but always land the FINAL frame exactly on totalMs (a
@@ -149,24 +177,8 @@ export function simulate(input: MotionInput, script: PossessionScript, budget: M
     ballHolders.push({ atMs: t, holderRole: holder });
 
     // Offense first, so defenders react to updated positions this step.
-    for (const a of offAgents) {
-      const target = offTargetSpot(a, t, frac, ballM);
-      const steer = blend(a, target, offAgents, box);
-      const k = integrate(a.pos, a.vel, steer, a.maxAccel * DT_SEC, a.maxSpeed, DT_SEC);
-      a.pos = k.pos;
-      a.vel = k.vel;
-      a.frames.push({ atMs: t, frac: toFrac(a.pos) });
-    }
-    for (const a of defAgents) {
-      const manPos = a.guards;
-      const ballHasMan = manPos === holderPos;
-      const target = defTargetSpot(a, t, frac, ballM, ballHasMan);
-      const steer = blend(a, target, defAgents, box);
-      const k = integrate(a.pos, a.vel, steer, a.maxAccel * DT_SEC, a.maxSpeed, DT_SEC);
-      a.pos = k.pos;
-      a.vel = k.vel;
-      a.frames.push({ atMs: t, frac: toFrac(a.pos) });
-    }
+    for (const a of offAgents) stepAgent(a, offTargetSpot(a, t, frac, ballM), offAgents, t, box);
+    for (const a of defAgents) stepAgent(a, defTargetSpot(a, t, frac, ballM, a.guards === holderPos), defAgents, t, defBox);
     if (t >= totalMs) break;
   }
 

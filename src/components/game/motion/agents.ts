@@ -34,6 +34,12 @@ export interface SimAgent {
   maxAccel: number;
   pos: Vec;
   vel: Vec;
+  /** True once the agent has arrived and planted at its target; it holds dead-still
+   *  (no steering) until its target moves. This is the explicit IDLE state that gives
+   *  real basketball stillness instead of perpetual micro-drift. */
+  planted: boolean;
+  /** The target the agent last chased, to detect when it changes (unplant). */
+  lastTarget?: Vec;
   frames: { atMs: number; frac: Frac }[];
 }
 
@@ -94,6 +100,7 @@ export function buildAgents(input: MotionInput, script: PossessionScript): Built
       maxAccel: BASE_ACCEL * hint.accel,
       pos: toMetric(base),
       vel: { x: 0, y: 0 },
+      planted: false,
       frames: [],
     };
     agents.push(agent);
@@ -116,6 +123,7 @@ export function buildAgents(input: MotionInput, script: PossessionScript): Built
       maxAccel: BASE_ACCEL * hint.accel,
       pos: toMetric(base),
       vel: { x: 0, y: 0 },
+      planted: false,
       frames: [],
     };
     agents.push(agent);
@@ -136,4 +144,17 @@ export function frontCourtBox(offSide: SimTeamSide): { min: Vec; max: Vec } {
   return offSide === 'home'
     ? { min: toMetric({ x: 0.02, y: 0.02 }), max: toMetric({ x: 0.98, y: 0.78 }) }
     : { min: toMetric({ x: 0.02, y: 0.22 }), max: toMetric({ x: 0.98, y: 0.98 }) };
+}
+
+/**
+ * The "get-back" box a DEFENDER stays inside: he protects his own basket and never
+ * chases a man into the offense's backcourt (only a full-court press would, which is
+ * rare). Home attacks the top, so the away defense holds the top ~62% of the floor;
+ * mirror for away. Defender targets are clamped to this so a lagging offensive player
+ * can't drag his man to the far baseline.
+ */
+export function defenderBox(offSide: SimTeamSide): { min: Vec; max: Vec } {
+  return offSide === 'home'
+    ? { min: toMetric({ x: 0.02, y: 0.02 }), max: toMetric({ x: 0.98, y: 0.62 }) }
+    : { min: toMetric({ x: 0.02, y: 0.38 }), max: toMetric({ x: 0.98, y: 0.98 }) };
 }
