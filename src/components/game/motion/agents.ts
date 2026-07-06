@@ -4,7 +4,9 @@ import { POSITIONS, type Position } from '@/types/roster';
 import type { SimTeamSide } from '@/types/sim';
 import { toMetric, type Vec } from './vec';
 import { buildFormation, type Formation } from './formation';
-import type { MotionInput, OffRole, PossessionScript } from './types';
+import { inbounderPos, startType } from './start';
+import { norm01 } from './composite';
+import type { CoachIdentity, MotionPlayer, MotionInput, OffRole, PossessionScript } from './types';
 
 /**
  * Builds the ten point-mass agents for one possession from the script + formation.
@@ -45,12 +47,32 @@ export interface SimAgent {
   /** The finisher on a rim attack (drive/layup/dunk): in the action beat it seeks the
    *  rim with a burst (no arrive-decelerate) so the drive reads as an attacking blow-by. */
   attackBurst?: boolean;
+  /** The inbound trailer (a made-basket inbounder): it fills BEHIND the ball and is exempt
+   *  from the bring-up speed floor, so it lags the play instead of racing ahead. */
+  isTrailer?: boolean;
+  /** The on-ball bring-up handler: it stays LIVE (a probe dribble) through the set rather
+   *  than hard-planting, with the probe amplitude scaled by `probeScale`. */
+  liveHandler?: boolean;
+  /** 0..1 how actively the live handler probes (ball-dominant/creator/athlete => higher). */
+  probeScale?: number;
+  /** Defense: 0..1 how much this defender LEADS his man's motion (iq/read quality), so a
+   *  smart defender anticipates and stays in front instead of trailing the live position. */
+  anticipation?: number;
   frames: { atMs: number; frac: Frac }[];
 }
 
 /** Actions that finish AT the rim off an attacking move (the finisher bursts). */
 export function isRimAttack(action: string): boolean {
   return action === 'drive' || action === 'layup' || action === 'dunk';
+}
+
+/** How actively the on-ball handler probes in the set (0 = quick into the set, still;
+ *  1 = a ball-dominant creator working the dribble). Ratings/coach-driven per the user. */
+function probeScaleFor(player: MotionPlayer, coach: CoachIdentity, isStar: boolean): number {
+  let s = 0.3 * player.tendency.onBall + 0.35 * norm01(player.stats.playmaking) + 0.15 * norm01(player.stats.athleticism);
+  if (coach.usage === 'star' && isStar) s += 0.2; // the offense runs through him
+  if (coach.usage === 'egalitarian') s -= 0.08; // quicker into the flow of the set
+  return Math.max(0, Math.min(1, s));
 }
 
 /** When each offensive role leaves its base (screener sets late, at the action). */
@@ -82,6 +104,11 @@ export function buildAgents(
 ): BuiltAgents {
   const { ctx, shotSpot, event } = input;
   const { offense, defense, offSide, defSide } = ctx;
+  // The on-ball bring-up handler (initiator if assisted, else the finisher) stays live.
+  const handlerPos = findRole(script.offRoles, 'initiator') ?? event.scorerPosition;
+  // On a made-basket inbound, the inbounder trails the play; give it a trailing spot.
+  const isInbound = startType(input.prevEvent, event) === 'inbound';
+  const trailerPos = isInbound ? inbounderPos(script.offRoles) : undefined;
   const formation = buildFormation(
     script.offRoles,
     event.scorerPosition,
@@ -89,7 +116,8 @@ export function buildAgents(
     shotSpot,
     offSide,
     script.action,
-    event.action
+    event.action,
+    trailerPos
   );
 
   const agents: SimAgent[] = [];
@@ -104,6 +132,8 @@ export function buildAgents(
     const resetTo = resetPositions[key] ?? base;
     const spots = formation.spots[pos];
     const hint = offense.five[pos].hint;
+    const isTrailer = pos === trailerPos;
+    const liveHandler = pos === handlerPos;
     const agent: SimAgent = {
       key,
       side: offSide,
@@ -115,14 +145,18 @@ export function buildAgents(
       role,
       setSpot: spots.setSpot,
       actionSpot: spots.actionSpot,
-      // A carried-over break spawn is already up the floor, so it moves immediately.
-      startMoveFrac: startPositions[key] ? 0 : offStartFrac(role),
+      // A carried-over break spawn is already up the floor, so it moves immediately; the
+      // inbound trailer instead holds at the baseline a beat (it inbounds) before trailing.
+      startMoveFrac: isTrailer ? 0.14 : startPositions[key] ? 0 : offStartFrac(role),
       maxSpeed: BASE_SPEED * hint.speed,
       maxAccel: BASE_ACCEL * hint.accel,
       pos: toMetric(spawn),
       vel: { x: 0, y: 0 },
       planted: false,
       attackBurst: pos === event.scorerPosition && isRimAttack(event.action),
+      isTrailer,
+      liveHandler,
+      probeScale: liveHandler ? probeScaleFor(offense.five[pos], offense.coach, pos === offense.starPos) : undefined,
       frames: [],
     };
     agents.push(agent);
@@ -151,6 +185,7 @@ export function buildAgents(
       pos: toMetric(spawn),
       vel: { x: 0, y: 0 },
       planted: false,
+      anticipation: hint.readQuality,
       frames: [],
     };
     agents.push(agent);

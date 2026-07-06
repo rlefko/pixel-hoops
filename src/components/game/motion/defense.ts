@@ -88,6 +88,16 @@ export function sampleDefense(
   let helpDepth = 0.33;
   if (coach.prefFocus === 'lockdown' || defense.archetype === 'grit-and-grind') helpDepth = 0.5;
   else if (defense.archetype === 'pace-and-space' || coach.prefFocus === 'outside') helpDepth = 0.25;
+  // On-ball / deny pressure: lockdown coaches + grit/switchy archetypes + strong perimeter D
+  // pick up tight at the arc; a poor defensive team sags. Drives #3 (arc pickup) + #5 (in front).
+  let ballPressure = 0.4;
+  if (coach.prefFocus === 'lockdown') ballPressure += 0.3;
+  if (defense.archetype === 'grit-and-grind') ballPressure += 0.2;
+  else if (defense.archetype === 'pace-and-space') ballPressure += 0.1; // switchy, up in stances
+  if (coach.prefPace === 'fast') ballPressure += 0.1; // pressure-and-run
+  ballPressure += 0.3 * (norm01(meanStat(defense, 'perimeterD')) - 0.4);
+  ballPressure += 0.15 * (norm01(meanStat(defense, 'athleticism')) - 0.4);
+  ballPressure = Math.max(0, Math.min(1, ballPressure));
   const tagRoller = (action === 'pnr' || action === 'pnp') && (coverage === 'drop' || coverage === 'hedge');
-  return { scheme, coverage, helpDepth, tagRoller };
+  return { scheme, coverage, helpDepth, ballPressure, tagRoller };
 }

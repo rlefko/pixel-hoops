@@ -138,6 +138,9 @@ export interface DefensePlan {
   coverage: Coverage;
   /** Ball-you-man help depth (0.25 tight to shooters .. 0.5 deep help) per off defender. */
   helpDepth: number;
+  /** 0..1 on-ball / deny pressure (coach + archetype + perimeter D): how tightly one-pass-away
+   *  defenders deny at the arc and how hard the on-ball defender picks up. */
+  ballPressure: number;
   tagRoller: boolean;
 }
 
