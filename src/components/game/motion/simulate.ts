@@ -22,7 +22,7 @@ const ACTION_START_HALF = 0.62; // fraction of preShot when the action beat begi
 const ACTION_START_TRANS = 0.45;
 const SLOW_R = 0.14; // metric arrive-slowdown radius (plant, not overshoot)
 const STOP_R = 0.045; // within this of the target, SNAP and plant (dead-still hold)
-const TARGET_EPS = 0.03; // a target move bigger than this un-plants the agent
+const RE_ENGAGE = 0.11; // planted agent un-plants once its target drifts this far from it
 const ADVANCE_FLOOR = 0.78; // min offense speed while bringing it up, so slow bigs keep pace
 const ON_BALL_TIGHT = 0.1; // on-ball defender sits this far off his man toward the rim
 const CONTEST_TIGHT = 0.13; // closeout into the shooter's airspace
@@ -155,8 +155,11 @@ export function simulate(
   // (within STOP_R) it SNAPS to the target, zeros velocity, and holds dead-still with
   // no steering until its target moves (TARGET_EPS) - genuine stillness, not drift.
   const stepAgent = (a: SimAgent, target: Vec, sameTeam: SimAgent[], t: number, agentBox: { min: Vec; max: Vec }, maxSpeed: number) => {
-    if (!a.lastTarget || dist(target, a.lastTarget) > TARGET_EPS) a.planted = false;
-    a.lastTarget = target;
+    // Un-plant when the target drifts RE_ENGAGE from where the agent PLANTED (not from
+    // the last step): a target creeping away slowly (a defender's man moving at a normal
+    // clip, < STOP_R per step) still eventually pulls the agent off its spot. The
+    // hysteresis (RE_ENGAGE > STOP_R) stops plant/un-plant flip-flop.
+    if (a.planted && dist(target, a.pos) > RE_ENGAGE) a.planted = false;
     if (!a.planted) {
       const steer = blend(a, target, sameTeam, agentBox, maxSpeed);
       const k = integrate(a.pos, a.vel, steer, a.maxAccel * DT_SEC, maxSpeed, DT_SEC);

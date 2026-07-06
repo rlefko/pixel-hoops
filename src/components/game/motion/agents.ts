@@ -39,11 +39,9 @@ export interface SimAgent {
   pos: Vec;
   vel: Vec;
   /** True once the agent has arrived and planted at its target; it holds dead-still
-   *  (no steering) until its target moves. This is the explicit IDLE state that gives
-   *  real basketball stillness instead of perpetual micro-drift. */
+   *  (no steering) until its target drifts away. This is the explicit IDLE state that
+   *  gives real basketball stillness instead of perpetual micro-drift. */
   planted: boolean;
-  /** The target the agent last chased, to detect when it changes (unplant). */
-  lastTarget?: Vec;
   frames: { atMs: number; frac: Frac }[];
 }
 
