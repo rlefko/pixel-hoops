@@ -3,6 +3,7 @@ import { POSITIONS, type Position } from '@/types/roster';
 import { assignOffRoles, defaultMatchup } from './roles';
 import { sampleAction, sampleCuts, sampleFamily } from './sampler';
 import { sampleDefense } from './defense';
+import { inbounderRole, startType } from './start';
 import type {
   MotionInput,
   OffRole,
@@ -24,22 +25,33 @@ function posOfRole(offRoles: Record<Position, OffRole>, role: OffRole): Position
   return POSITIONS.find((p) => offRoles[p] === role);
 }
 
-/** The ball script: which role holds/passes when. The last touch ends at the finisher. */
+/** The ball script: which role holds/passes when. The last touch ends at the finisher.
+ *  On an inbound start, a trailing big inbounds the ball from the baseline first. */
 function buildTouches(
   action: PlayAction,
   offRoles: Record<Position, OffRole>,
   hasInitiator: boolean,
-  sa: string
+  sa: string,
+  inbound: boolean
 ): ScriptTouch[] {
+  const handler: OffRole = hasInitiator ? 'initiator' : 'finisher';
+  const inbRole = inbound ? inbounderRole(offRoles) : undefined;
+  // The inbound pass (from the baseline inbounder to the handler) opens the possession.
+  const lead: ScriptTouch[] =
+    inbRole && inbRole !== handler ? [{ fromRole: inbRole, toRole: handler, kind: 'pass', startFrac: 0, endFrac: 0.05 }] : [];
+  const carryStart = lead.length ? 0.05 : 0;
+
   if (!hasInitiator) {
-    // Unassisted: the finisher creates and finishes off the dribble.
-    return [{ fromRole: 'finisher', toRole: 'finisher', kind: 'carry', startFrac: 0, endFrac: 1 }];
+    // Unassisted: the finisher creates and finishes off the dribble (after any inbound).
+    return [...lead, { fromRole: 'finisher', toRole: 'finisher', kind: 'carry', startFrac: carryStart, endFrac: 1 }];
   }
   const finalKind: ScriptTouch['kind'] = action === 'dho' ? 'handoff' : sa === 'dunk' ? 'lob' : 'pass';
   const swingRole: OffRole | undefined = posOfRole(offRoles, 'wing') ? 'wing' : posOfRole(offRoles, 'corner') ? 'corner' : undefined;
   const offBall = action === 'spotUp' || action === 'pindown' || action === 'floppy' || action === 'flare' || action === 'motion';
-  if (offBall && swingRole) {
-    // A reversal moves the defense before the creator hits the relocating shooter.
+  // The ball can carry at most 4 legs (renderer cap). A reversal (4 legs) only runs
+  // when there is no inbound to spend one of them on; with an inbound the off-ball
+  // play trims to bring-up + the credited pass.
+  if (offBall && swingRole && !lead.length) {
     return [
       { fromRole: 'initiator', toRole: 'initiator', kind: 'carry', startFrac: 0, endFrac: 0.34 },
       { fromRole: 'initiator', toRole: swingRole, kind: 'pass', startFrac: 0.34, endFrac: 0.44 },
@@ -47,9 +59,10 @@ function buildTouches(
       { fromRole: 'initiator', toRole: 'finisher', kind: finalKind, startFrac: 0.84, endFrac: 1 },
     ];
   }
-  // Screen / drive-kick: bring it up, run the action, deliver the assist.
+  // Screen / drive-kick (or an inbounded off-ball play): bring it up, deliver the assist.
   return [
-    { fromRole: 'initiator', toRole: 'initiator', kind: 'carry', startFrac: 0, endFrac: 0.74 },
+    ...lead,
+    { fromRole: 'initiator', toRole: 'initiator', kind: 'carry', startFrac: carryStart, endFrac: 0.74 },
     { fromRole: 'initiator', toRole: 'finisher', kind: finalKind, startFrac: 0.84, endFrac: 1 },
   ];
 }
@@ -80,7 +93,8 @@ export function sampleScript(input: MotionInput): PossessionScript {
   }
 
   const cuts = sampleCuts(action, offense, offRoles, finisher, initiator, rng);
-  const touches = buildTouches(action, offRoles, !!initiator, event.action);
+  const inbound = startType(prevEvent, event) === 'inbound';
+  const touches = buildTouches(action, offRoles, !!initiator, event.action, inbound);
 
   return { family, action, offRoles, matchup, cuts, touches, defense: def, contest };
 }

@@ -23,6 +23,7 @@ const ACTION_START_TRANS = 0.45;
 const SLOW_R = 0.14; // metric arrive-slowdown radius (plant, not overshoot)
 const STOP_R = 0.045; // within this of the target, SNAP and plant (dead-still hold)
 const TARGET_EPS = 0.03; // a target move bigger than this un-plants the agent
+const ADVANCE_FLOOR = 0.78; // min offense speed while bringing it up, so slow bigs keep pace
 const ON_BALL_TIGHT = 0.1; // on-ball defender sits this far off his man toward the rim
 const CONTEST_TIGHT = 0.13; // closeout into the shooter's airspace
 
@@ -153,12 +154,12 @@ export function simulate(
   // Advance one agent one step, honoring the IDLE/planted state: once it arrives
   // (within STOP_R) it SNAPS to the target, zeros velocity, and holds dead-still with
   // no steering until its target moves (TARGET_EPS) - genuine stillness, not drift.
-  const stepAgent = (a: SimAgent, target: Vec, sameTeam: SimAgent[], t: number, agentBox: { min: Vec; max: Vec }) => {
+  const stepAgent = (a: SimAgent, target: Vec, sameTeam: SimAgent[], t: number, agentBox: { min: Vec; max: Vec }, maxSpeed: number) => {
     if (!a.lastTarget || dist(target, a.lastTarget) > TARGET_EPS) a.planted = false;
     a.lastTarget = target;
     if (!a.planted) {
-      const steer = blend(a, target, sameTeam, agentBox);
-      const k = integrate(a.pos, a.vel, steer, a.maxAccel * DT_SEC, a.maxSpeed, DT_SEC);
+      const steer = blend(a, target, sameTeam, agentBox, maxSpeed);
+      const k = integrate(a.pos, a.vel, steer, a.maxAccel * DT_SEC, maxSpeed, DT_SEC);
       a.pos = k.pos;
       a.vel = k.vel;
       if (dist(a.pos, target) < STOP_R) {
@@ -182,9 +183,18 @@ export function simulate(
     const ballM = holderAgent ? holderAgent.pos : shotSpotM;
     ballHolders.push({ atMs: t, holderRole: holder });
 
+    // Players run FASTER while getting up (or back down) the floor than in a set, so
+    // slow bigs keep pace and defenders sprint back on a break.
+    const traveling = frac < actionStart || t >= holdUntil;
     // Offense first, so defenders react to updated positions this step.
-    for (const a of offAgents) stepAgent(a, offTargetSpot(a, t, frac, ballM), offAgents, t, box);
-    for (const a of defAgents) stepAgent(a, defTargetSpot(a, t, frac, ballM, a.guards === holderPos), defAgents, t, defBox);
+    for (const a of offAgents) {
+      const spd = traveling ? Math.max(a.maxSpeed, ADVANCE_FLOOR) : a.maxSpeed;
+      stepAgent(a, offTargetSpot(a, t, frac, ballM), offAgents, t, box, spd);
+    }
+    for (const a of defAgents) {
+      const spd = traveling ? Math.max(a.maxSpeed, ADVANCE_FLOOR) : a.maxSpeed;
+      stepAgent(a, defTargetSpot(a, t, frac, ballM, a.guards === holderPos), defAgents, t, defBox, spd);
+    }
     if (t >= totalMs) break;
   }
 
@@ -192,11 +202,11 @@ export function simulate(
 }
 
 /** Weighted blend: arrive at the target + separation from teammates + containment. */
-function blend(a: SimAgent, target: Vec, sameTeam: SimAgent[], box: { min: Vec; max: Vec }): Vec {
-  const primary = arrive(a.pos, a.vel, target, a.maxSpeed, SLOW_R);
+function blend(a: SimAgent, target: Vec, sameTeam: SimAgent[], box: { min: Vec; max: Vec }, maxSpeed: number): Vec {
+  const primary = arrive(a.pos, a.vel, target, maxSpeed, SLOW_R);
   const others: Vec[] = [];
   for (const o of sameTeam) if (o !== a) others.push(o.pos);
-  const sep = separation(a.pos, others, 0.14, a.maxSpeed);
-  const con = containment(a.pos, box.min, box.max, a.maxSpeed);
+  const sep = separation(a.pos, others, 0.14, maxSpeed);
+  const con = containment(a.pos, box.min, box.max, maxSpeed);
   return add(add(primary, scale(sep, 0.35)), scale(con, 0.25));
 }

@@ -105,9 +105,9 @@ describe('buildPossessionPlan', () => {
     expect(assisted.ball.legs.filter((l) => l.kind === 'pass' || l.kind === 'handoff' || l.kind === 'lob').length).toBeGreaterThanOrEqual(1);
     expect(['pass', 'handoff', 'lob']).toContain(assisted.ball.legs[assisted.ball.legs.length - 1].kind);
 
-    // A pure iso (unassisted) is carry-only — a true isolation.
+    // A pure iso (unassisted) finishes on a carry — no phantom assist (an opening
+    // inbound pass may precede it, but the shot is created off the dribble).
     const pureIso = buildPossessionPlan(makeEvent({ action: 'midrange', seq: 9 }), 'full', false);
-    expect(pureIso.ball.legs.every((l) => l.kind === 'carry')).toBe(true);
     expect(pureIso.ball.legs[pureIso.ball.legs.length - 1].kind).toBe('carry');
   });
 
@@ -215,7 +215,7 @@ describe('motion engine: outcome-faithful + deterministic', () => {
     const assisted = buildPossessionPlan(makeEvent({ action: 'three', assist: { name: 'x', position: 'PG' } }), 'full', false);
     expect(['pass', 'handoff', 'lob']).toContain(assisted.ball.legs[assisted.ball.legs.length - 1].kind);
     const iso = buildPossessionPlan(makeEvent({ action: 'midrange', seq: 9 }), 'full', false);
-    expect(iso.ball.legs.every((l) => l.kind === 'carry')).toBe(true);
+    expect(iso.ball.legs[iso.ball.legs.length - 1].kind).toBe('carry'); // finishes on a carry
   });
 
   it('every offensive player has traveled up into the front court by the shot', () => {

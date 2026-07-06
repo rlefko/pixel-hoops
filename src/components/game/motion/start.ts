@@ -1,7 +1,8 @@
 import { attackFrac } from '../courtGeometry';
 import { spriteKey, type Frac, type SpriteKey } from '../courtMath';
-import { POSITIONS } from '@/types/roster';
+import { POSITIONS, type Position } from '@/types/roster';
 import { isMadeShot, type SimEvent, type SimTeamSide } from '@/types/sim';
+import type { OffRole } from './types';
 
 /**
  * Possession-start machine + cross-possession continuity. How a possession begins is
@@ -64,4 +65,20 @@ export function boundaryState(a: SimEvent | undefined, b: SimEvent | undefined):
     out[spriteKey(def, pos)] = attackFrac(off, defSpot[pos][0], defSpot[pos][1]);
   }
   return out;
+}
+
+/** The role that inbounds the ball after a made basket (a trailing big, else a wing). */
+export function inbounderRole(offRoles: Record<Position, OffRole>): OffRole | undefined {
+  if (POSITIONS.some((p) => offRoles[p] === 'big')) return 'big';
+  if (POSITIONS.some((p) => offRoles[p] === 'corner')) return 'corner';
+  return undefined;
+}
+
+/** The inbounder starts out of bounds at the offense's own baseline (deep backcourt)
+ *  and becomes the trailer. Returns a spawn override for just that sprite. */
+export function inboundSpawn(offSide: SimTeamSide, offRoles: Record<Position, OffRole>): Partial<Record<SpriteKey, Frac>> {
+  const role = inbounderRole(offRoles);
+  const pos = role ? POSITIONS.find((p) => offRoles[p] === role) : undefined;
+  if (!pos) return {};
+  return { [spriteKey(offSide, pos)]: attackFrac(offSide, 0.5, 0.03) };
 }
