@@ -258,6 +258,7 @@ export function signatureFor(legend: RealPlayer): SignatureChallenge {
 // dataset is static for a session).
 let catalog: readonly SignatureChallenge[] | null = null;
 let byKey: Map<string, SignatureChallenge> | null = null;
+let legendIndex: Map<string, RealPlayer> | null = null;
 
 /** Every legend's signature challenge, in the dataset's order. */
 export function allSignatureChallenges(): readonly SignatureChallenge[] {
@@ -271,6 +272,55 @@ export function signatureByKey(key: string): SignatureChallenge | undefined {
     byKey = new Map(allSignatureChallenges().map((ch) => [ch.legendKey, ch]));
   }
   return byKey.get(key);
+}
+
+/** The baked legend behind a collection key (for building a card at a settle
+ * where the legend is no longer on the squad, e.g. cut after earning a mark). */
+export function legendByKey(key: string): RealPlayer | undefined {
+  if (!legendIndex) {
+    legendIndex = new Map(NBA_LEGENDS.map((l) => [nameKey(l.name, l.position), l]));
+  }
+  return legendIndex.get(key);
+}
+
+// --- The Signature Card: two one-time marks, in any order, across any runs ---
+
+export type SignatureMarkKind = 'moment' | 'title';
+
+/** One mark earned during a run (run-scoped; banks at the terminal settle). */
+export interface SignatureMark {
+  legendKey: string;
+  mark: SignatureMarkKind;
+}
+
+/** The persisted card ledger: the difficulty each earned mark was proven at
+ * (marks never revoke; a completed card signs the legend and leaves the ledger). */
+export type SignatureLedger = Record<string, Partial<Record<SignatureMarkKind, Difficulty>>>;
+
+/** Both marks earned = the legend signs. */
+export function signatureComplete(card: SignatureLedger[string] | undefined): boolean {
+  return !!card?.moment && !!card?.title;
+}
+
+/** Restore a persisted card ledger: keep marks that name a real legend and a real
+ * difficulty, drop entries for owned legends (their chase is complete: the favor
+ * hygiene rule), degrade garbage to empty. */
+export function sanitizeSignatures(raw: unknown, owned: ReadonlySet<string>): SignatureLedger {
+  if (!raw || typeof raw !== 'object') return {};
+  const out: SignatureLedger = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (owned.has(key) || !signatureByKey(key)) continue;
+    if (!value || typeof value !== 'object') continue;
+    const card: SignatureLedger[string] = {};
+    for (const mark of ['moment', 'title'] as const) {
+      const d = (value as Record<string, unknown>)[mark];
+      if (typeof d === 'string' && (DIFFICULTIES as readonly string[]).includes(d)) {
+        card[mark] = d as Difficulty;
+      }
+    }
+    if (card.moment || card.title) out[key] = card;
+  }
+  return out;
 }
 
 // --- Evaluation ---

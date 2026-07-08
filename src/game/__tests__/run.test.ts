@@ -1841,6 +1841,92 @@ describe('legacy accrual (win-earned, fielded, at-class only)', () => {
     expect(play()).toEqual(play());
   });
 
+  it('signature marks: the title stamps on a floored championship, never below', () => {
+    const startedAt = (seed: string, difficulty: 'easy' | 'medium', ladder: 'A' | 'S') => {
+      const home = { ...rookie(seed), selectedDifficulty: difficulty, selectedLadderClass: ladder } as HomeRoster;
+      const m = initRun(seed, home);
+      if (m.phase.kind !== 'draft') return m;
+      return runReducer(m, {
+        type: 'confirmDraft',
+        starters: m.phase.defaultStarters,
+        bench: m.phase.defaultBench,
+      })!;
+    };
+    const lebron = NBA_LEGENDS.find((l) => l.slug === 'lebron-james')!;
+    const legend = { ...realPlayerToRosterPlayer(lebron), onLoan: true };
+    const legendKey = `${legend.player.name}|${legend.position}`;
+    const finaleWith = (difficulty: 'easy' | 'medium', ladder: 'A' | 'S') => {
+      const base = inject(startedAt(`sig-title-${difficulty}-${ladder}`, difficulty, ladder), combat({ type: 'boss' }));
+      const slot = base.core.roster.starters.findIndex((p) => p.position === legend.position);
+      const starters = base.core.roster.starters.map((p, i) => (i === slot ? legend : p));
+      const finale = {
+        ...base,
+        core: {
+          ...base.core,
+          currentMapIndex: TOTAL_MAPS - 1,
+          roster: { starters, bench: base.core.roster.bench },
+        },
+      };
+      return runReducer(playedPostgame(finale, 'g1', true), { type: 'resolveGameResult' })!;
+    };
+    // A medium S-ladder championship (LeBron is Tier I: floor medium) stamps the title.
+    const crowned = finaleWith('medium', 'S');
+    expect(crowned.phase).toEqual({ kind: 'summary', champion: true });
+    expect(crowned.signatureProgress).toContainEqual({ legendKey, mark: 'title' });
+    // Easy never counts, and neither does a non-S ladder.
+    expect(finaleWith('easy', 'S').signatureProgress ?? []).toEqual([]);
+    expect(
+      (finaleWith('medium', 'A').signatureProgress ?? []).some((m) => m.mark === 'title')
+    ).toBe(false);
+    // The legacy valve: a suspended pre-update run never starts tracking marks.
+    const base = inject(startedAt('sig-valve', 'medium', 'S'), combat({ type: 'boss' }));
+    const legacyRun = { ...base, signatureProgress: undefined };
+    const resolved = runReducer(playedPostgame(legacyRun, 'g1', true), { type: 'resolveGameResult' })!;
+    expect(resolved.signatureProgress).toBeUndefined();
+  });
+
+  it('signature marks: a fielded legend`s moment lands off a real box line', () => {
+    const startedAt = (seed: string) => {
+      const home = { ...rookie(seed), selectedDifficulty: 'medium', selectedLadderClass: 'S' } as HomeRoster;
+      const m = initRun(seed, home);
+      if (m.phase.kind !== 'draft') return m;
+      return runReducer(m, {
+        type: 'confirmDraft',
+        starters: m.phase.defaultStarters,
+        bench: m.phase.defaultBench,
+      })!;
+    };
+    const lebron = NBA_LEGENDS.find((l) => l.slug === 'lebron-james')!;
+    const legend = { ...realPlayerToRosterPlayer(lebron), onLoan: true };
+    const legendKey = `${legend.player.name}|${legend.position}`;
+    const playWith = (seed: string) => {
+      const base = inject(startedAt(seed), combat({}));
+      const slot = base.core.roster.starters.findIndex((p) => p.position === legend.position);
+      const starters = base.core.roster.starters.map((p, i) => (i === slot ? legend : p));
+      const withLegend = {
+        ...base,
+        core: { ...base.core, roster: { starters, bench: base.core.roster.bench } },
+      };
+      return runReducer(playedPostgame(withLegend, 'g1', true), { type: 'resolveGameResult' })!;
+    };
+    // Across seeds, a featured LeBron drops 21 sometimes but not always: the mark
+    // must appear exactly when his box line clears the bar (a real chance, not a gift).
+    const seeds = Array.from({ length: 24 }, (_, i) => `sig-moment-${i}`);
+    const outcomes = seeds.map((s) => {
+      const done = playWith(s);
+      const hit = (done.signatureProgress ?? []).some(
+        (m) => m.legendKey === legendKey && m.mark === 'moment'
+      );
+      return hit;
+    });
+    expect(outcomes.some(Boolean)).toBe(true);
+    expect(outcomes.every(Boolean)).toBe(false);
+    // Deterministic: the same seed reproduces the same marks.
+    expect(playWith('sig-moment-0').signatureProgress).toEqual(
+      playWith('sig-moment-0').signatureProgress
+    );
+  });
+
   it('icon perks: FILM ROOM pays +1 boss TP and MENTOR sweetens the favor', () => {
     const boss = inject(started('leg-6'), combat({ type: 'boss' }));
     // Stamp a perk onto the first starter (starters always log minutes). The perk

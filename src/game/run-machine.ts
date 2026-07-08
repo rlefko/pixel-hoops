@@ -53,6 +53,12 @@ import {
   type LegacyGameCredit,
   type LegacyLedger,
 } from './legacy';
+import {
+  meetsSignatureFloor,
+  momentMet,
+  signatureByKey,
+  type SignatureMark,
+} from './signature';
 import { mvpIndex } from './box-score';
 import { playerDraftClass } from './draft';
 import {
@@ -220,6 +226,12 @@ export interface RunModel {
    * Accrues on WON games only (favor's rule) and banks at the terminal settle for the
    * players owned before the merge. Optional: old suspended runs default to {}. */
   legacy?: LegacyLedger;
+  /** SIGNATURE marks earned this run by fielded on-loan legends (moment conditions
+   * hit, title games played), banked into the home card ledger at the terminal
+   * settle, win or lose. Optional AND meaningful when absent: a run suspended
+   * before this system shipped stays undefined and keeps the old auto-sign promise
+   * at its settle (the legacy valve in home-roster.settleDeposits). */
+  signatureProgress?: SignatureMark[];
   /** Recruit nodes in a row without a specialist offered; pity forces one in once
    * it reaches RECRUIT_PITY_THRESHOLD so a specialist build is always reachable. */
   recruitDryStreak: number;
@@ -358,6 +370,7 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     favor: {},
     homeFavor: { ...homeRoster.favor },
     legacy: {},
+    signatureProgress: [],
     recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
     forgivenLosses: 0,
@@ -487,6 +500,54 @@ function legacyGameCredits(
       mvp: p.player.name === mvpName,
       title: isChampionship,
     }));
+}
+
+/**
+ * Advance the run's SIGNATURE marks off a just-WON game: a fielded legend whose
+ * bespoke condition landed earns their MOMENT, and the championship win earns
+ * CHAMPIONSHIP TOGETHER for every fielded legend meeting their floor. One mark of
+ * each kind per legend per run (the settle dedupes against the home ledger too).
+ * A legacy suspended run (progress undefined) stays undefined, preserving its
+ * old auto-sign promise at settle; losses never call this.
+ */
+function advanceSignatureMarks(
+  model: RunModel,
+  roster: RunState['roster'],
+  nodeType: 'game' | 'elite' | 'boss',
+  isChampionship: boolean
+): SignatureMark[] | undefined {
+  const prior = model.signatureProgress;
+  if (!prior || !model.game) return prior;
+  const box = model.game.result.box.home;
+  const have = new Set(prior.map((m) => `${m.legendKey}|${m.mark}`));
+  const next: SignatureMark[] = [];
+  for (const p of [...roster.starters, ...roster.bench]) {
+    const key = nameKey(p.player.name, p.position);
+    const challenge = signatureByKey(key);
+    if (!challenge) continue;
+    const line = box.find((l) => l.name === p.player.name);
+    if (!line || line.seconds <= 0) continue;
+    if (
+      !have.has(`${key}|moment`) &&
+      momentMet(challenge, {
+        difficulty: model.difficulty,
+        ladderClass: model.ladderClass,
+        nodeType,
+        line,
+        events: model.game.result.events,
+      })
+    ) {
+      next.push({ legendKey: key, mark: 'moment' });
+    }
+    if (
+      isChampionship &&
+      !have.has(`${key}|title`) &&
+      meetsSignatureFloor(challenge, model.difficulty, model.ladderClass)
+    ) {
+      next.push({ legendKey: key, mark: 'title' });
+    }
+  }
+  return next.length === 0 ? prior : [...prior, ...next];
 }
 
 /** Icon Perks held by players who logged minutes in the just-simmed game (the
@@ -1285,6 +1346,14 @@ export function runReducer(
         model.legacy ?? {},
         legacyGameCredits(roster, model.game?.result.box.home, model.ladderClass, isChampionship)
       );
+      // Signature marks advance off the same win: a fielded legend's moment, and
+      // the championship's title mark (see signature.ts).
+      const signatureProgress = advanceSignatureMarks(
+        model,
+        roster,
+        isBoss ? 'boss' : node.type === 'elite' ? 'elite' : 'game',
+        isChampionship
+      );
       if (isBoss) {
         if (isChampionship) {
           // The championship clear bonus banks with the final win's coins (as-earned,
@@ -1294,7 +1363,7 @@ export function runReducer(
             ...core,
             rewards: { ...rewards, coins: rewards.coins + model.mods.clearBonus },
           };
-          return { ...model, core: crowned, wins, favor, legacy, phase: { kind: 'summary', champion: true } };
+          return { ...model, core: crowned, wins, favor, legacy, signatureProgress, phase: { kind: 'summary', champion: true } };
         }
         // Boss Legend Signings roll BEFORE the map advances (the chance ramps on the
         // map index just beaten); an offered signing counts as the run's one legend
@@ -1306,6 +1375,7 @@ export function runReducer(
           wins,
           favor,
           legacy,
+          signatureProgress,
           legend: signOffer ? { ...model.legend, offeredThisRun: true } : model.legend,
         });
         // A boss always drops gear (rare / epic / legendary, never common). Beat order:
@@ -1333,7 +1403,7 @@ export function runReducer(
             away: model.game.result.finalAway,
           })
         : core;
-      return { ...model, core: stamped, wins, favor, legacy, phase: { kind: 'map' }, game: null };
+      return { ...model, core: stamped, wins, favor, legacy, signatureProgress, phase: { kind: 'map' }, game: null };
     }
 
     case 'recruit': {
