@@ -523,19 +523,18 @@ export interface RotationPolicy {
   maxPlayers: number;
 }
 
-/** The sim's historical rotation behavior: standard thresholds, no player cap.
- * Used by every opponent and by a no-coach (or rotation-9) home side, so those
- * games stay byte-identical to before coaches existed. */
+/** Default rotation: standard thresholds, 9-player cap.
+ * Used by every opponent and by a no-coach (or rotation-9) home side. */
 export const DEFAULT_ROTATION: RotationPolicy = {
   hardFloor: 28,
   subOutEnergy: 50,
   subInEnergy: 72,
   subOutGoodEnough: 0.9,
-  maxPlayers: 99,
+  maxPlayers: 9,
 };
 
 /** Map a coach's rotation depth to a substitution policy. Rotation 9 (and the
- * starter / no coach) is the uncapped default; 8 tightens, 10 deepens. */
+ * starter / no coach) defaults to 9 players; 8 tightens, 10 deepens. */
 export function rotationForCoach(coach: CoachStyle | null | undefined): RotationPolicy {
   if (!coach || coach.rotation === 9) return DEFAULT_ROTATION;
   if (coach.rotation === 8) {

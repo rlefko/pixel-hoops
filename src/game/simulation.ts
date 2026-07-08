@@ -114,7 +114,7 @@ const SECONDS_PER_QUARTER = 720;
 const DRAIN_BASE = 2.6;
 /** Energy a benched player recovers per possession off the floor (fast enough
  * that a spelled starter is ready to re-enter the same game). */
-const RECOVER = 4;
+const RECOVER = 5;
 /** The ball-handler/scorer works harder, so drains faster. */
 const SCORER_DRAIN_MULT = 1.5;
 // The substitution energy thresholds (soft-out, soft-in, the gassed hard floor, and
@@ -129,7 +129,7 @@ const BLOWOUT_SUB_OUT_BONUS = 18;
 /** Garbage-time rest only kicks in from this quarter on (keep Q1-Q3 honest). */
 const BLOWOUT_QUARTER = 4;
 /** Share of made field goals that are assisted, scaled by team playmaking. */
-const ASSIST_RATE = 0.9;
+const ASSIST_RATE = 0.70;
 
 // --- Play-style event attribution (BBGM/ZenGM pickPlayer-with-power model) ---
 
@@ -140,13 +140,14 @@ const ASSIST_RATE = 0.9;
  * protector at blocking 18 beats a guard at blocking 7 by ~(18/7)^9, so a
  * pass-first guard essentially never records a block. These are the BBGM/ZenGM
  * exponents that reproduce realistic per-position distributions (centers lead
- * blocks/rebounds, quick guards lead steals, the primary creator hoards assists).
+ * blocks/rebounds, quick guards lead steals, the primary creator earns a slight
+ * assist premium while secondary ball handlers realistically share the load).
  */
 const BLOCK_POWER = 8;
 const STEAL_POWER = 4;
 const OREB_POWER = 5;
 const DREB_POWER = 3;
-const ASSIST_POWER = 10;
+const ASSIST_POWER = 5;
 /**
  * Boards skew defensive (~73% of misses), so add this to the defense's rebounding
  * aggregate when splitting offensive vs defensive boards. Tuned (with the team
@@ -886,7 +887,7 @@ export function simulateGame(config: SimConfig): SimResult {
         scorer.box.tpa += 1;
         scorer.box.tpm += 1;
       }
-      const assistP = ASSIST_RATE * (offense.aggregate.playmaking / 20);
+      const assistP = Math.min(0.75, ASSIST_RATE * (offense.aggregate.playmaking / 20));
       const others = offense.onCourt.filter((p) => p !== scorer);
       if (others.length > 0 && rng.chance(assistP)) {
         const assister = pickByPower(others, 'playmaking', ASSIST_POWER);
