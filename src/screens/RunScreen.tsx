@@ -55,6 +55,8 @@ import { RunSummaryView } from '@/components/run/RunSummaryView';
 import { ChampionView } from '@/components/run/ChampionView';
 import { CoachUnlockView } from '@/components/run/CoachUnlockView';
 import { BountyRewardView } from '@/components/run/BountyRewardView';
+import { SignatureFinaleView } from '@/components/run/SignatureFinaleView';
+import { teamAbbrForLegendKey } from '@/game/signature-finale';
 import type { SimResult } from '@/types/sim';
 import { BoxScoreView } from '@/components/run/BoxScoreView';
 import { ClockIcon, CoinIcon } from '@/components/run/PixelIcons';
@@ -178,6 +180,10 @@ export default function RunScreen() {
     );
   }
 
+  const finaleTeamAbbr = model.finaleLegendKey
+    ? (teamAbbrForLegendKey(model.finaleLegendKey) ?? undefined)
+    : undefined;
+
   switch (model.phase.kind) {
     case 'map':
       return (
@@ -193,6 +199,7 @@ export default function RunScreen() {
           onLeave={goMenu}
           onOpenLineup={actions.openLineupBuilder}
           onOpenBag={actions.openBag}
+          finaleTeamAbbr={finaleTeamAbbr}
         />
       );
     case 'draft':
@@ -277,6 +284,18 @@ export default function RunScreen() {
           signLabel="SIGN THE LEGEND"
         />
       );
+    case 'signatureFinale': {
+      // The Signature Finale ceremony: the armed legend's franchise is the final boss.
+      const phase = model.phase;
+      return (
+        <SignatureFinaleView
+          teamAbbr={phase.teamAbbr}
+          difficulty={model.difficulty}
+          ladderClass={model.ladderClass}
+          onContinue={() => actions.signatureFinaleContinue(phase.nodeId)}
+        />
+      );
+    }
     case 'pregame':
       return (
         <Pregame

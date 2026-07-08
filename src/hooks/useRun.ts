@@ -305,6 +305,8 @@ export function useRun() {
       declineLegend: () => dispatch({ type: 'declineLegend' }),
       acceptLegendSign: () => dispatch({ type: 'acceptLegendSign' }),
       declineLegendSign: () => dispatch({ type: 'declineLegendSign' }),
+      signatureFinaleContinue: (nodeId: string) =>
+        dispatch({ type: 'signatureFinaleContinue', nodeId }),
       skipNode: () => dispatch({ type: 'skipNode' }),
       backToMap: () => dispatch({ type: 'backToMap' }),
     }),

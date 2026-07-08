@@ -64,6 +64,7 @@ import {
   signatureByKey,
   type SignatureMark,
 } from './signature';
+import { teamAbbrForLegendKey } from './signature-finale';
 import { mvpIndex } from './box-score';
 import { playerDraftClass } from './draft';
 import {
@@ -183,6 +184,9 @@ export type RunPhase =
   // franchise's legend offers to join on-loan. Chained after the boss item drop;
   // `returnTo` is the next map's boost draft.
   | { kind: 'legendSign'; nodeId: string; offer: RosterPlayer; returnTo: RunPhase }
+  // The Signature Finale: the armed legend's franchise is the championship boss.
+  // A dramatic ceremony screen plays before the title game.
+  | { kind: 'signatureFinale'; nodeId: string; teamAbbr: string }
   | { kind: 'lineup'; returnTo: RunPhase }
   // The item bag: equip stored items onto players or unequip held ones back.
   | { kind: 'bag'; returnTo: RunPhase }
@@ -252,8 +256,11 @@ export interface RunModel {
    * draw toward epic+ (run-scoped pity, capped at PITY_MAX). Separate from the
    * persistent legendary-PLAYER pity in legend.dryStreak. */
   boostPity: number;
-  /** Active game context, set on enterGame and read in game/postgame. */
-  game: ActiveGame | null;
+   /** Active game context, set on enterGame and read in game/postgame. */
+   game: ActiveGame | null;
+   /** Signature Finale: the armed legend's key, set at initRun if a trial pin is active.
+    * Optional for backward compat with suspended runs (undefined = no finale, normal championship). */
+   finaleLegendKey?: string;
 }
 
 /** The full simulated game context: the timeline plus both built Teams. Large and
@@ -309,6 +316,7 @@ export type RunAction =
   | { type: 'declineLegend' }
   | { type: 'acceptLegendSign' }
   | { type: 'declineLegendSign' }
+  | { type: 'signatureFinaleContinue'; nodeId: string }
   | { type: 'skipNode' }
   | { type: 'backToMap' };
 
@@ -387,8 +395,9 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     forgivenLosses: 0,
     banishedBoosts: [],
     boostPity: 0,
-    game: null,
-  };
+     game: null,
+     finaleLegendKey: homeRoster.scoutTargets?.legendary ?? undefined,
+   };
 }
 
 /** Run-scoped banish cap: one per map across a 7-map run is generous but bounded,
@@ -971,11 +980,19 @@ function enterNode(model: RunModel, nodeId: string): RunModel {
   switch (node.type) {
     case 'game':
     case 'elite':
-    case 'boss':
+    case 'boss': {
+      // Signature Finale: if this is the championship boss AND a trial pin is armed,
+      // show the finale ceremony before the pregame.
+      const isChampionshipBoss = node.type === 'boss' && nodeId === core.map.bossNodeId;
+      if (isChampionshipBoss && model.finaleLegendKey) {
+        const teamAbbr = teamAbbrForLegendKey(model.finaleLegendKey) ?? '';
+        return { ...model, core, phase: { kind: 'signatureFinale', nodeId, teamAbbr } };
+      }
       // Just the phase flip: the coach's matchup scout (computeCoachRec) is heavy, so
       // useRun schedules it after this tap's frame commits and lands it via
       // setCoachRec. `coachRec` stays undefined here, meaning "not computed yet".
       return { ...model, core, phase: { kind: 'pregame', nodeId } };
+    }
     case 'recruit': {
       const owned = new Set(
         [...core.roster.starters, ...core.roster.bench].map((p) => p.player.name)
@@ -1656,6 +1673,11 @@ export function runReducer(
     case 'declineLegendSign': {
       if (model.phase.kind !== 'legendSign') return model;
       return { ...model, phase: model.phase.returnTo };
+    }
+
+    case 'signatureFinaleContinue': {
+      if (model.phase.kind !== 'signatureFinale') return model;
+      return { ...model, phase: { kind: 'pregame', nodeId: action.nodeId } };
     }
 
     case 'skipNode':

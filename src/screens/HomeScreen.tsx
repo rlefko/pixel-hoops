@@ -46,6 +46,12 @@ import { ARCADE_UNLOCK_COINS } from '@/game/teach';
 import { useDayKey } from '@/hooks/useDayKey';
 import { useHubDeltas } from '@/hooks/useHubDeltas';
 import { useHubUnlocks } from '@/hooks/useHubUnlocks';
+import {
+  spotlightLegend,
+  isSpotlightClaimed as isLegendSpotlightClaimed,
+  claimSpotlight,
+} from '@/game/legend-spotlight';
+import { LegendSpotlightCard } from '@/components/home/LegendSpotlightCard';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /** A hub tile that has not been earned yet: dim, lock-iconed, and honest about
@@ -391,6 +397,30 @@ export default function HomeScreen() {
             }
             onPlaySpotlight={playSpotlight}
           />
+        </StaggerIn>
+      ) : null}
+
+      {loaded && homeRoster && stages.hallOfFame ? (
+        <StaggerIn index={1} style={styles.dailyWrap}>
+          {(() => {
+            const result = spotlightLegend(day, homeRoster);
+            const claimed = isLegendSpotlightClaimed(homeRoster, day);
+            if (!result) return null;
+            return (
+              <LegendSpotlightCard
+                result={result}
+                claimed={claimed}
+                onPlay={() =>
+                  nav.push({ pathname: '/run', params: { mode: 'new' } }, 'run')
+                }
+                onClaim={() => {
+                  const updated = claimSpotlight(homeRoster, day);
+                  saveHomeRoster(updated);
+                }}
+                attract={!idle}
+              />
+            );
+          })()}
         </StaggerIn>
       ) : null}
 

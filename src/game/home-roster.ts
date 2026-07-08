@@ -218,8 +218,10 @@ export interface HomeRoster {
    * compatibility only: unrelated to the LEGACY career ledger above. */
   legacyGates?: PlayerGachaTier[];
   /** LEGEND VOUCHERS held: each redeems one free Legacy Contract (the insane:S
-   * bounty's one-time reward). Spent by buyLegacyContract before coins. */
+    * bounty's one-time reward). Spent by buyLegacyContract before coins. */
   legendVouchers?: number;
+  /** The day key whose legend spotlight reward was granted (set by claimSpotlight). */
+  legendSpotlightClaimedDay?: string;
 }
 
 // v21 adds EARNED GREATNESS: the LEGACY ledger (`legacy`, per-player career totals:
@@ -2096,3 +2098,10 @@ function sanitizeWeekly(raw: unknown): WeeklyLedger | undefined {
     : [];
   return { week, gameWins: wins, claimedTiers: tiers };
 }
+
+export {
+  claimSpotlight,
+  isSpotlightClaimed,
+  LEGEND_SPOTLIGHT_COINS,
+  spotlightLegend,
+} from './legend-spotlight';
