@@ -56,7 +56,15 @@ import {
   settleTeach,
   type TeachLedger,
 } from './teach';
-import { mergeLegacyIntoHome, sanitizeLegacy, type LegacyLedger } from './legacy';
+import {
+  isIconPerkId,
+  legacyAppearanceFees,
+  legacyLevel,
+  mergeLegacyIntoHome,
+  sanitizeLegacy,
+  type IconPerkId,
+  type LegacyLedger,
+} from './legacy';
 
 /**
  * The persistent "home roster" that compounds across runs. It is now an UNCAPPED,
@@ -175,6 +183,10 @@ export interface HomeRoster {
    * and credited to players owned before the merge (see src/game/legacy.ts). Gates
    * Locker Room ranks 4/5 and the Icon Perk slot. Never decays, never confiscated. */
   legacy: LegacyLedger;
+  /** The chosen Icon Perk per ICON-level player (playerKey -> IconPerkId), the L4
+   * capstone slot. A swappable sidegrade set in the Locker Room; stamped onto run
+   * players at initRun like equippedAbilities. */
+  iconPerks?: Partial<Record<string, IconPerkId>>;
 }
 
 // v21 adds the LEGACY ledger (`legacy`): per-player career totals (wins with minutes,
@@ -406,10 +418,27 @@ export function stampEquippedAbility(rp: RosterPlayer, home: HomeRoster): Roster
   return { ...rp, equippedAbility: { id } };
 }
 
+/** A copy of a player with their chosen Icon Perk stamped on from the home record
+ * (the equippedAbility pattern; the run reducer reads rp.iconPerk). */
+export function stampIconPerk(rp: RosterPlayer, home: HomeRoster): RosterPlayer {
+  const id = home.iconPerks?.[playerKey(rp)];
+  if (!id) return rp;
+  return { ...rp, iconPerk: id };
+}
+
 /** The full owned collection as draftable players (each stamped with its equipped
- * ability). The pre-run draft picks a rotation from this. */
+ * ability and Icon Perk). The pre-run draft picks a rotation from this. */
 export function ownedRosterPlayers(home: HomeRoster): RosterPlayer[] {
-  return home.players.map((p) => stampEquippedAbility(p, home));
+  return home.players.map((p) => stampIconPerk(stampEquippedAbility(p, home), home));
+}
+
+/** Choose (or swap) an ICON player's perk. A no-op unless the perk id is real and
+ * the player's career has reached ICON; guarded here too, not just in the UI. */
+export function setIconPerk(home: HomeRoster, key: string, perk: IconPerkId): HomeRoster {
+  if (!isIconPerkId(perk)) return home;
+  if (legacyLevel(home.legacy?.[key]) < 4) return home;
+  if (home.iconPerks?.[key] === perk) return home;
+  return { ...home, iconPerks: { ...home.iconPerks, [key]: perk } };
 }
 
 /** Back-compat: the owned collection as a Roster (first five start). Drafting is
@@ -689,6 +718,7 @@ function runRecruitCandidates(home: HomeRoster, runRoster: Roster): RosterPlayer
     delete copy.trainingDelta; // run-scoped
     delete copy.gamesOut; // injuries heal at run end
     delete copy.equippedAbility; // the home equippedAbilities map is the source of truth
+    delete copy.iconPerk; // likewise: the home iconPerks map is the source of truth
     delete copy.onLoan; // a kept legend becomes owned (drops the on-loan team chemistry)
     out.push(copy);
   }
@@ -1073,9 +1103,13 @@ export function mergeRunGainsIntoHome(
     legacy: mergeLegacyIntoHome(home.legacy ?? {}, settle.runLegacy, ownedKeys),
     // Win coins are NOT banked here: they bank into the wallet as each game is won
     // (the as-earned ledger in useRun), so `...home` already holds them. Residual
-    // favor coins (a chase this settle completed) and reputation are terminal
-    // rewards, banked here and forfeited if the run is abandoned.
-    coins: home.coins + favorCoins,
+    // favor coins (a chase this settle completed), post-ICON MVP appearance fees,
+    // and reputation are terminal rewards, banked here and forfeited if the run is
+    // abandoned.
+    coins:
+      home.coins +
+      favorCoins +
+      legacyAppearanceFees(home.legacy ?? {}, settle.runLegacy, ownedKeys),
     reputation: home.reputation + (rewards?.reputation ?? 0),
     ladderProgress,
     clearedCells,
@@ -1476,6 +1510,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     delete migrated.trainingDelta;
     delete migrated.gamesOut;
     delete migrated.equippedAbility; // sourced from equippedAbilities, not the player
+    delete migrated.iconPerk; // sourced from iconPerks, not the player
     return withOriginalClass(migrated, savedUpgrades);
   };
   const players = data.players.map(migratePlayer);
@@ -1677,6 +1712,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     // v21: the legacy ledger. Values sanitize, membership is kept (a career never
     // decays and never orphans); older saves backfill empty, never fabricated.
     legacy: sanitizeLegacy(data.legacy),
+    iconPerks: sanitizeIconPerks(data.iconPerks),
     scoutTargets: sanitizeScoutTargets(data.scoutTargets, ownedNow),
     // v19: the hub since-you-left ledger. Missing/garbage fields backfill to the
     // CURRENT (post-migration) values, never zero: silencing a delta is safe,
@@ -1741,6 +1777,20 @@ function sanitizeHubSeen(
         ? Math.floor(copyTotal)
         : fallback.copyTotal,
   };
+}
+
+/** Keep only entries naming a real Icon Perk id; anything else silently drops
+ * (the slot re-picks freely, so a dropped choice costs one tap, never progress). */
+function sanitizeIconPerks(raw: unknown): HomeRoster['iconPerks'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: NonNullable<HomeRoster['iconPerks']> = {};
+  let any = false;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!isIconPerkId(value)) continue;
+    out[key] = value;
+    any = true;
+  }
+  return any ? out : undefined;
 }
 
 /** Keep only well-formed, positive favor entries for un-owned players; garbage

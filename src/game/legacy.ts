@@ -144,6 +144,66 @@ export function mergeLegacyIntoHome(
   return next;
 }
 
+/**
+ * ICON PERKS: the L4 capstone, one slot, choose 1 of 3. None touch the fourteen
+ * ratings (the +5/30 caps are design law); each routes through an existing bounded
+ * channel instead: prestige presentation, the favor economy, or the run-scoped
+ * training-point economy (already the only path to the 30 apex, reset every run).
+ * The pick is a swappable sidegrade, never consumed.
+ */
+export const ICON_PERKS = [
+  {
+    id: 'pennant',
+    name: "CAPTAIN'S PENNANT",
+    blurb: 'A gold banner and the captain treatment. Pure prestige.',
+  },
+  {
+    id: 'mentor',
+    name: 'MENTOR',
+    blurb: 'Un-owned recruits fielded beside them bank +1 favor per won game.',
+  },
+  {
+    id: 'film-room',
+    name: 'FILM ROOM',
+    blurb: '+1 training point on boss wins while they play.',
+  },
+] as const;
+export type IconPerkId = (typeof ICON_PERKS)[number]['id'];
+
+export function isIconPerkId(value: unknown): value is IconPerkId {
+  return typeof value === 'string' && ICON_PERKS.some((perk) => perk.id === value);
+}
+
+/** MENTOR: extra favor points every fielded player banks on a won game when an
+ * icon mentor also took the floor (the settle keeps only the un-owned, so the
+ * bonus feeds the collection chase and nothing else). Flat, never stacked. */
+export const MENTOR_FAVOR_BONUS = 1;
+
+/** FILM ROOM: extra training points a boss win pays per fielded icon with the
+ * perk. Run-scoped by construction (TP resets every run). */
+export const FILM_ROOM_BOSS_TP = 1;
+
+/** Past ICON, every further MVP crown pays a small appearance fee at settle: the
+ * meter keeps converting after the capstone (overflow always converts). */
+export const LEGACY_MVP_FEE = 25;
+
+/** Coins the settle owes for MVP crowns earned this run by players whose career
+ * had ALREADY reached ICON before the merge (post-capstone overflow only; the
+ * crowns that finished the climb still count toward it, not as coins). */
+export function legacyAppearanceFees(
+  home: Readonly<LegacyLedger>,
+  runLegacy: Readonly<LegacyLedger> | undefined,
+  ownedKeys: ReadonlySet<string>
+): number {
+  let fees = 0;
+  for (const [key, earned] of Object.entries(runLegacy ?? {})) {
+    if (!ownedKeys.has(key) || earned.mvp <= 0) continue;
+    if (legacyLevel(home[key]) < 4) continue;
+    fees += earned.mvp * LEGACY_MVP_FEE;
+  }
+  return fees;
+}
+
 /** Clamp one persisted counter to a sane non-negative integer. */
 function sanitizeCount(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0;

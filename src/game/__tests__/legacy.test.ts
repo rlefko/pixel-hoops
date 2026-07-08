@@ -1,9 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import {
+  ICON_PERKS,
   LEGACY_AT_CLASS_GRACE,
   LEGACY_LEVELS,
+  LEGACY_MVP_FEE,
   addLegacyGame,
   emptyLegacyLine,
+  isIconPerkId,
+  legacyAppearanceFees,
   legacyEligible,
   legacyLevel,
   mergeLegacyIntoHome,
@@ -17,6 +21,7 @@ import {
   mergeRunGainsIntoHome,
   playerKey,
   serializeHomeRoster,
+  setIconPerk,
 } from '@/game/home-roster';
 import { classLevel } from '@/game/classes';
 import { createRNG } from '@/game/rng';
@@ -165,6 +170,46 @@ describe('legacy at the settle (merge + persistence)', () => {
       runLegacy: { [ownKey]: { w: 8, mvp: 1, titles: 1 } },
     });
     expect(again.legacy[ownKey]).toEqual({ w: 14, mvp: 3, titles: 1 });
+  });
+
+  it('post-ICON MVP crowns pay appearance fees; pre-ICON crowns feed the climb', () => {
+    const home = createRookieRoster(createRNG('legacy-fee'));
+    const key = playerKey(home.players[0]);
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [] };
+    const runLegacy: LegacyLedger = { [key]: { w: 3, mvp: 2, titles: 0 } };
+    const icon = { ...home, legacy: { [key]: { w: 60, mvp: 20, titles: 3 } } };
+    const settled = mergeRunGainsIntoHome(icon, runRoster, {
+      rewards: { ...rewards, reputation: 0 },
+      playedDifficulty: 'easy',
+      ladderClass: 'C',
+      runLegacy,
+    });
+    expect(settled.coins - icon.coins).toBe(2 * LEGACY_MVP_FEE);
+    const climbing = { ...home, legacy: { [key]: { w: 10, mvp: 2, titles: 0 } } };
+    const settled2 = mergeRunGainsIntoHome(climbing, runRoster, {
+      rewards: { ...rewards, reputation: 0 },
+      playedDifficulty: 'easy',
+      ladderClass: 'C',
+      runLegacy,
+    });
+    expect(settled2.coins).toBe(climbing.coins);
+    // The pure helper agrees with the merge.
+    expect(legacyAppearanceFees(icon.legacy, runLegacy, new Set([key]))).toBe(2 * LEGACY_MVP_FEE);
+    expect(legacyAppearanceFees(icon.legacy, runLegacy, new Set())).toBe(0);
+  });
+
+  it('setIconPerk holds until ICON, then picks and swaps freely', () => {
+    expect(ICON_PERKS.map((p) => p.id).every(isIconPerkId)).toBe(true);
+    expect(isIconPerkId('rocket-boots')).toBe(false);
+    const home = createRookieRoster(createRNG('legacy-perk'));
+    const key = playerKey(home.players[0]);
+    expect(setIconPerk(home, key, 'mentor')).toBe(home); // career not at ICON yet
+    const icon = { ...home, legacy: { [key]: { w: 60, mvp: 20, titles: 3 } } };
+    const picked = setIconPerk(icon, key, 'mentor');
+    expect(picked.iconPerks?.[key]).toBe('mentor');
+    const swapped = setIconPerk(picked, key, 'film-room');
+    expect(swapped.iconPerks?.[key]).toBe('film-room');
+    expect(setIconPerk(swapped, key, 'film-room')).toBe(swapped); // same pick no-ops
   });
 
   it('round-trips through serialize/deserialize and backfills empty on old saves', () => {

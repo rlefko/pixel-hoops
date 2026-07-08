@@ -8,7 +8,7 @@ import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
 import { TeachCallout } from '@/components/teach/TeachCallout';
 import { useHomeRoster } from '@/context/HomeRosterContext';
-import { applyUpgrade, playerKey, totalUpgrades } from '@/game/home-roster';
+import { applyUpgrade, playerKey, setIconPerk, totalUpgrades } from '@/game/home-roster';
 import {
   RANK_LEGACY_REQUIREMENT,
   UPGRADEABLE_STATS,
@@ -22,8 +22,10 @@ import {
   upgradeCost,
 } from '@/game/upgrades';
 import {
+  ICON_PERKS,
   LEGACY_LEVELS,
   legacyLevel,
+  type IconPerkId,
   type LegacyLine,
 } from '@/game/legacy';
 import {
@@ -169,8 +171,10 @@ const LockerRow = memo(function LockerRow({
   entering,
   upgrades,
   legacy,
+  iconPerk,
   mask,
   onUpgrade,
+  onPickPerk,
 }: {
   rp: RosterPlayer;
   index: number;
@@ -180,9 +184,12 @@ const LockerRow = memo(function LockerRow({
   upgrades: Partial<Record<keyof PlayerStats, number>> | undefined;
   /** This player's career line (identity-stable: only a settle writes careers). */
   legacy: LegacyLine | undefined;
+  /** The chosen Icon Perk (undefined until picked; rendered only at ICON level). */
+  iconPerk: IconPerkId | undefined;
   /** affordMask() of this player: which stats are under-cap AND affordable now. */
   mask: number;
   onUpgrade: (index: number, stat: keyof PlayerStats) => void;
+  onPickPerk: (key: string, perk: IconPerkId) => void;
 }) {
   // The lowest legacy level any visible locked rank needs (null = nothing locked),
   // driving the strip's "NEEDS" readout. Eight cheap checks per render.
@@ -202,10 +209,34 @@ const LockerRow = memo(function LockerRow({
     }
   }
   const stripText = legacyStripText(legacy, lockedNeed);
+  const isIcon = legacyLevel(legacy) >= 4;
   return (
     <StaggerIn index={listIndex} enabled={entering} style={styles.row}>
       <PlayerCard rp={rp} showSpecialty />
       {stripText ? <Text style={styles.legacyStrip}>{stripText}</Text> : null}
+      {isIcon ? (
+        <View style={styles.perkBlock}>
+          <View style={styles.perkRow}>
+            {ICON_PERKS.map((perk) => {
+              const on = iconPerk === perk.id;
+              return (
+                <Pressable
+                  key={perk.id}
+                  onPress={() => onPickPerk(playerKey(rp), perk.id)}
+                  style={[styles.perkChip, on && styles.perkChipOn]}
+                >
+                  <Text style={[styles.perkName, on && styles.perkNameOn]}>{perk.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Text style={styles.perkBlurb}>
+            {iconPerk
+              ? ICON_PERKS.find((perk) => perk.id === iconPerk)?.blurb
+              : 'ICON PERK EARNED: pick one. Swap any time.'}
+          </Text>
+        </View>
+      ) : null}
       <View style={styles.groups}>
         {STAT_GROUPS.map((group) => (
           <View key={group.label} style={styles.group}>
@@ -303,6 +334,16 @@ export function LockerRoomTab() {
       haptics.selection();
       sfx.tick(0.9); // a notch below the in-run training tick: a spend, not a gain
       saveHomeRoster(applyUpgrade(home, index, stat));
+    },
+    [saveHomeRoster]
+  );
+  const onPickPerk = useCallback(
+    (key: string, perk: IconPerkId) => {
+      const home = homeRosterRef.current;
+      if (!home) return;
+      haptics.selection();
+      sfx.tap('secondary'); // a selection, not a spend: perks swap freely
+      saveHomeRoster(setIconPerk(home, key, perk));
     },
     [saveHomeRoster]
   );
@@ -421,8 +462,10 @@ export function LockerRoomTab() {
               entering={entering}
               upgrades={upgrades}
               legacy={legacy}
+              iconPerk={homeRoster.iconPerks?.[key]}
               mask={affordMask(item.rp.player.stats, upgrades, coins, legacy)}
               onUpgrade={onUpgrade}
+              onPickPerk={onPickPerk}
             />
           );
         }}
@@ -453,6 +496,27 @@ const styles = StyleSheet.create({
     fontSize: FONT_SIZE.micro,
     color: palette.inkDim,
     marginTop: space(1),
+  },
+  perkBlock: { marginTop: space(2), gap: space(1) },
+  perkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space(2) },
+  perkChip: {
+    paddingVertical: space(1),
+    paddingHorizontal: space(2),
+    borderWidth: BORDER.thin,
+    borderColor: palette.inkDim,
+    borderRadius: RADIUS.chip,
+  },
+  perkChipOn: { borderColor: palette.gold },
+  perkName: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
+  perkNameOn: { color: palette.gold },
+  perkBlurb: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
   },
   row: {
     borderBottomWidth: BORDER.thin,

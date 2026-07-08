@@ -44,7 +44,15 @@ import { tipSeen } from './teach';
 import { recommendLineup, reorderForCoach, recMinDelta, type CoachRec } from './coach-reco';
 import { legendRecruitFavored } from './player-pool';
 import { FAVOR_CHAMPION_BONUS, FAVOR_WIN_POINTS, addFavor } from './favor';
-import { addLegacyGame, legacyEligible, type LegacyGameCredit, type LegacyLedger } from './legacy';
+import {
+  FILM_ROOM_BOSS_TP,
+  MENTOR_FAVOR_BONUS,
+  addLegacyGame,
+  legacyEligible,
+  type IconPerkId,
+  type LegacyGameCredit,
+  type LegacyLedger,
+} from './legacy';
 import { mvpIndex } from './box-score';
 import { playerDraftClass } from './draft';
 import {
@@ -398,9 +406,11 @@ export function pendingWinRewards(
   if (model.phase.kind !== 'postgame' || !model.phase.won || !model.game) return null;
   const node = model.core.map.nodes[model.phase.nodeId];
   if (!node) return null;
+  const isBoss = node.type === 'boss' || model.phase.nodeId === model.core.map.bossNodeId;
+  const fieldedPerks = fieldedIconPerks(model.core.roster, model.game.result.box.home);
   return {
     coins: coinsForWin(node, model.game.result, model.mods),
-    trainingPoints: trainingPointsFor(node, model.mods),
+    trainingPoints: trainingPointsFor(node, model.mods) + filmRoomBonus(fieldedPerks, isBoss),
     reputation: Math.round((node.layer + 1) * model.mods.repMul),
     nodeType: node.type,
   };
@@ -477,6 +487,26 @@ function legacyGameCredits(
       mvp: p.player.name === mvpName,
       title: isChampionship,
     }));
+}
+
+/** Icon Perks held by players who logged minutes in the just-simmed game (the
+ * fieldedFavorKeys rule: a benched icon confers nothing). */
+function fieldedIconPerks(roster: RunState['roster'], box: BoxLine[] | undefined): IconPerkId[] {
+  if (!box) return [];
+  const played = new Set(box.filter((line) => line.seconds > 0).map((line) => line.name));
+  return [...roster.starters, ...roster.bench]
+    .filter((p) => p.iconPerk && played.has(p.player.name))
+    .map((p) => p.iconPerk as IconPerkId);
+}
+
+/** The FILM ROOM training points a win pays on top of the node's own (+1 per
+ * fielded icon with the perk, boss wins only). Shared by resolveGameResult and
+ * pendingWinRewards so the postgame tally always matches what banks. */
+function filmRoomBonus(perks: readonly IconPerkId[], isBoss: boolean): number {
+  if (!isBoss) return 0;
+  let bonus = 0;
+  for (const perk of perks) if (perk === 'film-room') bonus += FILM_ROOM_BOSS_TP;
+  return bonus;
 }
 
 /** Apply a per-player transform across the combined roster, re-split at five. */
@@ -1213,11 +1243,17 @@ export function runReducer(
       const node = model.core.map.nodes[nodeId];
       const isBoss = node.type === 'boss' || nodeId === model.core.map.bossNodeId;
       const coins = model.game ? coinsForWin(node, model.game.result, model.mods) : COIN_BASE;
+      // Icon Perks held by the players who took the floor in this win: FILM ROOM
+      // pays extra boss-win training points; MENTOR sweetens the favor below.
+      const fieldedPerks = fieldedIconPerks(model.core.roster, model.game?.result.box.home);
       const rewards = {
         ...model.core.rewards,
         coins: model.core.rewards.coins + coins,
         reputation: model.core.rewards.reputation + Math.round((node.layer + 1) * model.mods.repMul),
-        trainingPoints: model.core.rewards.trainingPoints + trainingPointsFor(node, model.mods),
+        trainingPoints:
+          model.core.rewards.trainingPoints +
+          trainingPointsFor(node, model.mods) +
+          filmRoomBonus(fieldedPerks, isBoss),
       };
       const roster = model.game
         ? applyInjuries(model.core, model.game.result.box.home, nodeId, model.mods)
@@ -1237,7 +1273,11 @@ export function runReducer(
       const favor = addFavor(
         model.favor ?? {},
         fieldedFavorKeys(roster, model.game?.result.box.home),
-        winPoints + (isChampionship ? FAVOR_CHAMPION_BONUS : 0)
+        winPoints +
+          (isChampionship ? FAVOR_CHAMPION_BONUS : 0) +
+          // MENTOR: a fielded icon mentor sweetens every teammate's favor. The
+          // settle keeps only the un-owned, so this feeds the chase, nothing else.
+          (fieldedPerks.includes('mentor') ? MENTOR_FAVOR_BONUS : 0)
       );
       // Legacy careers accrue on the same win, for the fielded at-class players
       // (see legacyGameCredits); the merge credits the owned among them at settle.

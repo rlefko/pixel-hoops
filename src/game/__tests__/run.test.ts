@@ -1840,6 +1840,40 @@ describe('legacy accrual (win-earned, fielded, at-class only)', () => {
     };
     expect(play()).toEqual(play());
   });
+
+  it('icon perks: FILM ROOM pays +1 boss TP and MENTOR sweetens the favor', () => {
+    const boss = inject(started('leg-6'), combat({ type: 'boss' }));
+    // Stamp a perk onto the first starter (starters always log minutes). The perk
+    // is not a sim input, so the same seed produces the same game either way.
+    const stamp = (m: RunModel, perk: string): RunModel => ({
+      ...m,
+      core: {
+        ...m.core,
+        roster: {
+          starters: m.core.roster.starters.map((p, i) =>
+            i === 0 ? { ...p, iconPerk: perk } : p
+          ),
+          bench: m.core.roster.bench,
+        },
+      },
+    });
+    const resolve = (m: RunModel) =>
+      runReducer(playedPostgame(m, 'g1', true), { type: 'resolveGameResult' })!;
+    const plain = resolve(boss);
+    const film = resolve(stamp(boss, 'film-room'));
+    expect(
+      film.core.rewards.trainingPoints - plain.core.rewards.trainingPoints
+    ).toBe(1);
+    // The postgame tally advertises exactly what banks (pendingWinRewards parity).
+    const filmPost = playedPostgame(stamp(boss, 'film-room'), 'g1', true);
+    expect(pendingWinRewards(filmPost)!.trainingPoints).toBe(
+      film.core.rewards.trainingPoints
+    );
+    const mentor = resolve(stamp(boss, 'mentor'));
+    const plainFavor = Object.values(plain.favor ?? {})[0];
+    const mentorFavor = Object.values(mentor.favor ?? {})[0];
+    expect(mentorFavor - plainFavor).toBe(1);
+  });
 });
 
 describe('favor-steered legend reveal and re-offers', () => {

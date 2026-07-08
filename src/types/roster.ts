@@ -97,6 +97,13 @@ export interface RosterPlayer {
    * feeds OVR, the draft economy, or the class ladder.
    */
   tendency?: TendencyProfile;
+  /**
+   * The equipped Icon Perk (LEGACY level 4 capstone; an IconPerkId from
+   * src/game/legacy.ts). Stamped onto the run player from HomeRoster.iconPerks at
+   * run start, exactly like {@link equippedAbility}, and never persisted on the
+   * player at merge: the home map is the source of truth.
+   */
+  iconPerk?: string;
 }
 
 /** The full owned squad: five starters plus bench depth. */
