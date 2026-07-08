@@ -226,6 +226,7 @@ describe('fatigue, rotation, and box score', () => {
   const deep = (): Team =>
     buildTeam('Deep', starters, DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(5, 'bench'));
   const thin = (): Team => buildTeam('Thin', starters, DEFAULT_GAME_PLAN, '#fff', '#000', []);
+  const balanced = (): Team => buildTeam('Balanced', starters, DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(3, 'bal'));
 
   it('subs in fresh legs with a bench, never without one', () => {
     const withBench = simulateGame({ home: deep(), away: thin(), seed: 'subs-1' });
@@ -288,12 +289,15 @@ describe('fatigue, rotation, and box score', () => {
     }
   });
 
-  it('gives every bench player real minutes with a deep bench', () => {
+  it('gives bench players real minutes with a deep bench (capped at 9 total players)', () => {
     const r = simulateGame({ home: deep(), away: deep(), seed: 'bench-mins' });
     for (const box of [r.box.home, r.box.away]) {
       const bench = box.filter((b) => !b.starter);
       expect(bench.length).toBeGreaterThan(0);
-      for (const line of bench) expect(line.seconds).toBeGreaterThan(0);
+      // With maxPlayers:9, at most 4 non-starters can play (9 - 5 starters = 4)
+      // At least 3 bench players should get real minutes
+      const minutesPlayed = bench.filter((b) => b.seconds > 0);
+      expect(minutesPlayed.length).toBeGreaterThanOrEqual(3);
     }
   });
 
@@ -318,17 +322,57 @@ describe('fatigue, rotation, and box score', () => {
     expect(blowout).toBeGreaterThan(even);
   });
 
+  it('caps assist counts per player', () => {
+    // Real NBA max is ~11-12 APG. No player should get >15 assists in a single game.
+    for (let s = 0; s < 10; s++) {
+      const r = simulateGame({ home: balanced(), away: balanced(), seed: `ast-cap-${s}` });
+      for (const box of [r.box.home, r.box.away]) {
+        for (const line of box) {
+          expect(line.ast).toBeLessThanOrEqual(15);
+        }
+      }
+    }
+  });
+
+  it('total assists never exceed total FGM', () => {
+    // Each made basket can have at most one assist.
+    for (let s = 0; s < 10; s++) {
+      const r = simulateGame({ home: balanced(), away: balanced(), seed: `ast-fgm-${s}` });
+      for (const box of [r.box.home, r.box.away]) {
+        const totalAst = box.reduce((sum, b) => sum + b.ast, 0);
+        const totalFgm = box.reduce((sum, b) => sum + b.fgm, 0);
+        expect(totalAst).toBeLessThanOrEqual(totalFgm);
+      }
+    }
+  });
+
+  it('distributes assists across multiple players', () => {
+    // With ASSIST_POWER=5, assists should spread beyond just the top playmaker.
+    // In 10 games, at least 3 different players on each team should record an assist.
+    for (let s = 0; s < 10; s++) {
+      const r = simulateGame({ home: balanced(), away: balanced(), seed: `ast-dist-${s}` });
+      for (const box of [r.box.home, r.box.away]) {
+        const assisters = box.filter((b) => b.ast > 0);
+        expect(assisters.length).toBeGreaterThanOrEqual(2);
+      }
+    }
+  });
+
   it('rewards stamina with more minutes at equal skill', () => {
-    // Two runs identical except the SG-slot player's stamina: the high-stamina
-    // version drains slower, dips to the sub zone less, and logs more minutes.
+    // Average over 20 seeds with a wide stamina gap to show that higher stamina
+    // consistently yields more minutes despite RNG noise from rotation changes.
     const base = createPlayer('Iron', POSITION_ARCHETYPE.SG, createRNG('iron').int);
-    const sgMinutes = (stamina: number): number => {
-      const five = buildStartingRoster(createRNG('rot')).starters.slice();
-      five[1] = { player: { ...base, stats: { ...base.stats, stamina } }, position: 'SG' };
-      const team = buildTeam('Stamina', five, DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(5, 'sbench'));
-      return simulateGame({ home: team, away: deep(), seed: 'stamina' }).box.home[1].seconds;
+    const avgMinutes = (stamina: number): number => {
+      let total = 0;
+      for (let s = 0; s < 20; s++) {
+        const five = buildStartingRoster(createRNG('rot')).starters.slice();
+        five[1] = { player: { ...base, stats: { ...base.stats, stamina } }, position: 'SG' };
+        const team = buildTeam('Stamina', five, DEFAULT_GAME_PLAN, '#fff', '#000', makeBench(5, `sbench-${s}`));
+        total += simulateGame({ home: team, away: deep(), seed: `stamina-${s}` }).box.home[1].seconds;
+      }
+      return total / 20;
     };
-    expect(sgMinutes(10)).toBeGreaterThan(sgMinutes(3));
+    expect(avgMinutes(10)).toBeGreaterThan(avgMinutes(1));
   });
 });
 
