@@ -13,6 +13,7 @@ import {
   type DailyGrants,
   type FavorDelta,
   type HomeRoster,
+  type SignatureDelta,
 } from '@/game/home-roster';
 import { settleRunIntoHome, type RunSettleResult } from '@/game/run-settle';
 import type { Difficulty } from '@/game/difficulty-mode';
@@ -65,6 +66,9 @@ export function useRun() {
   const dailyGrantsRef = useRef<DailyGrants | null>(null);
   // The favor this run's settle banked/converted (win or lose), for the summary strip.
   const favorDeltaRef = useRef<FavorDelta[]>([]);
+  // Signature Card movement (marks stamped, legends signed), win or lose, for the
+  // signing reveal + the summary's signature strip.
+  const signatureDeltaRef = useRef<SignatureDelta[]>([]);
   // The landed settle's outputs, memoized per run so a deferred champion settle and
   // the tap-time ensureSettled fallback can never both bank (idempotence on top of
   // the persisted settledRunId guard). `scheduled` keeps the deferral once-per-run.
@@ -174,6 +178,7 @@ export function useRun() {
       wonCoachRef.current = outputs.wonCoachIds;
       wonPlayersRef.current = outputs.acquisitions;
       favorDeltaRef.current = outputs.favorDelta;
+      signatureDeltaRef.current = outputs.signatureDelta;
       bountyGrantRef.current = outputs.bounty;
       dailyGrantsRef.current = outputs.daily;
       saveHomeRoster(outputs.home);
@@ -221,6 +226,7 @@ export function useRun() {
       bountyGrantRef.current = null;
       dailyGrantsRef.current = null;
       favorDeltaRef.current = [];
+      signatureDeltaRef.current = [];
       if (settleScheduledRef.current !== runId) settleScheduledRef.current = null;
       if (settledRef.current && settledRef.current.runId !== runId) settledRef.current = null;
     }
@@ -379,6 +385,7 @@ export function useRun() {
     bountyGrant: bountyGrantRef.current,
     dailyGrants: dailyGrantsRef.current,
     favorRows: favorDeltaRef.current,
+    signatureRows: signatureDeltaRef.current,
     collectProgress,
     equippedCoachId: homeRoster?.selectedCoachId,
   };

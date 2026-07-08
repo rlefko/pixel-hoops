@@ -6,6 +6,7 @@ import {
   createRookieRoster,
   homeToRunRoster,
   mergeRunGainsIntoHome,
+  pinScoutTarget,
   rememberDraftRotation,
   serializeHomeRoster,
   deserializeHomeRoster,
@@ -1839,6 +1840,30 @@ describe('legacy accrual (win-earned, fielded, at-class only)', () => {
       return runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!.legacy;
     };
     expect(play()).toEqual(play());
+  });
+
+  it('the trial pin: an armed legend joins qualifying drafts on loan, never below the floor', () => {
+    const legend = NBA_LEGENDS.find((l) => l.slug === 'lebron-james')!; // Tier I: medium floor
+    const key = `${legend.name}|${legend.position}`;
+    const base: HomeRoster = {
+      ...rookie('trial'),
+      selectedDifficulty: 'medium',
+      selectedLadderClass: 'S',
+    };
+    const home = pinScoutTarget(base, 'legendary', key);
+    const offeredIn = (h: HomeRoster, seed: string) => {
+      const m = initRun(seed, h);
+      return m.phase.kind === 'draft'
+        ? m.phase.available.find((p) => `${p.player.name}|${p.position}` === key)
+        : undefined;
+    };
+    // A qualifying run (medium+ S ladder) drafts the armed legend on loan.
+    const offered = offeredIn(home, 'trial-run');
+    expect(offered?.onLoan).toBe(true);
+    // Below the floor, off the S ladders, or un-armed: no trial option.
+    expect(offeredIn({ ...home, selectedDifficulty: 'easy' }, 'trial-easy')).toBeUndefined();
+    expect(offeredIn({ ...home, selectedLadderClass: 'A' }, 'trial-a')).toBeUndefined();
+    expect(offeredIn(base, 'trial-unarmed')).toBeUndefined();
   });
 
   it('signature marks: the title stamps on a floored championship, never below', () => {

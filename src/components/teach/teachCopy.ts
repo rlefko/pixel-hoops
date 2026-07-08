@@ -16,6 +16,8 @@ export type CalloutTip = Extract<
   | 'lossFraming'
   | 'ladderShape'
   | 'legacyRanks'
+  | 'legendSignature'
+  | 'provingFloor'
 >;
 
 export const TEACH_COPY: Record<CalloutTip, string> = {
@@ -32,4 +34,8 @@ export const TEACH_COPY: Record<CalloutTip, string> = {
   ladderShape: 'Every difficulty-class cell pays a bounty like this, once. Harder cells pay bigger.',
   legacyRanks:
     'Deep ranks come from careers, not coins. Field a player and win: their legacy opens ranks 4 and 5.',
+  legendSignature:
+    'Every legend signs the same way: prove their moment, then win a title together. Arm one to draft them on loan.',
+  provingFloor:
+    'Easy earns his trust; Medium signs him. S contracts bank as copies on MEDIUM and up.',
 };

@@ -9,7 +9,12 @@ import {
 import { isSpecialist } from './specialty';
 import { buildTeam, validateLineup } from './lineup';
 import { simulateGame } from './simulation';
-import { ownedRosterPlayers, resolveDraftRotation, type HomeRoster } from './home-roster';
+import {
+  ownedRosterPlayers,
+  resolveDraftRotation,
+  trialPinLegend,
+  type HomeRoster,
+} from './home-roster';
 import {
   difficultyMods,
   globalHighestCleared,
@@ -337,6 +342,12 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     firstRun: isFirstEverRun(homeRoster),
   });
   const available = ownedRosterPlayers(homeRoster);
+  // The TRIAL PIN: on a qualifying run (S/S+ ladder at the pinned legend's floor or
+  // above), the armed legend joins the draft on loan, so a Signature Card attempt
+  // never waits on a reveal roll. Appended after the owned collection: the default
+  // loadout below draws from the same list, so drafting them is a choice, not a tax.
+  const trialLegend = trialPinLegend(homeRoster, difficulty, ladderClass);
+  if (trialLegend) available.push(trialLegend);
   const { starters: defaultStarters, bench: defaultBench } = defaultLoadout(
     available,
     ladderClass,

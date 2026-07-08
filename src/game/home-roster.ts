@@ -76,6 +76,7 @@ import {
 import {
   contractPriceFor,
   legendByKey,
+  meetsSignatureFloor,
   sanitizeSignatures,
   signatureByKey,
   signatureComplete,
@@ -688,6 +689,28 @@ export function buyLegacyContract(home: HomeRoster, key: string): HomeRoster {
  * pull channel (paid scout, bounty grant, daily first-win) directs identically. */
 function pullDirection(home: HomeRoster, tier: PlayerGachaTier) {
   return { favor: home.favor, pinnedKey: home.scoutTargets?.[tier] };
+}
+
+/**
+ * The TRIAL PIN: the pinned legendary scout target joins a QUALIFYING run's draft
+ * as an on-loan option (2 points, the legend rate), so a Signature Card attempt is
+ * startable on demand: identity certain, timing variable. Qualifying = the S/S+
+ * ladders at or above the legend's tier floor; anything less returns null and the
+ * board's floor chips explain why. Un-owned pins only (pin hygiene drops owned
+ * keys on load and unlock).
+ */
+export function trialPinLegend(
+  home: HomeRoster,
+  difficulty: Difficulty,
+  ladderClass: LadderClass
+): RosterPlayer | null {
+  const key = home.scoutTargets?.legendary;
+  if (!key) return null;
+  if (home.players.some((p) => playerKey(p) === key)) return null;
+  const challenge = signatureByKey(key);
+  if (!challenge || !meetsSignatureFloor(challenge, difficulty, ladderClass)) return null;
+  const baked = legendByKey(key);
+  return baked ? { ...realPlayerToRosterPlayer(baked), onLoan: true } : null;
 }
 
 /** Pin a scout machine's target: every pull of that machine feeds this player until
