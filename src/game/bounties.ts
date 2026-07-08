@@ -32,6 +32,10 @@ export type BountyReward =
   | { kind: 'player'; tier: PlayerGachaTier }
   /** A random passive ability of a rarity. */
   | { kind: 'ability'; rarity: Rarity }
+  /** A LEGEND VOUCHER: one free Legacy Contract, redeemable for any legend whose
+   *  SIGNATURE MOMENT is already proven (the challenge stays mandatory; see
+   *  signature.ts). Replaces the old outright legend grant. */
+  | { kind: 'voucher' }
   /** The capstone: the crest IS the prize, optionally with a coin bundle alongside it. */
   | { kind: 'crest'; coins?: number };
 
@@ -83,7 +87,7 @@ const REWARD_GRID: Record<Difficulty, Record<LadderClass, BountyReward>> = {
     C: { kind: 'player', tier: 'A' },
     B: { kind: 'player', tier: 'S' },
     A: { kind: 'ability', rarity: 'legendary' },
-    S: { kind: 'player', tier: 'legendary' },
+    S: { kind: 'voucher' },
     'S+': { kind: 'crest', coins: 10000 },
   },
 };
@@ -110,6 +114,11 @@ function describeReward(reward: BountyReward): { label: string; blurb: string } 
       return {
         label: `${reward.rarity.toUpperCase()} ABILITY`,
         blurb: `A random ${reward.rarity} passive ability for your locker.`,
+      };
+    case 'voucher':
+      return {
+        label: 'LEGEND VOUCHER',
+        blurb: 'A free Legacy Contract: sign any legend whose moment you have already proven.',
       };
     case 'crest':
       return {
@@ -147,6 +156,8 @@ export function rewardPower(reward: BountyReward): number {
       return { common: 400, rare: 1200, epic: 5200, legendary: 10200 }[reward.rarity];
     case 'player':
       return { C: 300, B: 600, A: 2000, S: 6000, legendary: 12000 }[reward.tier];
+    case 'voucher':
+      return 12000; // ~ the mid Legacy Contract price band
     case 'crest':
       return 15000 + (reward.coins ?? 0);
   }

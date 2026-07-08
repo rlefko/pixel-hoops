@@ -36,6 +36,8 @@ function bountyRarity(reward: BountyReward): Rarity {
       return reward.rarity;
     case 'player':
       return reward.tier === 'A' ? 'epic' : 'legendary'; // S / legendary land the loudest
+    case 'voucher':
+      return 'legendary'; // a free Legacy Contract is a headline prize
     case 'coins':
       return reward.amount >= 5000 ? 'legendary' : reward.amount >= 1000 ? 'epic' : 'rare';
   }
@@ -113,6 +115,11 @@ export function BountyRewardView({ grant, onNewRun, onHome }: BountyRewardViewPr
                 <Text style={styles.coinAmount}>
                   +<Counter value={burst > 0 ? grant.coins : 0} />
                 </Text>
+              </View>
+            ) : grant.voucher ? (
+              <View style={styles.coinRow}>
+                <StarIcon size={22} color={palette.gold} />
+                <Text style={styles.coinAmount}>FREE LEGACY CONTRACT</Text>
               </View>
             ) : null}
           </View>

@@ -283,6 +283,26 @@ export function legendByKey(key: string): RealPlayer | undefined {
   return legendIndex.get(key);
 }
 
+/**
+ * LEGACY CONTRACT prices by tier: the deterministic buyout of ONLY the
+ * championship mark, purchasable once a legend's MOMENT is already proven (coins
+ * never skip the challenge itself; the Head Ball rule that the condition is the
+ * intended path and the price is deliberately punitive). At ~950/1,300/1,850/2,600
+ * coins per clear, a buyout costs 6-14 runs of pure income vs 1-3 more runs for
+ * the honest championship, so clearing strictly dominates while a player who can
+ * hit the moment but not the clear keeps a visible, reachable ceiling.
+ */
+export const LEGACY_CONTRACT_PRICE: Record<SignatureTier, number> = {
+  1: 8000,
+  2: 15000,
+  3: 25000,
+};
+
+/** The Legacy Contract price for one legend's card. */
+export function contractPriceFor(challenge: Pick<SignatureChallenge, 'tier'>): number {
+  return LEGACY_CONTRACT_PRICE[challenge.tier];
+}
+
 // --- The Signature Card: two one-time marks, in any order, across any runs ---
 
 export type SignatureMarkKind = 'moment' | 'title';

@@ -74,6 +74,7 @@ import {
   type LegacyLedger,
 } from './legacy';
 import {
+  contractPriceFor,
   legendByKey,
   sanitizeSignatures,
   signatureByKey,
@@ -214,6 +215,9 @@ export interface HomeRoster {
    * difficulty-exact gates landed (the never-re-lock rule, the v16 precedent).
    * Stamped once at migration; never grows afterward. */
   legacyGates?: PlayerGachaTier[];
+  /** LEGEND VOUCHERS held: each redeems one free Legacy Contract (the insane:S
+   * bounty's one-time reward). Spent by buyLegacyContract before coins. */
+  legendVouchers?: number;
 }
 
 // v21 adds EARNED GREATNESS: the LEGACY ledger (`legacy`, per-player career totals:
@@ -632,12 +636,52 @@ export function applyPlayerPull(
   const unlockedKeys = new Set(home.players.map(playerKey));
   const collectingCopies = collectingCopyMap(home);
   const result = pullPlayer(tier, unlockedKeys, collectingCopies, rng, pullDirection(home, tier));
+  // The Legendary machine no longer sells pulls: a legend signs through their
+  // Signature Card or a Legacy Contract (buyLegacyContract). The tier's pin and
+  // pools stay live (the Trial Pin and the reveal steering read them).
+  if (tier === 'legendary') return { home, result };
   // Locked behind ladder progress, or unaffordable: no-op (guarded here too, not just UI).
   if (!machineUnlocked(tier, home.ladderProgress, home.legacyGates) || home.coins < result.cost) {
     return { home, result };
   }
   // Charge the pull, then deposit the copy (foldPull credits any overflow bounty).
   return { home: foldPull({ ...home, coins: home.coins - result.cost }, result), result };
+}
+
+/**
+ * LEGACY CONTRACT: buy out the CHAMPIONSHIP mark of a legend whose SIGNATURE
+ * MOMENT is already proven, signing them outright. The moment is never for sale
+ * (the challenge is the intended path; the contract is the deterministic ceiling
+ * for a player who can hit the moment but cannot land the clear). Pays with one
+ * LEGEND VOUCHER when held, else the tier's punitive coin price. Residual favor
+ * cashes out exactly like a settle signing. A no-op without the moment, without
+ * the funds, or for an owned/unknown legend; guarded here, not just in the UI.
+ */
+export function buyLegacyContract(home: HomeRoster, key: string): HomeRoster {
+  const challenge = signatureByKey(key);
+  if (!challenge) return home;
+  if (home.players.some((p) => playerKey(p) === key)) return home;
+  if (!home.signatures[key]?.moment) return home;
+  const vouchers = home.legendVouchers ?? 0;
+  const price = vouchers > 0 ? 0 : contractPriceFor(challenge);
+  if (home.coins < price) return home;
+  const baked = legendByKey(key);
+  if (!baked) return home;
+  const legend = realPlayerToRosterPlayer(baked);
+  const favor = { ...home.favor };
+  const residualCoins = cashOutFavor(favor, key);
+  const signatures = { ...home.signatures };
+  delete signatures[key];
+  const { collecting, unlocked } = depositRecruitCopies(home.collecting ?? [], [legend], 1);
+  return {
+    ...home,
+    players: [...unlocked, ...home.players], // recency-front, like a merge signing
+    collecting,
+    favor,
+    signatures,
+    coins: home.coins - price + residualCoins,
+    legendVouchers: vouchers > 0 ? vouchers - 1 : home.legendVouchers,
+  };
 }
 
 /** The favor ledger + pinned target a machine's pull steers by. One helper so every
@@ -1294,6 +1338,8 @@ export interface BountyGrant {
   playerUnlocked?: boolean;
   /** A granted passive-ability id. */
   abilityId?: string;
+  /** A granted LEGEND VOUCHER (one free Legacy Contract). */
+  voucher?: boolean;
 }
 
 /**
@@ -1343,6 +1389,10 @@ export function claimRunBounty(
       grant.abilityId = id;
       break;
     }
+    case 'voucher':
+      next = { ...next, legendVouchers: (next.legendVouchers ?? 0) + 1 };
+      grant.voucher = true;
+      break;
     case 'player': {
       // A free guaranteed scout: fold a copy in exactly like a paid pull, no cost and no
       // machine gate (the clear IS the unlock). A fully-owned tier converts to overflow coins.
@@ -1881,6 +1931,10 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     // older saves backfill empty (no retro marks).
     signatures: sanitizeSignatures(data.signatures, ownedNow),
     legacyGates: legacyGates.length > 0 ? legacyGates : undefined,
+    legendVouchers:
+      typeof data.legendVouchers === 'number' && Number.isFinite(data.legendVouchers)
+        ? Math.max(0, Math.floor(data.legendVouchers))
+        : undefined,
     scoutTargets: sanitizeScoutTargets(data.scoutTargets, ownedNow),
     // v19: the hub since-you-left ledger. Missing/garbage fields backfill to the
     // CURRENT (post-migration) values, never zero: silencing a delta is safe,

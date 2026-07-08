@@ -179,7 +179,10 @@ export function ArcadeTab() {
     <>
       <Text style={[styles.section, styles.sectionTop]}>SCOUTING</Text>
       <View style={styles.machines}>
-        {PLAYER_GACHA_TIERS.map((tier) => {
+        {/* The legendary slot no longer sells pulls: legends sign through their
+            Signature Card on the Legends board (a Legacy Contract buys out the
+            championship half once the moment is proven). */}
+        {PLAYER_GACHA_TIERS.filter((tier) => tier !== 'legendary').map((tier) => {
           const m = PLAYER_MACHINES[tier];
           const counts = tierCounts(tier, ownedKeys, collectingCopies);
           const unlocked = machineUnlocked(tier, homeRoster.ladderProgress, homeRoster.legacyGates);
