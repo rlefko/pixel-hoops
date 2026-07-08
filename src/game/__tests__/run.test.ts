@@ -66,6 +66,44 @@ function atMap(runSeed: string, homeSeed = runSeed): RunModel {
   return runReducer(started(runSeed, homeSeed), { type: 'skipBoostDraft' })!;
 }
 
+/** Like {@link started} on a chosen (difficulty, ladder) cell, for the floored
+ * accrual tests (signature marks, trial pins). */
+function startedAt(
+  seed: string,
+  difficulty: 'easy' | 'medium',
+  ladder: 'A' | 'S'
+): RunModel {
+  const home = { ...rookie(seed), selectedDifficulty: difficulty, selectedLadderClass: ladder } as HomeRoster;
+  const m = initRun(seed, home);
+  if (m.phase.kind !== 'draft') return m;
+  return runReducer(m, {
+    type: 'confirmDraft',
+    starters: m.phase.defaultStarters,
+    bench: m.phase.defaultBench,
+  })!;
+}
+
+// Shared accrual-test machinery (favor, legacy, and signature marks all drive the
+// same injected single-game flow).
+/** Play `nodeId` for real from pregame so the box score carries minutes. */
+const playedPostgame = (m: RunModel, nodeId: string, won: boolean): RunModel => {
+  const game = runReducer({ ...m, phase: { kind: 'pregame', nodeId } }, { type: 'enterGame' })!;
+  return { ...game, phase: { kind: 'postgame', nodeId, won } };
+};
+const combat = (over: Partial<MapNode>): MapNode => ({
+  id: 'g1', type: 'game', layer: 1, next: [], round: 1, visited: true, cleared: false, ...over,
+});
+const inject = (m: RunModel, n: MapNode): RunModel => ({
+  ...m,
+  core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
+});
+const rosterKeys = (m: RunModel) =>
+  new Set(
+    [...m.core.roster.starters, ...m.core.roster.bench].map(
+      (p) => `${p.player.name}|${p.position}`
+    )
+  );
+
 describe('generateRecruitOffers', () => {
   it('is deterministic and honors count', () => {
     const a = generateRecruitOffers('C', 'easy', 0, 3, createRNG('r1'));
@@ -1661,25 +1699,6 @@ describe('boss legend signings (hard/insane, S and S+ ladders)', () => {
 });
 
 describe('favor accrual (win-earned, fielded-only)', () => {
-  /** Play g1 for real from pregame so the box score carries minutes. */
-  const playedPostgame = (m: RunModel, nodeId: string, won: boolean): RunModel => {
-    const game = runReducer({ ...m, phase: { kind: 'pregame', nodeId } }, { type: 'enterGame' })!;
-    return { ...game, phase: { kind: 'postgame', nodeId, won } };
-  };
-  const combat = (over: Partial<MapNode>): MapNode => ({
-    id: 'g1', type: 'game', layer: 1, next: [], round: 1, visited: true, cleared: false, ...over,
-  });
-  const inject = (m: RunModel, n: MapNode): RunModel => ({
-    ...m,
-    core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
-  });
-  const rosterKeys = (m: RunModel) =>
-    new Set(
-      [...m.core.roster.starters, ...m.core.roster.bench].map(
-        (p) => `${p.player.name}|${p.position}`
-      )
-    );
-
   it('a won game banks base points for every player who logged minutes', () => {
     const pre = inject(started('fav-1'), combat({}));
     const won = runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!;
@@ -1750,24 +1769,6 @@ describe('favor accrual (win-earned, fielded-only)', () => {
 });
 
 describe('legacy accrual (win-earned, fielded, at-class only)', () => {
-  const playedPostgame = (m: RunModel, nodeId: string, won: boolean): RunModel => {
-    const game = runReducer({ ...m, phase: { kind: 'pregame', nodeId } }, { type: 'enterGame' })!;
-    return { ...game, phase: { kind: 'postgame', nodeId, won } };
-  };
-  const combat = (over: Partial<MapNode>): MapNode => ({
-    id: 'g1', type: 'game', layer: 1, next: [], round: 1, visited: true, cleared: false, ...over,
-  });
-  const inject = (m: RunModel, n: MapNode): RunModel => ({
-    ...m,
-    core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
-  });
-  const rosterKeys = (m: RunModel) =>
-    new Set(
-      [...m.core.roster.starters, ...m.core.roster.bench].map(
-        (p) => `${p.player.name}|${p.position}`
-      )
-    );
-
   it('a won game banks a win for every fielded player and exactly one MVP crown', () => {
     const pre = inject(started('leg-1'), combat({}));
     const won = runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!;
@@ -1867,16 +1868,6 @@ describe('legacy accrual (win-earned, fielded, at-class only)', () => {
   });
 
   it('signature marks: the title stamps on a floored championship, never below', () => {
-    const startedAt = (seed: string, difficulty: 'easy' | 'medium', ladder: 'A' | 'S') => {
-      const home = { ...rookie(seed), selectedDifficulty: difficulty, selectedLadderClass: ladder } as HomeRoster;
-      const m = initRun(seed, home);
-      if (m.phase.kind !== 'draft') return m;
-      return runReducer(m, {
-        type: 'confirmDraft',
-        starters: m.phase.defaultStarters,
-        bench: m.phase.defaultBench,
-      })!;
-    };
     const lebron = NBA_LEGENDS.find((l) => l.slug === 'lebron-james')!;
     const legend = { ...realPlayerToRosterPlayer(lebron), onLoan: true };
     const legendKey = `${legend.player.name}|${legend.position}`;
@@ -1911,21 +1902,11 @@ describe('legacy accrual (win-earned, fielded, at-class only)', () => {
   });
 
   it('signature marks: a fielded legend`s moment lands off a real box line', () => {
-    const startedAt = (seed: string) => {
-      const home = { ...rookie(seed), selectedDifficulty: 'medium', selectedLadderClass: 'S' } as HomeRoster;
-      const m = initRun(seed, home);
-      if (m.phase.kind !== 'draft') return m;
-      return runReducer(m, {
-        type: 'confirmDraft',
-        starters: m.phase.defaultStarters,
-        bench: m.phase.defaultBench,
-      })!;
-    };
     const lebron = NBA_LEGENDS.find((l) => l.slug === 'lebron-james')!;
     const legend = { ...realPlayerToRosterPlayer(lebron), onLoan: true };
     const legendKey = `${legend.player.name}|${legend.position}`;
     const playWith = (seed: string) => {
-      const base = inject(startedAt(seed), combat({}));
+      const base = inject(startedAt(seed, 'medium', 'S'), combat({}));
       const slot = base.core.roster.starters.findIndex((p) => p.position === legend.position);
       const starters = base.core.roster.starters.map((p, i) => (i === slot ? legend : p));
       const withLegend = {

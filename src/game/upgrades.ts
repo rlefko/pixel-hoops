@@ -97,6 +97,25 @@ export function rankLegacyGateLabel(alreadyBought: number): string | null {
   return LEGACY_LEVELS.find((t) => t.level === need)?.name ?? null;
 }
 
+/** The lowest legacy level any still-buyable rank of this player needs and lacks
+ * (null = nothing legacy-locked). The ONE derivation behind the locker row's
+ * "NEEDS" strip and the tab's teach gate, so neither can drift from the
+ * purchase guard. */
+export function lowestLegacyLockedNeed(
+  stats: PlayerStats,
+  upgrades: Partial<Record<keyof PlayerStats, number>> | undefined,
+  legacy: LegacyLine | undefined
+): number | null {
+  let need: number | null = null;
+  for (const stat of UPGRADEABLE_STATS) {
+    const bought = upgrades?.[stat] ?? 0;
+    if (!canUpgrade(stat, stats[stat], bought) || rankUnlockedByLegacy(bought, legacy)) continue;
+    const required = RANK_LEGACY_REQUIREMENT[bought + 1];
+    if (required !== undefined && (need === null || required < need)) need = required;
+  }
+  return need;
+}
+
 // Bit index per upgradeable stat; UPGRADEABLE_STATS order is the single source of
 // the mask's bit layout (affordMask writes and maskBit reads through this map only).
 const STAT_BIT = new Map(UPGRADEABLE_STATS.map((stat, i) => [stat, i]));

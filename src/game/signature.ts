@@ -1,4 +1,9 @@
-import { DIFFICULTIES, type Difficulty, type LadderClass } from './difficulty-mode';
+import {
+  DIFFICULTIES,
+  difficultyAtLeast,
+  type Difficulty,
+  type LadderClass,
+} from './difficulty-mode';
 import { NBA_LEGENDS } from '@/data/nba';
 import { nameKey } from '@/types/roster';
 import type { RealPlayer } from '@/types/nba';
@@ -353,7 +358,7 @@ export function meetsSignatureFloor(
   ladderClass: LadderClass
 ): boolean {
   if (ladderClass !== 'S' && ladderClass !== 'S+') return false;
-  return DIFFICULTIES.indexOf(difficulty) >= DIFFICULTIES.indexOf(challenge.floor);
+  return difficultyAtLeast(difficulty, challenge.floor);
 }
 
 /** Whether a node tier satisfies the challenge's moment stage. */

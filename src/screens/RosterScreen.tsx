@@ -259,8 +259,9 @@ export default function RosterScreen() {
           ) : null}
         </View>
       </View>
-      {showLegends ? <LegendsBoard /> : null}
-      {showLegends ? null : (
+      {showLegends ? (
+        <LegendsBoard />
+      ) : (
       <>
       <RosterFilterBar
         query={query}

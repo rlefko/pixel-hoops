@@ -6,6 +6,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { CoinFly, Pop, Counter, TickCounter } from '@/components/fx';
 import { useRun } from '@/hooks/useRun';
+import { nameKey } from '@/types/roster';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import { TeachCallout } from '@/components/teach/TeachCallout';
 import { TeachSlot } from '@/components/teach/TeachSlot';
@@ -390,7 +391,7 @@ export default function RunScreen() {
       const signedLegends = signatureRows.filter((d) => d.signed);
       const signedKeys = new Set(signedLegends.map((d) => d.challenge.legendKey));
       const notSigned = wonPlayers.unlocked.filter(
-        (p) => !signedKeys.has(`${p.player.name}|${p.position}`)
+        (p) => !signedKeys.has(nameKey(p.player.name, p.position))
       );
       const unlockedPlayers = champion ? notSigned : [];
       // On a loss these carry the milestone bank (empty on an ordinary loss): a banked
@@ -406,17 +407,13 @@ export default function RunScreen() {
       const toSignatureReveal = () => setShowSignatureReveal(true);
       const toPlayerReveal = () => setShowPlayerReveal(true);
       const toCoachReveal = () => setShowCoachReveal(true);
+      // Each stage falls through to the next applicable one, so adding a reveal
+      // to the chain is a one-liner.
       const afterPlayers = (exit: () => void) => (wonCoaches.length > 0 ? toCoachReveal : exit);
       const afterSignature = (exit: () => void) =>
-        unlockedPlayers.length > 0 ? toPlayerReveal : wonCoaches.length > 0 ? toCoachReveal : exit;
+        unlockedPlayers.length > 0 ? toPlayerReveal : afterPlayers(exit);
       const afterBounty = (exit: () => void) =>
-        signedLegends.length > 0
-          ? toSignatureReveal
-          : unlockedPlayers.length > 0
-            ? toPlayerReveal
-            : wonCoaches.length > 0
-              ? toCoachReveal
-              : exit;
+        signedLegends.length > 0 ? toSignatureReveal : afterSignature(exit);
 
       if (showBountyReveal && !showSignatureReveal && !showPlayerReveal && !showCoachReveal && bounty) {
         return (
@@ -475,7 +472,7 @@ export default function RunScreen() {
               signed: settledSigned,
               unlocked: champion
                 ? settled.acquisitions.unlocked.filter(
-                    (p) => !settledSignedKeys.has(`${p.player.name}|${p.position}`)
+                    (p) => !settledSignedKeys.has(nameKey(p.player.name, p.position))
                   )
                 : [],
               coachCount: champion ? settled.wonCoachIds.length : 0,

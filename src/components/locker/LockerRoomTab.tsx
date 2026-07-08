@@ -10,11 +10,10 @@ import { TeachCallout } from '@/components/teach/TeachCallout';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { applyUpgrade, playerKey, setIconPerk, totalUpgrades } from '@/game/home-roster';
 import {
-  RANK_LEGACY_REQUIREMENT,
-  UPGRADEABLE_STATS,
   affordMask,
   canUpgrade,
   isPremiumStat,
+  lowestLegacyLockedNeed,
   maskBit,
   perStatMax,
   rankLegacyGateLabel,
@@ -191,23 +190,9 @@ const LockerRow = memo(function LockerRow({
   onUpgrade: (index: number, stat: keyof PlayerStats) => void;
   onPickPerk: (key: string, perk: IconPerkId) => void;
 }) {
-  // The lowest legacy level any visible locked rank needs (null = nothing locked),
-  // driving the strip's "NEEDS" readout. Eight cheap checks per render.
-  let lockedNeed: number | null = null;
-  for (const group of STAT_GROUPS) {
-    for (const s of group.stats) {
-      const bought = upgrades?.[s.key] ?? 0;
-      if (
-        canUpgrade(s.key, rp.player.stats[s.key], bought, perStatMax()) &&
-        !rankUnlockedByLegacy(bought, legacy)
-      ) {
-        const need = RANK_LEGACY_REQUIREMENT[bought + 1];
-        if (need !== undefined) {
-          lockedNeed = lockedNeed === null ? need : Math.min(lockedNeed, need);
-        }
-      }
-    }
-  }
+  // The lowest legacy level any visible locked rank needs (null = nothing
+  // locked), driving the strip's "NEEDS" readout. Eight cheap checks per render.
+  const lockedNeed = lowestLegacyLockedNeed(rp.player.stats, upgrades, legacy);
   const stripText = legacyStripText(legacy, lockedNeed);
   const isIcon = legacyLevel(legacy) >= 4;
   return (
@@ -408,15 +393,10 @@ export function LockerRoomTab() {
     if (!players) return false;
     return players.some((rp) => {
       const key = playerKey(rp);
-      const bought = upgradesLedger?.[key];
-      const line = legacyLedger?.[key];
-      return UPGRADEABLE_STATS.some((stat) => {
-        const count = bought?.[stat] ?? 0;
-        return (
-          canUpgrade(stat, rp.player.stats[stat], count, perStatMax()) &&
-          !rankUnlockedByLegacy(count, line)
-        );
-      });
+      return (
+        lowestLegacyLockedNeed(rp.player.stats, upgradesLedger?.[key], legacyLedger?.[key]) !==
+        null
+      );
     });
   }, [players, upgradesLedger, legacyLedger]);
 

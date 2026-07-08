@@ -477,23 +477,31 @@ function applyRecruitPity(
   return { offers: [...rolled.slice(0, -1), forced], recruitDryStreak: 0 };
 }
 
-/** playerKeys of roster players who logged minutes in the just-simmed game. Favor
- * accrues to players who actually took the floor in a WIN, never benched spectators
- * (a parked recruit earning passive trust would gut the field-them-or-not tradeoff).
- * No box (defensive) = no favor. */
-function fieldedFavorKeys(roster: RunState['roster'], box: BoxLine[] | undefined): string[] {
+/** Roster players who logged minutes (`seconds > 0`) in the just-simmed game: the
+ * ONE fielded rule behind favor, legacy, and icon-perk accrual, so "benched
+ * spectators earn and confer nothing" can never drift between the three. No box
+ * (defensive) = nobody fielded. */
+function fieldedPlayers(
+  roster: RunState['roster'],
+  box: BoxLine[] | undefined
+): RosterPlayer[] {
   if (!box) return [];
   const played = new Set(box.filter((line) => line.seconds > 0).map((line) => line.name));
-  return [...roster.starters, ...roster.bench]
-    .filter((p) => played.has(p.player.name))
-    .map((p) => nameKey(p.player.name, p.position));
+  return [...roster.starters, ...roster.bench].filter((p) => played.has(p.player.name));
 }
 
-/** LEGACY credits for a just-WON game: every fielded player (minutes logged, like
- * favor) whose class sits within the at-class grace of the run's ladder earns a win,
- * the box-score MVP earns a crown, and the championship win earns a title. The
- * reducer stays home-blind: ownership is the merge's cut (mergeLegacyIntoHome), the
- * mirror of favor's un-owned cut, so rentals build favor while the owned build careers. */
+/** playerKeys of fielded players. Favor accrues to players who actually took the
+ * floor in a WIN (a parked recruit earning passive trust would gut the
+ * field-them-or-not tradeoff). */
+function fieldedFavorKeys(roster: RunState['roster'], box: BoxLine[] | undefined): string[] {
+  return fieldedPlayers(roster, box).map((p) => nameKey(p.player.name, p.position));
+}
+
+/** LEGACY credits for a just-WON game: every fielded player whose class sits
+ * within the at-class grace of the run's ladder earns a win, the box-score MVP
+ * earns a crown, and the championship win earns a title. The reducer stays
+ * home-blind: ownership is the merge's cut (mergeLegacyIntoHome), the mirror of
+ * favor's un-owned cut, so rentals build favor while the owned build careers. */
 function legacyGameCredits(
   roster: RunState['roster'],
   box: BoxLine[] | undefined,
@@ -503,9 +511,8 @@ function legacyGameCredits(
   if (!box) return [];
   const mvp = mvpIndex(box);
   const mvpName = mvp >= 0 ? box[mvp].name : null;
-  const played = new Set(box.filter((line) => line.seconds > 0).map((line) => line.name));
-  return [...roster.starters, ...roster.bench]
-    .filter((p) => played.has(p.player.name) && legacyEligible(playerDraftClass(p), ladderClass))
+  return fieldedPlayers(roster, box)
+    .filter((p) => legacyEligible(playerDraftClass(p), ladderClass))
     .map((p) => ({
       key: nameKey(p.player.name, p.position),
       mvp: p.player.name === mvpName,
@@ -561,13 +568,10 @@ function advanceSignatureMarks(
   return next.length === 0 ? prior : [...prior, ...next];
 }
 
-/** Icon Perks held by players who logged minutes in the just-simmed game (the
- * fieldedFavorKeys rule: a benched icon confers nothing). */
+/** Icon Perks held by fielded players (a benched icon confers nothing). */
 function fieldedIconPerks(roster: RunState['roster'], box: BoxLine[] | undefined): IconPerkId[] {
-  if (!box) return [];
-  const played = new Set(box.filter((line) => line.seconds > 0).map((line) => line.name));
-  return [...roster.starters, ...roster.bench]
-    .filter((p) => p.iconPerk && played.has(p.player.name))
+  return fieldedPlayers(roster, box)
+    .filter((p) => p.iconPerk)
     .map((p) => p.iconPerk as IconPerkId);
 }
 

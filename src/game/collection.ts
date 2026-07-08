@@ -1,6 +1,6 @@
 import type { RosterPlayer } from '@/types/roster';
 import type { PlayerClass } from './ratings';
-import { DIFFICULTIES, type Difficulty } from './difficulty-mode';
+import { difficultyAtLeast, type Difficulty } from './difficulty-mode';
 
 /**
  * The player COLLECTION model. Owning a non-legend is no longer binary: each player
@@ -63,7 +63,7 @@ export const PROVING_DIFFICULTY: Record<PlayerClass, Difficulty> = {
 /** Whether a difficulty meets a class's proving floor (one-directional: above
  * always counts). */
 export function provenAtDifficulty(cls: PlayerClass, difficulty: Difficulty): boolean {
-  return DIFFICULTIES.indexOf(difficulty) >= DIFFICULTIES.indexOf(PROVING_DIFFICULTY[cls]);
+  return difficultyAtLeast(difficulty, PROVING_DIFFICULTY[cls]);
 }
 
 /** Copies required to own (unlock) a player of `cls`. */

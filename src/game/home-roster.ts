@@ -979,12 +979,11 @@ function settleDeposits(
   // Two channel guards: legends never deposit (their Signature Card is the only
   // door, legacy valve aside), and an S below the proving floor banks a letter of
   // intent (favor, added in settleCollection) instead of copies.
-  const depositable = candidates.filter((rp) => {
-    if (settle.signatureProgress !== undefined && isLegendRecruit(rp)) return false;
-    const cls = playerDraftClass(rp);
-    if (!isLegendRecruit(rp) && !provenAtDifficulty(cls, difficulty)) return false;
-    return true;
-  });
+  const depositable = candidates.filter((rp) =>
+    isLegendRecruit(rp)
+      ? settle.signatureProgress === undefined // the legacy valve
+      : provenAtDifficulty(playerDraftClass(rp), difficulty)
+  );
   if (champion) {
     return depositRecruitCopies(home.collecting ?? [], depositable, mods.copiesMul, ladderClass);
   }
@@ -1036,7 +1035,8 @@ function settleCollection(
   runRoster: Roster,
   settle: RunSettle
 ): CollectionSettle {
-  const mods = difficultyMods(settle.playedDifficulty ?? home.selectedDifficulty);
+  const settleDifficulty = settle.playedDifficulty ?? home.selectedDifficulty;
+  const mods = difficultyMods(settleDifficulty);
   const candidates = runRecruitCandidates(home, runRoster);
   const deposits = settleDeposits(home, candidates, settle);
   const unlocked = [...deposits.unlocked];
@@ -1061,7 +1061,6 @@ function settleCollection(
   const signatures: SignatureLedger = { ...home.signatures };
   const signatureDelta: SignatureDelta[] = [];
   if (settle.signatureProgress && settle.signatureProgress.length > 0) {
-    const difficulty = settle.playedDifficulty ?? home.selectedDifficulty;
     const marksByKey = new Map<string, Set<SignatureMark['mark']>>();
     for (const m of settle.signatureProgress) {
       if (!marksByKey.has(m.legendKey)) marksByKey.set(m.legendKey, new Set());
@@ -1073,8 +1072,8 @@ function settleCollection(
       const card = { ...signatures[key] };
       const momentStamped = marks.has('moment') && !card.moment;
       const titleStamped = marks.has('title') && !card.title;
-      if (momentStamped) card.moment = difficulty;
-      if (titleStamped) card.title = difficulty;
+      if (momentStamped) card.moment = settleDifficulty;
+      if (titleStamped) card.title = settleDifficulty;
       if (!momentStamped && !titleStamped) continue;
       signatures[key] = card;
       const signed = signatureComplete(card);
@@ -1111,7 +1110,6 @@ function settleCollection(
   // flat favor in place of the copies the clear would have deposited above it. The
   // title always moves the meter; below the floor it moves in trust, not contracts
   // ("Easy earns his trust; Medium signs him").
-  const settleDifficulty = settle.playedDifficulty ?? home.selectedDifficulty;
   const letters: Record<string, number> = {};
   if (settle.champion && !provenAtDifficulty('S', settleDifficulty)) {
     for (const rp of candidates) {

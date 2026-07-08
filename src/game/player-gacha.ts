@@ -5,7 +5,12 @@ import { poolByClass, realPlayerToRosterPlayer } from './player-pool';
 import { CLASS_ORDER, type PlayerClass } from './ratings';
 import { copiesToOwn, overflowBounty } from './collection';
 import { FAVOR_PER_COPY } from './favor';
-import { DIFFICULTIES, type Difficulty, type LadderClass } from './difficulty-mode';
+import {
+  DIFFICULTIES,
+  difficultyAtLeast,
+  type Difficulty,
+  type LadderClass,
+} from './difficulty-mode';
 import type { RNG } from './rng';
 
 /**
@@ -104,9 +109,8 @@ export function machineUnlocked(
   if (!need) return true;
   if (grandfathered?.includes(tier)) return true;
   const needIdx = CLASS_ORDER.indexOf(need.cls);
-  const minIdx = DIFFICULTIES.indexOf(need.minDifficulty);
-  return DIFFICULTIES.some((difficulty, i) => {
-    if (i < minIdx) return false;
+  return DIFFICULTIES.some((difficulty) => {
+    if (!difficultyAtLeast(difficulty, need.minDifficulty)) return false;
     const cleared = ladderProgress[difficulty];
     return cleared != null && CLASS_ORDER.indexOf(cleared) >= needIdx;
   });
