@@ -8,6 +8,7 @@ import {
   type DailyGrants,
   type FavorDelta,
   type HomeRoster,
+  type SignatureDelta,
 } from './home-roster';
 import { coachesWonByClear } from './coaches';
 import { buildHallOfFameEntry } from './hall-of-fame';
@@ -37,6 +38,8 @@ export interface RunSettleResult {
   acquisitions: AcquisitionDelta;
   /** The favor this settle banked/converted, for the summary strip. */
   favorDelta: FavorDelta[];
+  /** Signature Card movement (marks stamped, legends signed), for the reveal. */
+  signatureDelta: SignatureDelta[];
   /** The one-time Championship Bounty this first-clear granted (null otherwise). */
   bounty: BountyGrant | null;
   /** Daily Layer grants this settle paid. */
@@ -78,6 +81,9 @@ export function settleRunIntoHome(home: HomeRoster, model: RunModel, now: number
     bossWins: model.core.currentMapIndex,
     ladderClass: model.ladderClass,
     runFavor: model.favor ?? {},
+    runLegacy: model.legacy ?? {},
+    // Raw (no ?? fallback): an absent ledger IS the legacy-valve signal.
+    signatureProgress: model.signatureProgress,
   });
   // A championship banks a Hall of Fame snapshot of the final game. `now` is injected
   // by the hook, keeping the merge and the entry builder clock-free.
@@ -120,6 +126,9 @@ export function settleRunIntoHome(home: HomeRoster, model: RunModel, now: number
       bossWins: model.core.currentMapIndex,
       ladderClass: model.ladderClass,
       runFavor: model.favor ?? {},
+      runLegacy: model.legacy ?? {},
+      // Raw (no ?? fallback): an absent ledger IS the legacy-valve signal.
+      signatureProgress: model.signatureProgress,
     }),
     settledRunId: runId,
   };
@@ -129,6 +138,7 @@ export function settleRunIntoHome(home: HomeRoster, model: RunModel, now: number
     wonCoachIds,
     acquisitions: { unlocked: preview.unlocked, progressed: preview.progressed },
     favorDelta: preview.favorDelta,
+    signatureDelta: preview.signatureDelta,
     bounty,
     daily,
   };

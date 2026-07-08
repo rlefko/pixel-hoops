@@ -7,11 +7,12 @@ import { Pop, LiveChip, StaggerIn, TickCounter } from '@/components/fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
 import { DailyRewardStrip } from './DailyRewardStrip';
 import { FavorStrip } from './FavorStrip';
+import { SignatureStrip } from './SignatureStrip';
 import { CoinIcon } from './PixelIcons';
 import { TeachCallout } from '@/components/teach/TeachCallout';
 import { useTipArmed } from '@/components/teach/useTipArmed';
 import { sfx, useIdle, useGlowPulse, HUB_IDLE_MS } from '@/feel';
-import type { DailyGrants, FavorDelta, ProgressedCopy } from '@/game/home-roster';
+import type { DailyGrants, FavorDelta, ProgressedCopy, SignatureDelta } from '@/game/home-roster';
 import {
   DIFFICULTY_LABELS,
   type Difficulty,
@@ -40,6 +41,8 @@ interface RunSummaryViewProps {
   progressed?: ProgressedCopy[];
   /** The favor this run's wins banked (win or lose): the "no run is wasted" strip. */
   favorRows?: FavorDelta[];
+  /** Signature Card marks this settle stamped (the near-miss "moment was real" line). */
+  signatureRows?: SignatureDelta[];
   /** On a loss: the final deficit, for the "so close" near-miss line (shown only when small). */
   lossMargin?: number;
   /** On a loss: the trimmed clock when the game ended (e.g. "0:48"). */
@@ -107,6 +110,7 @@ export function RunSummaryView({
   unlockedClass,
   progressed = [],
   favorRows = [],
+  signatureRows = [],
   lossMargin,
   lossClock,
   nextUnlockLabel,
@@ -235,6 +239,7 @@ export function RunSummaryView({
         </Pop>
       ) : null}
       <CollectionProgressStrip progressed={progressed} />
+      <SignatureStrip rows={signatureRows} champion={champion} />
       <FavorStrip rows={favorRows} />
       <DailyRewardStrip grants={dailyGrants} />
       <LiveChip active={glowNewRun} color={palette.gold} paused={idle} style={styles.newRunWrap}>

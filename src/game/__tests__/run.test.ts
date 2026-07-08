@@ -6,6 +6,7 @@ import {
   createRookieRoster,
   homeToRunRoster,
   mergeRunGainsIntoHome,
+  pinScoutTarget,
   rememberDraftRotation,
   serializeHomeRoster,
   deserializeHomeRoster,
@@ -64,6 +65,44 @@ function started(runSeed: string, homeSeed = runSeed): RunModel {
 function atMap(runSeed: string, homeSeed = runSeed): RunModel {
   return runReducer(started(runSeed, homeSeed), { type: 'skipBoostDraft' })!;
 }
+
+/** Like {@link started} on a chosen (difficulty, ladder) cell, for the floored
+ * accrual tests (signature marks, trial pins). */
+function startedAt(
+  seed: string,
+  difficulty: 'easy' | 'medium',
+  ladder: 'A' | 'S'
+): RunModel {
+  const home = { ...rookie(seed), selectedDifficulty: difficulty, selectedLadderClass: ladder } as HomeRoster;
+  const m = initRun(seed, home);
+  if (m.phase.kind !== 'draft') return m;
+  return runReducer(m, {
+    type: 'confirmDraft',
+    starters: m.phase.defaultStarters,
+    bench: m.phase.defaultBench,
+  })!;
+}
+
+// Shared accrual-test machinery (favor, legacy, and signature marks all drive the
+// same injected single-game flow).
+/** Play `nodeId` for real from pregame so the box score carries minutes. */
+const playedPostgame = (m: RunModel, nodeId: string, won: boolean): RunModel => {
+  const game = runReducer({ ...m, phase: { kind: 'pregame', nodeId } }, { type: 'enterGame' })!;
+  return { ...game, phase: { kind: 'postgame', nodeId, won } };
+};
+const combat = (over: Partial<MapNode>): MapNode => ({
+  id: 'g1', type: 'game', layer: 1, next: [], round: 1, visited: true, cleared: false, ...over,
+});
+const inject = (m: RunModel, n: MapNode): RunModel => ({
+  ...m,
+  core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
+});
+const rosterKeys = (m: RunModel) =>
+  new Set(
+    [...m.core.roster.starters, ...m.core.roster.bench].map(
+      (p) => `${p.player.name}|${p.position}`
+    )
+  );
 
 describe('generateRecruitOffers', () => {
   it('is deterministic and honors count', () => {
@@ -348,6 +387,21 @@ describe('home roster persistence', () => {
     // Unaffordable is a no-op (same reference).
     const broke = { ...home, coins: 100 };
     expect(applyUpgrade(broke, 0, 'inside')).toBe(broke);
+  });
+
+  it('applyUpgrade holds rank 4 behind a STARTER legacy and opens with the career', () => {
+    const base = { ...rookie('up-gate'), coins: 1_000_000 };
+    const key = `${base.players[0].player.name}|${base.players[0].position}`;
+    // Three ranks bought: the 4th needs a STARTER career, wallet notwithstanding.
+    const atThree = { ...base, upgrades: { [key]: { inside: 3 } } };
+    expect(applyUpgrade(atThree, 0, 'inside')).toBe(atThree);
+    // The same purchase clears once the career reaches STARTER (15W 3MVP).
+    const proven = { ...atThree, legacy: { [key]: { w: 15, mvp: 3, titles: 0 } } };
+    const bought = applyUpgrade(proven, 0, 'inside');
+    expect(bought).not.toBe(proven);
+    expect(bought.upgrades[key]?.inside).toBe(4);
+    // Rank 5 then waits on FRANCHISE.
+    expect(applyUpgrade(bought, 0, 'inside')).toBe(bought);
   });
 
   it('mergeRunGainsIntoHome strips on-loan legends, items, training, and injuries', () => {
@@ -1645,25 +1699,6 @@ describe('boss legend signings (hard/insane, S and S+ ladders)', () => {
 });
 
 describe('favor accrual (win-earned, fielded-only)', () => {
-  /** Play g1 for real from pregame so the box score carries minutes. */
-  const playedPostgame = (m: RunModel, nodeId: string, won: boolean): RunModel => {
-    const game = runReducer({ ...m, phase: { kind: 'pregame', nodeId } }, { type: 'enterGame' })!;
-    return { ...game, phase: { kind: 'postgame', nodeId, won } };
-  };
-  const combat = (over: Partial<MapNode>): MapNode => ({
-    id: 'g1', type: 'game', layer: 1, next: [], round: 1, visited: true, cleared: false, ...over,
-  });
-  const inject = (m: RunModel, n: MapNode): RunModel => ({
-    ...m,
-    core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
-  });
-  const rosterKeys = (m: RunModel) =>
-    new Set(
-      [...m.core.roster.starters, ...m.core.roster.bench].map(
-        (p) => `${p.player.name}|${p.position}`
-      )
-    );
-
   it('a won game banks base points for every player who logged minutes', () => {
     const pre = inject(started('fav-1'), combat({}));
     const won = runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!;
@@ -1730,6 +1765,206 @@ describe('favor accrual (win-earned, fielded-only)', () => {
       return runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!.favor;
     };
     expect(play()).toEqual(play());
+  });
+});
+
+describe('legacy accrual (win-earned, fielded, at-class only)', () => {
+  it('a won game banks a win for every fielded player and exactly one MVP crown', () => {
+    const pre = inject(started('leg-1'), combat({}));
+    const won = runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!;
+    const ledger = won.legacy ?? {};
+    const keys = Object.keys(ledger);
+    expect(keys.length).toBeGreaterThanOrEqual(5); // the starting five always play
+    const valid = rosterKeys(won);
+    let crowns = 0;
+    for (const key of keys) {
+      expect(valid.has(key)).toBe(true);
+      expect(ledger[key].w).toBe(1);
+      expect(ledger[key].titles).toBe(0);
+      crowns += ledger[key].mvp;
+    }
+    expect(crowns).toBe(1); // the box-score MVP is always a fielded home player
+  });
+
+  it('the championship win banks a title for the fielded', () => {
+    const base = inject(started('leg-2'), combat({ type: 'boss' }));
+    const finale = { ...base, core: { ...base.core, currentMapIndex: TOTAL_MAPS - 1 } };
+    const crowned = runReducer(playedPostgame(finale, 'g1', true), {
+      type: 'resolveGameResult',
+    })!;
+    expect(crowned.phase).toEqual({ kind: 'summary', champion: true });
+    for (const line of Object.values(crowned.legacy ?? {})) {
+      expect(line.titles).toBe(1);
+    }
+  });
+
+  it('losses and timeout replays bank nothing', () => {
+    const pre = inject(started('leg-3'), combat({}));
+    const lost = runReducer(
+      { ...playedPostgame(pre, 'g1', false), secondChancesRemaining: 0 },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(Object.keys(lost.legacy ?? {})).toHaveLength(0);
+    const forgiven = runReducer(
+      { ...playedPostgame(pre, 'g1', false), secondChancesRemaining: 1 },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(Object.keys(forgiven.legacy ?? {})).toHaveLength(0);
+  });
+
+  it('an above-grace star earns favor but no legacy on a low ladder', () => {
+    // Field an on-loan S+ legend on the C ladder: the at-class rule zeroes their
+    // career credit ("legends do not pad stats against rookies") while favor,
+    // whose job is the un-owned chase, still accrues.
+    const legend = { ...realPlayerToRosterPlayer(NBA_LEGENDS[0]), onLoan: true };
+    const base = inject(started('leg-4'), combat({}));
+    const five = [...base.core.roster.starters];
+    const slot = five.findIndex((p) => p.position === legend.position);
+    const swapped = [...five.slice(0, slot), legend, ...five.slice(slot + 1)];
+    const withLegend = {
+      ...base,
+      core: { ...base.core, roster: { starters: swapped, bench: base.core.roster.bench } },
+    };
+    const won = runReducer(playedPostgame(withLegend, 'g1', true), {
+      type: 'resolveGameResult',
+    })!;
+    const legendKey = `${legend.player.name}|${legend.position}`;
+    expect((won.favor ?? {})[legendKey]).toBeGreaterThan(0);
+    expect((won.legacy ?? {})[legendKey]).toBeUndefined();
+    // Their at-class teammates still built careers on the same win.
+    expect(Object.keys(won.legacy ?? {}).length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('accrual is deterministic from the run seed', () => {
+    const play = () => {
+      const pre = inject(started('leg-5'), combat({}));
+      return runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!.legacy;
+    };
+    expect(play()).toEqual(play());
+  });
+
+  it('the trial pin: an armed legend joins qualifying drafts on loan, never below the floor', () => {
+    const legend = NBA_LEGENDS.find((l) => l.slug === 'lebron-james')!; // Tier I: medium floor
+    const key = `${legend.name}|${legend.position}`;
+    const base: HomeRoster = {
+      ...rookie('trial'),
+      selectedDifficulty: 'medium',
+      selectedLadderClass: 'S',
+    };
+    const home = pinScoutTarget(base, 'legendary', key);
+    const offeredIn = (h: HomeRoster, seed: string) => {
+      const m = initRun(seed, h);
+      return m.phase.kind === 'draft'
+        ? m.phase.available.find((p) => `${p.player.name}|${p.position}` === key)
+        : undefined;
+    };
+    // A qualifying run (medium+ S ladder) drafts the armed legend on loan.
+    const offered = offeredIn(home, 'trial-run');
+    expect(offered?.onLoan).toBe(true);
+    // Below the floor, off the S ladders, or un-armed: no trial option.
+    expect(offeredIn({ ...home, selectedDifficulty: 'easy' }, 'trial-easy')).toBeUndefined();
+    expect(offeredIn({ ...home, selectedLadderClass: 'A' }, 'trial-a')).toBeUndefined();
+    expect(offeredIn(base, 'trial-unarmed')).toBeUndefined();
+  });
+
+  it('signature marks: the title stamps on a floored championship, never below', () => {
+    const lebron = NBA_LEGENDS.find((l) => l.slug === 'lebron-james')!;
+    const legend = { ...realPlayerToRosterPlayer(lebron), onLoan: true };
+    const legendKey = `${legend.player.name}|${legend.position}`;
+    const finaleWith = (difficulty: 'easy' | 'medium', ladder: 'A' | 'S') => {
+      const base = inject(startedAt(`sig-title-${difficulty}-${ladder}`, difficulty, ladder), combat({ type: 'boss' }));
+      const slot = base.core.roster.starters.findIndex((p) => p.position === legend.position);
+      const starters = base.core.roster.starters.map((p, i) => (i === slot ? legend : p));
+      const finale = {
+        ...base,
+        core: {
+          ...base.core,
+          currentMapIndex: TOTAL_MAPS - 1,
+          roster: { starters, bench: base.core.roster.bench },
+        },
+      };
+      return runReducer(playedPostgame(finale, 'g1', true), { type: 'resolveGameResult' })!;
+    };
+    // A medium S-ladder championship (LeBron is Tier I: floor medium) stamps the title.
+    const crowned = finaleWith('medium', 'S');
+    expect(crowned.phase).toEqual({ kind: 'summary', champion: true });
+    expect(crowned.signatureProgress).toContainEqual({ legendKey, mark: 'title' });
+    // Easy never counts, and neither does a non-S ladder.
+    expect(finaleWith('easy', 'S').signatureProgress ?? []).toEqual([]);
+    expect(
+      (finaleWith('medium', 'A').signatureProgress ?? []).some((m) => m.mark === 'title')
+    ).toBe(false);
+    // The legacy valve: a suspended pre-update run never starts tracking marks.
+    const base = inject(startedAt('sig-valve', 'medium', 'S'), combat({ type: 'boss' }));
+    const legacyRun = { ...base, signatureProgress: undefined };
+    const resolved = runReducer(playedPostgame(legacyRun, 'g1', true), { type: 'resolveGameResult' })!;
+    expect(resolved.signatureProgress).toBeUndefined();
+  });
+
+  it('signature marks: a fielded legend`s moment lands off a real box line', () => {
+    const lebron = NBA_LEGENDS.find((l) => l.slug === 'lebron-james')!;
+    const legend = { ...realPlayerToRosterPlayer(lebron), onLoan: true };
+    const legendKey = `${legend.player.name}|${legend.position}`;
+    const playWith = (seed: string) => {
+      const base = inject(startedAt(seed, 'medium', 'S'), combat({}));
+      const slot = base.core.roster.starters.findIndex((p) => p.position === legend.position);
+      const starters = base.core.roster.starters.map((p, i) => (i === slot ? legend : p));
+      const withLegend = {
+        ...base,
+        core: { ...base.core, roster: { starters, bench: base.core.roster.bench } },
+      };
+      return runReducer(playedPostgame(withLegend, 'g1', true), { type: 'resolveGameResult' })!;
+    };
+    // Across seeds, a featured LeBron drops 21 sometimes but not always: the mark
+    // must appear exactly when his box line clears the bar (a real chance, not a gift).
+    const seeds = Array.from({ length: 24 }, (_, i) => `sig-moment-${i}`);
+    const outcomes = seeds.map((s) => {
+      const done = playWith(s);
+      const hit = (done.signatureProgress ?? []).some(
+        (m) => m.legendKey === legendKey && m.mark === 'moment'
+      );
+      return hit;
+    });
+    expect(outcomes.some(Boolean)).toBe(true);
+    expect(outcomes.every(Boolean)).toBe(false);
+    // Deterministic: the same seed reproduces the same marks.
+    expect(playWith('sig-moment-0').signatureProgress).toEqual(
+      playWith('sig-moment-0').signatureProgress
+    );
+  });
+
+  it('icon perks: FILM ROOM pays +1 boss TP and MENTOR sweetens the favor', () => {
+    const boss = inject(started('leg-6'), combat({ type: 'boss' }));
+    // Stamp a perk onto the first starter (starters always log minutes). The perk
+    // is not a sim input, so the same seed produces the same game either way.
+    const stamp = (m: RunModel, perk: string): RunModel => ({
+      ...m,
+      core: {
+        ...m.core,
+        roster: {
+          starters: m.core.roster.starters.map((p, i) =>
+            i === 0 ? { ...p, iconPerk: perk } : p
+          ),
+          bench: m.core.roster.bench,
+        },
+      },
+    });
+    const resolve = (m: RunModel) =>
+      runReducer(playedPostgame(m, 'g1', true), { type: 'resolveGameResult' })!;
+    const plain = resolve(boss);
+    const film = resolve(stamp(boss, 'film-room'));
+    expect(
+      film.core.rewards.trainingPoints - plain.core.rewards.trainingPoints
+    ).toBe(1);
+    // The postgame tally advertises exactly what banks (pendingWinRewards parity).
+    const filmPost = playedPostgame(stamp(boss, 'film-room'), 'g1', true);
+    expect(pendingWinRewards(filmPost)!.trainingPoints).toBe(
+      film.core.rewards.trainingPoints
+    );
+    const mentor = resolve(stamp(boss, 'mentor'));
+    const plainFavor = Object.values(plain.favor ?? {})[0];
+    const mentorFavor = Object.values(mentor.favor ?? {})[0];
+    expect(mentorFavor - plainFavor).toBe(1);
   });
 });
 

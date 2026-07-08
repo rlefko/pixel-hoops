@@ -5,7 +5,7 @@ import type { RNG } from './rng';
 import { buildStartingTwelve } from './tournament';
 import { backfillPlayStyleStats, expandStats, isLegacyStats } from './stat-migration';
 import { remapElite, remapSystem, STAT_MIN } from './stat-scaling';
-import { RATING_CAP, canUpgrade, perStatMax, upgradeCost } from './upgrades';
+import { RATING_CAP, canUpgrade, perStatMax, rankUnlockedByLegacy, upgradeCost } from './upgrades';
 import { CLASS_ORDER, classForOvr, ovr, ovrRaw, type PlayerClass } from './ratings';
 import {
   DIFFICULTIES,
@@ -21,15 +21,23 @@ import {
 import {
   PLAYER_GACHA_TIERS,
   pullPlayer,
+  machineGate,
   machineUnlocked,
+  machineUnlockedLegacyRule,
   tierHasPlayer,
   type PlayerGachaTier,
   type PlayerPullResult,
 } from './player-gacha';
-import { REACH_UP_DEPOSIT_COPIES, copiesToOwn, type CollectingPlayer } from './collection';
+import {
+  REACH_UP_DEPOSIT_COPIES,
+  copiesToOwn,
+  provenAtDifficulty,
+  type CollectingPlayer,
+} from './collection';
 import {
   FAVOR_PER_COPY,
   FAVOR_RESIDUAL_COIN_RATE,
+  LETTER_OF_INTENT_FAVOR,
   cashOutFavor,
   settleFavorEarned,
 } from './favor';
@@ -56,6 +64,27 @@ import {
   settleTeach,
   type TeachLedger,
 } from './teach';
+import {
+  isIconPerkId,
+  legacyAppearanceFees,
+  legacyLevel,
+  mergeLegacyIntoHome,
+  sanitizeLegacy,
+  type IconPerkId,
+  type LegacyLedger,
+} from './legacy';
+import {
+  contractPriceFor,
+  legendByKey,
+  meetsSignatureFloor,
+  sanitizeSignatures,
+  signatureByKey,
+  signatureComplete,
+  type SignatureChallenge,
+  type SignatureLedger,
+  type SignatureMark,
+} from './signature';
+import { realPlayerToRosterPlayer } from './player-pool';
 
 /**
  * The persistent "home roster" that compounds across runs. It is now an UNCAPPED,
@@ -169,8 +198,43 @@ export interface HomeRoster {
    * runsSettled) with the seen ceremony flag as a one-way ratchet; see
    * src/game/teach.ts. A missing ledger reads as fully graduated. */
   teach?: TeachLedger;
+  /** LEGACY ledger (v21): per-player career totals (wins with minutes, box-score MVP
+   * crowns, championship title games), banked at terminal settle from WON games only
+   * and credited to players owned before the merge (see src/game/legacy.ts). Gates
+   * Locker Room ranks 4/5 and the Icon Perk slot. Never decays, never confiscated. */
+  legacy: LegacyLedger;
+  /** The chosen Icon Perk per ICON-level player (playerKey -> IconPerkId), the L4
+   * capstone slot. A swappable sidegrade set in the Locker Room; stamped onto run
+   * players at initRun like equippedAbilities. */
+  iconPerks?: Partial<Record<string, IconPerkId>>;
+  /** SIGNATURE card ledger (v21): each un-owned legend's earned marks (moment /
+   * title, stamped with the difficulty they were proven at). Both marks = the
+   * legend signs and leaves this ledger (see src/game/signature.ts and
+   * docs/signature-signings.md). Owned legends read as SIGNED without an entry. */
+  signatures: SignatureLedger;
+  /** The GRANDFATHER LIST: machines already open under the OLD any-difficulty
+   * rule when the v21 difficulty-exact gates landed (the never-re-lock rule, the
+   * v16 precedent). Stamped once at migration; never grows afterward. Old-save
+   * compatibility only: unrelated to the LEGACY career ledger above. */
+  legacyGates?: PlayerGachaTier[];
+  /** LEGEND VOUCHERS held: each redeems one free Legacy Contract (the insane:S
+   * bounty's one-time reward). Spent by buyLegacyContract before coins. */
+  legendVouchers?: number;
 }
 
+// v21 adds EARNED GREATNESS: the LEGACY ledger (`legacy`, per-player career totals:
+// wins with minutes, box-score MVP crowns, championship title games) that gates the
+// deepest Locker Room ranks and the Icon Perk slot (`iconPerks`), plus the SIGNATURE
+// card ledger (`signatures`): every S+ legend now signs through a two-mark Signature
+// Card (their bespoke moment + a championship together, difficulty-floored by tier)
+// instead of the old win-a-run-with-them auto-sign (see src/game/signature.ts,
+// src/game/legacy.ts, docs/signature-signings.md). Older saves backfill EMPTY
+// ledgers (no fabricated careers, no retro marks), and crucially nothing is
+// confiscated: owned legends stay owned and read as SIGNED, already-purchased rank
+// 4/5 upgrades stay bought (gates apply to the NEXT purchase only). A run suspended
+// before the update keeps its old auto-sign promise at its settle (the legacy valve
+// keyed off the absent RunModel.signatureProgress). Values sanitize on load but
+// legacy membership is kept, so a corrupted players list can never orphan a career.
 // v20 adds the teach ledger (`teach`): the progressive-onboarding state: one-shot
 // tip/ceremony ids (`seen`), the terminal-settle counter that opens the Locker Room
 // and the Daily panel (`runsSettled`), and the consecutive-loss streak per
@@ -243,7 +307,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 20;
+const HOME_ROSTER_VERSION = 21;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -363,6 +427,8 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     clearedCells: [],
     courtTheme: DEFAULT_COURT_THEME_ID,
     favor: {},
+    legacy: {},
+    signatures: {},
     // A fresh install (and the Settings reset) starts fully acknowledged: no deltas.
     hubSeen: { coins: 0, crestCells: [], copyTotal: hubCopyTotal({ players, collecting: [] }) },
     // ...and fully un-taught: the guided unfolding starts here.
@@ -392,10 +458,27 @@ export function stampEquippedAbility(rp: RosterPlayer, home: HomeRoster): Roster
   return { ...rp, equippedAbility: { id } };
 }
 
+/** A copy of a player with their chosen Icon Perk stamped on from the home record
+ * (the equippedAbility pattern; the run reducer reads rp.iconPerk). */
+export function stampIconPerk(rp: RosterPlayer, home: HomeRoster): RosterPlayer {
+  const id = home.iconPerks?.[playerKey(rp)];
+  if (!id) return rp;
+  return { ...rp, iconPerk: id };
+}
+
 /** The full owned collection as draftable players (each stamped with its equipped
- * ability). The pre-run draft picks a rotation from this. */
+ * ability and Icon Perk). The pre-run draft picks a rotation from this. */
 export function ownedRosterPlayers(home: HomeRoster): RosterPlayer[] {
-  return home.players.map((p) => stampEquippedAbility(p, home));
+  return home.players.map((p) => stampIconPerk(stampEquippedAbility(p, home), home));
+}
+
+/** Choose (or swap) an ICON player's perk. A no-op unless the perk id is real and
+ * the player's career has reached ICON; guarded here too, not just in the UI. */
+export function setIconPerk(home: HomeRoster, key: string, perk: IconPerkId): HomeRoster {
+  if (!isIconPerkId(perk)) return home;
+  if (legacyLevel(home.legacy?.[key]) < 4) return home;
+  if (home.iconPerks?.[key] === perk) return home;
+  return { ...home, iconPerks: { ...home.iconPerks, [key]: perk } };
 }
 
 /** Back-compat: the owned collection as a Roster (first five start). Drafting is
@@ -455,6 +538,8 @@ export function applyUpgrade(
   const key = playerKey(rp);
   const bought = home.upgrades[key]?.[stat] ?? 0;
   if (!canUpgrade(stat, rp.player.stats[stat], bought, perStatMax())) return home;
+  // Ranks 4-5 are usage-gated: guarded here too, not just in the UI mask.
+  if (!rankUnlockedByLegacy(bought, home.legacy?.[key])) return home;
   const cost = upgradeCost(stat, bought);
   if (home.coins < cost) return home;
   const players = home.players.map((p, i) =>
@@ -553,18 +638,80 @@ export function applyPlayerPull(
   const unlockedKeys = new Set(home.players.map(playerKey));
   const collectingCopies = collectingCopyMap(home);
   const result = pullPlayer(tier, unlockedKeys, collectingCopies, rng, pullDirection(home, tier));
+  // The Legendary machine no longer sells pulls: a legend signs through their
+  // Signature Card or a Legacy Contract (buyLegacyContract). The tier's pin and
+  // pools stay live (the Trial Pin and the reveal steering read them).
+  if (tier === 'legendary') return { home, result };
   // Locked behind ladder progress, or unaffordable: no-op (guarded here too, not just UI).
-  if (!machineUnlocked(tier, home.ladderProgress) || home.coins < result.cost) {
+  if (!machineUnlocked(tier, home.ladderProgress, home.legacyGates) || home.coins < result.cost) {
     return { home, result };
   }
   // Charge the pull, then deposit the copy (foldPull credits any overflow bounty).
   return { home: foldPull({ ...home, coins: home.coins - result.cost }, result), result };
 }
 
+/**
+ * LEGACY CONTRACT: buy out the CHAMPIONSHIP mark of a legend whose SIGNATURE
+ * MOMENT is already proven, signing them outright. The moment is never for sale
+ * (the challenge is the intended path; the contract is the deterministic ceiling
+ * for a player who can hit the moment but cannot land the clear). Pays with one
+ * LEGEND VOUCHER when held, else the tier's punitive coin price. Residual favor
+ * cashes out exactly like a settle signing. A no-op without the moment, without
+ * the funds, or for an owned/unknown legend; guarded here, not just in the UI.
+ */
+export function buyLegacyContract(home: HomeRoster, key: string): HomeRoster {
+  const challenge = signatureByKey(key);
+  if (!challenge) return home;
+  if (home.players.some((p) => playerKey(p) === key)) return home;
+  if (!home.signatures[key]?.moment) return home;
+  const vouchers = home.legendVouchers ?? 0;
+  const price = vouchers > 0 ? 0 : contractPriceFor(challenge);
+  if (home.coins < price) return home;
+  const baked = legendByKey(key);
+  if (!baked) return home;
+  const legend = realPlayerToRosterPlayer(baked);
+  const favor = { ...home.favor };
+  const residualCoins = cashOutFavor(favor, key);
+  const signatures = { ...home.signatures };
+  delete signatures[key];
+  const { collecting, unlocked } = depositRecruitCopies(home.collecting ?? [], [legend], 1);
+  return {
+    ...home,
+    players: [...unlocked, ...home.players], // recency-front, like a merge signing
+    collecting,
+    favor,
+    signatures,
+    coins: home.coins - price + residualCoins,
+    legendVouchers: vouchers > 0 ? vouchers - 1 : home.legendVouchers,
+  };
+}
+
 /** The favor ledger + pinned target a machine's pull steers by. One helper so every
  * pull channel (paid scout, bounty grant, daily first-win) directs identically. */
 function pullDirection(home: HomeRoster, tier: PlayerGachaTier) {
   return { favor: home.favor, pinnedKey: home.scoutTargets?.[tier] };
+}
+
+/**
+ * The TRIAL PIN: the pinned legendary scout target joins a QUALIFYING run's draft
+ * as an on-loan option (2 points, the legend rate), so a Signature Card attempt is
+ * startable on demand: identity certain, timing variable. Qualifying = the S/S+
+ * ladders at or above the legend's tier floor; anything less returns null and the
+ * board's floor chips explain why. Un-owned pins only (pin hygiene drops owned
+ * keys on load and unlock).
+ */
+export function trialPinLegend(
+  home: HomeRoster,
+  difficulty: Difficulty,
+  ladderClass: LadderClass
+): RosterPlayer | null {
+  const key = home.scoutTargets?.legendary;
+  if (!key) return null;
+  if (home.players.some((p) => playerKey(p) === key)) return null;
+  const challenge = signatureByKey(key);
+  if (!challenge || !meetsSignatureFloor(challenge, difficulty, ladderClass)) return null;
+  const baked = legendByKey(key);
+  return baked ? { ...realPlayerToRosterPlayer(baked), onLoan: true } : null;
 }
 
 /** Pin a scout machine's target: every pull of that machine feeds this player until
@@ -673,6 +820,7 @@ function runRecruitCandidates(home: HomeRoster, runRoster: Roster): RosterPlayer
     delete copy.trainingDelta; // run-scoped
     delete copy.gamesOut; // injuries heal at run end
     delete copy.equippedAbility; // the home equippedAbilities map is the source of truth
+    delete copy.iconPerk; // likewise: the home iconPerks map is the source of truth
     delete copy.onLoan; // a kept legend becomes owned (drops the on-loan team chemistry)
     out.push(copy);
   }
@@ -784,6 +932,15 @@ export interface RunSettle {
    * The settle banks them for the still-un-owned who finished the run on the squad,
    * scaled by the difficulty's favorMul, WIN OR LOSE. */
   runFavor?: Record<string, number>;
+  /** LEGACY career credits this run's wins accrued per fielded playerKey
+   * (model.legacy). The settle banks them for players owned BEFORE the merge (a
+   * rental's usage is favor's job), win or lose, exactly once per run. */
+  runLegacy?: LegacyLedger;
+  /** SIGNATURE marks this run earned (model.signatureProgress). Banked win or
+   * lose; a completed card signs its legend. UNDEFINED is meaningful: a run
+   * suspended before the signature system shipped settles through the LEGACY
+   * VALVE (the old on-loan auto-sign) exactly once, keeping its promise. */
+  signatureProgress?: SignatureMark[];
 }
 
 /** One player's favor movement at a settle, for the run-summary favor strip. */
@@ -805,32 +962,64 @@ export interface FavorDelta {
 /** The recruit deposits a settle performs: every candidate x the difficulty's copies
  * multiplier on a championship; the single best non-legend x1 on a milestone-banked
  * loss; nothing otherwise. ONE chooser for the merge and the preview, so the reveal can
- * never disagree with what actually banks. */
+ * never disagree with what actually banks.
+ *
+ * Legends no longer deposit here: an S+ signs ONLY through their completed Signature
+ * Card (the signature step in settleCollection). The one exception is the LEGACY
+ * VALVE: a run suspended before the signature system shipped settles with
+ * `signatureProgress` undefined and keeps the old on-loan auto-sign promise for
+ * exactly that run. */
 function settleDeposits(
   home: HomeRoster,
   candidates: RosterPlayer[],
   settle: RunSettle
 ): { collecting: CollectingPlayer[] } & AcquisitionDelta {
   const { champion = false, bossWins = 0, ladderClass } = settle;
-  const mods = difficultyMods(settle.playedDifficulty ?? home.selectedDifficulty);
+  const difficulty = settle.playedDifficulty ?? home.selectedDifficulty;
+  const mods = difficultyMods(difficulty);
+  // Two channel guards: legends never deposit (their Signature Card is the only
+  // door, legacy valve aside), and an S below the proving floor banks a letter of
+  // intent (favor, added in settleCollection) instead of copies.
+  const depositable = candidates.filter((rp) =>
+    isLegendRecruit(rp)
+      ? settle.signatureProgress === undefined // the legacy valve
+      : provenAtDifficulty(playerDraftClass(rp), difficulty)
+  );
   if (champion) {
-    return depositRecruitCopies(home.collecting ?? [], candidates, mods.copiesMul, ladderClass);
+    return depositRecruitCopies(home.collecting ?? [], depositable, mods.copiesMul, ladderClass);
   }
   const milestone = mods.milestoneBossWins != null && bossWins >= mods.milestoneBossWins;
   return depositRecruitCopies(
     home.collecting ?? [],
-    milestone ? bestBankableRecruit(candidates, ladderClass) : []
+    milestone ? bestBankableRecruit(depositable, ladderClass) : []
   );
 }
 
-/** The full collection movement of one settle (deposits + favor), shared by the merge
- * and the preview so the reveal can never disagree with what actually banks. */
+/** One legend's Signature Card movement at a settle, for the reveal + board. */
+export interface SignatureDelta {
+  /** The legend's card (the run candidate, or catalog-built if they were cut). */
+  player: RosterPlayer;
+  challenge: SignatureChallenge;
+  /** Marks THIS settle stamped (previously-earned marks do not re-announce). */
+  momentStamped: boolean;
+  titleStamped: boolean;
+  /** Whether the card completed and the legend signed at this settle. */
+  signed: boolean;
+}
+
+/** The full collection movement of one settle (deposits + signatures + favor),
+ * shared by the merge and the preview so the reveal can never disagree with what
+ * actually banks. */
 interface CollectionSettle extends AcquisitionDelta {
   collecting: CollectingPlayer[];
   favor: Record<string, number>;
   favorDelta: FavorDelta[];
   /** Coins paid for residual favor on chases the settle completed. */
   favorCoins: number;
+  /** The updated Signature Card ledger (marks stamped, signed cards removed). */
+  signatures: SignatureLedger;
+  /** Card movement this settle performed, for the reveal + summary strip. */
+  signatureDelta: SignatureDelta[];
 }
 
 /**
@@ -847,7 +1036,8 @@ function settleCollection(
   runRoster: Roster,
   settle: RunSettle
 ): CollectionSettle {
-  const mods = difficultyMods(settle.playedDifficulty ?? home.selectedDifficulty);
+  const settleDifficulty = settle.playedDifficulty ?? home.selectedDifficulty;
+  const mods = difficultyMods(settleDifficulty);
   const candidates = runRecruitCandidates(home, runRoster);
   const deposits = settleDeposits(home, candidates, settle);
   const unlocked = [...deposits.unlocked];
@@ -862,8 +1052,50 @@ function settleCollection(
   const unlockedKeys = new Set(unlocked.map(playerKey));
   const candidateByKey = new Map(candidates.map((p) => [playerKey(p), p] as const));
 
-  // Chases the deposits just completed: banked favor converts to coins and drops.
-  for (const rp of deposits.unlocked) {
+  // SIGNATURE SIGNINGS: stamp this run's marks into the card ledger (first proof
+  // wins; re-proofs never re-announce), then sign any legend whose card is now
+  // complete. Signing rides depositRecruitCopies for byte-identical unlock
+  // semantics; the signed card leaves the ledger (owned = SIGNED). Marks bank win
+  // or lose (the no-wasted-runs channel; the floors carried the price), and a
+  // legend cut after earning a mark still banks it (the card is theirs, not the
+  // squad slot's), signing from the catalog if the completing settle lacks them.
+  const signatures: SignatureLedger = { ...home.signatures };
+  const signatureDelta: SignatureDelta[] = [];
+  if (settle.signatureProgress && settle.signatureProgress.length > 0) {
+    const marksByKey = new Map<string, Set<SignatureMark['mark']>>();
+    for (const m of settle.signatureProgress) {
+      if (!marksByKey.has(m.legendKey)) marksByKey.set(m.legendKey, new Set());
+      marksByKey.get(m.legendKey)!.add(m.mark);
+    }
+    for (const [key, marks] of marksByKey) {
+      const challenge = signatureByKey(key);
+      if (!challenge) continue; // not a legend key: never stamps
+      const card = { ...signatures[key] };
+      const momentStamped = marks.has('moment') && !card.moment;
+      const titleStamped = marks.has('title') && !card.title;
+      if (momentStamped) card.moment = settleDifficulty;
+      if (titleStamped) card.title = settleDifficulty;
+      if (!momentStamped && !titleStamped) continue;
+      signatures[key] = card;
+      const signed = signatureComplete(card);
+      const baked = legendByKey(key);
+      const player =
+        candidateByKey.get(key) ?? (baked ? realPlayerToRosterPlayer(baked) : undefined);
+      if (!player) continue; // defensive: an unknown key can stamp nothing visible
+      if (signed) {
+        const grant = depositRecruitCopies(collecting, [player], 1);
+        collecting = grant.collecting;
+        unlocked.push(...grant.unlocked);
+        unlockedKeys.add(key);
+        delete signatures[key]; // owned now: the ledger only tracks open cards
+      }
+      signatureDelta.push({ player, challenge, momentStamped, titleStamped, signed });
+    }
+  }
+
+  // Chases this settle completed (deposits and signings): banked favor converts
+  // to coins and drops.
+  for (const rp of unlocked) {
     const key = playerKey(rp);
     const before = favor[key] ?? 0;
     const residualCoins = cashOutFavor(favor, key);
@@ -875,19 +1107,42 @@ function settleCollection(
     });
   }
 
-  // The favor pass: bank, convert, and (rarely) unlock.
-  for (const [key, base] of Object.entries(settle.runFavor ?? {})) {
+  // LETTERS OF INTENT: below the proving floor, a championship's S recruits bank
+  // flat favor in place of the copies the clear would have deposited above it. The
+  // title always moves the meter; below the floor it moves in trust, not contracts
+  // ("Easy earns his trust; Medium signs him").
+  const letters: Record<string, number> = {};
+  if (settle.champion && !provenAtDifficulty('S', settleDifficulty)) {
+    for (const rp of candidates) {
+      const key = playerKey(rp);
+      if (unlockedKeys.has(key) || isLegendRecruit(rp)) continue;
+      if (playerDraftClass(rp) !== 'S') continue;
+      letters[key] = LETTER_OF_INTENT_FAVOR;
+    }
+  }
+
+  // The favor pass: bank, convert, and (rarely) unlock. Iterates the union of the
+  // run's win-favor and the letters, so a bench-parked champion recruit still
+  // receives their letter.
+  const favorKeys = new Set([...Object.keys(settle.runFavor ?? {}), ...Object.keys(letters)]);
+  for (const key of favorKeys) {
+    const base = settle.runFavor?.[key] ?? 0;
     const candidate = candidateByKey.get(key);
     if (!candidate || unlockedKeys.has(key)) continue; // owned, just signed, or cut mid-run
-    const earned = settleFavorEarned(
-      base,
-      mods.favorMul,
-      isReachUpRecruit(candidate, settle.ladderClass)
-    );
+    const cls = playerDraftClass(candidate);
+    // The unproven damp bites only where a chase could complete (convertible S):
+    // legend favor is reveal steering, not copies, and stays undamped.
+    const unproven = cls === 'S' && !provenAtDifficulty('S', settleDifficulty);
+    const earned =
+      settleFavorEarned(
+        base,
+        mods.favorMul,
+        isReachUpRecruit(candidate, settle.ladderClass),
+        unproven
+      ) + (letters[key] ?? 0);
     if (earned <= 0) continue;
     const before = favor[key] ?? 0;
     const total = before + earned;
-    const cls = playerDraftClass(candidate);
     const perCopy = FAVOR_PER_COPY[cls] ?? 0;
     const wholeCopies = perCopy > 0 ? Math.floor(total / perCopy) : 0;
     if (wholeCopies <= 0) {
@@ -937,7 +1192,7 @@ function settleCollection(
   }
   progressed = [...byKey.values()].filter((row) => !unlockedKeys.has(playerKey(row.player)));
 
-  return { collecting, unlocked, progressed, favor, favorDelta, favorCoins };
+  return { collecting, unlocked, progressed, favor, favorDelta, favorCoins, signatures, signatureDelta };
 }
 
 /**
@@ -950,9 +1205,17 @@ export function previewRunAcquisitions(
   home: HomeRoster,
   runRoster: Roster,
   settle: RunSettle
-): AcquisitionDelta & { favorDelta: FavorDelta[]; favorCoins: number } {
-  const { unlocked, progressed, favorDelta, favorCoins } = settleCollection(home, runRoster, settle);
-  return { unlocked, progressed, favorDelta, favorCoins };
+): AcquisitionDelta & {
+  favorDelta: FavorDelta[];
+  favorCoins: number;
+  signatureDelta: SignatureDelta[];
+} {
+  const { unlocked, progressed, favorDelta, favorCoins, signatureDelta } = settleCollection(
+    home,
+    runRoster,
+    settle
+  );
+  return { unlocked, progressed, favorDelta, favorCoins, signatureDelta };
 }
 
 /**
@@ -1008,6 +1271,7 @@ export function mergeRunGainsIntoHome(
     unlocked: unlockedRecruits,
     favor,
     favorCoins,
+    signatures,
   } = settleCollection(home, runRoster, settle);
   const players = [...fieldedOwned, ...unlockedRecruits, ...restOwned];
 
@@ -1048,11 +1312,19 @@ export function mergeRunGainsIntoHome(
     players,
     collecting,
     favor,
+    signatures,
+    // Careers bank for the players owned BEFORE this merge (ownedKeys above), so a
+    // recruit signed by this very settle starts their legacy next run, not this one.
+    legacy: mergeLegacyIntoHome(home.legacy ?? {}, settle.runLegacy, ownedKeys),
     // Win coins are NOT banked here: they bank into the wallet as each game is won
     // (the as-earned ledger in useRun), so `...home` already holds them. Residual
-    // favor coins (a chase this settle completed) and reputation are terminal
-    // rewards, banked here and forfeited if the run is abandoned.
-    coins: home.coins + favorCoins,
+    // favor coins (a chase this settle completed), post-ICON MVP appearance fees,
+    // and reputation are terminal rewards, banked here and forfeited if the run is
+    // abandoned.
+    coins:
+      home.coins +
+      favorCoins +
+      legacyAppearanceFees(home.legacy ?? {}, settle.runLegacy, ownedKeys),
     reputation: home.reputation + (rewards?.reputation ?? 0),
     ladderProgress,
     clearedCells,
@@ -1088,6 +1360,8 @@ export interface BountyGrant {
   playerUnlocked?: boolean;
   /** A granted passive-ability id. */
   abilityId?: string;
+  /** A granted LEGEND VOUCHER (one free Legacy Contract). */
+  voucher?: boolean;
 }
 
 /**
@@ -1137,6 +1411,10 @@ export function claimRunBounty(
       grant.abilityId = id;
       break;
     }
+    case 'voucher':
+      next = { ...next, legendVouchers: (next.legendVouchers ?? 0) + 1 };
+      grant.voucher = true;
+      break;
     case 'player': {
       // A free guaranteed scout: fold a copy in exactly like a paid pull, no cost and no
       // machine gate (the clear IS the unlock). A fully-owned tier converts to overflow coins.
@@ -1453,6 +1731,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     delete migrated.trainingDelta;
     delete migrated.gamesOut;
     delete migrated.equippedAbility; // sourced from equippedAbilities, not the player
+    delete migrated.iconPerk; // sourced from iconPerks, not the player
     return withOriginalClass(migrated, savedUpgrades);
   };
   const players = data.players.map(migratePlayer);
@@ -1529,6 +1808,21 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
       ladderProgress[d] = fromCells;
     }
   }
+  // v21 grandfather: machines already open under the OLD any-difficulty rule when
+  // the difficulty-exact gates landed never re-lock (the v16 never-re-lock
+  // precedent). Stamped exactly once at the version bump; later saves carry their
+  // own (never-growing) list.
+  const legacyGates: PlayerGachaTier[] =
+    version < 21
+      ? PLAYER_GACHA_TIERS.filter(
+          (tier) => machineGate(tier) !== null && machineUnlockedLegacyRule(tier, ladderProgress)
+        )
+      : Array.isArray(data.legacyGates)
+        ? data.legacyGates.filter((t): t is PlayerGachaTier =>
+            (PLAYER_GACHA_TIERS as readonly string[]).includes(t as string)
+          )
+        : [];
+
   const selectedDifficulty: Difficulty =
     typeof data.selectedDifficulty === 'string' &&
     (DIFFICULTIES as readonly string[]).includes(data.selectedDifficulty)
@@ -1651,6 +1945,18 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     daily: sanitizeDaily(data.daily),
     weekly: sanitizeWeekly(data.weekly),
     favor,
+    // v21: the legacy ledger. Values sanitize, membership is kept (a career never
+    // decays and never orphans); older saves backfill empty, never fabricated.
+    legacy: sanitizeLegacy(data.legacy),
+    iconPerks: sanitizeIconPerks(data.iconPerks),
+    // v21: the Signature Card ledger. Owned legends' entries drop (owned = SIGNED);
+    // older saves backfill empty (no retro marks).
+    signatures: sanitizeSignatures(data.signatures, ownedNow),
+    legacyGates: legacyGates.length > 0 ? legacyGates : undefined,
+    legendVouchers:
+      typeof data.legendVouchers === 'number' && Number.isFinite(data.legendVouchers)
+        ? Math.max(0, Math.floor(data.legendVouchers))
+        : undefined,
     scoutTargets: sanitizeScoutTargets(data.scoutTargets, ownedNow),
     // v19: the hub since-you-left ledger. Missing/garbage fields backfill to the
     // CURRENT (post-migration) values, never zero: silencing a delta is safe,
@@ -1715,6 +2021,20 @@ function sanitizeHubSeen(
         ? Math.floor(copyTotal)
         : fallback.copyTotal,
   };
+}
+
+/** Keep only entries naming a real Icon Perk id; anything else silently drops
+ * (the slot re-picks freely, so a dropped choice costs one tap, never progress). */
+function sanitizeIconPerks(raw: unknown): HomeRoster['iconPerks'] {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const out: NonNullable<HomeRoster['iconPerks']> = {};
+  let any = false;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (!isIconPerkId(value)) continue;
+    out[key] = value;
+    any = true;
+  }
+  return any ? out : undefined;
 }
 
 /** Keep only well-formed, positive favor entries for un-owned players; garbage

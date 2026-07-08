@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buyLegacyContract,
   createRookieRoster,
   mergeRunGainsIntoHome,
   previewRunAcquisitions,
@@ -22,7 +23,8 @@ import {
 import { STARTER_COACH_ID, earnedCoachIds, coachesByClass } from '@/game/coaches';
 import { poolByClass, realPlayerToRosterPlayer } from '@/game/player-pool';
 import { tierPool } from '@/game/player-gacha';
-import { FAVOR_RESIDUAL_COIN_RATE } from '@/game/favor';
+import { FAVOR_RESIDUAL_COIN_RATE, LETTER_OF_INTENT_FAVOR } from '@/game/favor';
+import { contractPriceFor, signatureByKey } from '@/game/signature';
 import { overflowBounty } from '@/game/collection';
 import { GRANDMASTER_KEY, bountyKey } from '@/game/bounties';
 import { DAILY_BOUNTY_COINS, FIRST_WIN_COINS, WEEKLY_TIERS, spotlightCell } from '@/game/daily';
@@ -94,9 +96,10 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     }
   });
 
-  it('owns a scouted legend you win a run with, and forfeits it on a loss', () => {
+  it('LEGACY VALVE: a pre-signature suspended run still auto-signs its on-loan legend', () => {
     const home = createRookieRoster(createRNG('leg'));
-    // A mid-run legend is on-loan; winning with it must KEEP it (legends own at one copy).
+    // No signatureProgress on the settle = a run suspended before the signature
+    // system shipped. Its old promise holds for exactly that settle.
     const legend: RosterPlayer = { ...realPlayerToRosterPlayer(NBA_LEGENDS[0]), onLoan: true };
     expect(legend.legendary).toBe(true);
     const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [legend] };
@@ -110,6 +113,157 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     const lost = mergeRunGainsIntoHome(home, runRoster, { rewards, legendOffered: true, clearedClass: 'S', playedDifficulty: 'easy' });
     expect(lost.players.some((p) => playerKey(p) === playerKey(legend))).toBe(false);
     expect(lost.collecting.some((c) => playerKey(c.player) === playerKey(legend))).toBe(false);
+  });
+
+  it('a NEW-style clear never auto-signs a legend: the Signature Card is the only door', () => {
+    const home = createRookieRoster(createRNG('sig-gate'));
+    const legend: RosterPlayer = { ...realPlayerToRosterPlayer(NBA_LEGENDS[0]), onLoan: true };
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [legend] };
+    // signatureProgress present (even empty) = a post-update run: no legend deposit.
+    const won = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, legendOffered: true, champion: true, clearedClass: 'S',
+      playedDifficulty: 'insane', signatureProgress: [],
+    });
+    expect(won.players.some((p) => playerKey(p) === playerKey(legend))).toBe(false);
+    expect(won.collecting.some((c) => playerKey(c.player) === playerKey(legend))).toBe(false);
+    // Their fielded favor still banks (the visible identity floor).
+    const wonWithFavor = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, champion: true, clearedClass: 'S', playedDifficulty: 'insane',
+      signatureProgress: [], runFavor: { [playerKey(legend)]: 10 },
+    });
+    expect(wonWithFavor.favor[playerKey(legend)]).toBeGreaterThan(0);
+  });
+
+  it('SIGNATURE marks stamp win-or-lose, complete across runs, and sign exactly once', () => {
+    const home = createRookieRoster(createRNG('sig-marks'));
+    const legend: RosterPlayer = { ...realPlayerToRosterPlayer(NBA_LEGENDS[0]), onLoan: true };
+    const key = playerKey(legend);
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [legend] };
+
+    // Run 1: a LOST run that hit the moment. The mark banks; nothing signs.
+    const afterMoment = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, playedDifficulty: 'insane', ladderClass: 'S',
+      signatureProgress: [{ legendKey: key, mark: 'moment' }],
+    });
+    expect(afterMoment.signatures[key]).toEqual({ moment: 'insane' });
+    expect(afterMoment.players.some((p) => playerKey(p) === key)).toBe(false);
+
+    // Run 2: the championship together completes the card and signs the legend.
+    const preview = previewRunAcquisitions(afterMoment, runRoster, {
+      champion: true, playedDifficulty: 'insane', ladderClass: 'S',
+      signatureProgress: [{ legendKey: key, mark: 'title' }],
+    });
+    expect(preview.unlocked.some((p) => playerKey(p) === key)).toBe(true);
+    expect(preview.signatureDelta).toHaveLength(1);
+    expect(preview.signatureDelta[0]).toMatchObject({ titleStamped: true, momentStamped: false, signed: true });
+    const signed = mergeRunGainsIntoHome(afterMoment, runRoster, {
+      rewards, champion: true, clearedClass: 'S', playedDifficulty: 'insane', ladderClass: 'S',
+      signatureProgress: [{ legendKey: key, mark: 'title' }],
+    });
+    expect(signed.players.some((p) => playerKey(p) === key)).toBe(true);
+    expect(signed.signatures[key]).toBeUndefined(); // the ledger only tracks open cards
+
+    // First proof wins: a re-proof never overwrites the stamped difficulty.
+    const reproved = mergeRunGainsIntoHome(afterMoment, runRoster, {
+      rewards, playedDifficulty: 'hard', ladderClass: 'S',
+      signatureProgress: [{ legendKey: key, mark: 'moment' }],
+    });
+    expect(reproved.signatures[key]).toEqual({ moment: 'insane' });
+  });
+
+  it('LEGACY CONTRACT: coins buy out only the championship half, never the moment', () => {
+    const home = { ...createRookieRoster(createRNG('contract')), coins: 100_000 };
+    const legend = realPlayerToRosterPlayer(NBA_LEGENDS[0]);
+    const key = playerKey(legend);
+    const challenge = signatureByKey(key)!;
+    // No moment proven: the wallet is powerless (the challenge is the only path in).
+    expect(buyLegacyContract(home, key)).toBe(home);
+    // Moment proven: the contract signs the legend at the tier price, cashing favor.
+    const proven: HomeRoster = {
+      ...home,
+      signatures: { [key]: { moment: 'insane' as const } },
+      favor: { [key]: 10 },
+    };
+    const signed = buyLegacyContract(proven, key);
+    expect(signed.players.some((p) => playerKey(p) === key)).toBe(true);
+    expect(signed.signatures[key]).toBeUndefined();
+    expect(signed.favor[key]).toBeUndefined();
+    expect(signed.coins).toBe(
+      proven.coins - contractPriceFor(challenge) + 10 * FAVOR_RESIDUAL_COIN_RATE
+    );
+    // Broke, owned, or unknown: all no-ops (guarded in the model, not just the UI).
+    expect(buyLegacyContract({ ...proven, coins: 0 }, key)).toEqual({ ...proven, coins: 0 });
+    expect(buyLegacyContract(signed, key)).toBe(signed);
+    expect(buyLegacyContract(proven, 'Nobody|PG')).toBe(proven);
+  });
+
+  it('a LEGEND VOUCHER pays the contract in full and spends exactly once', () => {
+    const legend = realPlayerToRosterPlayer(NBA_LEGENDS[1]);
+    const key = playerKey(legend);
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('voucher')),
+      coins: 0,
+      signatures: { [key]: { moment: 'insane' as const } },
+      legendVouchers: 1,
+    };
+    const signed = buyLegacyContract(home, key);
+    expect(signed.players.some((p) => playerKey(p) === key)).toBe(true);
+    expect(signed.coins).toBe(0);
+    expect(signed.legendVouchers).toBe(0);
+  });
+
+  it('the legendary machine never sells pulls anymore', () => {
+    const home: HomeRoster = {
+      ...createRookieRoster(createRNG('no-pulls')),
+      coins: 1_000_000,
+      ladderProgress: { easy: 'S+', medium: 'S+', hard: 'S+', insane: 'S+' },
+    };
+    const { home: after } = applyPlayerPull(home, 'legendary', createRNG('np'));
+    expect(after).toBe(home);
+  });
+
+  it('both marks in one run sign immediately, even if the legend was cut mid-run', () => {
+    const home = createRookieRoster(createRNG('sig-cut'));
+    const legend = realPlayerToRosterPlayer(NBA_LEGENDS[0]);
+    const key = playerKey(legend);
+    // The legend is NOT on the final squad (cut after their moment): the card is
+    // theirs, not the squad slot's, so the settle signs from the catalog.
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [] };
+    const signed = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, champion: true, clearedClass: 'S', playedDifficulty: 'insane', ladderClass: 'S',
+      signatureProgress: [
+        { legendKey: key, mark: 'moment' },
+        { legendKey: key, mark: 'title' },
+      ],
+    });
+    expect(signed.players.some((p) => playerKey(p) === key)).toBe(true);
+    expect(signed.signatures[key]).toBeUndefined();
+  });
+
+  it('the proving floor: an easy S-ladder clear banks a letter of intent, never copies', () => {
+    const home = createRookieRoster(createRNG('letters'));
+    const sRecruit = realPlayerToRosterPlayer(poolByClass('S')[0]);
+    const key = playerKey(sRecruit);
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [sRecruit] };
+    const easy = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, champion: true, clearedClass: 'S', playedDifficulty: 'easy', ladderClass: 'S',
+      signatureProgress: [],
+    });
+    expect(easy.collecting.some((c) => playerKey(c.player) === key)).toBe(false);
+    expect(easy.favor[key]).toBe(LETTER_OF_INTENT_FAVOR);
+    // Medium is proven: the same clear banks real copies at the x2 multiplier.
+    const medium = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, champion: true, clearedClass: 'S', playedDifficulty: 'medium', ladderClass: 'S',
+      signatureProgress: [],
+    });
+    expect(medium.collecting.find((c) => playerKey(c.player) === key)?.copies).toBe(2);
+    expect(medium.favor[key]).toBeUndefined();
+    // On easy, damped win-favor stacks with the letter (45 base x 1.0 x 0.5 + 20).
+    const withFavor = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, champion: true, clearedClass: 'S', playedDifficulty: 'easy', ladderClass: 'S',
+      signatureProgress: [], runFavor: { [key]: 45 },
+    });
+    expect(withFavor.favor[key]).toBe(LETTER_OF_INTENT_FAVOR + 23);
   });
 
   it('banks reputation (not coins) on both a clear and a loss', () => {
@@ -232,9 +386,11 @@ describe('coaches', () => {
   });
 });
 
+// The S machine now gates on a MEDIUM-or-better A clear (the proving floor), so
+// the pull tests climb on medium.
 const clearedThroughA = (): HomeRoster['ladderProgress'] => ({
   easy: 'A',
-  medium: null,
+  medium: 'A',
   hard: null,
   insane: null,
 });
@@ -417,13 +573,15 @@ describe('claimRunBounty: one-time championship bounties', () => {
   });
 
   it('a player bounty deposits a copy and unlocks per copiesToOwn', () => {
-    // insane:S grants a legendary player (owns at one copy) -> unlocks immediately.
+    // insane:S grants a LEGEND VOUCHER now (legends only sign via the Signature
+    // Card / Legacy Contract), never a legend outright.
     const home = withProgress('b-legend', { insane: 'A' }); // frontier A < S: a first clear
     const before = home.players.length;
     const res = claimRunBounty(home, 'insane', 'S', true, createRNG('gp'));
-    expect(res.granted?.player).toBeDefined();
-    expect(res.granted?.playerUnlocked).toBe(true);
-    expect(res.home.players.length).toBe(before + 1);
+    expect(res.granted?.voucher).toBe(true);
+    expect(res.granted?.player).toBeUndefined();
+    expect(res.home.legendVouchers).toBe(1);
+    expect(res.home.players.length).toBe(before);
 
     // medium:S grants an A player (owns at three) -> progressed, not unlocked.
     const home2 = withProgress('b-aplayer', { medium: 'A' });
@@ -435,12 +593,15 @@ describe('claimRunBounty: one-time championship bounties', () => {
 
   it('a player bounty on a fully-owned tier overflows into coins, no new player', () => {
     const home: HomeRoster = {
-      ...withProgress('b-overflow', { insane: 'A' }),
-      players: [...createRookieRoster(createRNG('b-overflow')).players, ...NBA_LEGENDS.map(realPlayerToRosterPlayer)],
+      ...withProgress('b-overflow', { medium: 'S' }),
+      players: [
+        ...createRookieRoster(createRNG('b-overflow')).players,
+        ...poolByClass('S').map(realPlayerToRosterPlayer),
+      ],
     };
     const before = home.players.length;
-    const res = claimRunBounty(home, 'insane', 'S', true, createRNG('go')); // insane:S = legendary player
-    expect(res.granted?.coins).toBe(overflowBounty('S+')); // all legends owned -> overflow bounty
+    const res = claimRunBounty(home, 'medium', 'S+', true, createRNG('go')); // medium:S+ = S player
+    expect(res.granted?.coins).toBe(overflowBounty('S')); // all S owned -> overflow bounty
     expect(res.home.players.length).toBe(before);
   });
 

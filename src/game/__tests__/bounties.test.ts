@@ -39,6 +39,8 @@ describe('championship bounties table', () => {
         case 'ability':
           expect(RARITY_ORDER).toContain(r.rarity);
           break;
+        case 'voucher':
+          break; // no parameters: the voucher IS the reward (a free Legacy Contract)
         case 'crest':
           if (r.coins !== undefined) expect(r.coins).toBeGreaterThan(0);
           break;

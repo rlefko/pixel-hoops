@@ -4,7 +4,9 @@ import {
   FAVOR_PER_COPY,
   FAVOR_REACH_UP_DAMP,
   FAVOR_RESIDUAL_COIN_RATE,
+  FAVOR_UNPROVEN_DAMP,
   FAVOR_WIN_POINTS,
+  LETTER_OF_INTENT_FAVOR,
   addFavor,
   cashOutFavor,
   favorConvertible,
@@ -71,6 +73,30 @@ describe('the single-run leak invariant', () => {
     const { copies, remainder } = favorToCopies(earned, 'A');
     expect(copies).toBe(1);
     expect(remainder).toBeGreaterThan(0);
+  });
+});
+
+describe('the proving floor damps', () => {
+  it('an unproven star earns half trust, stacking with the reach-up damp', () => {
+    expect(settleFavorEarned(40, 1.0, false, true)).toBe(Math.round(40 * FAVOR_UNPROVEN_DAMP));
+    expect(settleFavorEarned(40, 1.0, true, true)).toBe(
+      Math.round(40 * FAVOR_REACH_UP_DAMP * FAVOR_UNPROVEN_DAMP)
+    );
+    // Proven play is untouched (the default keeps every existing call site honest).
+    expect(settleFavorEarned(40, 1.0, false)).toBe(40);
+  });
+
+  it('a maximal unproven easy S clear stays under one favor copy even with the letter', () => {
+    // The single-run leak invariant, proving-floor edition: a full dedicated easy
+    // S-ladder clear banks damped favor plus the letter of intent, and the sum
+    // must stay under FAVOR_PER_COPY.S so easy can never bank a whole copy per clear.
+    const maxBase =
+      11 * FAVOR_WIN_POINTS.game +
+      6 * FAVOR_WIN_POINTS.elite +
+      7 * FAVOR_WIN_POINTS.boss +
+      FAVOR_CHAMPION_BONUS;
+    const damped = settleFavorEarned(maxBase, difficultyMods('easy').favorMul, false, true);
+    expect(damped + LETTER_OF_INTENT_FAVOR).toBeLessThan(FAVOR_PER_COPY.S);
   });
 });
 

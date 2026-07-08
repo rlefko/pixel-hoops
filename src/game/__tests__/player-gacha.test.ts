@@ -105,26 +105,47 @@ describe('tierCounts', () => {
   });
 });
 
-describe('machine access gate', () => {
-  it('opens C always and gates B/A/S/legendary behind the ladder below', () => {
+describe('machine access gate (difficulty-exact at the top)', () => {
+  it('opens C always and gates B/A behind easy clears of the rung below', () => {
     expect(machineGate('C')).toBeNull();
-    expect(machineGate('B')).toBe('C');
-    expect(machineGate('S')).toBe('A');
-    expect(machineGate('legendary')).toBe('S');
+    expect(machineGate('B')).toEqual({ cls: 'C', minDifficulty: 'easy' });
+    expect(machineGate('S')).toEqual({ cls: 'A', minDifficulty: 'medium' });
+    expect(machineGate('legendary')).toEqual({ cls: 'S', minDifficulty: 'hard' });
 
     const none = ladder(null);
     expect(machineUnlocked('C', none)).toBe(true);
     expect(machineUnlocked('B', none)).toBe(false);
     expect(machineUnlocked('S', none)).toBe(false);
 
-    // Clearing the A ladder (on any difficulty) opens B/A/S but not the legendary machine.
-    const throughA = ladder('A');
+    const throughA = ladder('A'); // easy only
     expect(machineUnlocked('B', throughA)).toBe(true);
     expect(machineUnlocked('A', throughA)).toBe(true);
-    expect(machineUnlocked('S', throughA)).toBe(true);
-    expect(machineUnlocked('legendary', throughA)).toBe(false);
+  });
 
-    expect(machineUnlocked('legendary', ladder('S'))).toBe(true);
+  it('an easy-only climb NEVER opens the S or Legendary machines (the farm door)', () => {
+    // The old any-difficulty rule was the Easy farm's endpoint: clear everything
+    // on easy, then buy the whole S/S+ collection. Cell-exact gates close it.
+    expect(machineUnlocked('S', ladder('A'))).toBe(false);
+    expect(machineUnlocked('S', ladder('S+'))).toBe(false);
+    expect(machineUnlocked('legendary', ladder('S+'))).toBe(false);
+  });
+
+  it('medium opens S; hard or insane opens Legendary (one-directional)', () => {
+    const mediumA = { easy: null, medium: 'A', hard: null, insane: null } as const;
+    expect(machineUnlocked('S', mediumA)).toBe(true);
+    const hardA = { easy: null, medium: null, hard: 'A', insane: null } as const;
+    expect(machineUnlocked('S', hardA)).toBe(true); // above the floor counts
+    expect(machineUnlocked('legendary', hardA)).toBe(false); // A < S
+    const hardS = { easy: null, medium: null, hard: 'S', insane: null } as const;
+    expect(machineUnlocked('legendary', hardS)).toBe(true);
+    const insaneS = { easy: null, medium: null, hard: null, insane: 'S' } as const;
+    expect(machineUnlocked('legendary', insaneS)).toBe(true);
+  });
+
+  it('a grandfathered tier stays open regardless of the new gate', () => {
+    expect(machineUnlocked('S', ladder('S+'), ['S'])).toBe(true);
+    expect(machineUnlocked('legendary', ladder('S+'), ['S'])).toBe(false);
+    expect(machineUnlocked('legendary', ladder('S+'), ['S', 'legendary'])).toBe(true);
   });
 });
 

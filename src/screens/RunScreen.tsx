@@ -6,6 +6,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { CoinFly, Pop, Counter, TickCounter } from '@/components/fx';
 import { useRun } from '@/hooks/useRun';
+import { nameKey } from '@/types/roster';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import { TeachCallout } from '@/components/teach/TeachCallout';
 import { TeachSlot } from '@/components/teach/TeachSlot';
@@ -39,6 +40,7 @@ import { PlayByPlayFeed } from '@/components/game/PlayByPlayFeed';
 import { RunMapView } from '@/components/run/RunMapView';
 import { RecruitView } from '@/components/run/RecruitView';
 import { PlayerScoutedView } from '@/components/run/PlayerScoutedView';
+import { SignatureSignedView } from '@/components/run/SignatureSignedView';
 import { DraftView } from '@/components/run/DraftView';
 import { DropForRecruitView } from '@/components/run/DropForRecruitView';
 import { LineupBuilderView } from '@/components/run/LineupBuilderView';
@@ -78,6 +80,7 @@ export default function RunScreen() {
     bountyGrant,
     dailyGrants,
     favorRows,
+    signatureRows,
     collectProgress,
     equippedCoachId,
   } = useRun();
@@ -92,12 +95,14 @@ export default function RunScreen() {
   const [showCoachReveal, setShowCoachReveal] = useState(false);
   const [showPlayerReveal, setShowPlayerReveal] = useState(false);
   const [showBountyReveal, setShowBountyReveal] = useState(false);
+  const [showSignatureReveal, setShowSignatureReveal] = useState(false);
   const phaseKind = model?.phase.kind;
   useEffect(() => {
     if (phaseKind !== 'summary') {
       setShowCoachReveal(false);
       setShowPlayerReveal(false);
       setShowBountyReveal(false);
+      setShowSignatureReveal(false);
     }
   }, [phaseKind]);
 
@@ -380,28 +385,51 @@ export default function RunScreen() {
           ? classAboveLadder(model.ladderClass)
           : undefined;
       const wonCoaches = champion ? wonCoachIds.map(getCoach) : [];
-      const unlockedPlayers = champion ? wonPlayers.unlocked : [];
+      // Signature signings play their own ceremony (win OR lose: a lost run can
+      // complete a card whose title was earned earlier), so they leave the plain
+      // scouted reveal and the loss's "stays in touch" line to everyone else.
+      const signedLegends = signatureRows.filter((d) => d.signed);
+      const signedKeys = new Set(signedLegends.map((d) => d.challenge.legendKey));
+      const notSigned = wonPlayers.unlocked.filter(
+        (p) => !signedKeys.has(nameKey(p.player.name, p.position))
+      );
+      const unlockedPlayers = champion ? notSigned : [];
       // On a loss these carry the milestone bank (empty on an ordinary loss): a banked
       // copy that only progressed rides the strip; one that OWNED outright (C/B own at
       // one copy) shows as the "stays in touch" recruit.
       const progressed = wonPlayers.progressed;
-      const bankedRecruit = !champion ? wonPlayers.unlocked[0] : undefined;
+      const bankedRecruit = !champion ? notSigned[0] : undefined;
       const bounty = champion ? bountyGrant : null;
       // Reveal order after the celebration: the headline BOUNTY first (the "harder difficulty
-      // paid off" moment), then scouted (unlocked) players, then the climactic coach unlock,
-      // then out. Each reveal's exits carry into the next applicable one.
+      // paid off" moment), then the LEGEND SIGNED ceremony, then scouted (unlocked) players,
+      // then the climactic coach unlock, then out. Each reveal's exits carry into the next
+      // applicable one.
+      const toSignatureReveal = () => setShowSignatureReveal(true);
       const toPlayerReveal = () => setShowPlayerReveal(true);
       const toCoachReveal = () => setShowCoachReveal(true);
+      // Each stage falls through to the next applicable one, so adding a reveal
+      // to the chain is a one-liner.
       const afterPlayers = (exit: () => void) => (wonCoaches.length > 0 ? toCoachReveal : exit);
+      const afterSignature = (exit: () => void) =>
+        unlockedPlayers.length > 0 ? toPlayerReveal : afterPlayers(exit);
       const afterBounty = (exit: () => void) =>
-        unlockedPlayers.length > 0 ? toPlayerReveal : wonCoaches.length > 0 ? toCoachReveal : exit;
+        signedLegends.length > 0 ? toSignatureReveal : afterSignature(exit);
 
-      if (showBountyReveal && !showPlayerReveal && !showCoachReveal && bounty) {
+      if (showBountyReveal && !showSignatureReveal && !showPlayerReveal && !showCoachReveal && bounty) {
         return (
           <BountyRewardView
             grant={bounty}
             onNewRun={afterBounty(actions.newRun)}
             onHome={afterBounty(goMenu)}
+          />
+        );
+      }
+      if (showSignatureReveal && !showPlayerReveal && !showCoachReveal && signedLegends.length > 0) {
+        return (
+          <SignatureSignedView
+            deltas={signedLegends}
+            onNewRun={afterSignature(actions.newRun)}
+            onHome={afterSignature(goMenu)}
           />
         );
       }
@@ -434,14 +462,24 @@ export default function RunScreen() {
       // chained exits keep reading render props as before.
       const exitVia = (leave: () => void) => () => {
         const settled = actions.ensureSettled();
+        const settledSigned = settled
+          ? settled.signatureDelta.filter((d) => d.signed)
+          : signedLegends;
+        const settledSignedKeys = new Set(settledSigned.map((d) => d.challenge.legendKey));
         const grants = settled
           ? {
               bounty: champion ? settled.bounty : null,
-              unlocked: champion ? settled.acquisitions.unlocked : [],
+              signed: settledSigned,
+              unlocked: champion
+                ? settled.acquisitions.unlocked.filter(
+                    (p) => !settledSignedKeys.has(nameKey(p.player.name, p.position))
+                  )
+                : [],
               coachCount: champion ? settled.wonCoachIds.length : 0,
             }
-          : { bounty, unlocked: unlockedPlayers, coachCount: wonCoaches.length };
+          : { bounty, signed: signedLegends, unlocked: unlockedPlayers, coachCount: wonCoaches.length };
         if (grants.bounty) setShowBountyReveal(true);
+        else if (grants.signed.length > 0) toSignatureReveal();
         else if (grants.unlocked.length > 0) toPlayerReveal();
         else if (grants.coachCount > 0) toCoachReveal();
         else leave();
@@ -472,6 +510,7 @@ export default function RunScreen() {
             unlockedClass={unlockedClass}
             progressed={progressed}
             favorRows={favorRows}
+            signatureRows={signatureRows}
             coinsBanked={model.core.rewards.coins}
             stepUp={stepUp}
             dailyGrants={dailyGrants}
@@ -504,6 +543,7 @@ export default function RunScreen() {
           unlockedClass={unlockedClass}
           progressed={progressed}
           favorRows={favorRows}
+          signatureRows={signatureRows}
           lossMargin={lossMargin}
           lossClock={lossClock}
           nextUnlockLabel={nextUnlockLabel}

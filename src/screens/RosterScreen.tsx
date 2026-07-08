@@ -20,6 +20,7 @@ import {
   totalUpgrades,
 } from '@/game/home-roster';
 import { useAcknowledgeHubSeen } from '@/hooks/useAcknowledgeHubSeen';
+import { LegendsBoard } from '@/components/legends/LegendsBoard';
 import { FAVOR_PER_COPY } from '@/game/favor';
 import { tierForClass } from '@/game/player-gacha';
 import { playerDraftClass } from '@/game/draft';
@@ -122,6 +123,8 @@ export default function RosterScreen() {
   const [sort, setSort] = useState<Sort>('recent');
   // Toggle to browse IN-PROGRESS players (collected, not yet owned) instead of the roster.
   const [showCollecting, setShowCollecting] = useState(false);
+  // Toggle to the LEGENDS board: all 92 Signature Cards (arm trials, buy contracts).
+  const [showLegends, setShowLegends] = useState(false);
 
   // Track the expanded player by object reference, not list slot, so an open stat
   // spread follows the player across re-sorts and filters (the collection can hold
@@ -229,9 +232,17 @@ export default function RosterScreen() {
   return (
     <Screen style={styles.container} onBack={() => nav.back()} {...screenProps}>
       <View style={styles.headerRow}>
-        <Text style={styles.title}>ROSTER</Text>
+        <Text style={styles.title}>{showLegends ? 'LEGENDS' : 'ROSTER'}</Text>
         <View style={styles.headerRight}>
-          {collectingRows.length > 0 ? (
+          <Pressable
+            onPress={() => setShowLegends((v) => !v)}
+            style={[styles.progressBtn, showLegends && styles.legendsBtnActive]}
+          >
+            <Text style={[styles.progressText, showLegends && styles.legendsTextActive]}>
+              LEGENDS
+            </Text>
+          </Pressable>
+          {!showLegends && collectingRows.length > 0 ? (
             <Pressable
               onPress={() => setShowCollecting((v) => !v)}
               style={[styles.progressBtn, showCollecting && styles.progressBtnActive]}
@@ -241,11 +252,17 @@ export default function RosterScreen() {
               </Text>
             </Pressable>
           ) : null}
-          <Text style={styles.count}>
-            {showCollecting ? `${collectingRows.length} IN PROGRESS` : `${players.length} OWNED`}
-          </Text>
+          {!showLegends ? (
+            <Text style={styles.count}>
+              {showCollecting ? `${collectingRows.length} IN PROGRESS` : `${players.length} OWNED`}
+            </Text>
+          ) : null}
         </View>
       </View>
+      {showLegends ? (
+        <LegendsBoard />
+      ) : (
+      <>
       <RosterFilterBar
         query={query}
         onQuery={setQuery}
@@ -308,6 +325,8 @@ export default function RosterScreen() {
         keyboardShouldPersistTaps="handled"
         ListEmptyComponent={<Text style={styles.empty}>No players match.</Text>}
       />
+      </>
+      )}
     </Screen>
   );
 }
@@ -352,6 +371,8 @@ const styles = StyleSheet.create({
   progressBtnActive: { backgroundColor: palette.steelBlue + '33', borderColor: palette.steelBlue },
   progressText: { fontFamily: FONT.display, fontSize: FONT_SIZE.micro, color: palette.steelBlue },
   progressTextActive: { color: palette.steelBlue },
+  legendsBtnActive: { backgroundColor: palette.gold + '22', borderColor: palette.gold },
+  legendsTextActive: { color: palette.gold },
   sortBtn: {
     paddingHorizontal: space(2),
     paddingVertical: space(1.5),

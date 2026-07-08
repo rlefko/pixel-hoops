@@ -10,13 +10,16 @@ import { LegendaryHalo } from './reward-fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
 import { DailyRewardStrip } from './DailyRewardStrip';
 import { FavorStrip } from './FavorStrip';
+import { SignatureStrip } from './SignatureStrip';
+import { TeachCallout } from '@/components/teach/TeachCallout';
+import { provenAtDifficulty } from '@/game/collection';
 import { CoinIcon, CrownIcon, VictoryTierIcon } from './PixelIcons';
 import { buildHallOfFameEntry, type ChampionGame } from '@/game/hall-of-fame';
 import { shareVictory } from '@/game/share';
 import { victoryTier } from '@/game/victory-tier';
 import { DIFFICULTY_LABELS, type Difficulty, type LadderClass } from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
-import type { DailyGrants, FavorDelta, ProgressedCopy } from '@/game/home-roster';
+import type { DailyGrants, FavorDelta, ProgressedCopy, SignatureDelta } from '@/game/home-roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
 /**
@@ -39,6 +42,8 @@ interface ChampionViewProps {
   progressed?: ProgressedCopy[];
   /** The favor this run's wins banked (the directed-chase strip). */
   favorRows?: FavorDelta[];
+  /** Signature Card marks this settle stamped (the half-done cards' progress). */
+  signatureRows?: SignatureDelta[];
   /** Coins the run banked (including the clear bonus): the haul tally beat. */
   coinsBanked?: number;
   /** The victory step-up: run it back one difficulty up, pitched at the confidence
@@ -72,6 +77,7 @@ export function ChampionView({
   unlockedClass,
   progressed = [],
   favorRows = [],
+  signatureRows = [],
   coinsBanked,
   stepUp,
   dailyGrants = null,
@@ -207,8 +213,15 @@ export function ChampionView({
         <LineupBoard team={game.home} players={entry.starters} compact />
 
         <CollectionProgressStrip progressed={progressed} />
+        <SignatureStrip rows={signatureRows} champion />
         <FavorStrip rows={favorRows} />
         <DailyRewardStrip grants={dailyGrants} />
+        {/* The proving floor's one-shot lesson, on the exact clear that hit it: an
+            unproven S-ladder title banked letters, not contracts. */}
+        {(ladderClass === 'S' || ladderClass === 'S+') &&
+        !provenAtDifficulty('S', difficulty) ? (
+          <TeachCallout tip="provingFloor" style={styles.provingTip} />
+        ) : null}
 
         {stepUp ? (
           <Pressable style={[styles.button, styles.stepUp]} onPress={stepUp.onPress}>
@@ -318,6 +331,7 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.chip,
   },
   primary: { backgroundColor: palette.gold + '1A', marginTop: space(6) },
+  provingTip: { alignSelf: 'stretch', marginTop: space(3) },
   stepUp: {
     marginTop: space(6),
     borderColor: palette.orange,

@@ -21,6 +21,13 @@ import { CLASS_ORDER, type PlayerClass } from './ratings';
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'insane';
 export const DIFFICULTIES: readonly Difficulty[] = ['easy', 'medium', 'hard', 'insane'];
 
+/** One-directional difficulty comparison: whether `d` sits at or above `floor`.
+ * The single predicate behind every difficulty-floored gate (proving floors,
+ * signature floors, machine gates), so "above always counts" can never drift. */
+export function difficultyAtLeast(d: Difficulty, floor: Difficulty): boolean {
+  return DIFFICULTIES.indexOf(d) >= DIFFICULTIES.indexOf(floor);
+}
+
 /** The five selectable ladders (a subset of PlayerClass; S++ is never selectable,
  * only attained). */
 export type LadderClass = Extract<PlayerClass, 'C' | 'B' | 'A' | 'S' | 'S+'>;

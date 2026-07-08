@@ -145,3 +145,15 @@ with clear daylight below the ~55-unit gambling-feel boundary.
 - **Roster browser**: in-progress rows show banked favor and a SET SCOUT TARGET pin.
 - **Recruit node**: one pitch line ("Un-owned recruits earn favor every game they win.
   Favor banks, win or lose.").
+
+## The proving floor (v21)
+
+S-class favor picked up a difficulty axis: below `PROVING_DIFFICULTY.S` (medium),
+an at-class S star's win-favor settles half-damped (`FAVOR_UNPROVEN_DAMP`,
+stacking with the reach-up damp) and a championship's S recruits bank a flat
+LETTER OF INTENT (+20 favor) instead of the copies a proven clear deposits. The
+single-run invariant extends: a maximal dedicated easy S-ladder clear (damped
+favor plus the letter) stays under one favor copy, and the pacing sim pins the
+easy chase strictly slower than medium. Legend (S+) favor is untouched: it
+steers the reveal and never converts. See
+[signature-signings.md](signature-signings.md) for the full earning model.

@@ -9,7 +9,12 @@ import {
 import { isSpecialist } from './specialty';
 import { buildTeam, validateLineup } from './lineup';
 import { simulateGame } from './simulation';
-import { ownedRosterPlayers, resolveDraftRotation, type HomeRoster } from './home-roster';
+import {
+  ownedRosterPlayers,
+  resolveDraftRotation,
+  trialPinLegend,
+  type HomeRoster,
+} from './home-roster';
 import {
   difficultyMods,
   globalHighestCleared,
@@ -44,6 +49,23 @@ import { tipSeen } from './teach';
 import { recommendLineup, reorderForCoach, recMinDelta, type CoachRec } from './coach-reco';
 import { legendRecruitFavored } from './player-pool';
 import { FAVOR_CHAMPION_BONUS, FAVOR_WIN_POINTS, addFavor } from './favor';
+import {
+  FILM_ROOM_BOSS_TP,
+  MENTOR_FAVOR_BONUS,
+  addLegacyGame,
+  legacyEligible,
+  type IconPerkId,
+  type LegacyGameCredit,
+  type LegacyLedger,
+} from './legacy';
+import {
+  meetsSignatureFloor,
+  momentMet,
+  signatureByKey,
+  type SignatureMark,
+} from './signature';
+import { mvpIndex } from './box-score';
+import { playerDraftClass } from './draft';
 import {
   MAX_BOOSTS,
   BOOST_BY_ID,
@@ -204,6 +226,17 @@ export interface RunModel {
    * re-offer reunion). Small (un-owned players with favor only) and read-only for the
    * whole run. Optional: old suspended runs default to {}. */
   homeFavor?: Record<string, number>;
+  /** LEGACY career credits accrued this run per fielded playerKey: wins with minutes,
+   * box-score MVP crowns, and title-game appearances, at-class only (see legacy.ts).
+   * Accrues on WON games only (favor's rule) and banks at the terminal settle for the
+   * players owned before the merge. Optional: old suspended runs default to {}. */
+  legacy?: LegacyLedger;
+  /** SIGNATURE marks earned this run by fielded on-loan legends (moment conditions
+   * hit, title games played), banked into the home card ledger at the terminal
+   * settle, win or lose. Optional AND meaningful when absent: a run suspended
+   * before this system shipped stays undefined and keeps the old auto-sign promise
+   * at its settle (the legacy valve in home-roster.settleDeposits). */
+  signatureProgress?: SignatureMark[];
   /** Recruit nodes in a row without a specialist offered; pity forces one in once
    * it reaches RECRUIT_PITY_THRESHOLD so a specialist build is always reachable. */
   recruitDryStreak: number;
@@ -309,6 +342,12 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     firstRun: isFirstEverRun(homeRoster),
   });
   const available = ownedRosterPlayers(homeRoster);
+  // The TRIAL PIN: on a qualifying run (S/S+ ladder at the pinned legend's floor or
+  // above), the armed legend joins the draft on loan, so a Signature Card attempt
+  // never waits on a reveal roll. Appended after the owned collection: the default
+  // loadout below draws from the same list, so drafting them is a choice, not a tax.
+  const trialLegend = trialPinLegend(homeRoster, difficulty, ladderClass);
+  if (trialLegend) available.push(trialLegend);
   const { starters: defaultStarters, bench: defaultBench } = defaultLoadout(
     available,
     ladderClass,
@@ -341,6 +380,8 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
       .map((p) => nameKey(p.player.name, p.position)),
     favor: {},
     homeFavor: { ...homeRoster.favor },
+    legacy: {},
+    signatureProgress: [],
     recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
     forgivenLosses: 0,
@@ -389,9 +430,11 @@ export function pendingWinRewards(
   if (model.phase.kind !== 'postgame' || !model.phase.won || !model.game) return null;
   const node = model.core.map.nodes[model.phase.nodeId];
   if (!node) return null;
+  const isBoss = node.type === 'boss' || model.phase.nodeId === model.core.map.bossNodeId;
+  const fieldedPerks = fieldedIconPerks(model.core.roster, model.game.result.box.home);
   return {
     coins: coinsForWin(node, model.game.result, model.mods),
-    trainingPoints: trainingPointsFor(node, model.mods),
+    trainingPoints: trainingPointsFor(node, model.mods) + filmRoomBonus(fieldedPerks, isBoss),
     reputation: Math.round((node.layer + 1) * model.mods.repMul),
     nodeType: node.type,
   };
@@ -434,16 +477,112 @@ function applyRecruitPity(
   return { offers: [...rolled.slice(0, -1), forced], recruitDryStreak: 0 };
 }
 
-/** playerKeys of roster players who logged minutes in the just-simmed game. Favor
- * accrues to players who actually took the floor in a WIN, never benched spectators
- * (a parked recruit earning passive trust would gut the field-them-or-not tradeoff).
- * No box (defensive) = no favor. */
-function fieldedFavorKeys(roster: RunState['roster'], box: BoxLine[] | undefined): string[] {
+/** Roster players who logged minutes (`seconds > 0`) in the just-simmed game: the
+ * ONE fielded rule behind favor, legacy, and icon-perk accrual, so "benched
+ * spectators earn and confer nothing" can never drift between the three. No box
+ * (defensive) = nobody fielded. */
+function fieldedPlayers(
+  roster: RunState['roster'],
+  box: BoxLine[] | undefined
+): RosterPlayer[] {
   if (!box) return [];
   const played = new Set(box.filter((line) => line.seconds > 0).map((line) => line.name));
-  return [...roster.starters, ...roster.bench]
-    .filter((p) => played.has(p.player.name))
-    .map((p) => nameKey(p.player.name, p.position));
+  return [...roster.starters, ...roster.bench].filter((p) => played.has(p.player.name));
+}
+
+/** playerKeys of fielded players. Favor accrues to players who actually took the
+ * floor in a WIN (a parked recruit earning passive trust would gut the
+ * field-them-or-not tradeoff). */
+function fieldedFavorKeys(roster: RunState['roster'], box: BoxLine[] | undefined): string[] {
+  return fieldedPlayers(roster, box).map((p) => nameKey(p.player.name, p.position));
+}
+
+/** LEGACY credits for a just-WON game: every fielded player whose class sits
+ * within the at-class grace of the run's ladder earns a win, the box-score MVP
+ * earns a crown, and the championship win earns a title. The reducer stays
+ * home-blind: ownership is the merge's cut (mergeLegacyIntoHome), the mirror of
+ * favor's un-owned cut, so rentals build favor while the owned build careers. */
+function legacyGameCredits(
+  roster: RunState['roster'],
+  box: BoxLine[] | undefined,
+  ladderClass: LadderClass,
+  isChampionship: boolean
+): LegacyGameCredit[] {
+  if (!box) return [];
+  const mvp = mvpIndex(box);
+  const mvpName = mvp >= 0 ? box[mvp].name : null;
+  return fieldedPlayers(roster, box)
+    .filter((p) => legacyEligible(playerDraftClass(p), ladderClass))
+    .map((p) => ({
+      key: nameKey(p.player.name, p.position),
+      mvp: p.player.name === mvpName,
+      title: isChampionship,
+    }));
+}
+
+/**
+ * Advance the run's SIGNATURE marks off a just-WON game: a fielded legend whose
+ * bespoke condition landed earns their MOMENT, and the championship win earns
+ * CHAMPIONSHIP TOGETHER for every fielded legend meeting their floor. One mark of
+ * each kind per legend per run (the settle dedupes against the home ledger too).
+ * A legacy suspended run (progress undefined) stays undefined, preserving its
+ * old auto-sign promise at settle; losses never call this.
+ */
+function advanceSignatureMarks(
+  model: RunModel,
+  roster: RunState['roster'],
+  nodeType: 'game' | 'elite' | 'boss',
+  isChampionship: boolean
+): SignatureMark[] | undefined {
+  const prior = model.signatureProgress;
+  if (!prior || !model.game) return prior;
+  const box = model.game.result.box.home;
+  const have = new Set(prior.map((m) => `${m.legendKey}|${m.mark}`));
+  const next: SignatureMark[] = [];
+  for (const p of [...roster.starters, ...roster.bench]) {
+    const key = nameKey(p.player.name, p.position);
+    const challenge = signatureByKey(key);
+    if (!challenge) continue;
+    const line = box.find((l) => l.name === p.player.name);
+    if (!line || line.seconds <= 0) continue;
+    if (
+      !have.has(`${key}|moment`) &&
+      momentMet(challenge, {
+        difficulty: model.difficulty,
+        ladderClass: model.ladderClass,
+        nodeType,
+        line,
+        events: model.game.result.events,
+      })
+    ) {
+      next.push({ legendKey: key, mark: 'moment' });
+    }
+    if (
+      isChampionship &&
+      !have.has(`${key}|title`) &&
+      meetsSignatureFloor(challenge, model.difficulty, model.ladderClass)
+    ) {
+      next.push({ legendKey: key, mark: 'title' });
+    }
+  }
+  return next.length === 0 ? prior : [...prior, ...next];
+}
+
+/** Icon Perks held by fielded players (a benched icon confers nothing). */
+function fieldedIconPerks(roster: RunState['roster'], box: BoxLine[] | undefined): IconPerkId[] {
+  return fieldedPlayers(roster, box)
+    .filter((p) => p.iconPerk)
+    .map((p) => p.iconPerk as IconPerkId);
+}
+
+/** The FILM ROOM training points a win pays on top of the node's own (+1 per
+ * fielded icon with the perk, boss wins only). Shared by resolveGameResult and
+ * pendingWinRewards so the postgame tally always matches what banks. */
+function filmRoomBonus(perks: readonly IconPerkId[], isBoss: boolean): number {
+  if (!isBoss) return 0;
+  let bonus = 0;
+  for (const perk of perks) if (perk === 'film-room') bonus += FILM_ROOM_BOSS_TP;
+  return bonus;
 }
 
 /** Apply a per-player transform across the combined roster, re-split at five. */
@@ -1180,11 +1319,17 @@ export function runReducer(
       const node = model.core.map.nodes[nodeId];
       const isBoss = node.type === 'boss' || nodeId === model.core.map.bossNodeId;
       const coins = model.game ? coinsForWin(node, model.game.result, model.mods) : COIN_BASE;
+      // Icon Perks held by the players who took the floor in this win: FILM ROOM
+      // pays extra boss-win training points; MENTOR sweetens the favor below.
+      const fieldedPerks = fieldedIconPerks(model.core.roster, model.game?.result.box.home);
       const rewards = {
         ...model.core.rewards,
         coins: model.core.rewards.coins + coins,
         reputation: model.core.rewards.reputation + Math.round((node.layer + 1) * model.mods.repMul),
-        trainingPoints: model.core.rewards.trainingPoints + trainingPointsFor(node, model.mods),
+        trainingPoints:
+          model.core.rewards.trainingPoints +
+          trainingPointsFor(node, model.mods) +
+          filmRoomBonus(fieldedPerks, isBoss),
       };
       const roster = model.game
         ? applyInjuries(model.core, model.game.result.box.home, nodeId, model.mods)
@@ -1204,7 +1349,25 @@ export function runReducer(
       const favor = addFavor(
         model.favor ?? {},
         fieldedFavorKeys(roster, model.game?.result.box.home),
-        winPoints + (isChampionship ? FAVOR_CHAMPION_BONUS : 0)
+        winPoints +
+          (isChampionship ? FAVOR_CHAMPION_BONUS : 0) +
+          // MENTOR: a fielded icon mentor sweetens every teammate's favor. The
+          // settle keeps only the un-owned, so this feeds the chase, nothing else.
+          (fieldedPerks.includes('mentor') ? MENTOR_FAVOR_BONUS : 0)
+      );
+      // Legacy careers accrue on the same win, for the fielded at-class players
+      // (see legacyGameCredits); the merge credits the owned among them at settle.
+      const legacy = addLegacyGame(
+        model.legacy ?? {},
+        legacyGameCredits(roster, model.game?.result.box.home, model.ladderClass, isChampionship)
+      );
+      // Signature marks advance off the same win: a fielded legend's moment, and
+      // the championship's title mark (see signature.ts).
+      const signatureProgress = advanceSignatureMarks(
+        model,
+        roster,
+        isBoss ? 'boss' : node.type === 'elite' ? 'elite' : 'game',
+        isChampionship
       );
       if (isBoss) {
         if (isChampionship) {
@@ -1215,7 +1378,7 @@ export function runReducer(
             ...core,
             rewards: { ...rewards, coins: rewards.coins + model.mods.clearBonus },
           };
-          return { ...model, core: crowned, wins, favor, phase: { kind: 'summary', champion: true } };
+          return { ...model, core: crowned, wins, favor, legacy, signatureProgress, phase: { kind: 'summary', champion: true } };
         }
         // Boss Legend Signings roll BEFORE the map advances (the chance ramps on the
         // map index just beaten); an offered signing counts as the run's one legend
@@ -1226,6 +1389,8 @@ export function runReducer(
           core,
           wins,
           favor,
+          legacy,
+          signatureProgress,
           legend: signOffer ? { ...model.legend, offeredThisRun: true } : model.legend,
         });
         // A boss always drops gear (rare / epic / legendary, never common). Beat order:
@@ -1253,7 +1418,7 @@ export function runReducer(
             away: model.game.result.finalAway,
           })
         : core;
-      return { ...model, core: stamped, wins, favor, phase: { kind: 'map' }, game: null };
+      return { ...model, core: stamped, wins, favor, legacy, signatureProgress, phase: { kind: 'map' }, game: null };
     }
 
     case 'recruit': {
