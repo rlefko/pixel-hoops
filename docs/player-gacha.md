@@ -75,9 +75,15 @@ gacha is the dependable growth path now that mid-run recruits are provisional.
 
 ### Notes
 
-- Legends (S+) become permanently ownable via the Legendary Scout or by winning a run
-  with an on-loan legend. Existing draft gating still applies, so a high-tier signing
-  cannot trivially stomp low ladders.
+- **v21 (Earned Greatness) superseded the legend channels described in this doc.**
+  The Legendary Scout no longer sells pulls, and winning a run with an on-loan
+  legend no longer auto-signs them: every S+ signs through their two-mark
+  Signature Card, with a moment-gated Legacy Contract as the deterministic buyout
+  (its Arcade slot became the Legends board entry). The S machine's gate is now
+  difficulty-exact (A cleared on medium or better; machines a veteran had already
+  opened stay open), and below the proving floor an S recruit's championship banks
+  a letter of intent (favor) instead of copies. See
+  [signature-signings.md](signature-signings.md).
 - The once-per-run legend reveal offers the highest-FAVOR un-owned legend (uniform when
   nobody has favor), so the legend you lost a run with becomes the standing front-runner;
   the reveal's rate and pity are untouched.
