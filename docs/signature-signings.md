@@ -51,11 +51,14 @@ shot diet, and ratings, with a tiny hand-authored override map for marquee
 identity (Jordan closes, Magic and Stockton distribute, Rodman owns the glass,
 Oscar posts the line). All 92 derived cards are pinned in a snapshot test, so
 any tuning change is loud in review. Numbers are CALIBRATED against real seeded
-sims (`signature-sim.test.ts`): every condition lands between roughly 24% and
-53% of qualifying won games with a dedicated maxed five, so a moment is a real
-moment, never a gift and never a dead letter. The sim's counting stats run small
-(a monster rim-protector game is 2-3 blocks), which is why the numbers read
-modest next to NBA box scores.
+sims (`signature-sim.test.ts`): each template's aggregate hit rate measures
+roughly 24% to 53% of qualifying won games with a dedicated maxed five, so a
+moment is a real moment, never a gift and never a dead letter. Per-legend rates
+spread wider by design (a PANTHEON condition can sit near 5% per boss win and
+still land ~40% per seven-boss run); the pinned bands are 15-70% per template
+and 2-92% per legend. The sim's counting stats run small (a monster
+rim-protector game is 2-3 blocks), which is why the numbers read modest next to
+NBA box scores.
 
 ### Getting the legend on loan
 
@@ -119,8 +122,9 @@ S+**.
 `src/game/legacy.ts`: every OWNED player carries a career line `{w, mvp,
 titles}`: wins with minutes, box-score MVP crowns (Game Score, so empty-calorie
 chucking never counts), championship title games. Guards mirror favor: WIN-only,
-minutes-only, and AT-CLASS only (a game credits legacy only within one class
-rung of the run's ladder; an S+ farming the C ladder banks nothing). Careers
+minutes-only, and AT-CLASS only (the run's ladder may sit at most one class rung
+below the player's own class; playing above always credits, so an S+ farming the
+C ladder banks nothing). Careers
 never decay (the 2K badge-regression lesson) and bank exactly once per run under
 the settledRunId guard, credited to players owned before the merge.
 

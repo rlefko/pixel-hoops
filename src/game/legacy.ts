@@ -13,8 +13,9 @@ import { classLevel } from './classes';
  *  - WIN-ONLY: losses bank nothing (a ledger that pays for playing badly would make
  *    suicide runs the optimal career farm).
  *  - MINUTES-ONLY: `seconds > 0` in the box, never benched spectators.
- *  - AT-CLASS ONLY: a game credits legacy only when the run's ladder sits within one
- *    class rung of the player's own class. Legends do not pad careers against rookies.
+ *  - AT-CLASS ONLY: a game credits legacy only when the run's ladder sits no more
+ *    than one class rung BELOW the player's own class (playing above always
+ *    credits). Legends do not pad careers against rookies.
  * And one promise the other direction: legacy NEVER decays. Earn-by-doing systems
  * that regress (NBA 2K badge regression) breed perverse play; a career only grows.
  *

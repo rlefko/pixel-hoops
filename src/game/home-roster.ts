@@ -212,9 +212,10 @@ export interface HomeRoster {
    * legend signs and leaves this ledger (see src/game/signature.ts and
    * docs/signature-signings.md). Owned legends read as SIGNED without an entry. */
   signatures: SignatureLedger;
-  /** Machines already open under the OLD any-difficulty rule when the v21
-   * difficulty-exact gates landed (the never-re-lock rule, the v16 precedent).
-   * Stamped once at migration; never grows afterward. */
+  /** The GRANDFATHER LIST: machines already open under the OLD any-difficulty
+   * rule when the v21 difficulty-exact gates landed (the never-re-lock rule, the
+   * v16 precedent). Stamped once at migration; never grows afterward. Old-save
+   * compatibility only: unrelated to the LEGACY career ledger above. */
   legacyGates?: PlayerGachaTier[];
   /** LEGEND VOUCHERS held: each redeems one free Legacy Contract (the insane:S
    * bounty's one-time reward). Spent by buyLegacyContract before coins. */

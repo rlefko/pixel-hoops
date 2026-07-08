@@ -291,8 +291,8 @@ export function legendByKey(key: string): RealPlayer | undefined {
 /**
  * LEGACY CONTRACT prices by tier: the deterministic buyout of ONLY the
  * championship mark, purchasable once a legend's MOMENT is already proven (coins
- * never skip the challenge itself; the Head Ball rule that the condition is the
- * intended path and the price is deliberately punitive). At ~950/1,300/1,850/2,600
+ * never skip the challenge itself; the Head Basketball rule that the condition is
+ * the intended path and the price is deliberately punitive). At ~950/1,300/1,850/2,600
  * coins per clear, a buyout costs 6-14 runs of pure income vs 1-3 more runs for
  * the honest championship, so clearing strictly dominates while a player who can
  * hit the moment but not the clear keeps a visible, reachable ceiling.
