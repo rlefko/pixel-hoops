@@ -43,6 +43,8 @@ interface MapNodeTileProps {
   onChoose: (nodeId: string) => void;
   /** Hold the reachable-tile breathe steady while the player is idle on the map. */
   paused?: boolean;
+  /** Signature Finale: the armed legend's franchise team abbreviation. */
+  finaleTeamAbbr?: string;
 }
 
 // Memoized: a win stamps 2-3 node objects (traverseTo + the result), but the map
@@ -58,6 +60,7 @@ export const MapNodeTile = memo(function MapNodeTile({
   isCurrent,
   onChoose,
   paused = false,
+  finaleTeamAbbr,
 }: MapNodeTileProps) {
   const meta = NODE_META[node.type];
   const isCombat = COMBAT.includes(node.type);
@@ -67,8 +70,8 @@ export const MapNodeTile = memo(function MapNodeTile({
   const scaleStyle = useScalePulse(900, { paused: !isReachable || paused });
 
   const preview = useMemo(
-    () => (isCombat ? previewOpponent(seed, node.id) : null),
-    [isCombat, seed, node.id]
+    () => (isCombat ? previewOpponent(seed, node.id, { finaleTeamAbbr }) : null),
+    [isCombat, seed, node.id, finaleTeamAbbr]
   );
 
   const round = node.round ?? node.layer + 1;

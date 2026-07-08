@@ -82,7 +82,7 @@ export function signatureTier(overall: number): SignatureTier {
 }
 
 /** The difficulty floor per tier: the biggest names demand the biggest stages.
- * (If the pacing harness bands drift, PANTHEON softening to hard is the tunable.) */
+ * If the pacing harness bands drift, PANTHEON softening to hard is the tunable. */
 const TIER_FLOOR: Record<SignatureTier, Difficulty> = {
   1: 'medium',
   2: 'hard',
@@ -317,6 +317,9 @@ export interface SignatureMark {
   legendKey: string;
   mark: SignatureMarkKind;
 }
+
+/** The card ledger entry for a single legend (two optional marks). */
+export type SignatureMarks = Partial<Record<SignatureMarkKind, Difficulty>>;
 
 /** The persisted card ledger: the difficulty each earned mark was proven at
  * (marks never revoke; a completed card signs the legend and leaves the ledger). */

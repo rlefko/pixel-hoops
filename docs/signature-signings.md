@@ -40,9 +40,9 @@ Derived from the baked 2K `overall` (no extra data):
 | III PANTHEON | 97 to 99 | 24 | insane | boss only |
 
 Crediting is one-directional (the Isaac rule): playing above the floor always
-counts, below never does. If live pacing shows insane participation too thin,
-the PANTHEON floor softens to hard (the boss-stage overlay stays); the
-`signature-sim` bands are the decision criterion.
+counts, below never does. If live pacing shows insane participation too thin, the
+PANTHEON floor softens to hard (the boss-stage overlay stays); the `signature-sim`
+bands are the decision criterion.
 
 ### Conditions
 

@@ -1,5 +1,6 @@
 import { createRNG, deriveSeed } from './rng';
 import { pickRealTeam } from './player-pool';
+import { NBA_TEAMS } from '@/data/nba';
 import type { NbaTeam } from '@/types/nba';
 
 /**
@@ -15,7 +16,15 @@ import type { NbaTeam } from '@/types/nba';
  */
 export function previewOpponent(
   seed: number | string,
-  nodeId: string
+  nodeId: string,
+  options?: { finaleTeamAbbr?: string }
 ): NbaTeam {
+  // If a Signature Finale is active, use the armed legend's franchise directly
+  if (options?.finaleTeamAbbr) {
+    return (
+      NBA_TEAMS.find((t) => t.abbreviation === options.finaleTeamAbbr) ??
+      pickRealTeam(createRNG(deriveSeed(seed, `opp-${nodeId}`)))
+    );
+  }
   return pickRealTeam(createRNG(deriveSeed(seed, `opp-${nodeId}`)));
 }

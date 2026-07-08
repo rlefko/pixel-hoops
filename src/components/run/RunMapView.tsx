@@ -64,6 +64,8 @@ interface RunMapViewProps {
   onOpenLineup?: () => void;
   /** Opens the item bag. */
   onOpenBag: () => void;
+  /** Signature Finale: the armed legend's franchise team abbreviation. */
+  finaleTeamAbbr?: string;
 }
 
 const LEGEND: MapNodeType[] = [
@@ -88,6 +90,7 @@ export function RunMapView({
   onLeave,
   onOpenLineup,
   onOpenBag,
+  finaleTeamAbbr,
 }: RunMapViewProps) {
   // Coins bank as-earned into the wallet, so the HUD shows the live home total.
   const { homeRoster } = useHomeRoster();
@@ -212,6 +215,7 @@ export function RunMapView({
                   isReachable={reachable.has(id)}
                   isCurrent={core.currentNodeId === id}
                   onChoose={onChoose}
+                  finaleTeamAbbr={finaleTeamAbbr}
                   // Unreachable tiles never animate, so folding reachability in here
                   // keeps their prop a constant `true`: idle wake-ups (which race the
                   // very tap they precede) re-render only the 2-3 breathing tiles.
