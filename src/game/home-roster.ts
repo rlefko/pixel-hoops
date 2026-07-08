@@ -56,6 +56,7 @@ import {
   settleTeach,
   type TeachLedger,
 } from './teach';
+import { mergeLegacyIntoHome, sanitizeLegacy, type LegacyLedger } from './legacy';
 
 /**
  * The persistent "home roster" that compounds across runs. It is now an UNCAPPED,
@@ -169,8 +170,20 @@ export interface HomeRoster {
    * runsSettled) with the seen ceremony flag as a one-way ratchet; see
    * src/game/teach.ts. A missing ledger reads as fully graduated. */
   teach?: TeachLedger;
+  /** LEGACY ledger (v21): per-player career totals (wins with minutes, box-score MVP
+   * crowns, championship title games), banked at terminal settle from WON games only
+   * and credited to players owned before the merge (see src/game/legacy.ts). Gates
+   * Locker Room ranks 4/5 and the Icon Perk slot. Never decays, never confiscated. */
+  legacy: LegacyLedger;
 }
 
+// v21 adds the LEGACY ledger (`legacy`): per-player career totals (wins with minutes,
+// box-score MVP crowns, championship title games) that gate the deepest Locker Room
+// ranks and the Icon Perk slot (see src/game/legacy.ts and docs/signature-signings.md).
+// Older saves backfill an EMPTY ledger (no fabricated careers), and crucially nothing
+// is confiscated: already-purchased rank 4/5 upgrades stay bought (the gate applies to
+// the NEXT purchase only), and owned players stay owned. Values sanitize on load but
+// membership is kept, so a corrupted players list can never orphan a career.
 // v20 adds the teach ledger (`teach`): the progressive-onboarding state: one-shot
 // tip/ceremony ids (`seen`), the terminal-settle counter that opens the Locker Room
 // and the Daily panel (`runsSettled`), and the consecutive-loss streak per
@@ -243,7 +256,7 @@ export interface HomeRoster {
 // gacha ability inventory/equips and per-player originalClass, and uncapped the
 // collection. v1's four-stat lines are still migrated to the ten-rating model before
 // the scale remap.
-const HOME_ROSTER_VERSION = 20;
+const HOME_ROSTER_VERSION = 21;
 
 /**
  * The rarity overhaul rebuilt the gacha-ability pool, so a pre-v10 save can hold
@@ -363,6 +376,7 @@ export function createRookieRoster(rng: RNG): HomeRoster {
     clearedCells: [],
     courtTheme: DEFAULT_COURT_THEME_ID,
     favor: {},
+    legacy: {},
     // A fresh install (and the Settings reset) starts fully acknowledged: no deltas.
     hubSeen: { coins: 0, crestCells: [], copyTotal: hubCopyTotal({ players, collecting: [] }) },
     // ...and fully un-taught: the guided unfolding starts here.
@@ -784,6 +798,10 @@ export interface RunSettle {
    * The settle banks them for the still-un-owned who finished the run on the squad,
    * scaled by the difficulty's favorMul, WIN OR LOSE. */
   runFavor?: Record<string, number>;
+  /** LEGACY career credits this run's wins accrued per fielded playerKey
+   * (model.legacy). The settle banks them for players owned BEFORE the merge (a
+   * rental's usage is favor's job), win or lose, exactly once per run. */
+  runLegacy?: LegacyLedger;
 }
 
 /** One player's favor movement at a settle, for the run-summary favor strip. */
@@ -1048,6 +1066,9 @@ export function mergeRunGainsIntoHome(
     players,
     collecting,
     favor,
+    // Careers bank for the players owned BEFORE this merge (ownedKeys above), so a
+    // recruit signed by this very settle starts their legacy next run, not this one.
+    legacy: mergeLegacyIntoHome(home.legacy ?? {}, settle.runLegacy, ownedKeys),
     // Win coins are NOT banked here: they bank into the wallet as each game is won
     // (the as-earned ledger in useRun), so `...home` already holds them. Residual
     // favor coins (a chase this settle completed) and reputation are terminal
@@ -1651,6 +1672,9 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     daily: sanitizeDaily(data.daily),
     weekly: sanitizeWeekly(data.weekly),
     favor,
+    // v21: the legacy ledger. Values sanitize, membership is kept (a career never
+    // decays and never orphans); older saves backfill empty, never fabricated.
+    legacy: sanitizeLegacy(data.legacy),
     scoutTargets: sanitizeScoutTargets(data.scoutTargets, ownedNow),
     // v19: the hub since-you-left ledger. Missing/garbage fields backfill to the
     // CURRENT (post-migration) values, never zero: silencing a delta is safe,

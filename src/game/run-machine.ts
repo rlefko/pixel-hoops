@@ -44,6 +44,9 @@ import { tipSeen } from './teach';
 import { recommendLineup, reorderForCoach, recMinDelta, type CoachRec } from './coach-reco';
 import { legendRecruitFavored } from './player-pool';
 import { FAVOR_CHAMPION_BONUS, FAVOR_WIN_POINTS, addFavor } from './favor';
+import { addLegacyGame, legacyEligible, type LegacyGameCredit, type LegacyLedger } from './legacy';
+import { mvpIndex } from './box-score';
+import { playerDraftClass } from './draft';
 import {
   MAX_BOOSTS,
   BOOST_BY_ID,
@@ -204,6 +207,11 @@ export interface RunModel {
    * re-offer reunion). Small (un-owned players with favor only) and read-only for the
    * whole run. Optional: old suspended runs default to {}. */
   homeFavor?: Record<string, number>;
+  /** LEGACY career credits accrued this run per fielded playerKey: wins with minutes,
+   * box-score MVP crowns, and title-game appearances, at-class only (see legacy.ts).
+   * Accrues on WON games only (favor's rule) and banks at the terminal settle for the
+   * players owned before the merge. Optional: old suspended runs default to {}. */
+  legacy?: LegacyLedger;
   /** Recruit nodes in a row without a specialist offered; pity forces one in once
    * it reaches RECRUIT_PITY_THRESHOLD so a specialist build is always reachable. */
   recruitDryStreak: number;
@@ -341,6 +349,7 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
       .map((p) => nameKey(p.player.name, p.position)),
     favor: {},
     homeFavor: { ...homeRoster.favor },
+    legacy: {},
     recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
     forgivenLosses: 0,
@@ -444,6 +453,30 @@ function fieldedFavorKeys(roster: RunState['roster'], box: BoxLine[] | undefined
   return [...roster.starters, ...roster.bench]
     .filter((p) => played.has(p.player.name))
     .map((p) => nameKey(p.player.name, p.position));
+}
+
+/** LEGACY credits for a just-WON game: every fielded player (minutes logged, like
+ * favor) whose class sits within the at-class grace of the run's ladder earns a win,
+ * the box-score MVP earns a crown, and the championship win earns a title. The
+ * reducer stays home-blind: ownership is the merge's cut (mergeLegacyIntoHome), the
+ * mirror of favor's un-owned cut, so rentals build favor while the owned build careers. */
+function legacyGameCredits(
+  roster: RunState['roster'],
+  box: BoxLine[] | undefined,
+  ladderClass: LadderClass,
+  isChampionship: boolean
+): LegacyGameCredit[] {
+  if (!box) return [];
+  const mvp = mvpIndex(box);
+  const mvpName = mvp >= 0 ? box[mvp].name : null;
+  const played = new Set(box.filter((line) => line.seconds > 0).map((line) => line.name));
+  return [...roster.starters, ...roster.bench]
+    .filter((p) => played.has(p.player.name) && legacyEligible(playerDraftClass(p), ladderClass))
+    .map((p) => ({
+      key: nameKey(p.player.name, p.position),
+      mvp: p.player.name === mvpName,
+      title: isChampionship,
+    }));
 }
 
 /** Apply a per-player transform across the combined roster, re-split at five. */
@@ -1206,6 +1239,12 @@ export function runReducer(
         fieldedFavorKeys(roster, model.game?.result.box.home),
         winPoints + (isChampionship ? FAVOR_CHAMPION_BONUS : 0)
       );
+      // Legacy careers accrue on the same win, for the fielded at-class players
+      // (see legacyGameCredits); the merge credits the owned among them at settle.
+      const legacy = addLegacyGame(
+        model.legacy ?? {},
+        legacyGameCredits(roster, model.game?.result.box.home, model.ladderClass, isChampionship)
+      );
       if (isBoss) {
         if (isChampionship) {
           // The championship clear bonus banks with the final win's coins (as-earned,
@@ -1215,7 +1254,7 @@ export function runReducer(
             ...core,
             rewards: { ...rewards, coins: rewards.coins + model.mods.clearBonus },
           };
-          return { ...model, core: crowned, wins, favor, phase: { kind: 'summary', champion: true } };
+          return { ...model, core: crowned, wins, favor, legacy, phase: { kind: 'summary', champion: true } };
         }
         // Boss Legend Signings roll BEFORE the map advances (the chance ramps on the
         // map index just beaten); an offered signing counts as the run's one legend
@@ -1226,6 +1265,7 @@ export function runReducer(
           core,
           wins,
           favor,
+          legacy,
           legend: signOffer ? { ...model.legend, offeredThisRun: true } : model.legend,
         });
         // A boss always drops gear (rare / epic / legendary, never common). Beat order:
@@ -1253,7 +1293,7 @@ export function runReducer(
             away: model.game.result.finalAway,
           })
         : core;
-      return { ...model, core: stamped, wins, favor, phase: { kind: 'map' }, game: null };
+      return { ...model, core: stamped, wins, favor, legacy, phase: { kind: 'map' }, game: null };
     }
 
     case 'recruit': {

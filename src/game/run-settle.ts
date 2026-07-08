@@ -78,6 +78,7 @@ export function settleRunIntoHome(home: HomeRoster, model: RunModel, now: number
     bossWins: model.core.currentMapIndex,
     ladderClass: model.ladderClass,
     runFavor: model.favor ?? {},
+    runLegacy: model.legacy ?? {},
   });
   // A championship banks a Hall of Fame snapshot of the final game. `now` is injected
   // by the hook, keeping the merge and the entry builder clock-free.
@@ -120,6 +121,7 @@ export function settleRunIntoHome(home: HomeRoster, model: RunModel, now: number
       bossWins: model.core.currentMapIndex,
       ladderClass: model.ladderClass,
       runFavor: model.favor ?? {},
+      runLegacy: model.legacy ?? {},
     }),
     settledRunId: runId,
   };

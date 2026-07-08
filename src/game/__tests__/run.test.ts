@@ -1733,6 +1733,100 @@ describe('favor accrual (win-earned, fielded-only)', () => {
   });
 });
 
+describe('legacy accrual (win-earned, fielded, at-class only)', () => {
+  const playedPostgame = (m: RunModel, nodeId: string, won: boolean): RunModel => {
+    const game = runReducer({ ...m, phase: { kind: 'pregame', nodeId } }, { type: 'enterGame' })!;
+    return { ...game, phase: { kind: 'postgame', nodeId, won } };
+  };
+  const combat = (over: Partial<MapNode>): MapNode => ({
+    id: 'g1', type: 'game', layer: 1, next: [], round: 1, visited: true, cleared: false, ...over,
+  });
+  const inject = (m: RunModel, n: MapNode): RunModel => ({
+    ...m,
+    core: { ...m.core, map: { ...m.core.map, nodes: { ...m.core.map.nodes, [n.id]: n } } },
+  });
+  const rosterKeys = (m: RunModel) =>
+    new Set(
+      [...m.core.roster.starters, ...m.core.roster.bench].map(
+        (p) => `${p.player.name}|${p.position}`
+      )
+    );
+
+  it('a won game banks a win for every fielded player and exactly one MVP crown', () => {
+    const pre = inject(started('leg-1'), combat({}));
+    const won = runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!;
+    const ledger = won.legacy ?? {};
+    const keys = Object.keys(ledger);
+    expect(keys.length).toBeGreaterThanOrEqual(5); // the starting five always play
+    const valid = rosterKeys(won);
+    let crowns = 0;
+    for (const key of keys) {
+      expect(valid.has(key)).toBe(true);
+      expect(ledger[key].w).toBe(1);
+      expect(ledger[key].titles).toBe(0);
+      crowns += ledger[key].mvp;
+    }
+    expect(crowns).toBe(1); // the box-score MVP is always a fielded home player
+  });
+
+  it('the championship win banks a title for the fielded', () => {
+    const base = inject(started('leg-2'), combat({ type: 'boss' }));
+    const finale = { ...base, core: { ...base.core, currentMapIndex: TOTAL_MAPS - 1 } };
+    const crowned = runReducer(playedPostgame(finale, 'g1', true), {
+      type: 'resolveGameResult',
+    })!;
+    expect(crowned.phase).toEqual({ kind: 'summary', champion: true });
+    for (const line of Object.values(crowned.legacy ?? {})) {
+      expect(line.titles).toBe(1);
+    }
+  });
+
+  it('losses and timeout replays bank nothing', () => {
+    const pre = inject(started('leg-3'), combat({}));
+    const lost = runReducer(
+      { ...playedPostgame(pre, 'g1', false), secondChancesRemaining: 0 },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(Object.keys(lost.legacy ?? {})).toHaveLength(0);
+    const forgiven = runReducer(
+      { ...playedPostgame(pre, 'g1', false), secondChancesRemaining: 1 },
+      { type: 'resolveGameResult' }
+    )!;
+    expect(Object.keys(forgiven.legacy ?? {})).toHaveLength(0);
+  });
+
+  it('an above-grace star earns favor but no legacy on a low ladder', () => {
+    // Field an on-loan S+ legend on the C ladder: the at-class rule zeroes their
+    // career credit ("legends do not pad stats against rookies") while favor,
+    // whose job is the un-owned chase, still accrues.
+    const legend = { ...realPlayerToRosterPlayer(NBA_LEGENDS[0]), onLoan: true };
+    const base = inject(started('leg-4'), combat({}));
+    const five = [...base.core.roster.starters];
+    const slot = five.findIndex((p) => p.position === legend.position);
+    const swapped = [...five.slice(0, slot), legend, ...five.slice(slot + 1)];
+    const withLegend = {
+      ...base,
+      core: { ...base.core, roster: { starters: swapped, bench: base.core.roster.bench } },
+    };
+    const won = runReducer(playedPostgame(withLegend, 'g1', true), {
+      type: 'resolveGameResult',
+    })!;
+    const legendKey = `${legend.player.name}|${legend.position}`;
+    expect((won.favor ?? {})[legendKey]).toBeGreaterThan(0);
+    expect((won.legacy ?? {})[legendKey]).toBeUndefined();
+    // Their at-class teammates still built careers on the same win.
+    expect(Object.keys(won.legacy ?? {}).length).toBeGreaterThanOrEqual(4);
+  });
+
+  it('accrual is deterministic from the run seed', () => {
+    const play = () => {
+      const pre = inject(started('leg-5'), combat({}));
+      return runReducer(playedPostgame(pre, 'g1', true), { type: 'resolveGameResult' })!.legacy;
+    };
+    expect(play()).toEqual(play());
+  });
+});
+
 describe('favor-steered legend reveal and re-offers', () => {
   it('legendRecruitFavored offers the highest-favor un-owned legend', () => {
     const fav = realPlayerToRosterPlayer(NBA_LEGENDS[3]);
