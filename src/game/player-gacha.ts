@@ -5,7 +5,7 @@ import { poolByClass, realPlayerToRosterPlayer } from './player-pool';
 import { CLASS_ORDER, type PlayerClass } from './ratings';
 import { copiesToOwn, overflowBounty } from './collection';
 import { FAVOR_PER_COPY } from './favor';
-import type { Difficulty, LadderClass } from './difficulty-mode';
+import { DIFFICULTIES, type Difficulty, type LadderClass } from './difficulty-mode';
 import type { RNG } from './rng';
 
 /**
@@ -63,34 +63,64 @@ export const PLAYER_MACHINES: Record<PlayerGachaTier, PlayerMachine> = {
   },
 };
 
+/** A machine's unlock requirement: clear `cls` on `minDifficulty` OR ABOVE. */
+export interface MachineGate {
+  cls: LadderClass;
+  minDifficulty: Difficulty;
+}
+
 /**
- * The ladder class a scout machine stays LOCKED behind: clear it (on ANY difficulty)
- * and the machine opens. Each tier gates on the ladder rung one below it, so scouting a
- * class becomes available exactly when the ladder that recruits it does (C is always
- * open). Mirrors ladderProgress, so no extra state is persisted.
+ * The gate each scout machine stays LOCKED behind. Each tier still gates on the
+ * ladder rung one below it, but the TOP tiers are now difficulty-exact: the S
+ * machine demands a medium-or-better A clear and the Legendary machine a
+ * hard-or-better S clear, so an easy-only climb can never open the star markets
+ * (the old any-difficulty rule was the Easy farm's front door). One-directional:
+ * clearing above the floor always counts. Derives from ladderProgress, so no
+ * extra state persists; pre-update saves that had already opened a machine under
+ * the old rule keep it via the grandfathered list (HomeRoster.legacyGates).
  */
-const MACHINE_GATE: Record<PlayerGachaTier, LadderClass | null> = {
+const MACHINE_GATE: Record<PlayerGachaTier, MachineGate | null> = {
   C: null, // always open
-  B: 'C',
-  A: 'B',
-  S: 'A',
-  legendary: 'S',
+  B: { cls: 'C', minDifficulty: 'easy' },
+  A: { cls: 'B', minDifficulty: 'easy' },
+  S: { cls: 'A', minDifficulty: 'medium' },
+  legendary: { cls: 'S', minDifficulty: 'hard' },
 };
 
-/** The ladder class a machine is locked behind (null when always open). Drives the
- * "CLEAR C LADDER" hint on a locked machine. */
-export function machineGate(tier: PlayerGachaTier): LadderClass | null {
+/** The gate a machine is locked behind (null when always open). Drives the
+ * "CLEAR A ON MEDIUM+" hint on a locked machine. */
+export function machineGate(tier: PlayerGachaTier): MachineGate | null {
   return MACHINE_GATE[tier];
 }
 
-/** Whether a scout machine is unlocked given the per-difficulty ladder progress. */
+/** Whether a scout machine is unlocked: the gate's class cleared at (or above) the
+ * gate's difficulty, or the tier grandfathered from a pre-gate save. */
 export function machineUnlocked(
+  tier: PlayerGachaTier,
+  ladderProgress: Record<Difficulty, LadderClass | null>,
+  grandfathered?: readonly PlayerGachaTier[]
+): boolean {
+  const need = MACHINE_GATE[tier];
+  if (!need) return true;
+  if (grandfathered?.includes(tier)) return true;
+  const needIdx = CLASS_ORDER.indexOf(need.cls);
+  const minIdx = DIFFICULTIES.indexOf(need.minDifficulty);
+  return DIFFICULTIES.some((difficulty, i) => {
+    if (i < minIdx) return false;
+    const cleared = ladderProgress[difficulty];
+    return cleared != null && CLASS_ORDER.indexOf(cleared) >= needIdx;
+  });
+}
+
+/** The OLD any-difficulty rule, kept only for the one-time v21 grandfather stamp:
+ * a veteran whose machine was already open never sees it re-lock. */
+export function machineUnlockedLegacyRule(
   tier: PlayerGachaTier,
   ladderProgress: Record<Difficulty, LadderClass | null>
 ): boolean {
   const need = MACHINE_GATE[tier];
   if (!need) return true;
-  const needIdx = CLASS_ORDER.indexOf(need);
+  const needIdx = CLASS_ORDER.indexOf(need.cls);
   return Object.values(ladderProgress).some(
     (cleared) => cleared != null && CLASS_ORDER.indexOf(cleared) >= needIdx
   );

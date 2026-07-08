@@ -21,15 +21,23 @@ import {
 import {
   PLAYER_GACHA_TIERS,
   pullPlayer,
+  machineGate,
   machineUnlocked,
+  machineUnlockedLegacyRule,
   tierHasPlayer,
   type PlayerGachaTier,
   type PlayerPullResult,
 } from './player-gacha';
-import { REACH_UP_DEPOSIT_COPIES, copiesToOwn, type CollectingPlayer } from './collection';
+import {
+  REACH_UP_DEPOSIT_COPIES,
+  copiesToOwn,
+  provenAtDifficulty,
+  type CollectingPlayer,
+} from './collection';
 import {
   FAVOR_PER_COPY,
   FAVOR_RESIDUAL_COIN_RATE,
+  LETTER_OF_INTENT_FAVOR,
   cashOutFavor,
   settleFavorEarned,
 } from './favor';
@@ -202,6 +210,10 @@ export interface HomeRoster {
    * legend signs and leaves this ledger (see src/game/signature.ts and
    * docs/signature-signings.md). Owned legends read as SIGNED without an entry. */
   signatures: SignatureLedger;
+  /** Machines already open under the OLD any-difficulty rule when the v21
+   * difficulty-exact gates landed (the never-re-lock rule, the v16 precedent).
+   * Stamped once at migration; never grows afterward. */
+  legacyGates?: PlayerGachaTier[];
 }
 
 // v21 adds EARNED GREATNESS: the LEGACY ledger (`legacy`, per-player career totals:
@@ -621,7 +633,7 @@ export function applyPlayerPull(
   const collectingCopies = collectingCopyMap(home);
   const result = pullPlayer(tier, unlockedKeys, collectingCopies, rng, pullDirection(home, tier));
   // Locked behind ladder progress, or unaffordable: no-op (guarded here too, not just UI).
-  if (!machineUnlocked(tier, home.ladderProgress) || home.coins < result.cost) {
+  if (!machineUnlocked(tier, home.ladderProgress, home.legacyGates) || home.coins < result.cost) {
     return { home, result };
   }
   // Charge the pull, then deposit the copy (foldPull credits any overflow bounty).
@@ -895,11 +907,17 @@ function settleDeposits(
   settle: RunSettle
 ): { collecting: CollectingPlayer[] } & AcquisitionDelta {
   const { champion = false, bossWins = 0, ladderClass } = settle;
-  const mods = difficultyMods(settle.playedDifficulty ?? home.selectedDifficulty);
-  const depositable =
-    settle.signatureProgress !== undefined
-      ? candidates.filter((rp) => !isLegendRecruit(rp))
-      : candidates;
+  const difficulty = settle.playedDifficulty ?? home.selectedDifficulty;
+  const mods = difficultyMods(difficulty);
+  // Two channel guards: legends never deposit (their Signature Card is the only
+  // door, legacy valve aside), and an S below the proving floor banks a letter of
+  // intent (favor, added in settleCollection) instead of copies.
+  const depositable = candidates.filter((rp) => {
+    if (settle.signatureProgress !== undefined && isLegendRecruit(rp)) return false;
+    const cls = playerDraftClass(rp);
+    if (!isLegendRecruit(rp) && !provenAtDifficulty(cls, difficulty)) return false;
+    return true;
+  });
   if (champion) {
     return depositRecruitCopies(home.collecting ?? [], depositable, mods.copiesMul, ladderClass);
   }
@@ -1022,19 +1040,43 @@ function settleCollection(
     });
   }
 
-  // The favor pass: bank, convert, and (rarely) unlock.
-  for (const [key, base] of Object.entries(settle.runFavor ?? {})) {
+  // LETTERS OF INTENT: below the proving floor, a championship's S recruits bank
+  // flat favor in place of the copies the clear would have deposited above it. The
+  // title always moves the meter; below the floor it moves in trust, not contracts
+  // ("Easy earns his trust; Medium signs him").
+  const settleDifficulty = settle.playedDifficulty ?? home.selectedDifficulty;
+  const letters: Record<string, number> = {};
+  if (settle.champion && !provenAtDifficulty('S', settleDifficulty)) {
+    for (const rp of candidates) {
+      const key = playerKey(rp);
+      if (unlockedKeys.has(key) || isLegendRecruit(rp)) continue;
+      if (playerDraftClass(rp) !== 'S') continue;
+      letters[key] = LETTER_OF_INTENT_FAVOR;
+    }
+  }
+
+  // The favor pass: bank, convert, and (rarely) unlock. Iterates the union of the
+  // run's win-favor and the letters, so a bench-parked champion recruit still
+  // receives their letter.
+  const favorKeys = new Set([...Object.keys(settle.runFavor ?? {}), ...Object.keys(letters)]);
+  for (const key of favorKeys) {
+    const base = settle.runFavor?.[key] ?? 0;
     const candidate = candidateByKey.get(key);
     if (!candidate || unlockedKeys.has(key)) continue; // owned, just signed, or cut mid-run
-    const earned = settleFavorEarned(
-      base,
-      mods.favorMul,
-      isReachUpRecruit(candidate, settle.ladderClass)
-    );
+    const cls = playerDraftClass(candidate);
+    // The unproven damp bites only where a chase could complete (convertible S):
+    // legend favor is reveal steering, not copies, and stays undamped.
+    const unproven = cls === 'S' && !provenAtDifficulty('S', settleDifficulty);
+    const earned =
+      settleFavorEarned(
+        base,
+        mods.favorMul,
+        isReachUpRecruit(candidate, settle.ladderClass),
+        unproven
+      ) + (letters[key] ?? 0);
     if (earned <= 0) continue;
     const before = favor[key] ?? 0;
     const total = before + earned;
-    const cls = playerDraftClass(candidate);
     const perCopy = FAVOR_PER_COPY[cls] ?? 0;
     const wholeCopies = perCopy > 0 ? Math.floor(total / perCopy) : 0;
     if (wholeCopies <= 0) {
@@ -1694,6 +1736,21 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
       ladderProgress[d] = fromCells;
     }
   }
+  // v21 grandfather: machines already open under the OLD any-difficulty rule when
+  // the difficulty-exact gates landed never re-lock (the v16 never-re-lock
+  // precedent). Stamped exactly once at the version bump; later saves carry their
+  // own (never-growing) list.
+  const legacyGates: PlayerGachaTier[] =
+    version < 21
+      ? PLAYER_GACHA_TIERS.filter(
+          (tier) => machineGate(tier) !== null && machineUnlockedLegacyRule(tier, ladderProgress)
+        )
+      : Array.isArray(data.legacyGates)
+        ? data.legacyGates.filter((t): t is PlayerGachaTier =>
+            (PLAYER_GACHA_TIERS as readonly string[]).includes(t as string)
+          )
+        : [];
+
   const selectedDifficulty: Difficulty =
     typeof data.selectedDifficulty === 'string' &&
     (DIFFICULTIES as readonly string[]).includes(data.selectedDifficulty)
@@ -1823,6 +1880,7 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     // v21: the Signature Card ledger. Owned legends' entries drop (owned = SIGNED);
     // older saves backfill empty (no retro marks).
     signatures: sanitizeSignatures(data.signatures, ownedNow),
+    legacyGates: legacyGates.length > 0 ? legacyGates : undefined,
     scoutTargets: sanitizeScoutTargets(data.scoutTargets, ownedNow),
     // v19: the hub since-you-left ledger. Missing/garbage fields backfill to the
     // CURRENT (post-migration) values, never zero: silencing a delta is safe,

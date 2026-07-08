@@ -1,5 +1,6 @@
 import type { RosterPlayer } from '@/types/roster';
 import type { PlayerClass } from './ratings';
+import { DIFFICULTIES, type Difficulty } from './difficulty-mode';
 
 /**
  * The player COLLECTION model. Owning a non-legend is no longer binary: each player
@@ -39,6 +40,31 @@ export const COPIES_TO_OWN: Record<PlayerClass, number> = {
  * B-ladder clear (x3 copies) would insta-own every A-class reach-up recruit.
  */
 export const REACH_UP_DEPOSIT_COPIES = 1;
+
+/**
+ * THE PROVING FLOOR: the minimum difficulty at which a class's championship copies
+ * actually bank. Below the floor a clear grants a LETTER OF INTENT (flat favor,
+ * see favor.ts) and win-favor settles half-damped, so Easy earns an S star's trust
+ * but only Medium-and-up signs him ("Easy earns his trust; Medium signs him").
+ * C/B/A stay floorless (their chases are the on-ramp); S+ legends carry their own,
+ * steeper per-tier floors through the Signature Card (signature.ts), so the entry
+ * here is only the generic channel guard.
+ */
+export const PROVING_DIFFICULTY: Record<PlayerClass, Difficulty> = {
+  D: 'easy',
+  C: 'easy',
+  B: 'easy',
+  A: 'easy',
+  S: 'medium',
+  'S+': 'hard',
+  'S++': 'insane',
+};
+
+/** Whether a difficulty meets a class's proving floor (one-directional: above
+ * always counts). */
+export function provenAtDifficulty(cls: PlayerClass, difficulty: Difficulty): boolean {
+  return DIFFICULTIES.indexOf(difficulty) >= DIFFICULTIES.indexOf(PROVING_DIFFICULTY[cls]);
+}
 
 /** Copies required to own (unlock) a player of `cls`. */
 export function copiesToOwn(cls: PlayerClass): number {

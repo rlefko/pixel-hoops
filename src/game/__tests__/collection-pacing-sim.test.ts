@@ -10,10 +10,22 @@ import {
 } from '@/game/home-roster';
 import { generateRecruitOffers } from '@/game/tournament';
 import { poolByClass, realPlayerToRosterPlayer } from '@/game/player-pool';
-import { PLAYER_MACHINES, tierForClass, type PlayerGachaTier } from '@/game/player-gacha';
+import {
+  PLAYER_MACHINES,
+  machineUnlocked,
+  tierForClass,
+  type PlayerGachaTier,
+} from '@/game/player-gacha';
 import { COPIES_TO_OWN, copiesToOwn } from '@/game/collection';
-import { FAVOR_PER_COPY } from '@/game/favor';
-import type { Difficulty, LadderClass } from '@/game/difficulty-mode';
+import { FAVOR_PER_COPY, favorConvertible } from '@/game/favor';
+import { bountyFor } from '@/game/bounties';
+import { NBA_LEGENDS } from '@/data/nba';
+import {
+  LADDER_CLASSES,
+  difficultyMods,
+  type Difficulty,
+  type LadderClass,
+} from '@/game/difficulty-mode';
 import type { PlayerClass } from '@/game/ratings';
 import type { Roster } from '@/types/roster';
 
@@ -61,22 +73,28 @@ interface ChaseCell {
   difficulty: Difficulty;
   targetClass: PlayerClass & ('A' | 'S');
   clearRate: number;
+  /** Model an EASY-ONLY save: the difficulty-exact machine gates stay shut, so the
+   * chase runs purely on letters of intent + damped favor (no scout pulls). */
+  easyOnly?: boolean;
 }
 
-/** A home roster with every machine unlocked (the chase, not the gate, is under test). */
-function chaseHome(seed: string): HomeRoster {
+/** A home roster with the machines the cell's honest progress opens (the chase,
+ * not the gate, is under test; the easy-only cells test both). */
+function chaseHome(seed: string, easyOnly = false): HomeRoster {
   const home = createRookieRoster(createRNG(seed));
   return {
     ...home,
     coins: 0,
-    ladderProgress: { easy: 'S+', medium: null, hard: null, insane: null },
+    ladderProgress: easyOnly
+      ? { easy: 'S+', medium: null, hard: null, insane: null }
+      : { easy: 'S+', medium: 'A', hard: 'S', insane: null },
   };
 }
 
 /** Runs until the pinned target is owned (RUN_CAP when the chase never lands). */
 function runsToOwnTarget(cell: ChaseCell, trial: number): number {
   const seed = `pace-${cell.ladder}-${cell.difficulty}-${cell.targetClass}-${trial}`;
-  let home = chaseHome(seed);
+  let home = chaseHome(seed, cell.easyOnly);
   const pool = poolByClass(cell.targetClass);
   const target = realPlayerToRosterPlayer(pool[trial % Math.min(pool.length, 30)]);
   const key = playerKey(target);
@@ -124,6 +142,7 @@ function runsToOwnTarget(cell: ChaseCell, trial: number): number {
       ladderClass: cell.ladder,
       bossWins,
       runFavor: favorBase > 0 ? { [key]: favorBase } : {},
+      signatureProgress: [], // a post-update run (the legacy valve is not under test)
     });
     // The settled ledger never holds a whole un-converted copy for a convertible class.
     const banked = home.favor[key] ?? 0;
@@ -138,6 +157,9 @@ function runsToOwnTarget(cell: ChaseCell, trial: number): number {
         tier,
         createRNG(deriveSeed(seed, `pull-${run}-${home.coins}`))
       );
+      // A locked machine is a coin-preserving no-op (the easy-only cells): the
+      // chase runs on letters + favor alone.
+      if (pulled.home === home) break;
       home = pulled.home;
     }
     if (home.players.some((p) => playerKey(p) === key)) return run;
@@ -257,6 +279,32 @@ describe('pacing bands: a targeted favorite lands inside the excitement window',
     expect(median).toBeLessThanOrEqual(24);
   });
 
+  it('a specific S on an EASY-ONLY save is the long way around: roughly 14-28 runs', () => {
+    // The proving floor: no S machine, no copies from clears; the chase runs on
+    // letters of intent + half-damped favor. Visibly alive (well under the cap),
+    // meaningfully slower than every proven route (the measured median is ~18).
+    const median = medianRunsToOwn(
+      { ladder: 'S', difficulty: 'easy', targetClass: 'S', clearRate: 0.55, easyOnly: true },
+      TRIALS
+    );
+    expect(median).toBeGreaterThanOrEqual(14);
+    expect(median).toBeLessThanOrEqual(28);
+  });
+
+  it('the proving gradient holds: easy resolves an S chase strictly slower than medium', () => {
+    const easy = medianRunsToOwn(
+      { ladder: 'S', difficulty: 'easy', targetClass: 'S', clearRate: 0.55, easyOnly: true },
+      TRIALS
+    );
+    const medium = medianRunsToOwn(
+      { ladder: 'S', difficulty: 'medium', targetClass: 'S', clearRate: 0.3 },
+      TRIALS
+    );
+    // Easy even CLEARS more often (0.55 vs 0.3) and still loses the race: the
+    // floor, not the clear rate, owns the pace.
+    expect(easy).toBeGreaterThan(medium);
+  });
+
   it('a specific S via S-hard compresses for the strong: roughly 4-14 runs', () => {
     const median = medianRunsToOwn(
       { ladder: 'S', difficulty: 'hard', targetClass: 'S', clearRate: 0.4 },
@@ -276,6 +324,46 @@ describe('pacing bands: a targeted favorite lands inside the excitement window',
       TRIALS
     );
     expect(hard).toBeLessThanOrEqual(medium);
+  });
+});
+
+describe('the apex invariant: easy-only play can never own an S+', () => {
+  it('every acquisition channel is shut on an easy-only save', () => {
+    // Machines: an easy-only save, even fully cleared, never opens S or Legendary.
+    const home = chaseHome('apex', true);
+    expect(machineUnlocked('S', home.ladderProgress, home.legacyGates)).toBe(false);
+    expect(machineUnlocked('legendary', home.ladderProgress, home.legacyGates)).toBe(false);
+    // Favor: S+ never converts to copies (reveal steering only).
+    expect(favorConvertible('S+')).toBe(false);
+    // Milestone banking: easy losses never bank (and legends are excluded anyway).
+    expect(difficultyMods('easy').milestoneBossWins).toBeNull();
+    // Bounties: no easy cell's one-time reward pays a legendary player.
+    for (const cls of LADDER_CLASSES) {
+      const b = bountyFor('easy', cls);
+      expect(b.reward.kind === 'player' && b.reward.tier === 'legendary').toBe(false);
+    }
+    // Deposits: ten dedicated easy S+-ladder championships with a fielded on-loan
+    // legend (favor included) sign nothing. Marks cannot stamp below medium (the
+    // reducer floor, pinned in run.test.ts), so the settle sees none either.
+    const legend = { ...realPlayerToRosterPlayer(NBA_LEGENDS[0]), onLoan: true };
+    let cur = home;
+    for (let run = 0; run < 10; run++) {
+      cur = mergeRunGainsIntoHome(
+        cur,
+        { starters: cur.players.slice(0, 5), bench: [legend] },
+        {
+          champion: true,
+          clearedClass: 'S+',
+          playedDifficulty: 'easy',
+          ladderClass: 'S+',
+          bossWins: 7,
+          signatureProgress: [],
+          runFavor: { [playerKey(legend)]: FULL_RUN_FAVOR_BASE },
+        }
+      );
+    }
+    expect(cur.players.some((p) => (p.originalClass ?? '') === 'S+')).toBe(false);
+    expect(cur.collecting.some((c) => (c.player.originalClass ?? '') === 'S+')).toBe(false);
   });
 });
 

@@ -25,6 +25,16 @@ export const FAVOR_CHAMPION_BONUS = 5;
  * deposit cap so below-ladder content can never complete an above-class chase fast. */
 export const FAVOR_REACH_UP_DAMP = 0.5;
 
+/** Unproven damp: an S star fielded below their PROVING floor (collection.ts)
+ * earns half trust even at-class, so an easy S-ladder farm can never pace the
+ * proven climb. Stacks with the reach-up damp when both apply. */
+export const FAVOR_UNPROVEN_DAMP = 0.5;
+
+/** The LETTER OF INTENT: flat favor a championship banks per unproven S recruit,
+ * replacing the copies the clear would have deposited above the proving floor.
+ * The meter always moves on a title, it just moves in trust, not contracts. */
+export const LETTER_OF_INTENT_FAVOR = 20;
+
 /**
  * Favor points per collection copy, by class. Scales with the chase length the tier is
  * meant to have (a dedicated at-class clear banks roughly one copy of a player fielded
@@ -55,11 +65,18 @@ export function favorToCopies(favor: number, cls: PlayerClass): { copies: number
 }
 
 /** The favor a run's accrued base points settle to: scaled by the difficulty's favor
- * multiplier and damped for a reach-up (above-ladder) player. Rounded to keep the
- * ledger in integers. */
-export function settleFavorEarned(base: number, favorMul: number, reachUp: boolean): number {
+ * multiplier, damped for a reach-up (above-ladder) player, and damped again for a
+ * star below their proving floor. Rounded to keep the ledger in integers. */
+export function settleFavorEarned(
+  base: number,
+  favorMul: number,
+  reachUp: boolean,
+  unproven = false
+): number {
   if (base <= 0) return 0;
-  return Math.round(base * favorMul * (reachUp ? FAVOR_REACH_UP_DAMP : 1));
+  return Math.round(
+    base * favorMul * (reachUp ? FAVOR_REACH_UP_DAMP : 1) * (unproven ? FAVOR_UNPROVEN_DAMP : 1)
+  );
 }
 
 /** Coins paid per residual favor point when a chase completes some other way (a

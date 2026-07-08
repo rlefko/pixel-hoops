@@ -22,7 +22,7 @@ import {
 import { STARTER_COACH_ID, earnedCoachIds, coachesByClass } from '@/game/coaches';
 import { poolByClass, realPlayerToRosterPlayer } from '@/game/player-pool';
 import { tierPool } from '@/game/player-gacha';
-import { FAVOR_RESIDUAL_COIN_RATE } from '@/game/favor';
+import { FAVOR_RESIDUAL_COIN_RATE, LETTER_OF_INTENT_FAVOR } from '@/game/favor';
 import { overflowBounty } from '@/game/collection';
 import { GRANDMASTER_KEY, bountyKey } from '@/game/bounties';
 import { DAILY_BOUNTY_COINS, FIRST_WIN_COINS, WEEKLY_TIERS, spotlightCell } from '@/game/daily';
@@ -187,6 +187,32 @@ describe('mergeRunGainsIntoHome: recruits are kept only on a clear', () => {
     expect(signed.signatures[key]).toBeUndefined();
   });
 
+  it('the proving floor: an easy S-ladder clear banks a letter of intent, never copies', () => {
+    const home = createRookieRoster(createRNG('letters'));
+    const sRecruit = realPlayerToRosterPlayer(poolByClass('S')[0]);
+    const key = playerKey(sRecruit);
+    const runRoster: Roster = { starters: home.players.slice(0, 5), bench: [sRecruit] };
+    const easy = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, champion: true, clearedClass: 'S', playedDifficulty: 'easy', ladderClass: 'S',
+      signatureProgress: [],
+    });
+    expect(easy.collecting.some((c) => playerKey(c.player) === key)).toBe(false);
+    expect(easy.favor[key]).toBe(LETTER_OF_INTENT_FAVOR);
+    // Medium is proven: the same clear banks real copies at the x2 multiplier.
+    const medium = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, champion: true, clearedClass: 'S', playedDifficulty: 'medium', ladderClass: 'S',
+      signatureProgress: [],
+    });
+    expect(medium.collecting.find((c) => playerKey(c.player) === key)?.copies).toBe(2);
+    expect(medium.favor[key]).toBeUndefined();
+    // On easy, damped win-favor stacks with the letter (45 base x 1.0 x 0.5 + 20).
+    const withFavor = mergeRunGainsIntoHome(home, runRoster, {
+      rewards, champion: true, clearedClass: 'S', playedDifficulty: 'easy', ladderClass: 'S',
+      signatureProgress: [], runFavor: { [key]: 45 },
+    });
+    expect(withFavor.favor[key]).toBe(LETTER_OF_INTENT_FAVOR + 23);
+  });
+
   it('banks reputation (not coins) on both a clear and a loss', () => {
     const { home, runRoster } = setup();
     const won = mergeRunGainsIntoHome(home, runRoster, { rewards, champion: true, clearedClass: 'C', playedDifficulty: 'easy' });
@@ -307,9 +333,11 @@ describe('coaches', () => {
   });
 });
 
+// The S machine now gates on a MEDIUM-or-better A clear (the proving floor), so
+// the pull tests climb on medium.
 const clearedThroughA = (): HomeRoster['ladderProgress'] => ({
   easy: 'A',
-  medium: null,
+  medium: 'A',
   hard: null,
   insane: null,
 });

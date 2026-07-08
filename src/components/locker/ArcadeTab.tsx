@@ -95,7 +95,7 @@ export function ArcadeTab() {
     const out: Partial<Record<PlayerGachaTier, ReturnType<typeof scoutTargetFor>>> = {};
     if (!homeRoster) return out;
     for (const tier of PLAYER_GACHA_TIERS) {
-      out[tier] = machineUnlocked(tier, homeRoster.ladderProgress)
+      out[tier] = machineUnlocked(tier, homeRoster.ladderProgress, homeRoster.legacyGates)
         ? scoutTargetFor(
             tier,
             ownedKeys,
@@ -136,7 +136,7 @@ export function ArcadeTab() {
   const scout = (tier: PlayerGachaTier) => {
     const machine = PLAYER_MACHINES[tier];
     // Block when locked behind the ladder, unaffordable, or fully collected (overflow only).
-    const locked = !machineUnlocked(tier, homeRoster.ladderProgress);
+    const locked = !machineUnlocked(tier, homeRoster.ladderProgress, homeRoster.legacyGates);
     if (locked || coins < machine.cost || tierCounts(tier, ownedKeys, collectingCopies).complete) {
       sfx.error();
       return;
@@ -182,7 +182,7 @@ export function ArcadeTab() {
         {PLAYER_GACHA_TIERS.map((tier) => {
           const m = PLAYER_MACHINES[tier];
           const counts = tierCounts(tier, ownedKeys, collectingCopies);
-          const unlocked = machineUnlocked(tier, homeRoster.ladderProgress);
+          const unlocked = machineUnlocked(tier, homeRoster.ladderProgress, homeRoster.legacyGates);
           const gate = machineGate(tier);
           const color = m.legendary ? palette.gold : CLASS_COLOR[m.cls];
           const disabled = !unlocked || coins < m.cost || counts.complete;
@@ -192,8 +192,16 @@ export function ArcadeTab() {
             !target && counts.closest && counts.closest.copies > 0
               ? ` · next ${counts.closest.copies}/${counts.closest.threshold}`
               : '';
+          // The lock hint names the exact cell: the top machines are
+          // difficulty-exact ("CLEAR A ON MEDIUM+"), the easy gates keep the
+          // classic short copy.
+          const gateHint = !gate
+            ? ''
+            : gate.minDifficulty === 'easy'
+              ? `CLEAR ${gate.cls} LADDER`
+              : `CLEAR ${gate.cls} ON ${gate.minDifficulty.toUpperCase()}+`;
           const label = !unlocked
-            ? `CLEAR ${gate} LADDER`
+            ? gateHint
             : counts.complete
               ? 'COLLECTED'
               : `SCOUT · ${m.cost}c`;
