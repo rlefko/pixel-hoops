@@ -1,4 +1,5 @@
 import { SKILL_STAT_KEYS, STAT_HARD_MAX, type PlayerStats } from '@/types/player';
+import { legacyLevel, LEGACY_LEVELS, type LegacyLine } from './legacy';
 
 /**
  * Permanent stat-upgrade economy (the between-runs "Locker Room"). Coins buy a
@@ -7,6 +8,11 @@ import { SKILL_STAT_KEYS, STAT_HARD_MAX, type PlayerStats } from '@/types/player
  * come from the rising cost, the hard rating cap, and opponent scaling, NOT from
  * a fractional effect curve (which would round to +0 on the integer scale and
  * feel like paying for nothing).
+ *
+ * The deepest ranks are USAGE-GATED: ranks 1-3 stay coins-only, but rank 4 needs
+ * the player's LEGACY at STARTER and rank 5 at FRANCHISE (see legacy.ts), so a
+ * career of real wins, not wallet alone, finishes a player. Gates apply to the
+ * NEXT purchase only; ranks already bought are never confiscated.
  */
 
 /**
@@ -68,28 +74,57 @@ export function canUpgrade(
   return alreadyBought < maxBought && currentValue < RATING_CAP;
 }
 
+/** The legacy level each upgrade RANK requires (rank = alreadyBought + 1). Ranks
+ * 1-3 are coins-only; rank 4 opens at STARTER (L2), rank 5 at FRANCHISE (L3). */
+export const RANK_LEGACY_REQUIREMENT: Partial<Record<number, number>> = { 4: 2, 5: 3 };
+
+/** Whether the player's career has unlocked their NEXT rank of `alreadyBought`+1.
+ * Ungated ranks always pass; a missing career line only blocks the gated ranks. */
+export function rankUnlockedByLegacy(
+  alreadyBought: number,
+  line: LegacyLine | undefined
+): boolean {
+  const need = RANK_LEGACY_REQUIREMENT[alreadyBought + 1];
+  return need === undefined || legacyLevel(line) >= need;
+}
+
+/** The locker's short lock copy for a legacy-gated rank (null when un-gated):
+ * the level NAME the career must reach, e.g. "STARTER". Chip-sized on purpose;
+ * the row's legacy strip carries the full requirement. */
+export function rankLegacyGateLabel(alreadyBought: number): string | null {
+  const need = RANK_LEGACY_REQUIREMENT[alreadyBought + 1];
+  if (need === undefined) return null;
+  return LEGACY_LEVELS.find((t) => t.level === need)?.name ?? null;
+}
+
 // Bit index per upgradeable stat; UPGRADEABLE_STATS order is the single source of
 // the mask's bit layout (affordMask writes and maskBit reads through this map only).
 const STAT_BIT = new Map(UPGRADEABLE_STATS.map((stat, i) => [stat, i]));
 
 /**
  * Bitmask of which of the eight UPGRADEABLE_STATS can be bought right now: still
- * under the cap AND affordable at the current wallet. A locker row's buttons are a
- * pure function of (the player's stats, their upgrades ledger entry, this mask), all
+ * under the cap, affordable at the current wallet, AND (for ranks 4-5) unlocked by
+ * the player's legacy. A locker row's buttons are a pure function of (the player's
+ * stats, their upgrades ledger entry, their career line, this mask), all
  * identity-stable across an unrelated upgrade, so the locker list can React.memo its
  * rows and a spend re-renders only the tapped row plus rows whose affordability
- * actually flipped at a cost threshold.
+ * actually flipped at a cost threshold (a settle is the only writer of careers).
  */
 export function affordMask(
   stats: PlayerStats,
   upgrades: Partial<Record<keyof PlayerStats, number>> | undefined,
-  coins: number
+  coins: number,
+  legacy?: LegacyLine
 ): number {
   let mask = 0;
   for (let i = 0; i < UPGRADEABLE_STATS.length; i++) {
     const stat = UPGRADEABLE_STATS[i];
     const bought = upgrades?.[stat] ?? 0;
-    if (canUpgrade(stat, stats[stat], bought) && coins >= upgradeCost(stat, bought)) {
+    if (
+      canUpgrade(stat, stats[stat], bought) &&
+      rankUnlockedByLegacy(bought, legacy) &&
+      coins >= upgradeCost(stat, bought)
+    ) {
       mask |= 1 << i;
     }
   }

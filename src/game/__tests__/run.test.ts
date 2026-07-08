@@ -350,6 +350,21 @@ describe('home roster persistence', () => {
     expect(applyUpgrade(broke, 0, 'inside')).toBe(broke);
   });
 
+  it('applyUpgrade holds rank 4 behind a STARTER legacy and opens with the career', () => {
+    const base = { ...rookie('up-gate'), coins: 1_000_000 };
+    const key = `${base.players[0].player.name}|${base.players[0].position}`;
+    // Three ranks bought: the 4th needs a STARTER career, wallet notwithstanding.
+    const atThree = { ...base, upgrades: { [key]: { inside: 3 } } };
+    expect(applyUpgrade(atThree, 0, 'inside')).toBe(atThree);
+    // The same purchase clears once the career reaches STARTER (15W 3MVP).
+    const proven = { ...atThree, legacy: { [key]: { w: 15, mvp: 3, titles: 0 } } };
+    const bought = applyUpgrade(proven, 0, 'inside');
+    expect(bought).not.toBe(proven);
+    expect(bought.upgrades[key]?.inside).toBe(4);
+    // Rank 5 then waits on FRANCHISE.
+    expect(applyUpgrade(bought, 0, 'inside')).toBe(bought);
+  });
+
   it('mergeRunGainsIntoHome strips on-loan legends, items, training, and injuries', () => {
     const home = rookie('strip');
     const run = homeToRunRoster(home);

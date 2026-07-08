@@ -5,7 +5,7 @@ import type { RNG } from './rng';
 import { buildStartingTwelve } from './tournament';
 import { backfillPlayStyleStats, expandStats, isLegacyStats } from './stat-migration';
 import { remapElite, remapSystem, STAT_MIN } from './stat-scaling';
-import { RATING_CAP, canUpgrade, perStatMax, upgradeCost } from './upgrades';
+import { RATING_CAP, canUpgrade, perStatMax, rankUnlockedByLegacy, upgradeCost } from './upgrades';
 import { CLASS_ORDER, classForOvr, ovr, ovrRaw, type PlayerClass } from './ratings';
 import {
   DIFFICULTIES,
@@ -469,6 +469,8 @@ export function applyUpgrade(
   const key = playerKey(rp);
   const bought = home.upgrades[key]?.[stat] ?? 0;
   if (!canUpgrade(stat, rp.player.stats[stat], bought, perStatMax())) return home;
+  // Ranks 4-5 are usage-gated: guarded here too, not just in the UI mask.
+  if (!rankUnlockedByLegacy(bought, home.legacy?.[key])) return home;
   const cost = upgradeCost(stat, bought);
   if (home.coins < cost) return home;
   const players = home.players.map((p, i) =>

@@ -6,16 +6,26 @@ import { StaggerIn } from '@/components/fx';
 import { PlayerCard } from '@/components/run/PlayerCard';
 import { StatNumber } from '@/components/run/StatNumber';
 import { RosterFilterBar } from '@/components/run/RosterFilterBar';
+import { TeachCallout } from '@/components/teach/TeachCallout';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { applyUpgrade, playerKey, totalUpgrades } from '@/game/home-roster';
 import {
+  RANK_LEGACY_REQUIREMENT,
+  UPGRADEABLE_STATS,
   affordMask,
   canUpgrade,
   isPremiumStat,
   maskBit,
   perStatMax,
+  rankLegacyGateLabel,
+  rankUnlockedByLegacy,
   upgradeCost,
 } from '@/game/upgrades';
+import {
+  LEGACY_LEVELS,
+  legacyLevel,
+  type LegacyLine,
+} from '@/game/legacy';
 import {
   availableClasses,
   availablePositions,
@@ -72,7 +82,8 @@ interface Row {
   i: number;
 }
 
-/** One +1 upgrade button: the stat label, its current value, and its coin cost (or MAX). */
+/** One +1 upgrade button: the stat label, its current value, and its coin cost (or
+ * MAX, or the legacy level a gated rank still needs). */
 function StatUpgradeButton({
   label,
   value,
@@ -80,6 +91,7 @@ function StatUpgradeButton({
   upgradable,
   disabled,
   premium,
+  lockLabel,
   onPress,
 }: {
   label: string;
@@ -88,6 +100,8 @@ function StatUpgradeButton({
   upgradable: boolean;
   disabled: boolean;
   premium: boolean;
+  /** The legacy level name gating this rank (e.g. "STARTER"); null when un-gated. */
+  lockLabel?: string | null;
   onPress: () => void;
 }) {
   return (
@@ -104,9 +118,34 @@ function StatUpgradeButton({
         <Text style={styles.statBtnText}>{label}</Text>
         <StatNumber value={value} style={styles.statBtnText} />
       </View>
-      <Text style={styles.statCost}>{upgradable ? `${cost}c` : 'MAX'}</Text>
+      {upgradable && lockLabel ? (
+        <Text style={styles.statLock}>{lockLabel}</Text>
+      ) : (
+        <Text style={styles.statCost}>{upgradable ? `${cost}c` : 'MAX'}</Text>
+      )}
     </Pressable>
   );
+}
+
+/** The row's one-line career readout: the current legacy standing, plus (while a
+ * rank is legacy-locked) the exact counters the gate still needs. Null when there
+ * is nothing to say (a fresh career with no gate in sight stays quiet). */
+function legacyStripText(line: LegacyLine | undefined, lockedNeed: number | null): string | null {
+  const level = legacyLevel(line);
+  if (level === 0 && lockedNeed === null) return null;
+  const cur = line ?? { w: 0, mvp: 0, titles: 0 };
+  const name = LEGACY_LEVELS.find((t) => t.level === level)?.name ?? 'PROSPECT';
+  let text = `LEGACY ${name} · ${cur.w}W ${cur.mvp}MVP ${cur.titles}T`;
+  if (lockedNeed !== null) {
+    const gate = LEGACY_LEVELS.find((t) => t.level === lockedNeed);
+    if (gate) {
+      const parts = [`${Math.min(cur.w, gate.w)}/${gate.w}W`];
+      if (gate.mvp > 0) parts.push(`${Math.min(cur.mvp, gate.mvp)}/${gate.mvp}MVP`);
+      if (gate.titles > 0) parts.push(`${Math.min(cur.titles, gate.titles)}/${gate.titles}T`);
+      text += ` · ${gate.name} NEEDS ${parts.join(' ')}`;
+    }
+  }
+  return text;
 }
 
 /**
@@ -115,11 +154,12 @@ function StatUpgradeButton({
  * longer freeze the screen on open, filter, or upgrade.
  *
  * memo'd behind identity-stable props: applyUpgrade structurally shares every
- * untouched player object and per-player `upgrades` ledger entry, and affordability
- * arrives pre-computed as a bitmask, so an upgrade spend re-renders ONLY the tapped
- * row (plus rows whose afford bit flipped when the wallet crossed a cost threshold)
- * instead of every visible row's ~50-element subtree. The identity contract: any
- * future flow that mutates rp.player.stats or a ledger entry in place, instead of
+ * untouched player object, per-player `upgrades` ledger entry, and career line
+ * (only a settle writes `legacy`), and affordability arrives pre-computed as a
+ * bitmask, so an upgrade spend re-renders ONLY the tapped row (plus rows whose
+ * afford bit flipped when the wallet crossed a cost threshold) instead of every
+ * visible row's ~50-element subtree. The identity contract: any future flow that
+ * mutates rp.player.stats, a ledger entry, or a career line in place, instead of
  * immutably like applyUpgrade / the settle merge / deserialize, breaks this memo.
  */
 const LockerRow = memo(function LockerRow({
@@ -128,6 +168,7 @@ const LockerRow = memo(function LockerRow({
   listIndex,
   entering,
   upgrades,
+  legacy,
   mask,
   onUpgrade,
 }: {
@@ -137,13 +178,34 @@ const LockerRow = memo(function LockerRow({
   entering: boolean;
   /** This player's permanent-upgrade ledger entry (identity-stable across saves). */
   upgrades: Partial<Record<keyof PlayerStats, number>> | undefined;
+  /** This player's career line (identity-stable: only a settle writes careers). */
+  legacy: LegacyLine | undefined;
   /** affordMask() of this player: which stats are under-cap AND affordable now. */
   mask: number;
   onUpgrade: (index: number, stat: keyof PlayerStats) => void;
 }) {
+  // The lowest legacy level any visible locked rank needs (null = nothing locked),
+  // driving the strip's "NEEDS" readout. Eight cheap checks per render.
+  let lockedNeed: number | null = null;
+  for (const group of STAT_GROUPS) {
+    for (const s of group.stats) {
+      const bought = upgrades?.[s.key] ?? 0;
+      if (
+        canUpgrade(s.key, rp.player.stats[s.key], bought, perStatMax()) &&
+        !rankUnlockedByLegacy(bought, legacy)
+      ) {
+        const need = RANK_LEGACY_REQUIREMENT[bought + 1];
+        if (need !== undefined) {
+          lockedNeed = lockedNeed === null ? need : Math.min(lockedNeed, need);
+        }
+      }
+    }
+  }
+  const stripText = legacyStripText(legacy, lockedNeed);
   return (
     <StaggerIn index={listIndex} enabled={entering} style={styles.row}>
       <PlayerCard rp={rp} showSpecialty />
+      {stripText ? <Text style={styles.legacyStrip}>{stripText}</Text> : null}
       <View style={styles.groups}>
         {STAT_GROUPS.map((group) => (
           <View key={group.label} style={styles.group}>
@@ -153,6 +215,7 @@ const LockerRow = memo(function LockerRow({
                 const value = rp.player.stats[s.key];
                 const bought = upgrades?.[s.key] ?? 0;
                 const upgradable = canUpgrade(s.key, value, bought, perStatMax());
+                const locked = upgradable && !rankUnlockedByLegacy(bought, legacy);
                 return (
                   <StatUpgradeButton
                     key={s.key}
@@ -162,6 +225,7 @@ const LockerRow = memo(function LockerRow({
                     upgradable={upgradable}
                     disabled={!maskBit(mask, s.key)}
                     premium={isPremiumStat(s.key)}
+                    lockLabel={locked ? rankLegacyGateLabel(bought) : null}
                     onPress={() => onUpgrade(index, s.key)}
                   />
                 );
@@ -294,6 +358,27 @@ export function LockerRoomTab() {
     [orderedIndices, homeRoster]
   );
 
+  // Whether any OWNED player has a rank the legacy gate is currently holding
+  // (arms the one-shot teach beat). Recomputed only when the collection or a
+  // career changes, never on a coin spend.
+  const legacyLedger = homeRoster?.legacy;
+  const upgradesLedger = homeRoster?.upgrades;
+  const anyLegacyLock = useMemo(() => {
+    if (!players) return false;
+    return players.some((rp) => {
+      const key = playerKey(rp);
+      const bought = upgradesLedger?.[key];
+      const line = legacyLedger?.[key];
+      return UPGRADEABLE_STATS.some((stat) => {
+        const count = bought?.[stat] ?? 0;
+        return (
+          canUpgrade(stat, rp.player.stats[stat], count, perStatMax()) &&
+          !rankUnlockedByLegacy(count, line)
+        );
+      });
+    });
+  }, [players, upgradesLedger, legacyLedger]);
+
   if (!homeRoster) return null;
 
   const coins = homeRoster.coins;
@@ -303,6 +388,7 @@ export function LockerRoomTab() {
       <Text style={styles.subtitle}>
         Spend coins on permanent upgrades (+5 cap per stat)
       </Text>
+      <TeachCallout tip="legacyRanks" visible={anyLegacyLock} style={styles.tip} />
       <RosterFilterBar
         query={query}
         onQuery={setQuery}
@@ -320,9 +406,13 @@ export function LockerRoomTab() {
         data={shown}
         keyExtractor={(row) => `${row.rp.player.name}-${row.i}`}
         renderItem={({ item, index }) => {
-          // Cheap per-cell derivations (a map lookup + 8 arithmetic ops); the row
-          // itself bails via memo unless ITS inputs changed.
-          const upgrades = homeRoster.upgrades[playerKey(item.rp)];
+          // Cheap per-cell derivations (two map lookups + 8 arithmetic ops); the
+          // row itself bails via memo unless ITS inputs changed. The career line is
+          // identity-stable between settles (only mergeLegacyIntoHome writes it),
+          // so the legacy prop never churns the memo on a spend.
+          const key = playerKey(item.rp);
+          const upgrades = homeRoster.upgrades[key];
+          const legacy = homeRoster.legacy?.[key];
           return (
             <LockerRow
               rp={item.rp}
@@ -330,7 +420,8 @@ export function LockerRoomTab() {
               listIndex={index}
               entering={entering}
               upgrades={upgrades}
-              mask={affordMask(item.rp.player.stats, upgrades, coins)}
+              legacy={legacy}
+              mask={affordMask(item.rp.player.stats, upgrades, coins, legacy)}
               onUpgrade={onUpgrade}
             />
           );
@@ -354,8 +445,15 @@ const styles = StyleSheet.create({
     color: palette.inkDim,
     marginTop: space(1),
   },
+  tip: { marginTop: space(2) },
   list: { flex: 1, marginTop: space(4), alignSelf: 'stretch' },
   listContent: { gap: space(3), paddingBottom: space(4) },
+  legacyStrip: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+    marginTop: space(1),
+  },
   row: {
     borderBottomWidth: BORDER.thin,
     borderBottomColor: palette.bgPanel,
@@ -389,6 +487,11 @@ const styles = StyleSheet.create({
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,
     color: palette.gold,
+  },
+  statLock: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
   },
   empty: {
     fontFamily: FONT.body,

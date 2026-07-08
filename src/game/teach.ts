@@ -36,6 +36,7 @@ export const TIP_IDS = [
   'coachesUnlock', // hub reveal: coach row appears
   'hofUnlock', // hub ceremony: Hall of Fame appears
   'dailyUnlock', // hub reveal: Daily panel appears
+  'legacyRanks', // Locker Room, first legacy-locked rank in view: careers open ranks 4-5
 ] as const;
 export type TipId = (typeof TIP_IDS)[number];
 
