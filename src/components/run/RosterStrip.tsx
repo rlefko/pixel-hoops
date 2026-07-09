@@ -43,21 +43,31 @@ export function RosterStrip({ roster, onPress }: RosterStripProps) {
             <View key={i} style={[styles.member, out > 0 && styles.injured]}>
               <View style={styles.avatar}>
                 {rp.slug && PLAYER_HEADSHOTS[rp.slug] ? (
-                  <Image
-                    source={PLAYER_HEADSHOTS[rp.slug]}
-                    style={{ width: 24, height: 24, borderRadius: 12 }}
-                    resizeMode="cover"
-                    fadeDuration={0}
-                    accessibilityIgnoresInvertColors
-                  />
+                  <>
+                    {rp.legendary && (
+                      <View style={[styles.legendaryBacking, { width: 40, height: 40 }]} />
+                    )}
+                    <Image
+                      source={PLAYER_HEADSHOTS[rp.slug]}
+                      style={{ width: 40, height: 40, borderRadius: 20 }}
+                      resizeMode="cover"
+                      fadeDuration={0}
+                      accessibilityIgnoresInvertColors
+                    />
+                  </>
                 ) : silhouetteFor(rp.player.name) ? (
-                  <Image
-                    source={silhouetteFor(rp.player.name)!}
-                    style={{ width: 24, height: 24, borderRadius: 12 }}
-                    resizeMode="cover"
-                    fadeDuration={0}
-                    accessibilityIgnoresInvertColors
-                  />
+                  <>
+                    {rp.legendary && (
+                      <View style={[styles.legendaryBacking, { width: 40, height: 40 }]} />
+                    )}
+                    <Image
+                      source={silhouetteFor(rp.player.name)!}
+                      style={{ width: 40, height: 40, borderRadius: 20 }}
+                      resizeMode="cover"
+                      fadeDuration={0}
+                      accessibilityIgnoresInvertColors
+                    />
+                  </>
                 ) : null}
                 {out > 0 ? (
                   <View style={styles.injuryBadge}>
@@ -119,7 +129,7 @@ const styles = StyleSheet.create({
   },
   member: {
     alignItems: 'center',
-    width: 48,
+    width: 56,
   },
   injured: { opacity: 0.5 },
   avatar: { position: 'relative' },
@@ -159,5 +169,12 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.micro,
     color: palette.inkDim,
+  },
+  legendaryBacking: {
+    position: 'absolute',
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.gold + '1A',
+    borderWidth: BORDER.thin,
+    borderColor: palette.gold + '44',
   },
 });
