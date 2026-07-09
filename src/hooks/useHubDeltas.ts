@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { hubDeltas, stampHubSeen } from '@/game/home-roster';
 import { useFocusCapture } from '@/hooks/useFocusCapture';
@@ -26,7 +26,12 @@ export function useHubDeltas(): {
   /** Flips true HOLD_MS after focus: chips cascade and the pill starts climbing. */
   revealed: boolean;
 } {
-  const { homeRoster } = useHomeRoster();
+  const { homeRoster, hubSeenVersion } = useHomeRoster();
+
+  // Stable ref so the useMemo only depends on hubSeenVersion (not the volatile
+  // homeRoster reference that changes on every saveHomeRoster).
+  const homeRosterRef = useRef(homeRoster);
+  homeRosterRef.current = homeRoster;
   const [deltas, setDeltas] = useState(NO_DELTAS);
   const [baseline, setBaseline] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
@@ -55,9 +60,11 @@ export function useHubDeltas(): {
 
   // Before the capture commits, derive the old balance straight from the (still
   // unstamped) ledger, so the pill never flashes the new total for a frame.
+  // Only recompute when hubSeen changes — the ref gives us the latest roster
+  // without making the memo depend on the volatile homeRoster reference.
   const pendingCoins = useMemo(
-    () => (homeRoster ? hubDeltas(homeRoster).coins : 0),
-    [homeRoster]
+    () => (homeRosterRef.current ? hubDeltas(homeRosterRef.current).coins : 0),
+    [hubSeenVersion]
   );
   const baselineCoins = baseline ?? (homeRoster ? homeRoster.coins - pendingCoins : 0);
 

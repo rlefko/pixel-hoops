@@ -182,10 +182,31 @@ export function useRun() {
       bountyGrantRef.current = outputs.bounty;
       dailyGrantsRef.current = outputs.daily;
       saveHomeRoster(outputs.home);
-      clearActiveRun();
+      // Defer clearActiveRun to avoid competing for the same frame as saveHomeRoster.
+      // They write to different storage keys (home-roster.v1 vs active-run.v1), so
+      // there's no data conflict — this is purely for UI frame competition.
+      InteractionManager.runAfterInteractions(() => clearActiveRun());
     },
     [saveHomeRoster, clearActiveRun]
   );
+
+  // Precompute the champion settle during pregame idle so the summary's exit
+  // handlers never block on O(collection) work. Runs in a separate
+  // InteractionManager block from the game sim (the sim is the critical
+  // path). No cleanup-cancel: leaving pregame must never skip a settle.
+  // settleScheduledRef prevents double-execution across re-evaluations.
+  useEffect(() => {
+    if (!model || !homeRoster) return;
+    if (model.phase.kind !== 'pregame' || model.phase.coachRec === undefined) return;
+    const runId = String(model.core.seed);
+    if (settleScheduledRef.current === runId) return;
+    if (homeRoster.settledRunId === runId) return;
+    settleScheduledRef.current = runId;
+    InteractionManager.runAfterInteractions(() => {
+      const outputs = settleRunIntoHome(homeRoster, model, Date.now());
+      landSettle(runId, outputs);
+    });
+  }, [model, homeRoster, landSettle]);
 
   // The tap-time settle guarantee for the summary's exit handlers: returns the landed
   // outputs, computing and landing them synchronously if the deferred task has not

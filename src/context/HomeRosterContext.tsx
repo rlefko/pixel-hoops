@@ -33,6 +33,9 @@ interface HomeRosterContextValue {
   saveHomeRoster: (next: HomeRoster) => void;
   /** Wipe all game progress back to a fresh rookie roster (the Settings reset). */
   resetHomeRoster: () => void;
+  /** Monotonically increasing counter that increments when hubSeen changes.
+   * Used by consumers to cache hubDeltas computations. */
+  hubSeenVersion: number;
 }
 
 const HomeRosterContext = createContext<HomeRosterContextValue>({
@@ -40,11 +43,26 @@ const HomeRosterContext = createContext<HomeRosterContextValue>({
   loaded: false,
   saveHomeRoster: () => {},
   resetHomeRoster: () => {},
+  hubSeenVersion: 0,
 });
 
 export function HomeRosterProvider({ children }: { children: ReactNode }) {
   const [homeRoster, setHomeRoster] = useState<HomeRoster | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [hubSeenVersion, setHubSeenVersion] = useState(0);
+
+  // Track when hubSeen changes so consumers can cache hubDeltas computations.
+  // Only increments when hubSeen actually changes (not on every saveHomeRoster
+  // for equip, difficulty change, etc.).
+  const prevHubSeenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!homeRoster) return;
+    const key = homeRoster.hubSeen ? JSON.stringify(homeRoster.hubSeen) : null;
+    if (prevHubSeenRef.current !== key) {
+      prevHubSeenRef.current = key;
+      setHubSeenVersion((v) => v + 1);
+    }
+  }, [homeRoster]);
 
   // Debounced persistence: state updates stay instant, but the full-roster
   // JSON.stringify is coalesced so an upgrade spray writes once after it settles
@@ -100,8 +118,8 @@ export function HomeRosterProvider({ children }: { children: ReactNode }) {
   }, [saveHomeRoster, writer]);
 
   const value = useMemo<HomeRosterContextValue>(
-    () => ({ homeRoster, loaded, saveHomeRoster, resetHomeRoster }),
-    [homeRoster, loaded, saveHomeRoster, resetHomeRoster]
+    () => ({ homeRoster, loaded, saveHomeRoster, resetHomeRoster, hubSeenVersion }),
+    [homeRoster, loaded, saveHomeRoster, resetHomeRoster, hubSeenVersion]
   );
 
   return (

@@ -83,12 +83,14 @@ export function ActiveRunProvider({ children }: { children: ReactNode }) {
     [writer]
   );
 
-  // Clear by writing null through the SAME writer (then flushing), so a pending save can
+  // Clear by writing null through the SAME writer, so a pending save can
   // never resurrect the run after it is cleared. A stored null deserializes to no run.
+  // No flush here: the background/unmount flush handles persistence, and the flush
+  // budget competes for the same frame as saveHomeRoster in landSettle, contributing
+  // to the freeze/slowdown on post-game transitions.
   const clearActiveRun = useCallback(() => {
     setSavedRun(null);
     writer.write(null);
-    writer.flush();
   }, [writer]);
 
   const value = useMemo<ActiveRunContextValue>(
