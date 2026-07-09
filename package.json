@@ -16,6 +16,7 @@
     "gen:headshots": "npx tsx scripts/generate-headshots.ts",
     "gen:icon": "npx tsx scripts/generate-icon.ts",
     "gen:manifest": "npx tsx scripts/generate-manifest.ts",
+    "gen:enhanced-silhouettes": "npx tsx scripts/generate-enhanced-silhouettes.ts",
     "gen:sfx": "npx tsx scripts/generate-sfx.ts",
     "gen:silhouettes": "npx tsx scripts/generate-silhouette.ts",
     "pixelate:logos": "npx tsx scripts/pixelate-logos.ts",
