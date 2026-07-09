@@ -184,28 +184,38 @@ function PlayerCardImpl({
       <View style={[styles.head, isTile && styles.headTile]}>
         <View style={styles.avatar}>
           {rp.slug && PLAYER_HEADSHOTS[rp.slug] ? (
-            <Image
-              source={PLAYER_HEADSHOTS[rp.slug]}
-              style={{ width: 28, height: 28, borderRadius: 14 }}
-              resizeMode="cover"
-              fadeDuration={0}
-              accessibilityIgnoresInvertColors
-            />
+            <>
+              {isLegendary && (
+                <View style={[styles.legendaryBacking, { width: 48, height: 48 }]} />
+              )}
+              <Image
+                source={PLAYER_HEADSHOTS[rp.slug]}
+                style={{ width: 48, height: 48, borderRadius: 24 }}
+                resizeMode="cover"
+                fadeDuration={0}
+                accessibilityIgnoresInvertColors
+              />
+            </>
           ) : silhouetteFor(rp.player.name) ? (
-            <Image
-              source={silhouetteFor(rp.player.name)!}
-              style={{ width: 28, height: 28, borderRadius: 14 }}
-              resizeMode="cover"
-              fadeDuration={0}
-              accessibilityIgnoresInvertColors
-            />
+            <>
+              {isLegendary && (
+                <View style={[styles.legendaryBacking, { width: 48, height: 48 }]} />
+              )}
+              <Image
+                source={silhouetteFor(rp.player.name)!}
+                style={{ width: 48, height: 48, borderRadius: 24 }}
+                resizeMode="cover"
+                fadeDuration={0}
+                accessibilityIgnoresInvertColors
+              />
+            </>
           ) : (
             <PixelPlayer
               color={palette.homeTeam}
               accent={palette.homeTeamAccent}
               number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
               skinIndex={skinIndexFor(rp.player.name)}
-              size={26}
+              size={44}
             />
           )}
         </View>
@@ -507,9 +517,16 @@ const styles = StyleSheet.create({
   },
   headTile: { marginBottom: space(1) },
   avatar: {
-    width: 30,
+    width: 50,
     alignItems: 'center',
     marginRight: space(2),
+  },
+  legendaryBacking: {
+    position: 'absolute',
+    borderRadius: RADIUS.chip,
+    backgroundColor: palette.gold + '1A',
+    borderWidth: BORDER.thin,
+    borderColor: palette.gold + '44',
   },
   posChip: {
     width: 34,
@@ -611,7 +628,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: space(2),
     marginTop: space(1),
-    marginLeft: 30 + space(2),
+    marginLeft: 50 + space(2),
   },
   chip: {
     flexDirection: 'row',
@@ -677,7 +694,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space(1.5),
     marginTop: space(1),
-    marginLeft: 30 + space(2), // align under the name column, like the OFF/DEF/ATH chips
+    marginLeft: 50 + space(2), // align under the name column, like the OFF/DEF/ATH chips
   },
   collectPips: { flexDirection: 'row', gap: space(0.5) },
   collectPip: {

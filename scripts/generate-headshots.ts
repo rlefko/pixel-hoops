@@ -1,14 +1,15 @@
 /**
  * Download NBA player headshots from the NBA.com CDN (with basketball-reference
- * fallback), pixelate them to 8-bit style, and write 32x32 PNGs to
+ * fallback), pixelate them to 8-bit style, and write 64x64 PNGs to
  * assets/player-images/.
  *
  *   npx tsx scripts/generate-headshots.ts
  *
- * Pipeline per player: fetch the headshot PNG -> autocrop transparent border ->
- * contain into a 40x40 grid -> posterize for chunky 8-bit color (8 levels for
+ * Pipeline per player: fetch the headshot PNG -> white key BBR backgrounds ->
+ * autocrop transparent border ->
+ * contain into an 80x80 grid -> posterize for chunky 8-bit color (8 levels for
  * skin tone nuance) -> binarize alpha (kills anti-aliased halo) -> upscale
- * nearest-neighbor to 32x32 so stored pixels are crisp blocks.
+ * nearest-neighbor to 64x64 so stored pixels are crisp blocks.
  *
  * Sources (in priority order):
  *   1. NBA.com CDN:  https://cdn.nba.com/headshots/nba/latest/260x190/{id}.png
@@ -31,8 +32,8 @@ const outputDir = join(here, '..', 'assets', 'player-images');
 
 const POSTERIZE_LEVELS = 8;
 const ALPHA_CUTOFF = 128;
-const GRID_SIZE = 40;
-const OUT_SIZE = 32;
+const GRID_SIZE = 80;
+const OUT_SIZE = 64;
 const BATCH_SIZE = 10;
 const RATE_LIMIT_MS = 300;
 const BBR_TIMESTAMP = '202605210';
@@ -142,6 +143,15 @@ async function pixelateOne(
   }
 
   // Jimp pipeline (same pattern as pixelate-logos.ts)
+  // Remove solid white backgrounds from BBR JPG sources (chroma key)
+  img.scan(0, 0, img.width, img.height, (_x, _y, idx) => {
+    const r = img.bitmap.data[idx + 0];
+    const g = img.bitmap.data[idx + 1];
+    const b = img.bitmap.data[idx + 2];
+    if (r > 240 && g > 240 && b > 240) {
+      img.bitmap.data[idx + 3] = 0;
+    }
+  });
   img.autocrop();
   img.contain({ w: GRID_SIZE, h: GRID_SIZE });
   img.posterize(POSTERIZE_LEVELS);
