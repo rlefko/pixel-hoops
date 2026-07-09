@@ -46,6 +46,7 @@ import { ARCADE_UNLOCK_COINS } from '@/game/teach';
 import { useDayKey } from '@/hooks/useDayKey';
 import { useHubDeltas } from '@/hooks/useHubDeltas';
 import { useHubUnlocks } from '@/hooks/useHubUnlocks';
+import { useSlowMountWarning } from '@/hooks/useSlowMountWarning';
 import {
   spotlightLegend,
   isSpotlightClaimed as isLegendSpotlightClaimed,
@@ -136,6 +137,7 @@ function CornerButton({
 
 /** Main menu screen: the arcade lobby and entry point for the game. */
 export default function HomeScreen() {
+  useSlowMountWarning('home');
   // Plain router for the How to Play modal so it keeps its native slide-up; the
   // arcade pixel-wipe (`nav`) drives every other route.
   const router = useRouter();

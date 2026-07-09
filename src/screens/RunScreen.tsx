@@ -6,6 +6,7 @@ import { Text } from '@/components/StyledText';
 import { Screen } from '@/components/Screen';
 import { CoinFly, Pop, Counter, TickCounter } from '@/components/fx';
 import { useRun } from '@/hooks/useRun';
+import { useSlowMountWarning } from '@/hooks/useSlowMountWarning';
 import { nameKey } from '@/types/roster';
 import { useActiveRun } from '@/context/ActiveRunContext';
 import { TeachCallout } from '@/components/teach/TeachCallout';
@@ -72,6 +73,7 @@ import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 type RunActions = ReturnType<typeof useRun>['actions'];
 
 export default function RunScreen() {
+  useSlowMountWarning('run');
   const nav = useArcadeRouter();
   const {
     model,
@@ -783,44 +785,31 @@ function Postgame({
   }, [waitForReveal]);
   // Count the final score up from zero once revealed (Counter only tweens on a change).
   const [settled, setSettled] = useState(false);
-  useEffect(() => {
-    if (revealed) setSettled(true);
-  }, [revealed]);
-  // The win's payout lands as its own beat AFTER the score settles: the coin
-  // tally pops in and counts up with ticks, so every win visibly pays.
+  // Consolidated: replaces 5 chained useEffects with one effect that manages
+  // all postgame result beats (score settle, coin tally, coin fly, sting sound).
+  // Preserves the original timing: settled immediately, showEarned at 700ms,
+  // flyTrigger at 120ms, sting sound one-shot.
   const [showEarned, setShowEarned] = useState(false);
-  useEffect(() => {
-    if (!revealed) return;
-    const timer = setTimeout(() => setShowEarned(true), 700);
-    return () => clearTimeout(timer);
-  }, [revealed]);
-  // Economy juice: the earned coins arc from the final score into the tally.
-  // Decoration only: launched 120ms in so the last coin lands exactly at the
-  // 700ms tally reveal (see CoinFly's timing contract; the showEarned timer
-  // above stays the single source of truth). Endpoints measure off the
-  // headline's own layout, so the flight tracks any layout change.
-  const [flyFrom, setFlyFrom] = useState<{ x: number; y: number } | null>(null);
-  const [flyTo, setFlyTo] = useState<{ x: number; y: number } | null>(null);
   const [flyTrigger, setFlyTrigger] = useState(0);
   const postgameWon = model.phase.kind === 'postgame' && model.phase.won;
-  useEffect(() => {
-    if (!postgameWon || !revealed) return;
-    const timer = setTimeout(() => setFlyTrigger(1), 120);
-    return () => clearTimeout(timer);
-  }, [postgameWon, revealed]);
-
-  // Result sting once per postgame (Postgame remounts per postgame phase, so the ref
-  // resets between games; the guard only blocks a dev strict-mode double-invoke). A
-  // forgivable timeout invites a replay, so it gets no defeat tone.
   const stingRef = useRef(false);
-  const phase = model.phase;
-  const chances = model.secondChancesRemaining;
+
   useEffect(() => {
-    if (!revealed || stingRef.current || phase.kind !== 'postgame') return;
-    stingRef.current = true;
-    if (phase.won) sfx.win();
-    else if (chances <= 0) sfx.loss();
-  }, [revealed, phase, chances]);
+    if (!revealed) return;
+    setSettled(true);
+    const t1 = setTimeout(() => setShowEarned(true), 700);
+    const t2 = setTimeout(() => setFlyTrigger(1), 120);
+    // Sound: preserve the stingRef guard (prevents double-invoke in dev strict mode)
+    if (!stingRef.current) {
+      stingRef.current = true;
+      if (postgameWon) sfx.win();
+      else if (model.secondChancesRemaining <= 0) sfx.loss();
+    }
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [revealed, postgameWon, model.secondChancesRemaining]);
+  // Fly endpoints for coin animation; measured off headline layout at render time.
+  const [flyFrom, setFlyFrom] = useState<{ x: number; y: number } | null>(null);
+  const [flyTo, setFlyTo] = useState<{ x: number; y: number } | null>(null);
   if (model.phase.kind !== 'postgame' || !model.game) return null;
   const won = model.phase.won;
   const earned = pendingWinRewards(model);
