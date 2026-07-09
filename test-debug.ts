@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { Jimp, ResizeStrategy } from 'jimp';
 
 const ids = JSON.parse(readFileSync('src/data/nba-player-ids.json', 'utf-8'));

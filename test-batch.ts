@@ -11,11 +11,6 @@ const ALPHA_CUTOFF = 128;
 const GRID_SIZE = 40;
 const OUT_SIZE = 32;
 const BATCH_SIZE = 10;
-const RATE_LIMIT_MS = 300;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 async function pixelateOne(
   slug: string,
