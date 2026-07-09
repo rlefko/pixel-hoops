@@ -1734,6 +1734,15 @@ export function deserializeHomeRoster(raw: unknown): HomeRoster | null {
     delete migrated.gamesOut;
     delete migrated.equippedAbility; // sourced from equippedAbilities, not the player
     delete migrated.iconPerk; // sourced from iconPerks, not the player
+    // Back-fill the slug for legacy saves written before the field existed.
+    // The slug is the lowercase, hyphenated player name — the same key used
+    // in PLAYER_HEADSHOTS for headshot lookup.
+    if (!migrated.slug) {
+      migrated.slug = migrated.player.name
+        .toLowerCase()
+        .replace(/['']/g, '')        // strip straight and curly apostrophes
+        .replace(/[^a-z0-9]+/g, '-'); // then collapse non-alphanum to hyphens
+    }
     return withOriginalClass(migrated, savedUpgrades);
   };
   const players = data.players.map(migratePlayer);
