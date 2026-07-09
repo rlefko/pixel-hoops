@@ -215,7 +215,7 @@ function PlayerCardImpl({
               accent={palette.homeTeamAccent}
               number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
               skinIndex={skinIndexFor(rp.player.name)}
-              size={44}
+              size={56}
             />
           )}
         </View>
