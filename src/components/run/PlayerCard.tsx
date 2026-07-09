@@ -1,5 +1,5 @@
 import { memo, useEffect, useRef, type ReactNode } from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import { Image, View, StyleSheet, Pressable } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { Text } from '@/components/StyledText';
 import { PixelPlayer, StaggerIn } from '@/components/fx';
@@ -15,6 +15,8 @@ import { getAbility } from '@/game/abilities';
 import { getSpecialty } from '@/game/specialty';
 import { derivePlaystyle, tendencyFor } from '@/game/playstyle';
 import { getGachaAbility } from '@/game/abilities-gacha';
+import { PLAYER_HEADSHOTS } from '@/assets/playerImages';
+import { silhouetteFor } from '@/game/silhouettes';
 import { RARITY_COLOR } from './rarity-ui';
 import { CLASS_COLOR } from './class-ui';
 import { StatNumber } from './StatNumber';
@@ -181,16 +183,31 @@ function PlayerCardImpl({
     >
       <View style={[styles.head, isTile && styles.headTile]}>
         <View style={styles.avatar}>
-          {/* Your Squad's house uniform (green + gold): a roster is one team in one
-              jersey, so every card shares it. Per-player skin tone and number keep
-              them distinct. The court uses each matchup's real team colors. */}
-          <PixelPlayer
-            color={palette.homeTeam}
-            accent={palette.homeTeamAccent}
-            number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
-            skinIndex={skinIndexFor(rp.player.name)}
-            size={26}
-          />
+          {rp.slug && PLAYER_HEADSHOTS[rp.slug] ? (
+            <Image
+              source={PLAYER_HEADSHOTS[rp.slug]}
+              style={{ width: 28, height: 28, borderRadius: 14 }}
+              resizeMode="cover"
+              fadeDuration={0}
+              accessibilityIgnoresInvertColors
+            />
+          ) : silhouetteFor(rp.player.name) ? (
+            <Image
+              source={silhouetteFor(rp.player.name)!}
+              style={{ width: 28, height: 28, borderRadius: 14 }}
+              resizeMode="cover"
+              fadeDuration={0}
+              accessibilityIgnoresInvertColors
+            />
+          ) : (
+            <PixelPlayer
+              color={palette.homeTeam}
+              accent={palette.homeTeamAccent}
+              number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
+              skinIndex={skinIndexFor(rp.player.name)}
+              size={26}
+            />
+          )}
         </View>
         <View style={[styles.posChip, { borderColor: POSITION_COLOR[rp.position] }]}>
           <Text style={[styles.pos, { color: POSITION_COLOR[rp.position] }]}>
