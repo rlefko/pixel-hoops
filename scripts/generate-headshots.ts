@@ -5,7 +5,8 @@
  *
  *   npx tsx scripts/generate-headshots.ts
  *
- * Pipeline per player: fetch the headshot PNG -> autocrop transparent border ->
+ * Pipeline per player: fetch the headshot PNG -> white key BBR backgrounds ->
+ * autocrop transparent border ->
  * contain into an 80x80 grid -> posterize for chunky 8-bit color (8 levels for
  * skin tone nuance) -> binarize alpha (kills anti-aliased halo) -> upscale
  * nearest-neighbor to 64x64 so stored pixels are crisp blocks.
@@ -142,6 +143,15 @@ async function pixelateOne(
   }
 
   // Jimp pipeline (same pattern as pixelate-logos.ts)
+  // Remove solid white backgrounds from BBR JPG sources (chroma key)
+  img.scan(0, 0, img.width, img.height, (_x, _y, idx) => {
+    const r = img.bitmap.data[idx + 0];
+    const g = img.bitmap.data[idx + 1];
+    const b = img.bitmap.data[idx + 2];
+    if (r > 240 && g > 240 && b > 240) {
+      img.bitmap.data[idx + 3] = 0;
+    }
+  });
   img.autocrop();
   img.contain({ w: GRID_SIZE, h: GRID_SIZE });
   img.posterize(POSTERIZE_LEVELS);
