@@ -13,9 +13,12 @@
     "typecheck": "npx tsgo --project tsconfig.json",
     "test": "vitest run",
     "fetch:nba": "npx tsx scripts/fetch-nba.ts",
-    "pixelate:logos": "npx tsx scripts/pixelate-logos.ts",
-    "gen:sfx": "npx tsx scripts/generate-sfx.ts",
+    "gen:headshots": "npx tsx scripts/generate-headshots.ts",
     "gen:icon": "npx tsx scripts/generate-icon.ts",
+    "gen:manifest": "npx tsx scripts/generate-manifest.ts",
+    "gen:sfx": "npx tsx scripts/generate-sfx.ts",
+    "gen:silhouettes": "npx tsx scripts/generate-silhouette.ts",
+    "pixelate:logos": "npx tsx scripts/pixelate-logos.ts",
     "preview:possession": "npx tsx scripts/preview-possession.ts"
   },
   "dependencies": {

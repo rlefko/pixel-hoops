@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { View, StyleSheet, type LayoutChangeEvent } from 'react-native';
+import { View, StyleSheet, type LayoutChangeEvent, Image } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -39,6 +39,7 @@ import { palette, FONT, FONT_SIZE } from '@/theme';
 import { courtThemeFor } from '@/theme/courtTheme';
 import { useCourtTheme } from '@/hooks/useCourtTheme';
 import { POSITIONS, type Position, type RosterPlayer } from '@/types/roster';
+import { PLAYER_HEADSHOTS } from '@/assets/playerImages';
 import { isMadeShot, type SimEvent, type SimTeamSide } from '@/types/sim';
 import type { Team } from '@/types/team';
 
@@ -399,6 +400,17 @@ const SpriteAt = memo(function SpriteAt({
           style={heat === 'fire' ? [styles.aura, glowStyle] : [styles.aura, styles.auraWarm]}
         />
       ) : null}
+      {rp.slug && PLAYER_HEADSHOTS[rp.slug] ? (
+        <View style={styles.headshotBadge}>
+          <Image
+            source={PLAYER_HEADSHOTS[rp.slug]}
+            style={{ width: 12, height: 12, borderRadius: 6 }}
+            resizeMode="cover"
+            fadeDuration={0}
+            accessibilityIgnoresInvertColors
+          />
+        </View>
+      ) : null}
       <PixelPlayer
         color={team.colorHex}
         accent={team.accentHex}
@@ -748,6 +760,14 @@ const styles = StyleSheet.create({
   },
   auraWarm: {
     opacity: 0.5,
+  },
+  headshotBadge: {
+    position: 'absolute',
+    top: -8,
+    left: '50%',
+    marginLeft: -6,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   ball: {
     position: 'absolute',

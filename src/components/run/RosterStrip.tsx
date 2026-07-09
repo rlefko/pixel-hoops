@@ -1,8 +1,8 @@
-import { View, StyleSheet, Pressable } from 'react-native';
+import { Image, View, StyleSheet, Pressable } from 'react-native';
 import { Text } from '@/components/StyledText';
-import { PixelPlayer } from '@/components/fx';
 import { InjuryIcon } from '@/components/run/PixelIcons';
-import { jerseyNumber, skinIndexFor } from '@/components/game/jersey';
+import { PLAYER_HEADSHOTS } from '@/assets/playerImages';
+import { silhouetteFor } from '@/game/silhouettes';
 import { POSITION_COLOR } from '@/components/game/positionColor';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 import type { Roster } from '@/types/roster';
@@ -42,14 +42,23 @@ export function RosterStrip({ roster, onPress }: RosterStripProps) {
           return (
             <View key={i} style={[styles.member, out > 0 && styles.injured]}>
               <View style={styles.avatar}>
-                {/* Your Squad's house uniform (green + gold); see PlayerCard. */}
-                <PixelPlayer
-                  color={palette.homeTeam}
-                  accent={palette.homeTeamAccent}
-                  number={rp.jerseyNumber ?? jerseyNumber(rp.player.name)}
-                  skinIndex={skinIndexFor(rp.player.name)}
-                  size={24}
-                />
+                {rp.slug && PLAYER_HEADSHOTS[rp.slug] ? (
+                  <Image
+                    source={PLAYER_HEADSHOTS[rp.slug]}
+                    style={{ width: 24, height: 24, borderRadius: 12 }}
+                    resizeMode="cover"
+                    fadeDuration={0}
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : silhouetteFor(rp.player.name) ? (
+                  <Image
+                    source={silhouetteFor(rp.player.name)!}
+                    style={{ width: 24, height: 24, borderRadius: 12 }}
+                    resizeMode="cover"
+                    fadeDuration={0}
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : null}
                 {out > 0 ? (
                   <View style={styles.injuryBadge}>
                     <InjuryIcon size={10} />

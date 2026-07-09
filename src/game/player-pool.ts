@@ -40,6 +40,7 @@ export function realPlayerToRosterPlayer(rp: RealPlayer): RosterPlayer {
     // Convert the baked shot diet to a runtime profile; absent for older bakes,
     // in which case the sim derives one from the stats (see playstyle.tendencyFor).
     tendency: rp.tendency ? tendencyFromBaked(rp.tendency) : undefined,
+    slug: rp.slug,
   };
 }
 

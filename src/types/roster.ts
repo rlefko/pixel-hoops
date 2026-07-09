@@ -103,7 +103,9 @@ export interface RosterPlayer {
    * run start, exactly like {@link equippedAbility}, and never persisted on the
    * player at merge: the home map is the source of truth.
    */
-  iconPerk?: string;
+   iconPerk?: string;
+  /** Player slug from baked data (e.g., "michael-jordan"); key for headshot lookup. */
+  slug?: string;
 }
 
 /** The full owned squad: five starters plus bench depth. */
