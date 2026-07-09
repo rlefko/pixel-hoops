@@ -186,11 +186,11 @@ function PlayerCardImpl({
           {rp.slug && PLAYER_HEADSHOTS[rp.slug] ? (
             <>
               {isLegendary && (
-                <View style={[styles.legendaryBacking, { width: 48, height: 48 }]} />
+                <View style={[styles.legendaryBacking, { width: 64, height: 64 }]} />
               )}
               <Image
                 source={PLAYER_HEADSHOTS[rp.slug]}
-                style={{ width: 48, height: 48, borderRadius: 24 }}
+                style={{ width: 64, height: 64, borderRadius: 32 }}
                 resizeMode="cover"
                 fadeDuration={0}
                 accessibilityIgnoresInvertColors
@@ -199,11 +199,11 @@ function PlayerCardImpl({
           ) : silhouetteFor(rp.player.name) ? (
             <>
               {isLegendary && (
-                <View style={[styles.legendaryBacking, { width: 48, height: 48 }]} />
+                <View style={[styles.legendaryBacking, { width: 64, height: 64 }]} />
               )}
               <Image
                 source={silhouetteFor(rp.player.name)!}
-                style={{ width: 48, height: 48, borderRadius: 24 }}
+                style={{ width: 64, height: 64, borderRadius: 32 }}
                 resizeMode="cover"
                 fadeDuration={0}
                 accessibilityIgnoresInvertColors
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
   },
   headTile: { marginBottom: space(1) },
   avatar: {
-    width: 50,
+    width: 64,
     alignItems: 'center',
     marginRight: space(2),
   },
@@ -628,7 +628,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: space(2),
     marginTop: space(1),
-    marginLeft: 50 + space(2),
+    marginLeft: 64 + space(2),
   },
   chip: {
     flexDirection: 'row',
@@ -694,7 +694,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space(1.5),
     marginTop: space(1),
-    marginLeft: 50 + space(2), // align under the name column, like the OFF/DEF/ATH chips
+    marginLeft: 64 + space(2), // align under the name column, like the OFF/DEF/ATH chips
   },
   collectPips: { flexDirection: 'row', gap: space(0.5) },
   collectPip: {

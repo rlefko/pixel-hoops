@@ -404,7 +404,7 @@ const SpriteAt = memo(function SpriteAt({
         <View style={styles.headshotBadge}>
           <Image
             source={PLAYER_HEADSHOTS[rp.slug]}
-            style={{ width: 16, height: 16, borderRadius: 8 }}
+            style={{ width: 24, height: 24, borderRadius: 12 }}
             resizeMode="cover"
             fadeDuration={0}
             accessibilityIgnoresInvertColors
@@ -763,9 +763,9 @@ const styles = StyleSheet.create({
   },
   headshotBadge: {
     position: 'absolute',
-    top: -10,
+    top: -12,
     left: '50%',
-    marginLeft: -8,
+    marginLeft: -12,
     borderWidth: 0.5,
     borderColor: 'rgba(255,255,255,0.4)',
   },

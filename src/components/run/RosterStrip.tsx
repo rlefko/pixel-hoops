@@ -45,11 +45,11 @@ export function RosterStrip({ roster, onPress }: RosterStripProps) {
                 {rp.slug && PLAYER_HEADSHOTS[rp.slug] ? (
                   <>
                     {rp.legendary && (
-                      <View style={[styles.legendaryBacking, { width: 40, height: 40 }]} />
+                      <View style={[styles.legendaryBacking, { width: 48, height: 48 }]} />
                     )}
                     <Image
                       source={PLAYER_HEADSHOTS[rp.slug]}
-                      style={{ width: 40, height: 40, borderRadius: 20 }}
+                      style={{ width: 48, height: 48, borderRadius: 24 }}
                       resizeMode="cover"
                       fadeDuration={0}
                       accessibilityIgnoresInvertColors
@@ -58,11 +58,11 @@ export function RosterStrip({ roster, onPress }: RosterStripProps) {
                 ) : silhouetteFor(rp.player.name) ? (
                   <>
                     {rp.legendary && (
-                      <View style={[styles.legendaryBacking, { width: 40, height: 40 }]} />
+                      <View style={[styles.legendaryBacking, { width: 48, height: 48 }]} />
                     )}
                     <Image
                       source={silhouetteFor(rp.player.name)!}
-                      style={{ width: 40, height: 40, borderRadius: 20 }}
+                      style={{ width: 48, height: 48, borderRadius: 24 }}
                       resizeMode="cover"
                       fadeDuration={0}
                       accessibilityIgnoresInvertColors
