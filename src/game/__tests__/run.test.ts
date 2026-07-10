@@ -31,6 +31,7 @@ import {
   computeGameSim,
   gameSimKey,
   pendingWinRewards,
+  showcaseCandidates,
   steppingInSubs,
   TOTAL_MAPS,
   MAX_BANISHES,
@@ -2024,5 +2025,173 @@ describe('favor-steered legend reveal and re-offers', () => {
       if (hitB) without += 1;
     }
     expect(withFavor).toBeGreaterThan(without + 10);
+  });
+});
+
+describe('the showcase call (pregame arm, key, build, replay, attempts)', () => {
+  const lebron = NBA_LEGENDS.find((l) => l.slug === 'lebron-james')!; // Tier I takeover, floor medium
+  const legendRp = () => ({ ...realPlayerToRosterPlayer(lebron), onLoan: true });
+  const legendKey = `${lebron.name}|${lebron.position}`;
+
+  /** A qualifying pregame (medium x S, combat node) with LeBron in the five. */
+  const armedPregame = (
+    seed: string,
+    over: { difficulty?: 'easy' | 'medium'; ladder?: 'A' | 'S'; bench?: boolean } = {}
+  ): RunModel => {
+    const base = inject(
+      startedAt(seed, over.difficulty ?? 'medium', over.ladder ?? 'S'),
+      combat({})
+    );
+    const legend = legendRp();
+    const roster = over.bench
+      ? {
+          starters: base.core.roster.starters,
+          bench: [...base.core.roster.bench, legend],
+        }
+      : {
+          starters: base.core.roster.starters.map((p, i) =>
+            i === base.core.roster.starters.findIndex((s) => s.position === legend.position)
+              ? legend
+              : p
+          ),
+          bench: base.core.roster.bench,
+        };
+    return {
+      ...base,
+      core: { ...base.core, roster },
+      phase: { kind: 'pregame', nodeId: 'g1' },
+    };
+  };
+
+  it('surfaces the chase as a candidate, with the exact ineligibility reason', () => {
+    const ok = showcaseCandidates(armedPregame('sc-cand'));
+    expect(ok).toHaveLength(1);
+    expect(ok[0]).toMatchObject({ legendKey, armed: false, eligibility: { ok: true } });
+    expect(ok[0].challenge.templateId).toBe('takeover');
+    // Below the floor and off the S ladder the card renders muted with the reason.
+    expect(showcaseCandidates(armedPregame('sc-easy', { difficulty: 'easy' }))[0].eligibility)
+      .toEqual({ ok: false, reason: 'NEEDS MEDIUM OR HIGHER' });
+    expect(showcaseCandidates(armedPregame('sc-aladder', { ladder: 'A' }))[0].eligibility)
+      .toEqual({ ok: false, reason: 'S LADDER AND UP' });
+    // A benched legend gets no card (starting is part of the call).
+    expect(showcaseCandidates(armedPregame('sc-bench', { bench: true }))).toHaveLength(0);
+    // A moment already proven at home leaves only the title chase: no card.
+    const proven = { ...armedPregame('sc-proven'), momentProvenKeys: [legendKey] };
+    expect(showcaseCandidates(proven)).toHaveLength(0);
+  });
+
+  it('toggleShowcase arms, disarms, drops the cached sim, and refuses bad taps', () => {
+    const pregame = armedPregame('sc-toggle');
+    const key = gameSimKey(pregame, 'g1');
+    const game = computeGameSim(pregame, 'g1');
+    const landed = runReducer(pregame, { type: 'setGameSim', nodeId: 'g1', key, game })!;
+    const armed = runReducer(landed, { type: 'toggleShowcase', legendKey })!;
+    expect(armed.phase.kind === 'pregame' && armed.phase.showcase).toEqual({ legendKey });
+    // The cached sim was computed without the call: guaranteed stale, dropped.
+    expect(armed.phase.kind === 'pregame' && armed.phase.pendingGame).toBeUndefined();
+    // The key moves with the call, so the idle recompute lands a fresh blob.
+    expect(gameSimKey(armed, 'g1')).not.toBe(key);
+    const disarmed = runReducer(armed, { type: 'toggleShowcase', legendKey })!;
+    expect(disarmed.phase.kind === 'pregame' && disarmed.phase.showcase).toBeNull();
+    // Refusals leave the model untouched: wrong phase, unknown key, ineligible cell.
+    const map = { ...pregame, phase: { kind: 'map' as const } };
+    expect(runReducer(map, { type: 'toggleShowcase', legendKey })).toBe(map);
+    expect(runReducer(pregame, { type: 'toggleShowcase', legendKey: 'Nobody|PG' })).toBe(pregame);
+    const easy = armedPregame('sc-toggle-easy', { difficulty: 'easy' });
+    expect(runReducer(easy, { type: 'toggleShowcase', legendKey })).toBe(easy);
+  });
+
+  it('the built home team carries the plan only while armed and dressed', () => {
+    const pregame = armedPregame('sc-build');
+    expect(buildHomeTeam(pregame).tactic.showcase).toBeUndefined();
+    const armed = runReducer(pregame, { type: 'toggleShowcase', legendKey })!;
+    expect(buildHomeTeam(armed).tactic.showcase).toEqual({
+      playerName: lebron.name,
+      templateId: 'takeover',
+    });
+    // A lineup edit that benches the legend silently disarms the build (the
+    // armed key stays on the phase, but the sim never sees a plan).
+    const benched: RunModel = {
+      ...armed,
+      core: {
+        ...armed.core,
+        roster: {
+          starters: armed.core.roster.starters.map((p) =>
+            p.player.name === lebron.name ? armed.core.roster.bench[0] : p
+          ),
+          bench: [
+            ...armed.core.roster.bench.slice(1),
+            armed.core.roster.starters.find((p) => p.player.name === lebron.name)!,
+          ],
+        },
+      },
+    };
+    expect(buildHomeTeam(benched).tactic.showcase).toBeUndefined();
+  });
+
+  it('entering through the cached sentinel and the sync fallback agree while armed', () => {
+    const armed = runReducer(armedPregame('sc-enter'), { type: 'toggleShowcase', legendKey })!;
+    const key = gameSimKey(armed, 'g1');
+    const game = computeGameSim(armed, 'g1');
+    const landed = runReducer(armed, { type: 'setGameSim', nodeId: 'g1', key, game })!;
+    const viaSentinel = runReducer(landed, { type: 'enterGame' })!;
+    const viaFallback = runReducer(armed, { type: 'enterGame' })!;
+    expect(viaSentinel.game).toEqual(viaFallback.game);
+    expect(viaSentinel.game?.home.tactic.showcase?.playerName).toBe(lebron.name);
+  });
+
+  it('a timeout replay re-arms the same call, re-editable', () => {
+    const armed = runReducer(armedPregame('sc-replay'), { type: 'toggleShowcase', legendKey })!;
+    const entered = runReducer(armed, { type: 'enterGame' })!;
+    const lost = { ...entered, phase: { kind: 'postgame' as const, nodeId: 'g1', won: false } };
+    const replay = runReducer(lost, { type: 'resolveGameResult' })!;
+    expect(replay.phase.kind).toBe('pregame');
+    expect(replay.phase.kind === 'pregame' && replay.phase.showcase).toEqual({ legendKey });
+    const dropped = runReducer(replay, { type: 'toggleShowcase', legendKey })!;
+    expect(dropped.phase.kind === 'pregame' && dropped.phase.showcase).toBeNull();
+  });
+
+  it('the attempt ledger keeps the closest qualifying miss and never counts hits or losses', () => {
+    const playWith = (seed: string, won = true) => {
+      const pregame = armedPregame(seed);
+      const entered = runReducer(pregame, { type: 'enterGame' })!;
+      const post = { ...entered, phase: { kind: 'postgame' as const, nodeId: 'g1', won } };
+      return runReducer(post, { type: 'resolveGameResult' })!;
+    };
+    const target = showcaseCandidates(armedPregame('sc-att-target'))[0].challenge.params.pts!;
+    let sawMiss = false;
+    let sawHit = false;
+    for (let i = 0; i < 24 && !(sawMiss && sawHit); i++) {
+      const done = playWith(`sc-att-${i}`);
+      const banked = (done.signatureProgress ?? []).some(
+        (m) => m.legendKey === legendKey && m.mark === 'moment'
+      );
+      const attempt = done.signatureAttempts?.[legendKey];
+      if (banked) {
+        sawHit = true;
+        // A banked moment is a hit, never an attempt.
+        expect(attempt).toBeUndefined();
+      } else {
+        sawMiss = true;
+        expect(attempt).toBeDefined();
+        expect(attempt!.unit).toBe('PTS');
+        expect(attempt!.target).toBe(target);
+        expect(attempt!.games).toBe(1);
+        expect(attempt!.best).toBeLessThan(target);
+      }
+    }
+    expect(sawMiss && sawHit).toBe(true);
+    // A lost game is never an attempt (the loss branch replays or ends the run).
+    const lost = playWith('sc-att-loss', false);
+    expect(lost.signatureAttempts?.[legendKey]).toBeUndefined();
+    // Old suspended runs (no ledger) stay untouched: the same absent-field valve
+    // signatureProgress uses.
+    const legacy = { ...armedPregame('sc-att-legacy'), signatureAttempts: undefined };
+    const enteredLegacy = runReducer(legacy, { type: 'enterGame' })!;
+    const postLegacy = {
+      ...enteredLegacy,
+      phase: { kind: 'postgame' as const, nodeId: 'g1', won: true },
+    };
+    expect(runReducer(postLegacy, { type: 'resolveGameResult' })!.signatureAttempts).toBeUndefined();
   });
 });
