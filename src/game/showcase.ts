@@ -96,38 +96,38 @@ const RUN_OUTS: StatDelta = { interiorD: -1.5 };
  */
 const BIAS_BY_TEMPLATE: Record<SignatureTemplateId, ShowcaseBias> = {
   // Feed the scorer: the dormant star-usage lever, aimed by the player.
-  takeover: { ...NO_BIAS, usageMult: 1.7, costDelta: KEYED_IN },
+  takeover: { ...NO_BIAS, usageMult: 1.2, costDelta: KEYED_IN },
   // Q4 points ride total usage; the closer gets the ball all night.
-  clutch: { ...NO_BIAS, usageMult: 1.7, costDelta: KEYED_IN },
+  clutch: { ...NO_BIAS, usageMult: 1.6, costDelta: KEYED_IN },
   // Mild usage plus a green light: his own diet hunts the three harder.
-  rain: { ...NO_BIAS, usageMult: 1.35, threeTendencyAdd: 0.6, costDelta: KEYED_IN },
+  rain: { ...NO_BIAS, usageMult: 1.25, threeTendencyAdd: 0.45, costDelta: KEYED_IN },
   // The inverted call: assists credit only non-scorers, so the table-setter's
   // own usage goes DOWN (which also trims his turnover exposure, the clause the
   // <=2 TOV condition needs) while the team looks for him as the passer.
   maestro: {
     ...NO_BIAS,
-    usageMult: 0.75,
-    assistRateMult: 1.15,
-    assistPickMult: 3,
+    usageMult: 0.85,
+    assistRateMult: 1.05,
+    assistPickMult: 1.3,
     costDelta: KEYED_IN,
   },
   // Both halves, gentler: score through him AND let him set the table.
   conductor: {
     ...NO_BIAS,
-    usageMult: 1.25,
-    assistRateMult: 1.1,
-    assistPickMult: 2,
+    usageMult: 1.15,
+    assistRateMult: 1.05,
+    assistPickMult: 1.3,
     costDelta: KEYED_IN,
   },
   // Shade the arc, concede the drive into the rim protector. The funnel is the
   // cost: rim attacks are the opponent's highest-value looks.
-  wall: { ...NO_BIAS, teamDelta: { blocking: 2 }, rimFunnelMult: 1.35 },
+  wall: { ...NO_BIAS, teamDelta: { blocking: 3 }, rimFunnelMult: 1.5 },
   // Crash both ends; the board goes up for grabs and the run-outs go the
   // other way.
   glass: {
     ...NO_BIAS,
-    teamDelta: { rebounding: 2 },
-    reboundPickMult: 1.75,
+    teamDelta: { rebounding: 1 },
+    reboundPickMult: 1.2,
     costDelta: RUN_OUTS,
   },
   // More possessions, more gambles, more pockets to pick; a beaten press
@@ -346,44 +346,48 @@ export const MOMENT_ODDS: Record<
   Record<SignatureTier, { base: number; showcased: number }>
 > = {
   takeover: {
-    1: { base: 0.3, showcased: 0.5 },
-    2: { base: 0.28, showcased: 0.48 },
-    3: { base: 0.22, showcased: 0.4 },
+    1: { base: 0.5, showcased: 0.63 },
+    2: { base: 0.55, showcased: 0.67 },
+    3: { base: 0.41, showcased: 0.65 },
   },
   rain: {
-    1: { base: 0.35, showcased: 0.52 },
-    2: { base: 0.33, showcased: 0.5 },
-    3: { base: 0.18, showcased: 0.32 },
+    1: { base: 0.52, showcased: 0.67 },
+    2: { base: 0.45, showcased: 0.66 },
+    3: { base: 0.17, showcased: 0.45 },
   },
   maestro: {
-    1: { base: 0.28, showcased: 0.42 },
-    2: { base: 0.24, showcased: 0.38 },
-    3: { base: 0.18, showcased: 0.3 },
+    1: { base: 0.44, showcased: 0.7 },
+    2: { base: 0.31, showcased: 0.51 },
+    3: { base: 0.22, showcased: 0.48 },
   },
+  // T3 conductors net near-flat under the call (usage up pulls assists down,
+  // the known tension): the card honestly shows no movement there.
   conductor: {
-    1: { base: 0.3, showcased: 0.45 },
-    2: { base: 0.26, showcased: 0.4 },
-    3: { base: 0.2, showcased: 0.32 },
+    1: { base: 0.65, showcased: 0.71 },
+    2: { base: 0.43, showcased: 0.63 },
+    3: { base: 0.74, showcased: 0.74 },
   },
   wall: {
-    1: { base: 0.3, showcased: 0.45 },
-    2: { base: 0.28, showcased: 0.42 },
-    3: { base: 0.15, showcased: 0.26 },
+    1: { base: 0.59, showcased: 0.66 },
+    2: { base: 0.54, showcased: 0.61 },
+    3: { base: 0.27, showcased: 0.36 },
   },
   glass: {
-    1: { base: 0.35, showcased: 0.5 },
-    2: { base: 0.3, showcased: 0.45 },
-    3: { base: 0.24, showcased: 0.38 },
+    1: { base: 0.65, showcased: 0.7 },
+    2: { base: 0.58, showcased: 0.71 },
+    3: { base: 0.3, showcased: 0.49 },
   },
+  // Only T2 pickpockets exist in the baked pool; the unmeasurable tiers mirror it.
   pickpocket: {
-    1: { base: 0.3, showcased: 0.46 },
-    2: { base: 0.28, showcased: 0.44 },
-    3: { base: 0.16, showcased: 0.28 },
+    1: { base: 0.28, showcased: 0.36 },
+    2: { base: 0.28, showcased: 0.36 },
+    3: { base: 0.28, showcased: 0.36 },
   },
+  // No T1 clutch legends exist; the cell mirrors T2.
   clutch: {
-    1: { base: 0.28, showcased: 0.44 },
-    2: { base: 0.24, showcased: 0.4 },
-    3: { base: 0.18, showcased: 0.3 },
+    1: { base: 0.43, showcased: 0.54 },
+    2: { base: 0.43, showcased: 0.54 },
+    3: { base: 0.26, showcased: 0.53 },
   },
 };
 
