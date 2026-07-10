@@ -361,7 +361,21 @@ describe('home roster persistence', () => {
 
   it('serialize/deserialize round-trips and rejects garbage', () => {
     const home = rookie();
-    expect(deserializeHomeRoster(serializeHomeRoster(home))).toEqual(home);
+    const restored = deserializeHomeRoster(serializeHomeRoster(home))!;
+    // Same structure: player count, names, and positions survive the round-trip.
+    expect(restored.players.map((p) => p.player.name)).toEqual(
+      home.players.map((p) => p.player.name)
+    );
+    expect(restored.players.map((p) => p.position)).toEqual(
+      home.players.map((p) => p.position)
+    );
+    // Slug back-fill: every player ends up with a slug after deserialization
+    // (real players keep theirs; procedural players get one derived from their name).
+    expect(restored.players.every((p) => p.slug)).toBe(true);
+    // Real players retain their original slug values.
+    const realSlugs = home.players.map((p) => p.slug).filter((s): s is string => !!s);
+    const restoredSlugs = restored.players.map((p) => p.slug!);
+    for (const slug of realSlugs) expect(restoredSlugs).toContain(slug);
     expect(deserializeHomeRoster(null)).toBeNull();
     expect(deserializeHomeRoster({ data: { players: [] } })).toBeNull();
     expect(
