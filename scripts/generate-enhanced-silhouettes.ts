@@ -84,59 +84,47 @@ function removeBackground(img: Jimp): boolean {
   const visited = new Uint8Array(width * height);
   const queue: number[] = [];
 
+  // Determine if image is fully opaque (no alpha channel) — typical of JPG sources.
+  // For opaque images, seed from any edge pixel matching background color.
+  // For transparent images (CDN PNGs), seed only from transparent edge pixels.
+  const allOpaque = corners.every(([cx, cy]) => {
+    const i = (cy * width + cx) * 4 + 3;
+    return data[i] === 255;
+  });
+
+  // Helper: should this edge pixel be seeded?
+  function shouldSeed(byteOffset: number): boolean {
+    const pixelMatchesBg = Math.abs(data[byteOffset] - br) <= 30 && Math.abs(data[byteOffset + 1] - bg) <= 30 && Math.abs(data[byteOffset + 2] - bb) <= 30;
+    if (allOpaque) return pixelMatchesBg;
+    return data[byteOffset + 3] === 0 && pixelMatchesBg;
+  }
+
+  // Seed queue with edge pixels that match the background color
   for (let x = 0; x < width; x++) {
     // Top row
-    if (!visited[x]) {
-      const i = x * 4;
-      if (
-        Math.abs(data[i] - br) <= 30 &&
-        Math.abs(data[i + 1] - bg) <= 30 &&
-        Math.abs(data[i + 2] - bb) <= 30
-      ) {
-        visited[x] = 1;
-        queue.push(x);
-      }
+    if (!visited[x] && shouldSeed(x * 4)) {
+      visited[x] = 1;
+      queue.push(x);
     }
     // Bottom row
     const bottom = (height - 1) * width + x;
-    if (!visited[bottom]) {
-      const i = bottom * 4;
-      if (
-        Math.abs(data[i] - br) <= 30 &&
-        Math.abs(data[i + 1] - bg) <= 30 &&
-        Math.abs(data[i + 2] - bb) <= 30
-      ) {
-        visited[bottom] = 1;
-        queue.push(bottom);
-      }
+    if (!visited[bottom] && shouldSeed(bottom * 4)) {
+      visited[bottom] = 1;
+      queue.push(bottom);
     }
   }
   for (let y = 0; y < height; y++) {
     // Left column
     const left = y * width;
-    if (!visited[left]) {
-      const i = left * 4;
-      if (
-        Math.abs(data[i] - br) <= 30 &&
-        Math.abs(data[i + 1] - bg) <= 30 &&
-        Math.abs(data[i + 2] - bb) <= 30
-      ) {
-        visited[left] = 1;
-        queue.push(left);
-      }
+    if (!visited[left] && shouldSeed(left * 4)) {
+      visited[left] = 1;
+      queue.push(left);
     }
     // Right column
     const right = y * width + (width - 1);
-    if (!visited[right]) {
-      const i = right * 4;
-      if (
-        Math.abs(data[i] - br) <= 30 &&
-        Math.abs(data[i + 1] - bg) <= 30 &&
-        Math.abs(data[i + 2] - bb) <= 30
-      ) {
-        visited[right] = 1;
-        queue.push(right);
-      }
+    if (!visited[right] && shouldSeed(right * 4)) {
+      visited[right] = 1;
+      queue.push(right);
     }
   }
 

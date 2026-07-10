@@ -142,50 +142,48 @@ function removeBackground(img: Jimp): boolean {
   // --- 2. BFS flood-fill from all edge pixels ---
   const visited = new Uint8Array(width * height); // 0 = unvisited, 1 = in queue/visited
   const queue: number[] = []; // store flat indices
-  let edgeCount = 0;
+
+  // Determine if image is fully opaque (no alpha channel) — typical of JPG sources.
+  // For opaque images, seed from any edge pixel matching background color.
+  // For transparent images (CDN PNGs), seed only from transparent edge pixels.
+  const allOpaque = corners.every(([cx, cy]) => {
+    const i = (cy * width + cx) * 4 + 3;
+    return data[i] === 255;
+  });
+
+  // Helper: should this edge pixel be seeded?
+  function shouldSeed(byteOffset: number): boolean {
+    const pixelMatchesBg = Math.abs(data[byteOffset] - br) <= 30 && Math.abs(data[byteOffset + 1] - bg) <= 30 && Math.abs(data[byteOffset + 2] - bb) <= 30;
+    if (allOpaque) return pixelMatchesBg;
+    return data[byteOffset + 3] === 0 && pixelMatchesBg;
+  }
 
   // Seed queue with edge pixels that match the background color
   for (let x = 0; x < width; x++) {
     // Top row
-    if (!visited[x]) {
-      const i = x * 4;
-      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
-        visited[x] = 1;
-        queue.push(x);
-        edgeCount++;
-      }
+    if (!visited[x] && shouldSeed(x * 4)) {
+      visited[x] = 1;
+      queue.push(x);
     }
     // Bottom row
     const bottom = (height - 1) * width + x;
-    if (!visited[bottom]) {
-      const i = bottom * 4;
-      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
-        visited[bottom] = 1;
-        queue.push(bottom);
-        edgeCount++;
-      }
+    if (!visited[bottom] && shouldSeed(bottom * 4)) {
+      visited[bottom] = 1;
+      queue.push(bottom);
     }
   }
   for (let y = 0; y < height; y++) {
     // Left column
     const left = y * width;
-    if (!visited[left]) {
-      const i = left * 4;
-      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
-        visited[left] = 1;
-        queue.push(left);
-        edgeCount++;
-      }
+    if (!visited[left] && shouldSeed(left * 4)) {
+      visited[left] = 1;
+      queue.push(left);
     }
     // Right column
     const right = y * width + (width - 1);
-    if (!visited[right]) {
-      const i = right * 4;
-      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
-        visited[right] = 1;
-        queue.push(right);
-        edgeCount++;
-      }
+    if (!visited[right] && shouldSeed(right * 4)) {
+      visited[right] = 1;
+      queue.push(right);
     }
   }
 
@@ -281,8 +279,13 @@ async function pixelateOne(
   // Jimp pipeline (same pattern as pixelate-logos.ts)
   // Remove backgrounds from BBR JPG sources via flood-fill (handles
   // non-pure-white backgrounds better than a simple chroma key).
-  if (!removeBackground(img)) {
-    console.warn(`⚠️  removeBackground cleared >90 % of pixels for ${slug} — image may be all-white`);
+  // Must run BEFORE autocrop/contain — autocrop can't crop opaque white
+  // background, and contain scales it into the frame where flood-fill
+  // can't reach it (trapped behind the player body).
+  if (source === 'basketball-reference') {
+    if (!removeBackground(img)) {
+      console.warn(`⚠️  removeBackground cleared >90 % of pixels for ${slug} — image may be all-white`);
+    }
   }
   img.autocrop();
   img.contain({ w: GRID_SIZE, h: GRID_SIZE });
