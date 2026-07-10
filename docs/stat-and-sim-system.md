@@ -222,7 +222,7 @@ The model draws on how accurate sims and prediction systems work:
   learning, with basketball IQ as the central realism lever. Its `pickPlayer`
   model also informs our box-score attribution: weight each player by
   `rating^power`, where a high power concentrates an event on the specialist
-  (block ~8, steal ~4, offensive rebound ~5, defensive rebound ~3, assist ~10),
+  (block ~8, steal ~4, offensive rebound ~5, defensive rebound ~3, assist ~5),
   so per-position rates fall out without special-casing.
 - **Slay the Spire intent**: a strong scout shows the threat in concrete numbers
   and a legible identity so a loss reads as a strategy miss, not bad luck, while

@@ -36,9 +36,10 @@ import {
   effectiveOvr,
 } from '@/game/roster-filter';
 import { totalUpgrades } from '@/game/home-roster';
+import { signatureByKey } from '@/game/signature';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { POSITION_COLOR } from '@/components/game/positionColor';
-import { POSITIONS, type Position } from '@/types/roster';
+import { nameKey, POSITIONS, type Position } from '@/types/roster';
 import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -350,6 +351,9 @@ export function DraftView({
                   showSpecialty
                   overrideClass={scaledDown ? playerDraftClass(rp) : undefined}
                 />
+                {/* An on-loan legend is a live SIGNATURE chase: name the condition
+                    right where the drafting decision happens. */}
+                <ChaseLine rp={rp} />
               </View>
               <CostBadge cost={cost} affordable={affordable} capped={legendBlocked} />
             </Pressable>
@@ -457,6 +461,24 @@ function Slot({
         </View>
       ) : null}
     </Pressable>
+  );
+}
+
+/** The on-loan legend's live chase, right under their draft card: the moment
+ * condition while it is open, the title once the moment is proven (a pinned
+ * legend can arrive with the moment already stamped), so this line and the
+ * pregame Showcase card never disagree about what the chase is. */
+function ChaseLine({ rp }: { rp: RosterPlayer }) {
+  const { homeRoster } = useHomeRoster();
+  if (!rp.onLoan) return null;
+  const key = nameKey(rp.player.name, rp.position);
+  const challenge = signatureByKey(key);
+  if (!challenge) return null;
+  const momentProven = !!homeRoster?.signatures?.[key]?.moment;
+  return (
+    <Text style={styles.chaseLine} numberOfLines={1}>
+      SIGNATURE CHASE: {momentProven ? 'moment proven, win a title together' : challenge.text}
+    </Text>
   );
 }
 
@@ -617,6 +639,12 @@ const styles = StyleSheet.create({
   },
   rowDisabled: { opacity: 0.35 },
   cardWrap: { flex: 1 },
+  chaseLine: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.gold,
+    marginTop: space(0.5),
+  },
   cost: {
     minWidth: 52,
     alignItems: 'center',

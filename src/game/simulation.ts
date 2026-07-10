@@ -25,12 +25,13 @@ import {
   ACTION_DEF,
   SHOT_PROFILE,
 } from './sim-resolution';
-import { computeUsageWeights, computeTeamStats } from './lineup';
+import { addDeltaToStats, computeUsageWeights, computeTeamStats } from './lineup';
 import { computeSynergy } from './synergy';
 import type { StatDelta } from './effects';
 import { deriveArchetype, counterDelta } from './team-archetype';
 import { DEFAULT_ROTATION, type RotationPolicy } from './coaches';
 import { tendencyFor, blendTendency, type TendencyProfile } from './playstyle';
+import { funnelRim, showcaseBias, type ShowcaseBias } from './showcase';
 import { ovrRaw } from './ratings';
 import { pickRiskPosture, type RiskPosture } from './ai';
 import { createRNG, type RNG } from './rng';
@@ -401,6 +402,14 @@ interface SideState {
   /** Distinct players who have taken the floor this game (starters seeded). The
    * rotation cap limits how many bench bodies join this set. */
   hasPlayed: Set<PlayerGameState>;
+  /**
+   * The armed SHOWCASE call, resolved once from the game plan (null for every
+   * opponent and every plan without one). Usage and aggregate effects ride the
+   * tactic through recomputeAggregate; this handle powers the sim-time lanes
+   * (attribution picks, the assist gate, the rim funnel), each self-gated on
+   * the showcased player being on the floor.
+   */
+  showcase: { name: string; bias: ShowcaseBias } | null;
 }
 
 function newBoxLine(rp: RosterPlayer, slot: Position, starter: boolean): BoxLine {
@@ -424,6 +433,20 @@ function newBoxLine(rp: RosterPlayer, slot: Position, starter: boolean): BoxLine
   };
 }
 
+/** The showcased player's shot diet with their call's lane bent (RAIN's green
+ * light). Everyone else, and every plan without a call, passes through
+ * tendencyFor untouched; blendTendency's existing clamp still bounds the diet. */
+function tendencyWithShowcase(
+  rp: RosterPlayer,
+  showcase: SideState['showcase']
+): TendencyProfile {
+  const t = tendencyFor(rp);
+  if (!showcase || showcase.bias.threeTendencyAdd === 0 || rp.player.name !== showcase.name) {
+    return t;
+  }
+  return { ...t, three: t.three + showcase.bias.threeTendencyAdd };
+}
+
 function initSide(team: Team, form: number, rotation: RotationPolicy): SideState {
   const starters = team.lineup.players.map(
     (rp, i): PlayerGameState => ({
@@ -441,6 +464,10 @@ function initSide(team: Team, form: number, rotation: RotationPolicy): SideState
       box: newBoxLine(rp, rp.position, false),
     })
   );
+  const plan = team.tactic.showcase;
+  const showcase = plan
+    ? { name: plan.playerName, bias: showcaseBias(plan.templateId) }
+    : null;
   return {
     team,
     all: [...starters, ...bench],
@@ -451,13 +478,14 @@ function initSide(team: Team, form: number, rotation: RotationPolicy): SideState
     aggregate: { ...team.teamStats },
     form,
     counterDelta: {},
-    tendencies: starters.map((s) => tendencyFor(s.rp)),
+    tendencies: starters.map((s) => tendencyWithShowcase(s.rp, showcase)),
     quarterMakes: 0,
     lastResult: 'none',
     rotation,
     // The five who tip off have "played"; the rotation cap then bounds how many
     // bench players may join them.
     hasPlayed: new Set(starters),
+    showcase,
   };
 }
 
@@ -475,19 +503,19 @@ function recomputeAggregate(side: SideState): void {
     side.team.modifier
   );
   addDeltaToStats(side.aggregate, side.counterDelta);
-  side.tendencies = side.onCourt.map((p) => tendencyFor(p.rp));
+  side.tendencies = side.onCourt.map((p) => tendencyWithShowcase(p.rp, side.showcase));
+}
+
+/** Whether this side's showcased player is on the floor right now: the gate for
+ * every sim-time showcase lane (a benched call is a clean no-op). */
+function showcaseOnCourt(side: SideState): boolean {
+  const sc = side.showcase;
+  if (!sc) return false;
+  return side.onCourt.some((p) => p.rp.player.name === sc.name);
 }
 
 /** Interior-D aggregate at which a post threat is considered "doubled". */
 const DOUBLE_INTERIOR_THRESHOLD = 16;
-
-/** Add a stat delta to a team stat line in place (no clamp; q() tolerates any value). */
-function addDeltaToStats(stats: TeamStats, delta: StatDelta): void {
-  for (const k in delta) {
-    const key = k as keyof StatDelta;
-    stats[key] = stats[key] + (delta[key] ?? 0);
-  }
-}
 
 /** Whether any on-court player has dipped below an energy threshold. */
 function anyOnCourtTired(side: SideState, energyBelow: number): boolean {
@@ -709,18 +737,34 @@ export function simulateGame(config: SimConfig): SimResult {
   // Weighted pick over a five with P(player) proportional to (stat ^ power),
   // crediting the right specialist for each box-score event. A higher power
   // concentrates the event on the best player at that skill (see *_POWER above);
-  // power 1 reproduces a plain linear weighting.
+  // power 1 reproduces a plain linear weighting. An optional showcase bias
+  // multiplies ONE named player's weight inside the same single draw (no bias =
+  // the untouched weights, byte-identical); a benched name matches nobody, so
+  // the bias self-gates on the showcased player being on the floor.
   const pickByPower = (
     five: PlayerGameState[],
     stat: keyof PlayerStats,
-    power: number
+    power: number,
+    bias?: { name: string; mult: number }
   ): PlayerGameState =>
     rng.weightedPick(
-      five.map((p): [PlayerGameState, number] => [
-        p,
-        Math.pow(Math.max(0.1, p.rp.player.stats[stat]), power),
-      ])
+      five.map((p): [PlayerGameState, number] => {
+        let w = Math.pow(Math.max(0.1, p.rp.player.stats[stat]), power);
+        if (bias && p.rp.player.name === bias.name) w *= bias.mult;
+        return [p, w];
+      })
     );
+
+  // The showcase bias for one attribution lane, or undefined when the side has
+  // no call or the call leaves that lane neutral (the no-draw-change default).
+  const laneBias = (
+    side: SideState,
+    lane: (bias: ShowcaseBias) => number
+  ): { name: string; mult: number } | undefined => {
+    if (!side.showcase) return undefined;
+    const mult = lane(side.showcase.bias);
+    return mult === 1 ? undefined : { name: side.showcase.name, mult };
+  };
 
   let homeScore = 0;
   let awayScore = 0;
@@ -758,7 +802,14 @@ export function simulateGame(config: SimConfig): SimResult {
     const defReb = defense.aggregate.rebounding + DEF_REBOUND_BIAS; // boards skew defensive
     const offensive = rng.chance(offReb / (offReb + defReb));
     const board = offensive ? offense : defense;
-    pickByPower(board.onCourt, 'rebounding', offensive ? OREB_POWER : DREB_POWER).box.reb += 1;
+    // CRASH THE GLASS: the winning side's showcased crasher pulls extra weight
+    // in the pick (both ends; the team-rate half rides the rebounding delta).
+    pickByPower(
+      board.onCourt,
+      'rebounding',
+      offensive ? OREB_POWER : DREB_POWER,
+      laneBias(board, (b) => b.reboundPickMult)
+    ).box.reb += 1;
   }
 
   function runPossession(
@@ -790,7 +841,15 @@ export function simulateGame(config: SimConfig): SimResult {
     // scorer backs you down. Two same-OVR fives now play differently by who shoots.
     const { pgs: scorer, slot, slotIndex } = pickScorer(offense, rng);
     const baseWeights = actionWeights(offense.aggregate, focus, posture);
-    const action = rng.weightedPick(blendTendency(baseWeights, offense.tendencies[slotIndex]));
+    let actionPool = blendTendency(baseWeights, offense.tendencies[slotIndex]);
+    // FUNNEL THEM INSIDE: a showcased rim protector on the floor bends this
+    // offense toward rim attacks (same single draw over reshaped weights). The
+    // concession is the call's price: rim looks are the offense's best looks.
+    const wallMult = defense.showcase?.bias.rimFunnelMult ?? 1;
+    if (wallMult !== 1 && showcaseOnCourt(defense)) {
+      actionPool = funnelRim(actionPool, wallMult);
+    }
+    const action = rng.weightedPick(actionPool);
 
     // Conditional ability/boost hooks (Q4 surges, post rule-benders, depth,
     // comebacks, hot-hand streaks) bend the effective lines for this possession
@@ -887,10 +946,22 @@ export function simulateGame(config: SimConfig): SimResult {
         scorer.box.tpa += 1;
         scorer.box.tpm += 1;
       }
-      const assistP = Math.min(0.75, ASSIST_RATE * (offense.aggregate.playmaking / 20));
+      let assistP = Math.min(0.75, ASSIST_RATE * (offense.aggregate.playmaking / 20));
+      // TABLE-SETTER'S NIGHT: the offense hunts the pass while the showcased
+      // distributor is out there (the 0.75 cap stands; assists still credit
+      // only non-scorers, which is why the call also turns his usage DOWN).
+      const assistRateMult = offense.showcase?.bias.assistRateMult ?? 1;
+      if (assistRateMult !== 1 && showcaseOnCourt(offense)) {
+        assistP = Math.min(0.75, assistP * assistRateMult);
+      }
       const others = offense.onCourt.filter((p) => p !== scorer);
       if (others.length > 0 && rng.chance(assistP)) {
-        const assister = pickByPower(others, 'playmaking', ASSIST_POWER);
+        const assister = pickByPower(
+          others,
+          'playmaking',
+          ASSIST_POWER,
+          laneBias(offense, (b) => b.assistPickMult)
+        );
         assister.box.ast += 1;
         // Record the passer for the watch. The slot is the assister's court
         // position: onCourt is exactly the five, index === POSITIONS slot. No new
@@ -910,7 +981,14 @@ export function simulateGame(config: SimConfig): SimResult {
       creditRebound(offense, defense);
     } else if (result === 'steal') {
       scorer.box.tov += 1;
-      pickByPower(defense.onCourt, 'stealing', STEAL_POWER).box.stl += 1;
+      // FULL-COURT PRESS: the showcased ball hawk jumps more of the lanes his
+      // own gambling created (the team-rate half rides the stealing delta).
+      pickByPower(
+        defense.onCourt,
+        'stealing',
+        STEAL_POWER,
+        laneBias(defense, (b) => b.stealPickMult)
+      ).box.stl += 1;
     } else if (result === 'turnover') {
       scorer.box.tov += 1;
     } else {

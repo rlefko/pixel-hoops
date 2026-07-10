@@ -10,7 +10,7 @@ import { LegendaryHalo } from './reward-fx';
 import { CollectionProgressStrip } from './CollectionProgressStrip';
 import { DailyRewardStrip } from './DailyRewardStrip';
 import { FavorStrip } from './FavorStrip';
-import { SignatureStrip } from './SignatureStrip';
+import { SignatureStrip, type SignatureAttemptRow } from './SignatureStrip';
 import { TeachCallout } from '@/components/teach/TeachCallout';
 import { provenAtDifficulty } from '@/game/collection';
 import { CoinIcon, CrownIcon, VictoryTierIcon } from './PixelIcons';
@@ -44,6 +44,7 @@ interface ChampionViewProps {
   favorRows?: FavorDelta[];
   /** Signature Card marks this settle stamped (the half-done cards' progress). */
   signatureRows?: SignatureDelta[];
+  signatureAttempts?: SignatureAttemptRow[];
   /** Coins the run banked (including the clear bonus): the haul tally beat. */
   coinsBanked?: number;
   /** The victory step-up: run it back one difficulty up, pitched at the confidence
@@ -78,6 +79,7 @@ export function ChampionView({
   progressed = [],
   favorRows = [],
   signatureRows = [],
+  signatureAttempts = [],
   coinsBanked,
   stepUp,
   dailyGrants = null,
@@ -213,7 +215,7 @@ export function ChampionView({
         <LineupBoard team={game.home} players={entry.starters} compact />
 
         <CollectionProgressStrip progressed={progressed} />
-        <SignatureStrip rows={signatureRows} champion />
+        <SignatureStrip rows={signatureRows} attempts={signatureAttempts} champion />
         <FavorStrip rows={favorRows} />
         <DailyRewardStrip grants={dailyGrants} />
         {/* The proving floor's one-shot lesson, on the exact clear that hit it: an

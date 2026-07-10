@@ -18,6 +18,7 @@ export type CalloutTip = Extract<
   | 'legacyRanks'
   | 'legendSignature'
   | 'provingFloor'
+  | 'showcaseCall'
 >;
 
 export const TEACH_COPY: Record<CalloutTip, string> = {
@@ -38,4 +39,6 @@ export const TEACH_COPY: Record<CalloutTip, string> = {
     'Every legend signs the same way: prove their moment, then win a title together. Arm one to draft them on loan.',
   provingFloor:
     'Easy earns his trust; Medium signs him. S contracts bank as copies on MEDIUM and up.',
+  showcaseCall:
+    'Call the Showcase and the plan bends toward his moment. They key on it, and moments only bank in wins.',
 };

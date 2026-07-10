@@ -59,11 +59,16 @@ import {
   type LegacyLedger,
 } from './legacy';
 import {
+  isLegendLadder,
   meetsSignatureFloor,
+  momentGap,
   momentMet,
   signatureByKey,
+  type MomentGap,
+  type SignatureChallenge,
   type SignatureMark,
 } from './signature';
+import { showcaseEligibility, showcasePlan, type ShowcaseEligibility } from './showcase';
 import { teamAbbrForLegendKey } from './signature-finale';
 import { mvpIndex } from './box-score';
 import { playerDraftClass } from './draft';
@@ -77,6 +82,7 @@ import {
 } from './boosts';
 import { pityRarityOffset, PITY_MAX } from './rarity';
 import { ITEM_BY_ID, rollDrop, rollBoostStock, type ItemDef } from './items';
+import type { ShowcasePlan } from '@/types/tactics';
 import type { MapNode, MapNodeType } from '@/types/run-map';
 import type { RunState } from '@/types/run-map';
 import { nameKey, type RosterPlayer } from '@/types/roster';
@@ -148,12 +154,19 @@ export type RunPhase =
   // `pendingGame` is the game sim precomputed during the pregame idle (see
   // computeGameSim), keyed so enterGame consumes it only while its inputs still hold;
   // absent = not landed yet (the TIP OFF tap falls back to the identical sync sim).
+  // `showcase` is the armed SHOWCASE call's legend key for this game (see
+  // src/game/showcase.ts): per-game by construction (it lives on the phase),
+  // serialized free through suspend/resume, and absent on every pre-feature save
+  // and every disarmed pregame. The armed key survives a timeout replay
+  // (re-editable); the built home team resolves it only while the legend is a
+  // dressed starter, so a lineup edit that benches them is a clean no-op.
   | {
       kind: 'pregame';
       nodeId: string;
       timeoutUsed?: boolean;
       coachRec?: CoachRec | null;
       pendingGame?: { key: string; game: ActiveGame };
+      showcase?: string;
     }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
@@ -241,6 +254,15 @@ export interface RunModel {
    * before this system shipped stays undefined and keeps the old auto-sign promise
    * at its settle (the legacy valve in home-roster.settleDeposits). */
   signatureProgress?: SignatureMark[];
+  /** Legend keys whose SIGNATURE MOMENT was already proven at home before this run,
+   * snapshotted at initRun: their chase this run is the title, so the Showcase and
+   * the attempt ledger both skip them. Optional: old suspended runs default to []. */
+  momentProvenKeys?: string[];
+  /** The run's near-miss ledger: for each chase legend, their closest qualifying
+   * won-game line against the moment's primary axis, and how many qualifying shots
+   * they got. Display-only (the summary's "CLOSEST THIS RUN" row); NEVER settles
+   * into the home roster. Optional: old suspended runs default to {}. */
+  signatureAttempts?: Record<string, SignatureAttempt>;
   /** Recruit nodes in a row without a specialist offered; pity forces one in once
    * it reaches RECRUIT_PITY_THRESHOLD so a specialist build is always reachable. */
   recruitDryStreak: number;
@@ -261,6 +283,21 @@ export interface RunModel {
    /** Signature Finale: the armed legend's key, set at initRun if a trial pin is active.
     * Optional for backward compat with suspended runs (undefined = no finale, normal championship). */
    finaleLegendKey?: string;
+}
+
+/** One chase legend's closest qualifying attempt this run (the primary axis of
+ * their condition): the near-miss data advanceSignatureMarks used to discard. */
+export interface SignatureAttempt {
+  /** The closest failing axis's value in the legend's best qualifying win. */
+  best: number;
+  target: number;
+  /** The axis label ("PTS", "3PM", "AST", "TOV", "BLK", "REB", "STL", "Q4 PTS"). */
+  unit: string;
+  /** atLeast: best/target reads "22/24 PTS"; atMost reads "3 TOV (MAX 2)".
+   * Absent on pre-fix saves = atLeast. */
+  kind?: 'atLeast' | 'atMost';
+  /** Qualifying won games the legend played without banking the moment. */
+  games: number;
 }
 
 /** The full simulated game context: the timeline plus both built Teams. Large and
@@ -288,6 +325,8 @@ export type RunAction =
   // Lands the asynchronously precomputed game sim on its pregame (see computeGameSim);
   // guarded like setCoachRec so a stale result can never enter a changed matchup.
   | { type: 'setGameSim'; nodeId: string; key: string; game: ActiveGame }
+  // Arm or disarm the pregame SHOWCASE call on a chase legend in the dressed five.
+  | { type: 'toggleShowcase'; legendKey: string }
   | { type: 'enterGame' }
   | { type: 'finishReplay' }
   | { type: 'resolveGameResult' }
@@ -390,6 +429,20 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     homeFavor: { ...homeRoster.favor },
     legacy: {},
     signatureProgress: [],
+    // Legends with no open moment chase: proven at home, or already OWNED (a
+    // signed card leaves the ledger entirely, so owned legends must be listed
+    // explicitly or an endgame roster full of signed legends re-offers dead
+    // chases). The Showcase, the attempt ledger, and the postgame reads all
+    // skip these; their remaining chase (if any) is the title.
+    momentProvenKeys: [
+      ...Object.entries(homeRoster.signatures ?? {})
+        .filter(([, card]) => !!card?.moment)
+        .map(([key]) => key),
+      ...homeRoster.players
+        .map((p) => nameKey(p.player.name, p.position))
+        .filter((key) => !!signatureByKey(key)),
+    ],
+    signatureAttempts: {},
     recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
     forgivenLosses: 0,
@@ -577,6 +630,168 @@ function advanceSignatureMarks(
   return next.length === 0 ? prior : [...prior, ...next];
 }
 
+/** Whether a legend's SIGNATURE MOMENT is already proven: at home before the run
+ * (the initRun snapshot), or banked earlier in this run. Their live chase is the
+ * title, so the Showcase and the attempt ledger both pass them by. */
+function momentAlreadyProven(model: RunModel, legendKey: string): boolean {
+  if (model.momentProvenKeys?.includes(legendKey)) return true;
+  return !!model.signatureProgress?.some(
+    (m) => m.legendKey === legendKey && m.mark === 'moment'
+  );
+}
+
+/** The stage a combat node plays at for signature purposes (the win branch's rule:
+ * the map's terminal node is a boss even if typed otherwise). The one authority;
+ * the win branch and the postgame reads both call it. */
+export function nodeStage(model: RunModel, nodeId: string): 'game' | 'elite' | 'boss' {
+  const node = model.core.map.nodes[nodeId];
+  if (!node) return 'game';
+  if (node.type === 'boss' || nodeId === model.core.map.bossNodeId) return 'boss';
+  return node.type === 'elite' ? 'elite' : 'game';
+}
+
+/** One chase legend the pregame can offer a SHOWCASE on. */
+export interface ShowcaseCandidate {
+  legendKey: string;
+  challenge: SignatureChallenge;
+  /** Whether the moment can bank in THIS game, with the exact reason when not. */
+  eligibility: ShowcaseEligibility;
+  armed: boolean;
+}
+
+/**
+ * The chase legends the current pregame can showcase: un-proven moments among the
+ * DRESSED STARTERS (starting is part of the call; a benched legend gets no card).
+ * The single source of truth for the pregame card, the toggle guard, and the
+ * team build, so the three can never disagree.
+ */
+export function showcaseCandidates(model: RunModel): ShowcaseCandidate[] {
+  if (model.phase.kind !== 'pregame') return [];
+  const { nodeId, showcase } = model.phase;
+  const out: ShowcaseCandidate[] = [];
+  for (const rp of dressedRoster(model.core.roster).starters) {
+    const legendKey = nameKey(rp.player.name, rp.position);
+    const challenge = signatureByKey(legendKey);
+    if (!challenge || momentAlreadyProven(model, legendKey)) continue;
+    out.push({
+      legendKey,
+      challenge,
+      eligibility: showcaseEligibility(
+        challenge,
+        model.difficulty,
+        model.ladderClass,
+        nodeStage(model, nodeId)
+      ),
+      armed: showcase === legendKey,
+    });
+  }
+  return out;
+}
+
+/** The armed call resolved against the dressed starters, for the team build:
+ * undefined unless the pregame armed a candidate who is STILL a dressed starter
+ * on a qualifying node (so a lineup edit or a stale key is a clean no-op). */
+function pregameShowcasePlan(model: RunModel): ShowcasePlan | undefined {
+  if (model.phase.kind !== 'pregame' || !model.phase.showcase) return undefined;
+  const armedKey = model.phase.showcase;
+  const candidate = showcaseCandidates(model).find((c) => c.legendKey === armedKey);
+  return candidate && candidate.eligibility.ok ? showcasePlan(candidate.challenge) : undefined;
+}
+
+/** The armed legend key threaded through the played game (the built home team's
+ * tactic), so a timeout replay's fresh pregame re-arms the same call. */
+function armedShowcaseKey(model: RunModel): string | undefined {
+  const name = model.game?.home.tactic.showcase?.playerName;
+  if (!name) return undefined;
+  const rp = [...model.core.roster.starters, ...model.core.roster.bench].find(
+    (p) => p.player.name === name
+  );
+  return rp ? nameKey(rp.player.name, rp.position) : undefined;
+}
+
+/** One fielded chase legend's read for a played game: their open challenge and
+ * their line measured against it. */
+export interface ChaseGameRead {
+  legendKey: string;
+  name: string;
+  challenge: SignatureChallenge;
+  gap: MomentGap;
+}
+
+/**
+ * Every fielded OPEN chase that QUALIFIED in the played game (floor + stage +
+ * checked in), with its quantitative read. The one walk behind the attempt
+ * ledger AND the postgame moment rows, so the two can never disagree about
+ * what qualified or how close it came.
+ */
+export function chaseGameReads(
+  model: RunModel,
+  roster: RunState['roster'],
+  stage: 'game' | 'elite' | 'boss'
+): ChaseGameRead[] {
+  const game = model.game;
+  if (!game) return [];
+  const out: ChaseGameRead[] = [];
+  for (const rp of [...roster.starters, ...roster.bench]) {
+    const legendKey = nameKey(rp.player.name, rp.position);
+    const challenge = signatureByKey(legendKey);
+    if (!challenge || momentAlreadyProven(model, legendKey)) continue;
+    if (!showcaseEligibility(challenge, model.difficulty, model.ladderClass, stage).ok) continue;
+    const gap = momentGap(
+      challenge,
+      game.result.box.home.find((l) => l.name === rp.player.name),
+      game.result.events
+    );
+    if (!gap) continue;
+    out.push({ legendKey, name: rp.player.name, challenge, gap });
+  }
+  return out;
+}
+
+/** How close a failing axis came, 0..1 (1 = met), comparable across kinds. */
+function axisCloseness(kind: 'atLeast' | 'atMost', best: number, target: number): number {
+  if (kind === 'atMost') return best > 0 ? Math.min(1, target / best) : 1;
+  return target > 0 ? Math.min(1, best / target) : 0;
+}
+
+/**
+ * Fold this win's near-misses into the run's attempt ledger: every open chase
+ * that qualified here but did not bank keeps its CLOSEST failing axis (a
+ * two-axis card records the axis that actually failed, so a maestro's blown
+ * turnover clause never renders as an over-target assist line) and a count of
+ * shots taken. Pure display data for the summary strip; never settles home. A
+ * moment banked this game reads gap.met and is a hit, never an attempt.
+ */
+function recordSignatureAttempts(
+  model: RunModel,
+  roster: RunState['roster'],
+  stage: 'game' | 'elite' | 'boss'
+): Record<string, SignatureAttempt> | undefined {
+  const prior = model.signatureAttempts;
+  if (prior === undefined || !model.game) return prior;
+  // Off the legend ladders no chase can qualify: skip the roster walk.
+  if (!isLegendLadder(model.ladderClass)) return prior;
+  let next: Record<string, SignatureAttempt> | undefined;
+  for (const read of chaseGameReads(model, roster, stage)) {
+    if (read.gap.met) continue;
+    const failing = read.gap.parts.find((part) => !part.ok) ?? read.gap.parts[0];
+    const existing = (next ?? prior)[read.legendKey];
+    next = next ?? { ...prior };
+    const closer =
+      !existing ||
+      axisCloseness(failing.kind, failing.actual, failing.target) >
+        axisCloseness(existing.kind ?? 'atLeast', existing.best, existing.target);
+    next[read.legendKey] = {
+      best: closer ? failing.actual : existing.best,
+      target: closer ? failing.target : existing.target,
+      unit: closer ? failing.unit : existing.unit,
+      kind: closer ? failing.kind : (existing.kind ?? 'atLeast'),
+      games: (existing?.games ?? 0) + 1,
+    };
+  }
+  return next ?? prior;
+}
+
 /** Icon Perks held by fielded players (a benched icon confers nothing). */
 function fieldedIconPerks(roster: RunState['roster'], box: BoxLine[] | undefined): IconPerkId[] {
   return fieldedPlayers(roster, box)
@@ -692,7 +907,8 @@ export function buildCoachedHomeTeam(
   coach: CoachProfile,
   boosts: PassiveBoost[],
   ladderClass: LadderClass,
-  counters?: RunCounters
+  counters?: RunCounters,
+  showcase?: ShowcasePlan
 ): Team {
   // Field any drafted legend at its ladder-scaled strength (a genuine star, not an
   // unscaled wall) BEFORE effects bake, so item/ability/training layer on the scaled
@@ -703,7 +919,12 @@ export function buildCoachedHomeTeam(
     bench: scaleLegendsForLadder(raw.bench, ladderClass),
   };
   const effStarters = effectivePlayers(dressed.starters);
-  const plan = planForCoach(planForRoster(dressed), coach, dressed);
+  // The armed SHOWCASE call rides the coach's plan (an absent call leaves the
+  // plan literally unchanged: the field is never added, the golden no-op). The
+  // coach-reco engine and the lineup reorder never pass one, so their reads and
+  // goldens stay byte-identical.
+  const coachPlan = planForCoach(planForRoster(dressed), coach, dressed);
+  const plan = showcase ? { ...coachPlan, showcase } : coachPlan;
   // teamModifierFor folds in passive boosts, abilities, item hooks, snowball scaling,
   // and set/duo synergies (the last three only when counters are present, i.e. the
   // player path); the coach's conditional system bonus then merges cleanly on top.
@@ -739,7 +960,8 @@ export function buildHomeTeam(model: RunModel): Team {
     getCoach(model.coachId),
     model.boosts,
     model.ladderClass,
-    counters
+    counters,
+    pregameShowcasePlan(model)
   );
 }
 
@@ -895,11 +1117,15 @@ export function computeGameSim(model: RunModel, nodeId: string): ActiveGame {
 export function gameSimKey(model: RunModel, nodeId: string): string {
   const k = (rp: RosterPlayer): string =>
     `${nameKey(rp.player.name, rp.position)}:${rp.item?.defId ?? ''}:${rp.gamesOut ?? 0}`;
+  const showcase = model.phase.kind === 'pregame' ? (model.phase.showcase ?? '') : '';
   return [
     nodeId,
     `f${model.forgivenLosses}`,
     `w${model.wins}`,
     `b${model.boosts.map((b) => b.id).join('+')}`,
+    // The armed SHOWCASE call is a sim input (toggleShowcase can flip it
+    // mid-pregame), so it keys the precomputed blob like any lineup edit.
+    `sp${showcase}`,
     ...model.core.roster.starters.map(k),
     '/',
     ...model.core.roster.bench.map(k),
@@ -1269,6 +1495,25 @@ export function runReducer(
       };
     }
 
+    case 'toggleShowcase': {
+      // Arm (or disarm) the SHOWCASE call on a chase legend in the dressed five.
+      // Guarded by the same candidate derivation the card renders from, so a tap
+      // can never arm an ineligible, benched, or already-proven chase. O(1) on the
+      // tap: a roster scan, zero sim work (the recompute rides the idle
+      // setGameSim path once the stale blob is dropped here).
+      if (model.phase.kind !== 'pregame') return model;
+      const candidate = showcaseCandidates(model).find(
+        (c) => c.legendKey === action.legendKey
+      );
+      if (!candidate || !candidate.eligibility.ok) return model;
+      const armed = model.phase.showcase === action.legendKey;
+      const { pendingGame: _stale, showcase: _old, ...rest } = model.phase;
+      return {
+        ...model,
+        phase: { ...rest, ...(armed ? {} : { showcase: action.legendKey }) },
+      };
+    }
+
     case 'enterGame': {
       if (model.phase.kind !== 'pregame') return model;
       const nodeId = model.phase.nodeId;
@@ -1311,6 +1556,9 @@ export function runReducer(
         // pregame to replay (a fresh seed via forgivenLosses), instead of ending. No
         // loss/win rewards bank here; coins only accrue on the eventual win.
         if (model.secondChancesRemaining > 0) {
+          // The armed SHOWCASE call survives into the replay pregame (re-editable:
+          // dropping it to protect the retried game is a real second decision).
+          const rearm = armedShowcaseKey(model);
           return {
             ...model,
             secondChancesRemaining: model.secondChancesRemaining - 1,
@@ -1318,7 +1566,13 @@ export function runReducer(
             game: null,
             // coachRec resolves to null: a replay pregame never shows the banner
             // (same as before the scout went async), so nothing recomputes here.
-            phase: { kind: 'pregame', nodeId, timeoutUsed: true, coachRec: null },
+            phase: {
+              kind: 'pregame',
+              nodeId,
+              timeoutUsed: true,
+              coachRec: null,
+              ...(rearm ? { showcase: rearm } : {}),
+            },
           };
         }
         const rewards = { ...model.core.rewards, coins: model.core.rewards.coins + LOSS_COINS };
@@ -1380,12 +1634,11 @@ export function runReducer(
       );
       // Signature marks advance off the same win: a fielded legend's moment, and
       // the championship's title mark (see signature.ts).
-      const signatureProgress = advanceSignatureMarks(
-        model,
-        roster,
-        isBoss ? 'boss' : node.type === 'elite' ? 'elite' : 'game',
-        isChampionship
-      );
+      const stage = nodeStage(model, nodeId);
+      const signatureProgress = advanceSignatureMarks(model, roster, stage, isChampionship);
+      // The near-miss ledger folds off the same win (a banked moment reads
+      // gap.met, a hit, never an attempt): the summary's "CLOSEST THIS RUN" read.
+      const signatureAttempts = recordSignatureAttempts(model, roster, stage);
       if (isBoss) {
         if (isChampionship) {
           // The championship clear bonus banks with the final win's coins (as-earned,
@@ -1395,7 +1648,7 @@ export function runReducer(
             ...core,
             rewards: { ...rewards, coins: rewards.coins + model.mods.clearBonus },
           };
-          return { ...model, core: crowned, wins, favor, legacy, signatureProgress, phase: { kind: 'summary', champion: true } };
+          return { ...model, core: crowned, wins, favor, legacy, signatureProgress, signatureAttempts, phase: { kind: 'summary', champion: true } };
         }
         // Boss Legend Signings roll BEFORE the map advances (the chance ramps on the
         // map index just beaten); an offered signing counts as the run's one legend
@@ -1408,6 +1661,7 @@ export function runReducer(
           favor,
           legacy,
           signatureProgress,
+          signatureAttempts,
           legend: signOffer ? { ...model.legend, offeredThisRun: true } : model.legend,
         });
         // A boss always drops gear (rare / epic / legendary, never common). Beat order:
@@ -1435,7 +1689,7 @@ export function runReducer(
             away: model.game.result.finalAway,
           })
         : core;
-      return { ...model, core: stamped, wins, favor, legacy, signatureProgress, phase: { kind: 'map' }, game: null };
+      return { ...model, core: stamped, wins, favor, legacy, signatureProgress, signatureAttempts, phase: { kind: 'map' }, game: null };
     }
 
     case 'recruit': {

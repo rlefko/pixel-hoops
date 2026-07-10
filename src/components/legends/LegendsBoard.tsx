@@ -19,6 +19,7 @@ import {
   legendByKey,
   type SignatureChallenge,
 } from '@/game/signature';
+import { CHASE_HINT } from '@/game/showcase';
 import { realPlayerToRosterPlayer } from '@/game/player-pool';
 import { haptics, sfx } from '@/feel';
 import type { RosterPlayer } from '@/types/roster';
@@ -88,6 +89,12 @@ const LegendRow = memo(function LegendRow({
             <Text style={styles.floorChip}>{challenge.floor.toUpperCase()}+ S-LADDER</Text>
           </View>
           <Text style={styles.condition}>{challenge.text}</Text>
+          {/* Coach's notes: the levers a chase can pull (roster shape, coach,
+              route), before or beyond the in-run SHOWCASE call. Hidden once the
+              moment is proven (only the title remains). */}
+          {!momentDone ? (
+            <Text style={styles.hint}>{CHASE_HINT[challenge.templateId]}</Text>
+          ) : null}
           <View style={styles.marks}>
             <Text style={[styles.markChip, momentDone && styles.markDone]}>
               {momentDone ? 'MOMENT PROVEN' : 'MOMENT'}
@@ -269,6 +276,11 @@ const styles = StyleSheet.create({
     fontFamily: FONT.body,
     fontSize: FONT_SIZE.small,
     color: palette.ink,
+  },
+  hint: {
+    fontFamily: FONT.body,
+    fontSize: FONT_SIZE.small,
+    color: palette.inkDim,
   },
   marks: { flexDirection: 'row', gap: space(2), alignItems: 'center', flexWrap: 'wrap' },
   markChip: {

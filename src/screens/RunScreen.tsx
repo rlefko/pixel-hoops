@@ -14,13 +14,20 @@ import { TeachSlot } from '@/components/teach/TeachSlot';
 import {
   buildHomeTeam,
   buildOpponentTeam,
+  chaseGameReads,
   coachReorderRoster,
+  nodeStage,
   pendingWinRewards,
+  showcaseCandidates,
   steppingInSubs,
   MAX_BANISHES,
   TOTAL_MAPS,
   type RunModel,
 } from '@/game/run-machine';
+import { momentChaseTrack } from '@/game/showcase';
+import { momentGap, signatureByKey, type MomentGapPart } from '@/game/signature';
+import { ShowcaseCard } from '@/components/run/ShowcaseCard';
+import type { SignatureAttemptRow } from '@/components/run/SignatureStrip';
 import {
   classAboveLadder,
   DIFFICULTIES,
@@ -174,6 +181,31 @@ export default function RunScreen() {
     []
   );
 
+  // The watch's moment tracker: derived once per settled game from the armed
+  // SHOWCASE riding the built home team. Pure dramatization (a read over the
+  // settled timeline; the crossing only golds in a WON game whose box truly met
+  // the condition), null for un-showcased games and box-only templates.
+  const gameForTrack = model?.game ?? null;
+  const chaseTrack = useMemo(() => {
+    const plan = gameForTrack?.home.tactic.showcase;
+    if (!gameForTrack || !plan) return null;
+    const rp = gameForTrack.home.lineup.players.find(
+      (p) => p.player.name === plan.playerName
+    );
+    const challenge = rp ? signatureByKey(nameKey(rp.player.name, rp.position)) : undefined;
+    if (!challenge) return null;
+    const line = gameForTrack.result.box.home.find((l) => l.name === plan.playerName);
+    const finalGap = momentGap(challenge, line, gameForTrack.result.events);
+    const track = momentChaseTrack(
+      challenge,
+      gameForTrack.result.events,
+      gameForTrack.result.winner === 'home' ? finalGap : null
+    );
+    if (!track) return null;
+    const surname = plan.playerName.split(' ').slice(-1)[0].toUpperCase();
+    return { track, label: surname };
+  }, [gameForTrack]);
+
   if (!loaded || !model) {
     return (
       <View style={styles.center}>
@@ -325,6 +357,7 @@ export default function RunScreen() {
             model.core.currentMapIndex,
             TOTAL_MAPS
           )}
+          momentTrack={chaseTrack ?? undefined}
           onComplete={actions.finishReplay}
         />
       );
@@ -532,6 +565,7 @@ export default function RunScreen() {
             progressed={progressed}
             favorRows={favorRows}
             signatureRows={signatureRows}
+            signatureAttempts={signatureAttemptRows(model)}
             coinsBanked={model.core.rewards.coins}
             stepUp={stepUp}
             dailyGrants={dailyGrants}
@@ -565,6 +599,7 @@ export default function RunScreen() {
           progressed={progressed}
           favorRows={favorRows}
           signatureRows={signatureRows}
+          signatureAttempts={signatureAttemptRows(model)}
           lossMargin={lossMargin}
           lossClock={lossClock}
           nextUnlockLabel={nextUnlockLabel}
@@ -576,6 +611,20 @@ export default function RunScreen() {
       );
     }
   }
+}
+
+/** The summary's closest-attempt rows: qualifying chases that never fired this
+ * run, minus any legend whose moment banked (marks always outrank attempts). */
+function signatureAttemptRows(model: RunModel): SignatureAttemptRow[] {
+  const banked = new Set(
+    (model.signatureProgress ?? []).filter((m) => m.mark === 'moment').map((m) => m.legendKey)
+  );
+  return Object.entries(model.signatureAttempts ?? {})
+    .filter(([key]) => !banked.has(key))
+    .map(([key, attempt]) => ({
+      legendName: signatureByKey(key)?.legendName ?? key,
+      ...attempt,
+    }));
 }
 
 /** The trimmed game clock of the last sim event (e.g. "0:48" from "Q4 0:48"), for the
@@ -614,11 +663,13 @@ function Pregame({
   // dress), so the preview still never lies about the matchup. All memoized on what
   // the builders actually read, so local state (banner dismissal) and phase-only
   // dispatches (the coach scout landing) never rebuild two full teams mid-render.
+  const armedShowcase = model.phase.kind === 'pregame' ? (model.phase.showcase ?? null) : null;
   const home = useMemo(
     () => buildHomeTeam(model),
-    // buildHomeTeam reads the roster (core), the coach, boosts, and the win counters.
+    // buildHomeTeam reads the roster (core), the coach, boosts, the win counters,
+    // and the pregame's armed showcase (toggling must reprice the matchup read).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [model.core, model.coachId, model.boosts, model.wins, model.forgivenLosses]
+    [model.core, model.coachId, model.boosts, model.wins, model.forgivenLosses, armedShowcase]
   );
   const away = useMemo(
     () => buildOpponentTeam(model.core, nodeId, model.mods),
@@ -626,6 +677,9 @@ function Pregame({
   );
   const chosen = model.core.roster.starters;
   const steppingIn = useMemo(() => steppingInSubs(model.core.roster), [model.core.roster]);
+  // The chase legends this pregame can showcase (armed state rides the phase).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const showcaseChase = useMemo(() => showcaseCandidates(model), [model.core, model.phase]);
   const awayIdentity = useMemo(() => deriveTeamIdentity(away), [away]);
   const homeIdentity = useMemo(() => deriveTeamIdentity(home), [home]);
   // Peak games tip off through a stake-themed ceremony wipe; routine games keep
@@ -698,6 +752,9 @@ function Pregame({
         steppingIn={steppingIn}
         dense
       />
+      {/* The SHOWCASE call: one card per chase legend in the dressed five, with
+          the muted won't-count state carrying the exact qualification reason. */}
+      <ShowcaseCard candidates={showcaseChase} onToggle={actions.toggleShowcase} />
       {coachRec && !recDismissed ? (
         // The scout computes off the tap and lands a beat after the screen appears
         // (see useRun), so the banner pops on arrival: the coach speaking up.
@@ -750,6 +807,41 @@ function AutoAdvance({ onAdvance }: { onAdvance: () => void }) {
       <Text style={styles.loading}>FINAL...</Text>
     </View>
   );
+}
+
+/** One gap axis in box-score language: "22/24 PTS" or "3 TOV (MAX 2)". */
+function gapPartText(p: MomentGapPart): string {
+  return p.kind === 'atMost'
+    ? `${p.actual} ${p.unit} (MAX ${p.target})`
+    : `${p.actual}/${p.target} ${p.unit}`;
+}
+
+/**
+ * The chase legends' moment reads for this game, above the box score: gold on a
+ * banked moment, the exact near-miss line on a shortfall, and the honest
+ * moment-without-the-win framing on a loss. Built on the same walk as the
+ * attempt ledger (chaseGameReads), so the two can never disagree about what
+ * qualified. Static rows; never celebrates a loss.
+ */
+function signatureGameRows(
+  model: RunModel,
+  nodeId: string,
+  won: boolean
+): { key: string; text: string; tone: 'gold' | 'dim' }[] {
+  const reads = chaseGameReads(model, model.core.roster, nodeStage(model, nodeId));
+  return reads.map(({ legendKey, name, gap }) => {
+    const line = gap.parts.map(gapPartText).join(' · ');
+    if (gap.met) {
+      return {
+        key: legendKey,
+        text: won
+          ? `${name}: SIGNATURE MOMENT (${line})`
+          : `${name}: THE MOMENT WAS THERE. THE WIN WASN'T.`,
+        tone: won ? ('gold' as const) : ('dim' as const),
+      };
+    }
+    return { key: legendKey, text: `${name}: ${line}. MOMENT MISSED.`, tone: 'dim' as const };
+  });
 }
 
 function Postgame({
@@ -898,6 +990,14 @@ function Postgame({
 
       {showBox ? (
         <View style={styles.postgameBox}>
+          {signatureGameRows(model, model.phase.nodeId, won).map((row) => (
+            <Text
+              key={row.key}
+              style={[styles.momentRow, row.tone === 'gold' && styles.momentRowGold]}
+            >
+              {row.text}
+            </Text>
+          ))}
           <BoxScoreView home={home} away={away} box={result.box} />
         </View>
       ) : (
@@ -980,6 +1080,13 @@ const styles = StyleSheet.create({
   },
   postgameHeadline: { alignItems: 'center', alignSelf: 'stretch' },
   teachPregame: { alignSelf: 'stretch', marginTop: space(4) },
+  momentRow: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+    marginBottom: space(1),
+  },
+  momentRowGold: { color: palette.gold },
   postgameBox: {
     flex: 1,
     alignSelf: 'stretch',
