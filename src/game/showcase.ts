@@ -13,7 +13,7 @@ import {
 import type { GamePlan, ShowcasePlan } from '@/types/tactics';
 import type { StatDelta } from './effects';
 import type { RosterPlayer } from '@/types/roster';
-import type { BoxLine, SimEvent } from '@/types/sim';
+import type { BoxLine, OffActionId, SimEvent } from '@/types/sim';
 
 /**
  * THE SHOWCASE: the one player-authored game-plan call. When a chase legend's
@@ -158,6 +158,21 @@ export function activeShowcase(
   const index = players.findIndex((rp) => rp.player.name === plan.playerName);
   if (index < 0) return null;
   return { index, bias: BIAS_BY_TEMPLATE[plan.templateId] };
+}
+
+const RIM_ACTIONS: ReadonlySet<OffActionId> = new Set(['drive', 'layup', 'dunk', 'post']);
+
+/** FUNNEL THEM INSIDE: multiply the opponent's rim-attack action weights so a
+ * showcased rim protector sees real traffic. Applied to the already-blended
+ * weights, before the single action draw, only while the wall is on court. */
+export function funnelRim(
+  weights: readonly (readonly [OffActionId, number])[],
+  mult: number
+): [OffActionId, number][] {
+  return weights.map(([action, weight]) => [
+    action,
+    RIM_ACTIONS.has(action) ? weight * mult : weight,
+  ]);
 }
 
 // --- The call, in plan language (card copy) ---

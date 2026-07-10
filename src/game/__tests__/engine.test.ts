@@ -532,3 +532,58 @@ describe('run map', () => {
     expect(getReachableNodes(map, first)).toEqual(map.nodes[first].next.map((id) => map.nodes[id]));
   });
 });
+
+describe('the showcase call in the engine', () => {
+  const plannedMatchup = (
+    seed: string,
+    showcase?: { playerName: string; templateId: 'takeover' | 'glass' | 'maestro' }
+  ): { home: Team; away: Team } => {
+    const rng = createRNG(seed);
+    const roster = buildStartingRoster(rng);
+    const plan: GamePlan = showcase ? { ...DEFAULT_GAME_PLAN, showcase } : DEFAULT_GAME_PLAN;
+    const home = buildTeam('You', roster.starters, plan, '#FFD54F', '#1D428A', roster.bench);
+    const opp = generateOpponentTeam(10, rng);
+    return { home, away: teamFromRoster(opp.name, opp.roster) };
+  };
+
+  it('a call naming a player who never dresses is byte-identical to no call', () => {
+    // glass carries a pick-lane multiplier, the hardest path to keep silent.
+    const base = plannedMatchup('sc-noop');
+    const ghost = plannedMatchup('sc-noop', { playerName: 'Nobody Here', templateId: 'glass' });
+    const a = simulateGame({ home: base.home, away: base.away, seed: 'sc-noop-game' });
+    const b = simulateGame({ home: ghost.home, away: ghost.away, seed: 'sc-noop-game' });
+    expect(JSON.stringify(b)).toBe(JSON.stringify(a));
+  });
+
+  it('a showcased game is deterministic: same seed, same timeline', () => {
+    const { home, away } = plannedMatchup('sc-det', {
+      playerName: 'placeholder',
+      templateId: 'takeover',
+    });
+    const star = home.lineup.players[1].player.name;
+    const planned = {
+      ...home,
+      tactic: { ...home.tactic, showcase: { playerName: star, templateId: 'takeover' as const } },
+    };
+    const rebuilt = buildTeam('You', planned.lineup.players, planned.tactic, '#FFD54F', '#1D428A', planned.bench);
+    const a = simulateGame({ home: rebuilt, away, seed: 'sc-det-game' });
+    const b = simulateGame({ home: rebuilt, away, seed: 'sc-det-game' });
+    expect(JSON.stringify(b)).toBe(JSON.stringify(a));
+  });
+
+  it('RUN IT THROUGH HIM actually feeds him: showcased points rise across seeds', () => {
+    let basePts = 0;
+    let showcasedPts = 0;
+    for (let g = 0; g < 25; g++) {
+      const seed = `sc-lift-${g}`;
+      const base = plannedMatchup(seed);
+      const star = base.home.lineup.players[2].player.name;
+      const withCall = plannedMatchup(seed, { playerName: star, templateId: 'takeover' });
+      const a = simulateGame({ home: base.home, away: base.away, seed: `${seed}-game` });
+      const b = simulateGame({ home: withCall.home, away: withCall.away, seed: `${seed}-game` });
+      basePts += a.box.home.find((l) => l.name === star)?.pts ?? 0;
+      showcasedPts += b.box.home.find((l) => l.name === star)?.pts ?? 0;
+    }
+    expect(showcasedPts).toBeGreaterThan(basePts * 1.15);
+  });
+});

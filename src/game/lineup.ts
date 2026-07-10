@@ -6,6 +6,7 @@ import { computeSynergy } from './synergy';
 import { off, def } from './ratings';
 import { STAT_CEIL, STAT_NORMAL_MAX, clamp } from './stat-scaling';
 import { EMPTY_TEAM_MODIFIER, type StatDelta, type TeamModifier } from './effects';
+import { activeShowcase } from './showcase';
 
 /**
  * Lineup math: turns five players into the single effective stat line the
@@ -36,17 +37,24 @@ export function validateLineup(players: RosterPlayer[]): {
 
 /**
  * Possession-share weights (sum to 1). Base load blends the offensive stats;
- * guards handle the ball a touch more, and a designated star gets a bump.
+ * guards handle the ball a touch more, and a designated star gets a bump. An
+ * armed SHOWCASE call bends the showcased player's load by their template's
+ * multiplier (up for scorer calls, DOWN for the table-setter) and OVERRIDES the
+ * star coach's 1.6x on that player (one featured plan, never two stacked); a
+ * star coach aiming a different player keeps their own bump, which is exactly
+ * what a maestro call wants.
  */
 export function computeUsageWeights(
   players: RosterPlayer[],
   tactic: GamePlan
 ): number[] {
+  const showcase = activeShowcase(tactic, players);
   const raw = players.map((rp, index) => {
     const s = rp.player.stats;
     let load = s.outside + s.inside + s.playmaking * 0.7 + s.clutch * 0.5;
     if (rp.position === 'PG' || rp.position === 'SG') load += 4; // ball handlers
-    if (tactic.starPlayerIndex === index) load *= 1.6; // feature the star
+    if (showcase && index === showcase.index) load *= showcase.bias.usageMult;
+    else if (tactic.starPlayerIndex === index) load *= 1.6; // feature the star
     return Math.max(0.1, load);
   });
 
@@ -137,6 +145,22 @@ export function computeTeamStats(
     spacing: shooterShare(players),
     creation: clamp(averageStat(players, 'playmaking') / STAT_NORMAL_MAX, 0, 1),
   };
+  // An armed SHOWCASE call, while the showcased player is in this five: the
+  // template's event-rate deltas AND its honest cost fold in together (the
+  // other team keys on the call), post-clamp like the archetype counter edge
+  // (q() tolerates any value). Folded before the composites so the pregame
+  // matchup read prices the call honestly; benched showcase = clean no-op.
+  const showcase = activeShowcase(tactic, players);
+  if (showcase) {
+    const deltas = [showcase.bias.teamDelta, showcase.bias.costDelta];
+    for (const delta of deltas) {
+      for (const k in delta) {
+        const key = k as keyof StatDelta;
+        stats[key] = stats[key] + (delta[key] ?? 0);
+      }
+    }
+    stats.pace = stats.pace + showcase.bias.paceAdd;
+  }
   stats.off = off(stats);
   stats.def = def(stats);
   stats.ovr = Math.round((stats.off + stats.def) / 2);
