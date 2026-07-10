@@ -52,13 +52,79 @@ identity (Jordan closes, Magic and Stockton distribute, Rodman owns the glass,
 Oscar posts the line). All 92 derived cards are pinned in a snapshot test, so
 any tuning change is loud in review. Numbers are CALIBRATED against real seeded
 sims (`signature-sim.test.ts`): each template's aggregate hit rate measures
-roughly 24% to 53% of qualifying won games with a dedicated maxed five, so a
+roughly 28% to 55% of qualifying won games with a dedicated maxed five, so a
 moment is a real moment, never a gift and never a dead letter. Per-legend rates
 spread wider by design (a PANTHEON condition can sit near 5% per boss win and
 still land ~40% per seven-boss run); the pinned bands are 15-70% per template
 and 2-92% per legend. The sim's counting stats run small (a monster
 rim-protector game is 2-3 blocks), which is why the numbers read modest next to
 NBA box scores.
+
+### The Showcase (the chase as a deliberate play)
+
+The moment used to be arm-and-hope: field the legend, tip off, and let the sim
+decide. The SHOWCASE call (`src/game/showcase.ts`) makes each attempt a
+decision at the altitude the auto-sim design permits (one legible, whole-game
+call, never a per-possession menu): when a chase legend with an unproven moment
+starts a QUALIFYING game, the pregame offers a single toggle that bends the
+game plan toward their bespoke condition, and the other team keys on it.
+
+- **Template-aware biases**, all strictly upstream of the seeded RNG (weights
+  and gates the existing draws consume; same draw count; a game without a call
+  resolves byte-identically): RUN IT THROUGH HIM and CLOSER'S GAME feed the
+  scorer through the usage lever; GREEN LIGHT FROM DEEP adds the three-hunting
+  diet; TABLE-SETTER'S NIGHT inverts (usage DOWN, since assists credit only
+  non-scorers, while the offense hunts his pass); PUT IT IN HIS HANDS runs both
+  halves gently; FUNNEL THEM INSIDE shades the arc and concedes the drive into
+  the rim protector; CRASH THE GLASS and FULL-COURT PRESS raise the event
+  supply and the legend's share of it. Benefit and cost both gate on the legend
+  being ON COURT.
+- **One cost model**: a bounded, visible efficiency tax while the call is live
+  (the offense calls pay it on offense, the gamble calls concede easy finishes;
+  the wall's funnel self-prices by handing the opponent rim looks). The pregame
+  matchup headline recomputes with the call armed, so the price is read before
+  tip-off, and the moment still only banks in a WIN: showcasing a boss game is
+  a felt gamble, not a ritual tap.
+- **Qualitative odds, never percentages** (the coach-odds law): the card shows
+  the movement on a four-rung ladder (A LONG SHOT, A PUNCHER'S CHANCE, A LIVE
+  LOOK, HIS KIND OF NIGHT), from a static table measured by the sim harness.
+- **Calibration law (anti-ritual-tap)**: `signature-sim.test.ts` runs two lanes
+  over the same seeds. The BASE lane keeps the condition numbers calibrated to
+  un-showcased play (thresholds are never re-tuned around the call, so skipping
+  it is never a tax); the SHOWCASE lane pins the lift (roughly 1.2x to 1.7x per
+  template, aggregate lift +3 to +25 points, ceiling 0.70) and the win-rate
+  floor (every dedicated five still wins over 30% showcased, median at least
+  42%). Certainty stays spent on IDENTITY; TIMING stays variable.
+- **Limits**: cost-limited, never counted. No per-run ration (the WIN
+  requirement and the stage floors are the structural limiter), offered for
+  chase legends only (a generic star toggle is the star coaches' identity and
+  the roadmap's playbook-cards territory), and a showcase never fires from the
+  bench (starting is part of the call).
+
+### The chase reads back (the feedback loop)
+
+Every stage of an attempt now has a surface; before this, the chase was
+invisible between the Legends board and the run summary:
+
+- **Draft**: an on-loan legend's row names their condition (SIGNATURE CHASE).
+- **Pregame**: the Showcase card, including the muted WON'T COUNT HERE state
+  with the exact reason (stage, floor, or ladder), so a non-qualifying cell can
+  never be farmed in ignorance. The Legends board carries one coach's-notes
+  hint per template naming the levers that exist beyond the call (roster shape,
+  coach, route).
+- **The watch**: a chase chip climbs with the landed ball for event-tracked
+  templates (points, threes, Q4 points, assists), and the crossing fires a
+  one-shot gold SIGNATURE MOMENT beat, only in a won game whose settled box
+  truly met the condition. Blocks, boards, and steals are box-only (SimEvent
+  never attributes them and gains no fields, the golden-master contract), so
+  those chases read their result at the box score.
+- **Postgame**: the box score carries the moment line: gold on a bank, the
+  exact near-miss otherwise ("22/24 PTS. MOMENT MISSED."), and the honest
+  moment-without-the-win framing on a loss.
+- **Run summary**: `RunModel.signatureAttempts` keeps each chase's closest
+  qualifying miss (best line, target, shots taken), shown as a CLOSEST row on
+  the signature strip. Display-only and run-scoped: it never settles home, and
+  a lost game is never an attempt (the win-only floor rule).
 
 ### Getting the legend on loan
 
@@ -157,8 +223,12 @@ Past ICON, each further MVP pays a +25 coin appearance fee: overflow converts.
 - `signature.test.ts`: derivation totality (92/92, null-playstyle fallback),
   the pinned snapshot, per-template truth tables, one-directional floors.
 - `signature-sim.test.ts`: per-legend and per-template hit-rate bands from real
-  seeded sims; a drift here means the sim's texture changed and the numbers need
-  re-tuning, not a flaky test.
+  seeded sims, in two lanes (base and showcased over the same seeds); a drift
+  here means the sim's texture changed and the numbers need re-tuning, not a
+  flaky test.
+- `showcase.test.ts`: bias-package totality and bounds, the on-court gate, the
+  eligibility reasons, the momentGap read (agreement with momentMet), and the
+  odds ladder's never-demote rule.
 - `collection-pacing-sim.test.ts`: the easy-S band, the proving gradient, the
   leak guards, and the apex invariant (easy-only play can never own an S+).
 - `legacy.test.ts` and the run reducer suites: accrual guards, gate math,
