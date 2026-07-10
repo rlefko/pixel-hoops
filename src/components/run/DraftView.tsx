@@ -36,9 +36,10 @@ import {
   effectiveOvr,
 } from '@/game/roster-filter';
 import { totalUpgrades } from '@/game/home-roster';
+import { signatureByKey } from '@/game/signature';
 import { useHomeRoster } from '@/context/HomeRosterContext';
 import { POSITION_COLOR } from '@/components/game/positionColor';
-import { POSITIONS, type Position } from '@/types/roster';
+import { nameKey, POSITIONS, type Position } from '@/types/roster';
 import type { RosterPlayer } from '@/types/roster';
 import { palette, FONT, FONT_SIZE, space, RADIUS, BORDER } from '@/theme';
 
@@ -350,6 +351,9 @@ export function DraftView({
                   showSpecialty
                   overrideClass={scaledDown ? playerDraftClass(rp) : undefined}
                 />
+                {/* An on-loan legend is a live SIGNATURE chase: name the condition
+                    right where the drafting decision happens. */}
+                <ChaseLine rp={rp} />
               </View>
               <CostBadge cost={cost} affordable={affordable} capped={legendBlocked} />
             </Pressable>
@@ -463,6 +467,20 @@ function Slot({
 /** One cost voice across the whole board: the slot chips and the roster badges
  * both read "FREE" / "1 PT" / "2 PTS" (the handbook's cost chips pluralize the
  * same way), so one number never wears two formats on one screen. */
+/** The on-loan legend's signature condition, right under their draft card: the
+ * chase named where the drafting decision happens (identity was the pin's job;
+ * this is the reminder of WHY they are here). */
+function ChaseLine({ rp }: { rp: RosterPlayer }) {
+  if (!rp.onLoan) return null;
+  const challenge = signatureByKey(nameKey(rp.player.name, rp.position));
+  if (!challenge) return null;
+  return (
+    <Text style={styles.chaseLine} numberOfLines={1}>
+      SIGNATURE CHASE: {challenge.text}
+    </Text>
+  );
+}
+
 function costLabel(cost: number): string {
   return cost === 0 ? 'FREE' : `${cost} ${cost === 1 ? 'PT' : 'PTS'}`;
 }
@@ -617,6 +635,12 @@ const styles = StyleSheet.create({
   },
   rowDisabled: { opacity: 0.35 },
   cardWrap: { flex: 1 },
+  chaseLine: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.gold,
+    marginTop: space(0.5),
+  },
   cost: {
     minWidth: 52,
     alignItems: 'center',

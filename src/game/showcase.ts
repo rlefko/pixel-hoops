@@ -317,6 +317,98 @@ export function momentGap(
   return { met: parts.every((part) => part.ok), parts };
 }
 
+// --- The watch tracker (dramatization: a pure read over the settled timeline) ---
+
+/** One tracked axis of a chase: "1/2 3PM" climbing with the landed events. */
+export interface MomentTrackAxis {
+  unit: string;
+  target: number;
+}
+
+export interface MomentTrack {
+  axes: MomentTrackAxis[];
+  /** Cumulative counts per axis at each event seq (every seq keyed, carried
+   * forward), so the HUD chip climbs with the landed ball. */
+  progress: Map<number, number[]>;
+  /** The seq where every axis reached its target AND the settled line truly met
+   * the condition, or null (the chip climbs and stalls; no false celebration). */
+  crossSeq: number | null;
+}
+
+/**
+ * The live moment tracker for the watch, derived once from the settled timeline
+ * (presentation only; outcomes never change). Only the event-attributed
+ * templates track live: points, threes, Q4 points, and assists ride SimEvent;
+ * blocks, boards, and steals are box-only (SimEvent never attributes them, and
+ * it gains no fields), so wall/glass/pickpocket read their result at the box
+ * score instead. `finalGap` (the settled box read) gates the crossing so an
+ * event-invisible clause (maestro's turnovers) can never celebrate falsely.
+ */
+export function momentChaseTrack(
+  challenge: SignatureChallenge,
+  events: readonly SimEvent[],
+  finalGap: MomentGap | null
+): MomentTrack | null {
+  const p = challenge.params;
+  let axes: { unit: string; target: number; count: (e: SimEvent) => number }[];
+  const scores = (e: SimEvent): boolean =>
+    e.team === 'home' && e.points > 0 && e.scorerName === challenge.legendName;
+  const assists = (e: SimEvent): boolean =>
+    e.team === 'home' && e.points > 0 && e.assist?.name === challenge.legendName;
+  switch (challenge.templateId) {
+    case 'takeover':
+      axes = [{ unit: 'PTS', target: p.pts ?? 0, count: (e) => (scores(e) ? e.points : 0) }];
+      break;
+    case 'rain':
+      axes = [
+        {
+          unit: '3PM',
+          target: p.threes ?? 0,
+          count: (e) => (scores(e) && e.action === 'three' ? 1 : 0),
+        },
+      ];
+      break;
+    case 'clutch':
+      axes = [
+        {
+          unit: 'Q4 PTS',
+          target: p.q4pts ?? 0,
+          count: (e) => (scores(e) && e.quarter >= 4 ? e.points : 0),
+        },
+      ];
+      break;
+    case 'maestro':
+      axes = [{ unit: 'AST', target: p.ast ?? 0, count: (e) => (assists(e) ? 1 : 0) }];
+      break;
+    case 'conductor':
+      axes = [
+        { unit: 'PTS', target: p.pts ?? 0, count: (e) => (scores(e) ? e.points : 0) },
+        { unit: 'AST', target: p.ast ?? 0, count: (e) => (assists(e) ? 1 : 0) },
+      ];
+      break;
+    case 'wall':
+    case 'glass':
+    case 'pickpocket':
+      return null;
+  }
+  const progress = new Map<number, number[]>();
+  const counts = axes.map(() => 0);
+  let crossSeq: number | null = null;
+  for (const e of events) {
+    axes.forEach((axis, i) => {
+      counts[i] += axis.count(e);
+    });
+    progress.set(e.seq, [...counts]);
+    if (crossSeq === null && axes.every((axis, i) => counts[i] >= axis.target)) {
+      crossSeq = e.seq;
+    }
+  }
+  // The crossing is only real if the settled box agrees (the tov clause lives
+  // there); a stalled chip is honest, a false gold is not.
+  if (!finalGap?.met) crossSeq = null;
+  return { axes: axes.map(({ unit, target }) => ({ unit, target })), progress, crossSeq };
+}
+
 // --- Qualitative odds (the coach-odds law: words, never percentages) ---
 
 export type MomentOddsWord =

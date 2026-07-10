@@ -26,6 +26,7 @@ import type { ArenaTier } from '@/game/arena-tier';
 import { computeCrowdPulses, type CrowdPulsePlan } from '@/game/crowd-pulse';
 import { computeMomentum, type MomentumInfo } from '@/game/momentum';
 import { computeHotState } from '@/game/streaks';
+import type { MomentTrack } from '@/game/showcase';
 import {
   haptics,
   sfx,
@@ -117,6 +118,32 @@ function TeamChip({ team }: { team: Team }) {
   );
 }
 
+/**
+ * The chase chip: the armed SHOWCASE target climbing with the landed ball
+ * ("ALLEN 1/2 3PM"), gold once crossed. A static text swap on landed events (no
+ * loops); semantics survive reduced motion because the read IS the state.
+ */
+function MomentChip({
+  momentTrack,
+  counts,
+  crossed,
+}: {
+  momentTrack: { track: MomentTrack; label: string };
+  counts: number[] | undefined;
+  crossed: boolean;
+}) {
+  const text = momentTrack.track.axes
+    .map((axis, i) => `${counts?.[i] ?? 0}/${axis.target} ${axis.unit}`)
+    .join(' · ');
+  return (
+    <View style={[styles.momentChip, crossed && styles.momentChipCrossed]}>
+      <Text style={[styles.momentChipText, crossed && styles.momentChipTextCrossed]}>
+        {crossed ? `${momentTrack.label} ${text} ★` : `${momentTrack.label} ${text}`}
+      </Text>
+    </View>
+  );
+}
+
 /** A coach identity for the movement layer, read off the team's resolved game plan
  *  (which already folds in the coach's pace/focus/star lean). */
 function coachIdentityFor(team: Team): CoachIdentity {
@@ -155,6 +182,13 @@ interface PlayByPlayFeedProps {
   awayTeam: Team;
   /** The arena's stakes tier (from arenaTierFor); elite+ seats the apron crowd. */
   arenaTier?: ArenaTier;
+  /**
+   * The armed SHOWCASE chase, when this game carries one (see momentChaseTrack):
+   * a small HUD chip climbs with the landed ball ("ALLEN 1/2 3PM") and the
+   * crossing fires a one-shot gold SIGNATURE MOMENT beat. Dramatization of the
+   * settled timeline only; absent for un-showcased games (zero HUD cost).
+   */
+  momentTrack?: { track: MomentTrack; label: string };
   onComplete: () => void;
 }
 
@@ -163,6 +197,7 @@ export function PlayByPlayFeed({
   homeTeam,
   awayTeam,
   arenaTier = 'routine',
+  momentTrack,
   onComplete,
 }: PlayByPlayFeedProps) {
   const { reducedMotion, simSpeed, highlightsOnly, arcadeExtras, cameraFollow, update } =
@@ -352,6 +387,14 @@ export function PlayByPlayFeed({
   const applyNarrativeJuice = useCallback(
     (e: SimEvent) => {
       if (isWinner(e)) return; // the buzzer-beater stack owns the whole beat
+      // The SIGNATURE MOMENT crossing: the chip golds, the callout takes the
+      // slot, and a light gold flash + success haptic land with the ball. Fires
+      // at most once a game (crossSeq is a single seq), and only in a won game
+      // whose settled box truly met the condition (momentChaseTrack's gate).
+      if (momentTrack && e.seq === momentTrack.track.crossSeq) {
+        flashRef.current?.flash(palette.gold, { peak: 0.22 });
+        haptics.success();
+      }
       const m = momentum.get(e.seq);
       const qn = quarterNotes.get(e.seq);
       if (qn?.first && !pacingRef.current.highlightsOnly) {
@@ -389,7 +432,7 @@ export function PlayByPlayFeed({
         sfx.whoosh('forward');
       }
     },
-    [momentum, quarterNotes, crunchStartSeq, hotState, homeTeam, awayTeam]
+    [momentum, quarterNotes, crunchStartSeq, hotState, homeTeam, awayTeam, momentTrack]
   );
 
   // The planned crowd beat (edge pulse), landing with the same arrival as the
@@ -477,6 +520,10 @@ export function PlayByPlayFeed({
   const landedMomentum = landed ? momentum.get(landed.seq) : undefined;
   const callout = (() => {
     if (landedMomentum?.clincher) return { text: 'CLINCHER!', color: palette.gold };
+    // The chase crossing outranks streaks (rarer: at most once a game), under
+    // the clincher (the game story still leads).
+    if (momentTrack && landed && landed.seq === momentTrack.track.crossSeq)
+      return { text: 'SIGNATURE MOMENT!', color: palette.gold };
     if (landedHot?.igniting) return { text: 'ON FIRE!', color: palette.flame };
     if (landedHot?.heating) return { text: 'HEATING UP!', color: palette.flame };
     if (landed?.isBigPlay && landed.callout)
@@ -523,6 +570,17 @@ export function PlayByPlayFeed({
           </View>
         </Pop>
         {crunchLive ? <Animated.View style={[styles.crunchBar, crunchGlow]} /> : null}
+        {momentTrack ? (
+          <MomentChip
+            momentTrack={momentTrack}
+            counts={landed ? momentTrack.track.progress.get(landed.seq) : undefined}
+            crossed={
+              momentTrack.track.crossSeq != null &&
+              landed != null &&
+              landed.seq >= momentTrack.track.crossSeq
+            }
+          />
+        ) : null}
       </View>
 
       <ShakeView ref={shakeRef} style={styles.courtWrap}>
@@ -673,6 +731,21 @@ const styles = StyleSheet.create({
     height: 3,
     backgroundColor: palette.gold,
   },
+  momentChip: {
+    marginTop: space(1),
+    borderWidth: BORDER.thin,
+    borderColor: palette.inkDim,
+    borderRadius: RADIUS.chip,
+    paddingHorizontal: space(1.5),
+    paddingVertical: space(0.25),
+  },
+  momentChipCrossed: { borderColor: palette.gold },
+  momentChipText: {
+    fontFamily: FONT.display,
+    fontSize: FONT_SIZE.micro,
+    color: palette.inkDim,
+  },
+  momentChipTextCrossed: { color: palette.gold },
   controls: {
     flexDirection: 'row',
     borderTopWidth: BORDER.thin,

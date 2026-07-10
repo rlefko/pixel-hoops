@@ -297,6 +297,7 @@ export function useRun() {
         dispatch({ type: 'setLineup', starters, bench }),
       cancelLineup: () => dispatch({ type: 'cancelLineup' }),
       acceptCoachRec: () => dispatch({ type: 'acceptCoachRec' }),
+      toggleShowcase: (legendKey: string) => dispatch({ type: 'toggleShowcase', legendKey }),
       enterGame: () => dispatch({ type: 'enterGame' }),
       finishReplay: () => dispatch({ type: 'finishReplay' }),
       resolveGameResult: () => dispatch({ type: 'resolveGameResult' }),

@@ -39,6 +39,7 @@ export const TIP_IDS = [
   'legacyRanks', // Locker Room, first legacy-locked rank in view: careers open ranks 4-5
   'legendSignature', // Legends board, first view: the two-mark Signature Card model
   'provingFloor', // first unproven S-ladder clear: letters of intent, medium+ signs
+  'showcaseCall', // first OFFERED showcase card: the call bends the game, at a cost
 ] as const;
 export type TipId = (typeof TIP_IDS)[number];
 
