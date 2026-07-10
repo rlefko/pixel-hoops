@@ -97,15 +97,21 @@ function nameToBbrefSlug(name: string): string | null {
 type FetchSource = 'nba-cdn' | 'basketball-reference';
 
 /**
- * Remove a solid background from a Jimp image using BFS flood-fill.
+ * Remove a solid-colored background from a Jimp image.
  *
- * Samples the background color from all 4 corners, picks the most frequent
- * corner color, then floods from every **transparent** edge pixel whose color
- * is within ±30 of the background. Only pixels connected to the border
- * through transparent pixels become transparent.
+ * Strategy:
+ *   1. Sample the background color from the 4 corners.
+ *   2. Make **edge pixels** transparent if they match the background within
+ *      ±15 tolerance (tight — avoids eating anti-aliased edges into features).
+ *   3. Flood-fill from those transparent edge pixels through similar colors
+ *      (±25 tolerance) to clear the full background region.
+ *
+ * This preserves opaque foreground content (white teeth, light accessories,
+ * dark hair) because they are not connected to the image border through
+ * transparent pixels.
  *
  * Returns `true` on success, `false` when >90 % of pixels were removed
- * (likely an all-white / all-same-color image).
+ * (likely an all-same-color image).
  */
 function removeBackground(img: Jimp): boolean {
   const { width, height, bitmap } = img;
@@ -139,76 +145,46 @@ function removeBackground(img: Jimp): boolean {
   }
   const [br, bg, bb] = bgKey.split(',').map(Number);
 
-  // --- 2. BFS flood-fill from all edge pixels ---
-  const visited = new Uint8Array(width * height); // 0 = unvisited, 1 = in queue/visited
-  const queue: number[] = []; // store flat indices
-  let edgeCount = 0;
+  // --- 2. Seed: make edge pixels transparent if they match the background ---
+  const visited = new Uint8Array(width * height);
+  const queue: number[] = [];
 
-  // Seed queue with edge pixels that match the background color
-  for (let x = 0; x < width; x++) {
-    // Top row
-    if (!visited[x]) {
-      const i = x * 4;
-      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
-        visited[x] = 1;
-        queue.push(x);
-        edgeCount++;
-      }
-    }
-    // Bottom row
-    const bottom = (height - 1) * width + x;
-    if (!visited[bottom]) {
-      const i = bottom * 4;
-      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
-        visited[bottom] = 1;
-        queue.push(bottom);
-        edgeCount++;
+  function seedEdge(y: number, xStart: number, xEnd: number): void {
+    for (let x = xStart; x <= xEnd; x++) {
+      const i = (y * width + x) * 4;
+      const dr = Math.abs(data[i] - br);
+      const dg = Math.abs(data[i + 1] - bg);
+      const db = Math.abs(data[i + 2] - bb);
+      if (dr <= 15 && dg <= 15 && db <= 15) {
+        data[i + 3] = 0; // make transparent
+        visited[y * width + x] = 1;
+        queue.push(y * width + x);
       }
     }
   }
+
+  // Seed all 4 edges
+  seedEdge(0, 0, width - 1); // top row
+  seedEdge(height - 1, 0, width - 1); // bottom row
   for (let y = 0; y < height; y++) {
-    // Left column
-    const left = y * width;
-    if (!visited[left]) {
-      const i = left * 4;
-      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
-        visited[left] = 1;
-        queue.push(left);
-        edgeCount++;
-      }
-    }
-    // Right column
-    const right = y * width + (width - 1);
-    if (!visited[right]) {
-      const i = right * 4;
-      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
-        visited[right] = 1;
-        queue.push(right);
-        edgeCount++;
-      }
-    }
+    seedEdge(y, 0); // left column
+    seedEdge(y, width - 1); // right column
   }
 
-  // Directions: left, right, up, down
+  // --- 3. BFS flood-fill from transparent edge pixels ---
   const dirs = [-1, 1, -width, width];
-
-  // BFS
   let head = 0;
   while (head < queue.length) {
     const idx = queue[head++];
     const px = idx % width;
     const py = (idx - px) / width;
-    const pi = idx * 4;
-
-    // Set alpha to 0 for this pixel
-    data[pi + 3] = 0;
 
     for (const d of dirs) {
       const ni = idx + d;
       if (ni < 0 || ni >= width * height) continue;
 
-      // Prevent wrapping: left/right neighbors must be on the same row
-      const nx = (ni % width);
+      // Prevent wrapping
+      const nx = ni % width;
       const ny = (ni - nx) / width;
       if (Math.abs(nx - px) > 1 || Math.abs(ny - py) > 1) continue;
 
@@ -216,20 +192,19 @@ function removeBackground(img: Jimp): boolean {
 
       const ni4 = ni * 4;
       if (
-        Math.abs(data[ni4] - br) <= 30 &&
-        Math.abs(data[ni4 + 1] - bg) <= 30 &&
-        Math.abs(data[ni4 + 2] - bb) <= 30
+        Math.abs(data[ni4] - br) <= 25 &&
+        Math.abs(data[ni4 + 1] - bg) <= 25 &&
+        Math.abs(data[ni4 + 2] - bb) <= 25
       ) {
+        data[ni4 + 3] = 0;
         visited[ni] = 1;
         queue.push(ni);
       }
     }
   }
 
-  // --- 3. Check: did we remove >90 % of pixels? ---
-  const totalPixels = width * height;
-  const removed = queue.length;
-  return removed <= totalPixels * 0.9;
+  // --- 4. Check: did we remove >90 % of pixels? ---
+  return queue.length <= (width * height) * 0.9;
 }
 
 async function pixelateOne(
@@ -279,10 +254,12 @@ async function pixelateOne(
   }
 
   // Jimp pipeline (same pattern as pixelate-logos.ts)
-  // Remove backgrounds from BBR JPG sources via flood-fill (handles
-  // non-pure-white backgrounds better than a simple chroma key).
-  if (!removeBackground(img)) {
-    console.warn(`⚠️  removeBackground cleared >90 % of pixels for ${slug} — image may be all-white`);
+  // NBA CDN images already have transparent backgrounds — skip removal.
+  // BBR JPG images have white backgrounds — use edge chroma key + flood-fill.
+  if (source === 'basketball-reference') {
+    if (!removeBackground(img)) {
+      console.warn(`⚠️  removeBackground cleared >90 % of pixels for ${slug} — image may be all-white`);
+    }
   }
   img.autocrop();
   img.contain({ w: GRID_SIZE, h: GRID_SIZE });
