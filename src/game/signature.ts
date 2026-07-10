@@ -373,8 +373,9 @@ export function stageAllows(stage: MomentStage, nodeType: 'game' | 'elite' | 'bo
 
 /** CLUTCH GENE: the legend's own points in the 4th quarter (or later) of the won
  * game, straight off the play-by-play. Closing time is when the whole building
- * watches; the box score cannot see it, the timeline can. */
-function fourthQuarterPoints(events: readonly SimEvent[], scorerName: string): number {
+ * watches; the box score cannot see it, the timeline can. Exported so the
+ * showcase near-miss read (momentGap) measures with the same eyes. */
+export function fourthQuarterPoints(events: readonly SimEvent[], scorerName: string): number {
   let pts = 0;
   for (const e of events) {
     if (e.quarter < 4 || e.team !== 'home' || e.points <= 0) continue;
