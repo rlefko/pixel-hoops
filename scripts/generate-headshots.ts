@@ -100,9 +100,9 @@ type FetchSource = 'nba-cdn' | 'basketball-reference';
  * Remove a solid background from a Jimp image using BFS flood-fill.
  *
  * Samples the background color from all 4 corners, picks the most frequent
- * corner color, then floods from every edge pixel whose color is within
- * ±30 of the background. Only pixels connected to the border become
- * transparent.
+ * corner color, then floods from every **transparent** edge pixel whose color
+ * is within ±30 of the background. Only pixels connected to the border
+ * through transparent pixels become transparent.
  *
  * Returns `true` on success, `false` when >90 % of pixels were removed
  * (likely an all-white / all-same-color image).
@@ -149,7 +149,7 @@ function removeBackground(img: Jimp): boolean {
     // Top row
     if (!visited[x]) {
       const i = x * 4;
-      if (Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
+      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
         visited[x] = 1;
         queue.push(x);
         edgeCount++;
@@ -159,7 +159,7 @@ function removeBackground(img: Jimp): boolean {
     const bottom = (height - 1) * width + x;
     if (!visited[bottom]) {
       const i = bottom * 4;
-      if (Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
+      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
         visited[bottom] = 1;
         queue.push(bottom);
         edgeCount++;
@@ -171,7 +171,7 @@ function removeBackground(img: Jimp): boolean {
     const left = y * width;
     if (!visited[left]) {
       const i = left * 4;
-      if (Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
+      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
         visited[left] = 1;
         queue.push(left);
         edgeCount++;
@@ -181,7 +181,7 @@ function removeBackground(img: Jimp): boolean {
     const right = y * width + (width - 1);
     if (!visited[right]) {
       const i = right * 4;
-      if (Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
+      if (data[i + 3] === 0 && Math.abs(data[i] - br) <= 30 && Math.abs(data[i + 1] - bg) <= 30 && Math.abs(data[i + 2] - bb) <= 30) {
         visited[right] = 1;
         queue.push(right);
         edgeCount++;
