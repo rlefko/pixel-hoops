@@ -34,11 +34,15 @@ export function ShowcaseCard({
   onToggle: (legendKey: string) => void;
 }) {
   if (candidates.length === 0) return null;
+  const anyEligible = candidates.some((c) => c.eligibility.ok);
   return (
     <View style={styles.wrap}>
       {candidates.map((c) => (
         <OneCall key={c.legendKey} candidate={c} onToggle={onToggle} />
       ))}
+      {/* One teach pulse per screen even with two chase legends dressed (the
+          LegendsBoard precedent: the callout rides the board, not each row). */}
+      {anyEligible ? <TeachCallout tip="showcaseCall" section="favor" style={styles.tip} /> : null}
     </View>
   );
 }
@@ -58,7 +62,7 @@ function OneCall({
       <View style={[styles.card, styles.cardMuted]}>
         <View style={styles.headRow}>
           <StarIcon size={10} color={palette.inkDim} />
-          <Text style={styles.headMuted}>SHOWCASE</Text>
+          <Text style={styles.head}>SHOWCASE</Text>
           <Text style={styles.tierChip}>{SIGNATURE_TIER_NAMES[challenge.tier]}</Text>
         </View>
         <Text style={styles.conditionMuted}>
@@ -94,9 +98,9 @@ function OneCall({
         </Text>
       </Pressable>
       <Text style={styles.detail}>
-        {SHOWCASE_CALL_DETAIL[challenge.templateId]} Moments only bank in wins.
+        {SHOWCASE_CALL_DETAIL[challenge.templateId]} Moments only bank in wins, and every start
+        in a win banks favor toward him either way.
       </Text>
-      <TeachCallout tip="showcaseCall" section="favor" style={styles.tip} />
     </View>
   );
 }
@@ -122,12 +126,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   headArmed: { color: palette.gold },
-  headMuted: {
-    fontFamily: FONT.display,
-    fontSize: FONT_SIZE.micro,
-    color: palette.inkDim,
-    flex: 1,
-  },
   tierChip: {
     fontFamily: FONT.display,
     fontSize: FONT_SIZE.micro,

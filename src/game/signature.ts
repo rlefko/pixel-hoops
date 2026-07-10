@@ -353,6 +353,13 @@ export function sanitizeSignatures(raw: unknown, owned: ReadonlySet<string>): Si
 
 // --- Evaluation ---
 
+/** The legends' stage: signature marks only ever exist on the S and S+ ladders.
+ * The one authority for the rule (the floor check and the pregame eligibility
+ * card both read it, so they can never silently disagree). */
+export function isLegendLadder(ladderClass: LadderClass): boolean {
+  return ladderClass === 'S' || ladderClass === 'S+';
+}
+
 /** One-directional floor: the run's difficulty must sit at or above the
  * challenge floor AND the run must be on the S or S+ ladder (legends' stage). */
 export function meetsSignatureFloor(
@@ -360,7 +367,7 @@ export function meetsSignatureFloor(
   difficulty: Difficulty,
   ladderClass: LadderClass
 ): boolean {
-  if (ladderClass !== 'S' && ladderClass !== 'S+') return false;
+  if (!isLegendLadder(ladderClass)) return false;
   return difficultyAtLeast(difficulty, challenge.floor);
 }
 
@@ -384,6 +391,85 @@ export function fourthQuarterPoints(events: readonly SimEvent[], scorerName: str
   return pts;
 }
 
+// --- The quantitative read (one switch for the bank AND the feedback) ---
+
+/** One axis of a condition: "22/24 PTS" or "3 TOV (max 2)". */
+export interface MomentGapPart {
+  unit: string;
+  actual: number;
+  target: number;
+  /** atLeast: actual must reach target; atMost: actual must not exceed it. */
+  kind: 'atLeast' | 'atMost';
+  ok: boolean;
+}
+
+export interface MomentGap {
+  met: boolean;
+  parts: MomentGapPart[];
+}
+
+function atLeast(unit: string, actual: number, target: number): MomentGapPart {
+  return { unit, actual, target, kind: 'atLeast', ok: actual >= target };
+}
+
+function atMost(unit: string, actual: number, target: number): MomentGapPart {
+  return { unit, actual, target, kind: 'atMost', ok: actual <= target };
+}
+
+/**
+ * The legend's line measured against their condition: the ONE per-template
+ * switch, shared by the bank (momentMet's condition core) and every feedback
+ * surface (the box-score row, the summary's closest-attempt line, the watch
+ * tracker's targets), so a read can never disagree with what banks. Pure
+ * stat-vs-target: floor/stage/win qualification is the caller's job. Null when
+ * the legend never checked in. Missing params read as unreachable (Infinity),
+ * matching the bank's never-a-gift default.
+ */
+export function momentGap(
+  challenge: SignatureChallenge,
+  line: BoxLine | undefined,
+  events: readonly SimEvent[]
+): MomentGap | null {
+  if (!line || line.seconds <= 0) return null;
+  const p = challenge.params;
+  let parts: MomentGapPart[];
+  switch (challenge.templateId) {
+    case 'takeover':
+      parts = [atLeast('PTS', line.pts, p.pts ?? Infinity)];
+      break;
+    case 'rain':
+      parts = [atLeast('3PM', line.tpm, p.threes ?? Infinity)];
+      break;
+    case 'maestro':
+      parts = [
+        atLeast('AST', line.ast, p.ast ?? Infinity),
+        atMost('TOV', line.tov, p.maxTov ?? 0),
+      ];
+      break;
+    case 'conductor':
+      parts = [
+        atLeast('PTS', line.pts, p.pts ?? Infinity),
+        atLeast('AST', line.ast, p.ast ?? Infinity),
+      ];
+      break;
+    case 'wall':
+      parts = [atLeast('BLK', line.blk, p.blk ?? Infinity)];
+      break;
+    case 'glass':
+      parts = [atLeast('REB', line.reb, p.reb ?? Infinity)];
+      break;
+    case 'pickpocket':
+      parts = [atLeast('STL', line.stl, p.stl ?? Infinity)];
+      break;
+    case 'clutch':
+      parts = [
+        atLeast('Q4 PTS', fourthQuarterPoints(events, challenge.legendName), p.q4pts ?? Infinity),
+      ];
+      break;
+  }
+  return { met: parts.every((part) => part.ok), parts };
+}
+
 export interface MomentGameContext {
   difficulty: Difficulty;
   ladderClass: LadderClass;
@@ -397,32 +483,11 @@ export interface MomentGameContext {
 /**
  * Whether a single WON game satisfies a legend's SIGNATURE MOMENT. The caller
  * guarantees the win (moments never come from losses, favor's rule); floor,
- * stage, minutes, and the condition itself are all checked here.
+ * stage, minutes, and the condition itself (via momentGap, the one switch) are
+ * all checked here.
  */
 export function momentMet(challenge: SignatureChallenge, ctx: MomentGameContext): boolean {
   if (!meetsSignatureFloor(challenge, ctx.difficulty, ctx.ladderClass)) return false;
   if (!stageAllows(challenge.stage, ctx.nodeType)) return false;
-  const line = ctx.line;
-  if (!line || line.seconds <= 0) return false;
-  const p = challenge.params;
-  switch (challenge.templateId) {
-    case 'takeover':
-      return line.pts >= (p.pts ?? Infinity);
-    case 'rain':
-      return line.tpm >= (p.threes ?? Infinity);
-    case 'maestro':
-      return line.ast >= (p.ast ?? Infinity) && line.tov <= (p.maxTov ?? 0);
-    case 'conductor':
-      return line.ast >= (p.ast ?? Infinity) && line.pts >= (p.pts ?? Infinity);
-    case 'wall':
-      return line.blk >= (p.blk ?? Infinity);
-    case 'glass':
-      return line.reb >= (p.reb ?? Infinity);
-    case 'pickpocket':
-      return line.stl >= (p.stl ?? Infinity);
-    case 'clutch':
-      return ctx.events
-        ? fourthQuarterPoints(ctx.events, challenge.legendName) >= (p.q4pts ?? Infinity)
-        : false;
-  }
+  return momentGap(challenge, ctx.line, ctx.events ?? [])?.met ?? false;
 }

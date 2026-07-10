@@ -464,23 +464,27 @@ function Slot({
   );
 }
 
-/** One cost voice across the whole board: the slot chips and the roster badges
- * both read "FREE" / "1 PT" / "2 PTS" (the handbook's cost chips pluralize the
- * same way), so one number never wears two formats on one screen. */
-/** The on-loan legend's signature condition, right under their draft card: the
- * chase named where the drafting decision happens (identity was the pin's job;
- * this is the reminder of WHY they are here). */
+/** The on-loan legend's live chase, right under their draft card: the moment
+ * condition while it is open, the title once the moment is proven (a pinned
+ * legend can arrive with the moment already stamped), so this line and the
+ * pregame Showcase card never disagree about what the chase is. */
 function ChaseLine({ rp }: { rp: RosterPlayer }) {
+  const { homeRoster } = useHomeRoster();
   if (!rp.onLoan) return null;
-  const challenge = signatureByKey(nameKey(rp.player.name, rp.position));
+  const key = nameKey(rp.player.name, rp.position);
+  const challenge = signatureByKey(key);
   if (!challenge) return null;
+  const momentProven = !!homeRoster?.signatures?.[key]?.moment;
   return (
     <Text style={styles.chaseLine} numberOfLines={1}>
-      SIGNATURE CHASE: {challenge.text}
+      SIGNATURE CHASE: {momentProven ? 'moment proven, win a title together' : challenge.text}
     </Text>
   );
 }
 
+/** One cost voice across the whole board: the slot chips and the roster badges
+ * both read "FREE" / "1 PT" / "2 PTS" (the handbook's cost chips pluralize the
+ * same way), so one number never wears two formats on one screen. */
 function costLabel(cost: number): string {
   return cost === 0 ? 'FREE' : `${cost} ${cost === 1 ? 'PT' : 'PTS'}`;
 }

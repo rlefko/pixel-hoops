@@ -132,9 +132,12 @@ function MomentChip({
   counts: number[] | undefined;
   crossed: boolean;
 }) {
-  const text = momentTrack.track.axes
-    .map((axis, i) => `${counts?.[i] ?? 0}/${axis.target} ${axis.unit}`)
-    .join(' · ');
+  const { axes, live } = momentTrack.track;
+  // Box-only chases (blocks/boards/steals are never event-attributed) show a
+  // static target reminder; the result reads at the box score.
+  const text = live
+    ? axes.map((axis, i) => `${counts?.[i] ?? 0}/${axis.target} ${axis.unit}`).join(' · ')
+    : `${axes.map((axis) => `${axis.target} ${axis.unit}`).join(' · ')} AT THE HORN`;
   return (
     <View style={[styles.momentChip, crossed && styles.momentChipCrossed]}>
       <Text style={[styles.momentChipText, crossed && styles.momentChipTextCrossed]}>
@@ -389,9 +392,15 @@ export function PlayByPlayFeed({
       if (isWinner(e)) return; // the buzzer-beater stack owns the whole beat
       // The SIGNATURE MOMENT crossing: the chip golds, the callout takes the
       // slot, and a light gold flash + success haptic land with the ball. Fires
-      // at most once a game (crossSeq is a single seq), and only in a won game
-      // whose settled box truly met the condition (momentChaseTrack's gate).
-      if (momentTrack && e.seq === momentTrack.track.crossSeq) {
+      // at most once a game (crossSeq is a single seq), only in a won game
+      // whose settled box truly met the condition (momentChaseTrack's gate),
+      // and never stacked on the clincher's own beat (one voice per ball; the
+      // golded chip still carries the crossing read there).
+      if (
+        momentTrack &&
+        e.seq === momentTrack.track.crossSeq &&
+        !momentum.get(e.seq)?.clincher
+      ) {
         flashRef.current?.flash(palette.gold, { peak: 0.22 });
         haptics.success();
       }
@@ -521,8 +530,9 @@ export function PlayByPlayFeed({
   const callout = (() => {
     if (landedMomentum?.clincher) return { text: 'CLINCHER!', color: palette.gold };
     // The chase crossing outranks streaks (rarer: at most once a game), under
-    // the clincher (the game story still leads).
-    if (momentTrack && landed && landed.seq === momentTrack.track.crossSeq)
+    // the clincher and the walk-off (the game's own loudest voices lead; the
+    // golded chip still carries the crossing read on those beats).
+    if (momentTrack && landed && landed.seq === momentTrack.track.crossSeq && !isWinner(landed))
       return { text: 'SIGNATURE MOMENT!', color: palette.gold };
     if (landedHot?.igniting) return { text: 'ON FIRE!', color: palette.flame };
     if (landedHot?.heating) return { text: 'HEATING UP!', color: palette.flame };

@@ -2080,19 +2080,32 @@ describe('the showcase call (pregame arm, key, build, replay, attempts)', () => 
     expect(showcaseCandidates(proven)).toHaveLength(0);
   });
 
+  it('an owned (signed) legend is snapshotted as proven at initRun: never re-chased', () => {
+    // A signed card LEAVES the home ledger, so ownership itself must close the
+    // chase or an endgame roster full of signed legends re-offers dead cards.
+    const home = rookie('sc-owned-home');
+    const owned = {
+      ...home,
+      players: [...home.players, { ...legendRp(), onLoan: undefined, legendary: true }],
+    } as HomeRoster;
+    const m = initRun('sc-owned-run', owned);
+    expect(m.momentProvenKeys).toContain(legendKey);
+  });
+
   it('toggleShowcase arms, disarms, drops the cached sim, and refuses bad taps', () => {
     const pregame = armedPregame('sc-toggle');
     const key = gameSimKey(pregame, 'g1');
     const game = computeGameSim(pregame, 'g1');
     const landed = runReducer(pregame, { type: 'setGameSim', nodeId: 'g1', key, game })!;
     const armed = runReducer(landed, { type: 'toggleShowcase', legendKey })!;
-    expect(armed.phase.kind === 'pregame' && armed.phase.showcase).toEqual({ legendKey });
+    expect(armed.phase.kind === 'pregame' && armed.phase.showcase).toBe(legendKey);
     // The cached sim was computed without the call: guaranteed stale, dropped.
     expect(armed.phase.kind === 'pregame' && armed.phase.pendingGame).toBeUndefined();
     // The key moves with the call, so the idle recompute lands a fresh blob.
     expect(gameSimKey(armed, 'g1')).not.toBe(key);
     const disarmed = runReducer(armed, { type: 'toggleShowcase', legendKey })!;
-    expect(disarmed.phase.kind === 'pregame' && disarmed.phase.showcase).toBeNull();
+    expect(disarmed.phase.kind === 'pregame' && disarmed.phase.showcase).toBeUndefined();
+    expect(disarmed.phase).not.toHaveProperty('showcase');
     // Refusals leave the model untouched: wrong phase, unknown key, ineligible cell.
     const map = { ...pregame, phase: { kind: 'map' as const } };
     expect(runReducer(map, { type: 'toggleShowcase', legendKey })).toBe(map);
@@ -2146,9 +2159,9 @@ describe('the showcase call (pregame arm, key, build, replay, attempts)', () => 
     const lost = { ...entered, phase: { kind: 'postgame' as const, nodeId: 'g1', won: false } };
     const replay = runReducer(lost, { type: 'resolveGameResult' })!;
     expect(replay.phase.kind).toBe('pregame');
-    expect(replay.phase.kind === 'pregame' && replay.phase.showcase).toEqual({ legendKey });
+    expect(replay.phase.kind === 'pregame' && replay.phase.showcase).toBe(legendKey);
     const dropped = runReducer(replay, { type: 'toggleShowcase', legendKey })!;
-    expect(dropped.phase.kind === 'pregame' && dropped.phase.showcase).toBeNull();
+    expect(dropped.phase.kind === 'pregame' && dropped.phase.showcase).toBeUndefined();
   });
 
   it('the attempt ledger keeps the closest qualifying miss and never counts hits or losses', () => {
@@ -2175,6 +2188,7 @@ describe('the showcase call (pregame arm, key, build, replay, attempts)', () => 
         sawMiss = true;
         expect(attempt).toBeDefined();
         expect(attempt!.unit).toBe('PTS');
+        expect(attempt!.kind).toBe('atLeast');
         expect(attempt!.target).toBe(target);
         expect(attempt!.games).toBe(1);
         expect(attempt!.best).toBeLessThan(target);

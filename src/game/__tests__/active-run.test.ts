@@ -141,8 +141,10 @@ describe('favor across suspend/resume', () => {
     const model = snapshot();
     const armed: RunModel = {
       ...model,
-      phase: { kind: 'pregame', nodeId: 'g1', showcase: { legendKey: 'LeBron James|SF' } },
-      signatureAttempts: { 'LeBron James|SF': { best: 19, target: 21, unit: 'PTS', games: 2 } },
+      phase: { kind: 'pregame', nodeId: 'g1', showcase: 'LeBron James|SF' },
+      signatureAttempts: {
+        'LeBron James|SF': { best: 19, target: 21, unit: 'PTS', kind: 'atLeast', games: 2 },
+      },
     };
     const restored = deserializeActiveRun(throughStorage(serializeActiveRun(armed)));
     expect(restored?.phase).toEqual(armed.phase);

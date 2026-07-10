@@ -3,6 +3,7 @@ import { Text } from '@/components/StyledText';
 import { StaggerIn } from '@/components/fx';
 import { StarIcon } from './PixelIcons';
 import type { SignatureDelta } from '@/game/home-roster';
+import type { SignatureAttempt } from '@/game/run-machine';
 import { palette, FONT, FONT_SIZE, space } from '@/theme';
 
 /**
@@ -14,13 +15,7 @@ import { palette, FONT, FONT_SIZE, space } from '@/theme';
  */
 
 /** One chase legend's closest failed attempt this run (see RunModel.signatureAttempts). */
-export interface SignatureAttemptRow {
-  legendName: string;
-  best: number;
-  target: number;
-  unit: string;
-  games: number;
-}
+export type SignatureAttemptRow = SignatureAttempt & { legendName: string };
 
 export function SignatureStrip({
   rows,
@@ -53,7 +48,8 @@ export function SignatureStrip({
           <StarIcon size={10} color={palette.inkDim} />
           <Text style={styles.name}>{a.legendName}</Text>
           <Text style={styles.attempt}>
-            CLOSEST: {a.best}/{a.target} {a.unit} ({a.games} {a.games === 1 ? 'SHOT' : 'SHOTS'})
+            CLOSEST: {a.kind === 'atMost' ? `${a.best} ${a.unit} (MAX ${a.target})` : `${a.best}/${a.target} ${a.unit}`}{' '}
+            ({a.games} {a.games === 1 ? 'SHOT' : 'SHOTS'})
           </Text>
         </StaggerIn>
       ))}

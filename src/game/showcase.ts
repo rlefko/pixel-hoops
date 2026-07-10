@@ -4,8 +4,10 @@ import {
   type LadderClass,
 } from './difficulty-mode';
 import {
-  fourthQuarterPoints,
+  isLegendLadder,
+  momentGap,
   stageAllows,
+  type MomentGap,
   type SignatureChallenge,
   type SignatureTemplateId,
   type SignatureTier,
@@ -230,7 +232,7 @@ export function showcaseEligibility(
   ladderClass: LadderClass,
   nodeType: 'game' | 'elite' | 'boss'
 ): ShowcaseEligibility {
-  if (ladderClass !== 'S' && ladderClass !== 'S+') {
+  if (!isLegendLadder(ladderClass)) {
     return { ok: false, reason: 'S LADDER AND UP' };
   }
   if (!difficultyAtLeast(difficulty, challenge.floor)) {
@@ -245,77 +247,6 @@ export function showcaseEligibility(
   return { ok: true };
 }
 
-// --- The quantitative read (near-miss feedback) ---
-
-/** One axis of a condition: "22/24 PTS" or "3 TOV (max 2)". */
-export interface MomentGapPart {
-  unit: string;
-  actual: number;
-  target: number;
-  /** atLeast: actual must reach target; atMost: actual must not exceed it. */
-  kind: 'atLeast' | 'atMost';
-  ok: boolean;
-}
-
-export interface MomentGap {
-  met: boolean;
-  parts: MomentGapPart[];
-}
-
-function atLeast(unit: string, actual: number, target: number): MomentGapPart {
-  return { unit, actual, target, kind: 'atLeast', ok: actual >= target };
-}
-
-function atMost(unit: string, actual: number, target: number): MomentGapPart {
-  return { unit, actual, target, kind: 'atMost', ok: actual <= target };
-}
-
-/**
- * The legend's line measured against their condition: the single quantitative
- * read behind the box-score row ("22 PTS - MOMENT AT 24"), the summary's
- * closest-attempt line, and the watch tracker's target. Pure stat-vs-target:
- * floor/stage/win qualification is the CALLER's job (momentMet stays the one
- * authority that banks a mark). Null when the legend never checked in, or when
- * CLUTCH GENE has no play-by-play to read.
- */
-export function momentGap(
-  challenge: SignatureChallenge,
-  line: BoxLine | undefined,
-  events?: readonly SimEvent[]
-): MomentGap | null {
-  if (!line || line.seconds <= 0) return null;
-  const p = challenge.params;
-  let parts: MomentGapPart[];
-  switch (challenge.templateId) {
-    case 'takeover':
-      parts = [atLeast('PTS', line.pts, p.pts ?? 0)];
-      break;
-    case 'rain':
-      parts = [atLeast('3PM', line.tpm, p.threes ?? 0)];
-      break;
-    case 'maestro':
-      parts = [atLeast('AST', line.ast, p.ast ?? 0), atMost('TOV', line.tov, p.maxTov ?? 0)];
-      break;
-    case 'conductor':
-      parts = [atLeast('PTS', line.pts, p.pts ?? 0), atLeast('AST', line.ast, p.ast ?? 0)];
-      break;
-    case 'wall':
-      parts = [atLeast('BLK', line.blk, p.blk ?? 0)];
-      break;
-    case 'glass':
-      parts = [atLeast('REB', line.reb, p.reb ?? 0)];
-      break;
-    case 'pickpocket':
-      parts = [atLeast('STL', line.stl, p.stl ?? 0)];
-      break;
-    case 'clutch': {
-      if (!events) return null;
-      parts = [atLeast('Q4 PTS', fourthQuarterPoints(events, challenge.legendName), p.q4pts ?? 0)];
-      break;
-    }
-  }
-  return { met: parts.every((part) => part.ok), parts };
-}
 
 // --- The watch tracker (dramatization: a pure read over the settled timeline) ---
 
@@ -327,76 +258,69 @@ export interface MomentTrackAxis {
 
 export interface MomentTrack {
   axes: MomentTrackAxis[];
+  /** True when the axes count live off the event stream; false for the box-only
+   * templates (blocks/boards/steals), whose chip is a static target reminder. */
+  live: boolean;
   /** Cumulative counts per axis at each event seq (every seq keyed, carried
-   * forward), so the HUD chip climbs with the landed ball. */
+   * forward), so the HUD chip climbs with the landed ball. Empty when !live. */
   progress: Map<number, number[]>;
   /** The seq where every axis reached its target AND the settled line truly met
    * the condition, or null (the chip climbs and stalls; no false celebration). */
   crossSeq: number | null;
 }
 
+/** How each event-attributed axis counts off the stream. Blocks, boards, and
+ * steals have no counter: SimEvent never attributes them (and gains no fields,
+ * the golden-master contract), so those chases read at the box score. */
+const AXIS_COUNTERS: Record<string, (e: SimEvent, legendName: string) => number> = {
+  PTS: (e, name) =>
+    e.team === 'home' && e.points > 0 && e.scorerName === name ? e.points : 0,
+  '3PM': (e, name) =>
+    e.team === 'home' && e.points > 0 && e.scorerName === name && e.action === 'three' ? 1 : 0,
+  'Q4 PTS': (e, name) =>
+    e.team === 'home' && e.points > 0 && e.scorerName === name && e.quarter >= 4 ? e.points : 0,
+  AST: (e, name) =>
+    e.team === 'home' && e.points > 0 && e.assist?.name === name ? 1 : 0,
+};
+
+/** A blank checked-in line, used to read a challenge's axes (units + targets)
+ * out of momentGap so the tracker can never disagree with the bank's switch. */
+const AXES_PROBE_LINE: BoxLine = {
+  name: '', slot: 'PG', starter: true,
+  pts: 0, fgm: 0, fga: 0, tpm: 0, tpa: 0, reb: 0, ast: 0, stl: 0, blk: 0, tov: 0,
+  seconds: 1, energy: 100, load: 0,
+};
+
 /**
- * The live moment tracker for the watch, derived once from the settled timeline
- * (presentation only; outcomes never change). Only the event-attributed
- * templates track live: points, threes, Q4 points, and assists ride SimEvent;
- * blocks, boards, and steals are box-only (SimEvent never attributes them, and
- * it gains no fields), so wall/glass/pickpocket read their result at the box
- * score instead. `finalGap` (the settled box read) gates the crossing so an
- * event-invisible clause (maestro's turnovers) can never celebrate falsely.
+ * The moment tracker for the watch, derived once from the settled timeline
+ * (presentation only; outcomes never change). Axes come from momentGap (the one
+ * per-template switch), keeping the chip's targets in lockstep with what banks;
+ * only the atLeast axes show (maestro's turnover clause is event-invisible and
+ * gates the crossing through `finalGap` instead). Event-attributed axes count
+ * live; the box-only templates return a static target chip (live: false).
  */
 export function momentChaseTrack(
   challenge: SignatureChallenge,
   events: readonly SimEvent[],
   finalGap: MomentGap | null
 ): MomentTrack | null {
-  const p = challenge.params;
-  let axes: { unit: string; target: number; count: (e: SimEvent) => number }[];
-  const scores = (e: SimEvent): boolean =>
-    e.team === 'home' && e.points > 0 && e.scorerName === challenge.legendName;
-  const assists = (e: SimEvent): boolean =>
-    e.team === 'home' && e.points > 0 && e.assist?.name === challenge.legendName;
-  switch (challenge.templateId) {
-    case 'takeover':
-      axes = [{ unit: 'PTS', target: p.pts ?? 0, count: (e) => (scores(e) ? e.points : 0) }];
-      break;
-    case 'rain':
-      axes = [
-        {
-          unit: '3PM',
-          target: p.threes ?? 0,
-          count: (e) => (scores(e) && e.action === 'three' ? 1 : 0),
-        },
-      ];
-      break;
-    case 'clutch':
-      axes = [
-        {
-          unit: 'Q4 PTS',
-          target: p.q4pts ?? 0,
-          count: (e) => (scores(e) && e.quarter >= 4 ? e.points : 0),
-        },
-      ];
-      break;
-    case 'maestro':
-      axes = [{ unit: 'AST', target: p.ast ?? 0, count: (e) => (assists(e) ? 1 : 0) }];
-      break;
-    case 'conductor':
-      axes = [
-        { unit: 'PTS', target: p.pts ?? 0, count: (e) => (scores(e) ? e.points : 0) },
-        { unit: 'AST', target: p.ast ?? 0, count: (e) => (assists(e) ? 1 : 0) },
-      ];
-      break;
-    case 'wall':
-    case 'glass':
-    case 'pickpocket':
-      return null;
+  const probe = momentGap(challenge, AXES_PROBE_LINE, []);
+  if (!probe) return null;
+  const axes = probe.parts
+    .filter((part) => part.kind === 'atLeast')
+    .map(({ unit, target }) => ({ unit, target }));
+  const counters = axes.map((axis) => AXIS_COUNTERS[axis.unit]);
+  if (counters.some((count) => !count)) {
+    // A box-only chase (BLK/REB/STL): the chip is a static reminder of the
+    // target; the result reads at the box score.
+    return { axes, live: false, progress: new Map(), crossSeq: null };
   }
   const progress = new Map<number, number[]>();
   const counts = axes.map(() => 0);
   let crossSeq: number | null = null;
   for (const e of events) {
     axes.forEach((axis, i) => {
-      counts[i] += axis.count(e);
+      counts[i] += counters[i](e, challenge.legendName);
     });
     progress.set(e.seq, [...counts]);
     if (crossSeq === null && axes.every((axis, i) => counts[i] >= axis.target)) {
@@ -406,7 +330,7 @@ export function momentChaseTrack(
   // The crossing is only real if the settled box agrees (the tov clause lives
   // there); a stalled chip is honest, a false gold is not.
   if (!finalGap?.met) crossSeq = null;
-  return { axes: axes.map(({ unit, target }) => ({ unit, target })), progress, crossSeq };
+  return { axes, live: true, progress, crossSeq };
 }
 
 // --- Qualitative odds (the coach-odds law: words, never percentages) ---

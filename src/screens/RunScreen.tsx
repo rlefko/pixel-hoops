@@ -14,7 +14,9 @@ import { TeachSlot } from '@/components/teach/TeachSlot';
 import {
   buildHomeTeam,
   buildOpponentTeam,
+  chaseGameReads,
   coachReorderRoster,
+  nodeStage,
   pendingWinRewards,
   showcaseCandidates,
   steppingInSubs,
@@ -22,13 +24,8 @@ import {
   TOTAL_MAPS,
   type RunModel,
 } from '@/game/run-machine';
-import {
-  momentChaseTrack,
-  momentGap,
-  showcaseEligibility,
-  type MomentGapPart,
-} from '@/game/showcase';
-import { signatureByKey } from '@/game/signature';
+import { momentChaseTrack } from '@/game/showcase';
+import { momentGap, signatureByKey, type MomentGapPart } from '@/game/signature';
 import { ShowcaseCard } from '@/components/run/ShowcaseCard';
 import type { SignatureAttemptRow } from '@/components/run/SignatureStrip';
 import {
@@ -624,12 +621,9 @@ function signatureAttemptRows(model: RunModel): SignatureAttemptRow[] {
   );
   return Object.entries(model.signatureAttempts ?? {})
     .filter(([key]) => !banked.has(key))
-    .map(([key, a]) => ({
-      legendName: key.split('|')[0],
-      best: a.best,
-      target: a.target,
-      unit: a.unit,
-      games: a.games,
+    .map(([key, attempt]) => ({
+      legendName: signatureByKey(key)?.legendName ?? key,
+      ...attempt,
     }));
 }
 
@@ -669,8 +663,7 @@ function Pregame({
   // dress), so the preview still never lies about the matchup. All memoized on what
   // the builders actually read, so local state (banner dismissal) and phase-only
   // dispatches (the coach scout landing) never rebuild two full teams mid-render.
-  const armedShowcase =
-    model.phase.kind === 'pregame' ? (model.phase.showcase?.legendKey ?? null) : null;
+  const armedShowcase = model.phase.kind === 'pregame' ? (model.phase.showcase ?? null) : null;
   const home = useMemo(
     () => buildHomeTeam(model),
     // buildHomeTeam reads the roster (core), the coach, boosts, the win counters,
@@ -826,60 +819,29 @@ function gapPartText(p: MomentGapPart): string {
 /**
  * The chase legends' moment reads for this game, above the box score: gold on a
  * banked moment, the exact near-miss line on a shortfall, and the honest
- * moment-without-the-win framing on a loss. Only QUALIFYING games read (a
- * non-qualifying cell already said "won't count" at the pregame). Static rows;
- * never celebrates a loss.
+ * moment-without-the-win framing on a loss. Built on the same walk as the
+ * attempt ledger (chaseGameReads), so the two can never disagree about what
+ * qualified. Static rows; never celebrates a loss.
  */
 function signatureGameRows(
   model: RunModel,
   nodeId: string,
   won: boolean
 ): { key: string; text: string; tone: 'gold' | 'dim' }[] {
-  const game = model.game;
-  if (!game) return [];
-  const node = model.core.map.nodes[nodeId];
-  const stage =
-    node?.type === 'boss' || nodeId === model.core.map.bossNodeId
-      ? 'boss'
-      : node?.type === 'elite'
-        ? 'elite'
-        : 'game';
-  const proven = new Set([
-    ...(model.momentProvenKeys ?? []),
-    ...(model.signatureProgress ?? [])
-      .filter((m) => m.mark === 'moment')
-      .map((m) => m.legendKey),
-  ]);
-  const rows: { key: string; text: string; tone: 'gold' | 'dim' }[] = [];
-  for (const rp of [...model.core.roster.starters, ...model.core.roster.bench]) {
-    const legendKey = nameKey(rp.player.name, rp.position);
-    const challenge = signatureByKey(legendKey);
-    if (!challenge || proven.has(legendKey)) continue;
-    if (!showcaseEligibility(challenge, model.difficulty, model.ladderClass, stage).ok) continue;
-    const gap = momentGap(
-      challenge,
-      game.result.box.home.find((l) => l.name === rp.player.name),
-      game.result.events
-    );
-    if (!gap) continue;
+  const reads = chaseGameReads(model, model.core.roster, nodeStage(model, nodeId));
+  return reads.map(({ legendKey, name, gap }) => {
     const line = gap.parts.map(gapPartText).join(' · ');
     if (gap.met) {
-      rows.push({
+      return {
         key: legendKey,
         text: won
-          ? `${rp.player.name}: SIGNATURE MOMENT (${line})`
-          : `${rp.player.name}: THE MOMENT WAS THERE. THE WIN WASN'T.`,
-        tone: won ? 'gold' : 'dim',
-      });
-    } else {
-      rows.push({
-        key: legendKey,
-        text: `${rp.player.name}: ${line}. MOMENT MISSED.`,
-        tone: 'dim',
-      });
+          ? `${name}: SIGNATURE MOMENT (${line})`
+          : `${name}: THE MOMENT WAS THERE. THE WIN WASN'T.`,
+        tone: won ? ('gold' as const) : ('dim' as const),
+      };
     }
-  }
-  return rows;
+    return { key: legendKey, text: `${name}: ${line}. MOMENT MISSED.`, tone: 'dim' as const };
+  });
 }
 
 function Postgame({

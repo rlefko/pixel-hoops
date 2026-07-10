@@ -59,14 +59,16 @@ import {
   type LegacyLedger,
 } from './legacy';
 import {
+  isLegendLadder,
   meetsSignatureFloor,
+  momentGap,
   momentMet,
   signatureByKey,
-  stageAllows,
+  type MomentGap,
   type SignatureChallenge,
   type SignatureMark,
 } from './signature';
-import { momentGap, showcaseEligibility, showcasePlan, type ShowcaseEligibility } from './showcase';
+import { showcaseEligibility, showcasePlan, type ShowcaseEligibility } from './showcase';
 import { teamAbbrForLegendKey } from './signature-finale';
 import { mvpIndex } from './box-score';
 import { playerDraftClass } from './draft';
@@ -80,6 +82,7 @@ import {
 } from './boosts';
 import { pityRarityOffset, PITY_MAX } from './rarity';
 import { ITEM_BY_ID, rollDrop, rollBoostStock, type ItemDef } from './items';
+import type { ShowcasePlan } from '@/types/tactics';
 import type { MapNode, MapNodeType } from '@/types/run-map';
 import type { RunState } from '@/types/run-map';
 import { nameKey, type RosterPlayer } from '@/types/roster';
@@ -151,18 +154,19 @@ export type RunPhase =
   // `pendingGame` is the game sim precomputed during the pregame idle (see
   // computeGameSim), keyed so enterGame consumes it only while its inputs still hold;
   // absent = not landed yet (the TIP OFF tap falls back to the identical sync sim).
-  // `showcase` is the armed SHOWCASE call for this game (see src/game/showcase.ts):
-  // per-game by construction (it lives on the phase), serialized free through
-  // suspend/resume, and absent on every pre-feature save. The armed key survives a
-  // timeout replay (re-editable); the built home team resolves it only while the
-  // legend is a dressed starter, so a lineup edit that benches them is a clean no-op.
+  // `showcase` is the armed SHOWCASE call's legend key for this game (see
+  // src/game/showcase.ts): per-game by construction (it lives on the phase),
+  // serialized free through suspend/resume, and absent on every pre-feature save
+  // and every disarmed pregame. The armed key survives a timeout replay
+  // (re-editable); the built home team resolves it only while the legend is a
+  // dressed starter, so a lineup edit that benches them is a clean no-op.
   | {
       kind: 'pregame';
       nodeId: string;
       timeoutUsed?: boolean;
       coachRec?: CoachRec | null;
       pendingGame?: { key: string; game: ActiveGame };
-      showcase?: { legendKey: string } | null;
+      showcase?: string;
     }
   | { kind: 'game'; nodeId: string }
   | { kind: 'postgame'; nodeId: string; won: boolean }
@@ -284,11 +288,14 @@ export interface RunModel {
 /** One chase legend's closest qualifying attempt this run (the primary axis of
  * their condition): the near-miss data advanceSignatureMarks used to discard. */
 export interface SignatureAttempt {
-  /** Best value reached on the condition's primary axis across qualifying wins. */
+  /** The closest failing axis's value in the legend's best qualifying win. */
   best: number;
   target: number;
-  /** The axis label ("PTS", "3PM", "AST", "BLK", "REB", "STL", "Q4 PTS"). */
+  /** The axis label ("PTS", "3PM", "AST", "TOV", "BLK", "REB", "STL", "Q4 PTS"). */
   unit: string;
+  /** atLeast: best/target reads "22/24 PTS"; atMost reads "3 TOV (MAX 2)".
+   * Absent on pre-fix saves = atLeast. */
+  kind?: 'atLeast' | 'atMost';
   /** Qualifying won games the legend played without banking the moment. */
   games: number;
 }
@@ -422,11 +429,19 @@ export function initRun(seed: string, homeRoster: HomeRoster): RunModel {
     homeFavor: { ...homeRoster.favor },
     legacy: {},
     signatureProgress: [],
-    // Legends whose moment is already proven at home: the Showcase and the
-    // attempt ledger skip them (their remaining chase is the title).
-    momentProvenKeys: Object.entries(homeRoster.signatures ?? {})
-      .filter(([, card]) => !!card?.moment)
-      .map(([key]) => key),
+    // Legends with no open moment chase: proven at home, or already OWNED (a
+    // signed card leaves the ledger entirely, so owned legends must be listed
+    // explicitly or an endgame roster full of signed legends re-offers dead
+    // chases). The Showcase, the attempt ledger, and the postgame reads all
+    // skip these; their remaining chase (if any) is the title.
+    momentProvenKeys: [
+      ...Object.entries(homeRoster.signatures ?? {})
+        .filter(([, card]) => !!card?.moment)
+        .map(([key]) => key),
+      ...homeRoster.players
+        .map((p) => nameKey(p.player.name, p.position))
+        .filter((key) => !!signatureByKey(key)),
+    ],
     signatureAttempts: {},
     recruitDryStreak: 0,
     secondChancesRemaining: mods.secondChances,
@@ -626,8 +641,9 @@ function momentAlreadyProven(model: RunModel, legendKey: string): boolean {
 }
 
 /** The stage a combat node plays at for signature purposes (the win branch's rule:
- * the map's terminal node is a boss even if typed otherwise). */
-function nodeStage(model: RunModel, nodeId: string): 'game' | 'elite' | 'boss' {
+ * the map's terminal node is a boss even if typed otherwise). The one authority;
+ * the win branch and the postgame reads both call it. */
+export function nodeStage(model: RunModel, nodeId: string): 'game' | 'elite' | 'boss' {
   const node = model.core.map.nodes[nodeId];
   if (!node) return 'game';
   if (node.type === 'boss' || nodeId === model.core.map.bossNodeId) return 'boss';
@@ -666,7 +682,7 @@ export function showcaseCandidates(model: RunModel): ShowcaseCandidate[] {
         model.ladderClass,
         nodeStage(model, nodeId)
       ),
-      armed: showcase?.legendKey === legendKey,
+      armed: showcase === legendKey,
     });
   }
   return out;
@@ -675,9 +691,9 @@ export function showcaseCandidates(model: RunModel): ShowcaseCandidate[] {
 /** The armed call resolved against the dressed starters, for the team build:
  * undefined unless the pregame armed a candidate who is STILL a dressed starter
  * on a qualifying node (so a lineup edit or a stale key is a clean no-op). */
-function pregameShowcasePlan(model: RunModel): ReturnType<typeof showcasePlan> | undefined {
+function pregameShowcasePlan(model: RunModel): ShowcasePlan | undefined {
   if (model.phase.kind !== 'pregame' || !model.phase.showcase) return undefined;
-  const armedKey = model.phase.showcase.legendKey;
+  const armedKey = model.phase.showcase;
   const candidate = showcaseCandidates(model).find((c) => c.legendKey === armedKey);
   return candidate && candidate.eligibility.ok ? showcasePlan(candidate.challenge) : undefined;
 }
@@ -693,48 +709,83 @@ function armedShowcaseKey(model: RunModel): string | undefined {
   return rp ? nameKey(rp.player.name, rp.position) : undefined;
 }
 
+/** One fielded chase legend's read for a played game: their open challenge and
+ * their line measured against it. */
+export interface ChaseGameRead {
+  legendKey: string;
+  name: string;
+  challenge: SignatureChallenge;
+  gap: MomentGap;
+}
+
 /**
- * Fold this win's near-misses into the run's attempt ledger: every fielded chase
- * legend whose moment QUALIFIED here (floor + stage) but did not bank keeps their
- * closest line (the condition's primary axis) and a count of shots taken. Pure
- * display data for the summary strip; never settles home. `progress` is the
- * ALREADY-ADVANCED mark list, so a moment banked this game is a hit, not a miss.
+ * Every fielded OPEN chase that QUALIFIED in the played game (floor + stage +
+ * checked in), with its quantitative read. The one walk behind the attempt
+ * ledger AND the postgame moment rows, so the two can never disagree about
+ * what qualified or how close it came.
+ */
+export function chaseGameReads(
+  model: RunModel,
+  roster: RunState['roster'],
+  stage: 'game' | 'elite' | 'boss'
+): ChaseGameRead[] {
+  const game = model.game;
+  if (!game) return [];
+  const out: ChaseGameRead[] = [];
+  for (const rp of [...roster.starters, ...roster.bench]) {
+    const legendKey = nameKey(rp.player.name, rp.position);
+    const challenge = signatureByKey(legendKey);
+    if (!challenge || momentAlreadyProven(model, legendKey)) continue;
+    if (!showcaseEligibility(challenge, model.difficulty, model.ladderClass, stage).ok) continue;
+    const gap = momentGap(
+      challenge,
+      game.result.box.home.find((l) => l.name === rp.player.name),
+      game.result.events
+    );
+    if (!gap) continue;
+    out.push({ legendKey, name: rp.player.name, challenge, gap });
+  }
+  return out;
+}
+
+/** How close a failing axis came, 0..1 (1 = met), comparable across kinds. */
+function axisCloseness(kind: 'atLeast' | 'atMost', best: number, target: number): number {
+  if (kind === 'atMost') return best > 0 ? Math.min(1, target / best) : 1;
+  return target > 0 ? Math.min(1, best / target) : 0;
+}
+
+/**
+ * Fold this win's near-misses into the run's attempt ledger: every open chase
+ * that qualified here but did not bank keeps its CLOSEST failing axis (a
+ * two-axis card records the axis that actually failed, so a maestro's blown
+ * turnover clause never renders as an over-target assist line) and a count of
+ * shots taken. Pure display data for the summary strip; never settles home. A
+ * moment banked this game reads gap.met and is a hit, never an attempt.
  */
 function recordSignatureAttempts(
   model: RunModel,
   roster: RunState['roster'],
-  stage: 'game' | 'elite' | 'boss',
-  progress: SignatureMark[] | undefined
+  stage: 'game' | 'elite' | 'boss'
 ): Record<string, SignatureAttempt> | undefined {
   const prior = model.signatureAttempts;
   if (prior === undefined || !model.game) return prior;
-  if (!meetsSignatureFloor({ floor: 'medium' }, model.difficulty, model.ladderClass)) {
-    // Not an S-ladder run at all: no chase can qualify, skip the roster walk.
-    return prior;
-  }
-  const box = model.game.result.box.home;
-  const banked = new Set((progress ?? []).map((m) => `${m.legendKey}|${m.mark}`));
+  // Off the legend ladders no chase can qualify: skip the roster walk.
+  if (!isLegendLadder(model.ladderClass)) return prior;
   let next: Record<string, SignatureAttempt> | undefined;
-  for (const rp of [...roster.starters, ...roster.bench]) {
-    const legendKey = nameKey(rp.player.name, rp.position);
-    const challenge = signatureByKey(legendKey);
-    if (!challenge) continue;
-    if (banked.has(`${legendKey}|moment`) || model.momentProvenKeys?.includes(legendKey)) continue;
-    if (!meetsSignatureFloor(challenge, model.difficulty, model.ladderClass)) continue;
-    if (!stageAllows(challenge.stage, stage)) continue;
-    const gap = momentGap(
-      challenge,
-      box.find((l) => l.name === rp.player.name),
-      model.game.result.events
-    );
-    if (!gap || gap.met) continue;
-    const primary = gap.parts[0];
-    const existing = (next ?? prior)[legendKey];
+  for (const read of chaseGameReads(model, roster, stage)) {
+    if (read.gap.met) continue;
+    const failing = read.gap.parts.find((part) => !part.ok) ?? read.gap.parts[0];
+    const existing = (next ?? prior)[read.legendKey];
     next = next ?? { ...prior };
-    next[legendKey] = {
-      best: Math.max(existing?.best ?? 0, primary.actual),
-      target: primary.target,
-      unit: primary.unit,
+    const closer =
+      !existing ||
+      axisCloseness(failing.kind, failing.actual, failing.target) >
+        axisCloseness(existing.kind ?? 'atLeast', existing.best, existing.target);
+    next[read.legendKey] = {
+      best: closer ? failing.actual : existing.best,
+      target: closer ? failing.target : existing.target,
+      unit: closer ? failing.unit : existing.unit,
+      kind: closer ? failing.kind : (existing.kind ?? 'atLeast'),
       games: (existing?.games ?? 0) + 1,
     };
   }
@@ -857,7 +908,7 @@ export function buildCoachedHomeTeam(
   boosts: PassiveBoost[],
   ladderClass: LadderClass,
   counters?: RunCounters,
-  showcase?: ReturnType<typeof showcasePlan>
+  showcase?: ShowcasePlan
 ): Team {
   // Field any drafted legend at its ladder-scaled strength (a genuine star, not an
   // unscaled wall) BEFORE effects bake, so item/ability/training layer on the scaled
@@ -1066,7 +1117,7 @@ export function computeGameSim(model: RunModel, nodeId: string): ActiveGame {
 export function gameSimKey(model: RunModel, nodeId: string): string {
   const k = (rp: RosterPlayer): string =>
     `${nameKey(rp.player.name, rp.position)}:${rp.item?.defId ?? ''}:${rp.gamesOut ?? 0}`;
-  const showcase = model.phase.kind === 'pregame' ? model.phase.showcase?.legendKey ?? '' : '';
+  const showcase = model.phase.kind === 'pregame' ? (model.phase.showcase ?? '') : '';
   return [
     nodeId,
     `f${model.forgivenLosses}`,
@@ -1455,11 +1506,11 @@ export function runReducer(
         (c) => c.legendKey === action.legendKey
       );
       if (!candidate || !candidate.eligibility.ok) return model;
-      const armed = model.phase.showcase?.legendKey === action.legendKey;
-      const { pendingGame: _stale, ...rest } = model.phase;
+      const armed = model.phase.showcase === action.legendKey;
+      const { pendingGame: _stale, showcase: _old, ...rest } = model.phase;
       return {
         ...model,
-        phase: { ...rest, showcase: armed ? null : { legendKey: action.legendKey } },
+        phase: { ...rest, ...(armed ? {} : { showcase: action.legendKey }) },
       };
     }
 
@@ -1520,7 +1571,7 @@ export function runReducer(
               nodeId,
               timeoutUsed: true,
               coachRec: null,
-              ...(rearm ? { showcase: { legendKey: rearm } } : {}),
+              ...(rearm ? { showcase: rearm } : {}),
             },
           };
         }
@@ -1583,11 +1634,11 @@ export function runReducer(
       );
       // Signature marks advance off the same win: a fielded legend's moment, and
       // the championship's title mark (see signature.ts).
-      const stage = isBoss ? 'boss' : node.type === 'elite' ? 'elite' : ('game' as const);
+      const stage = nodeStage(model, nodeId);
       const signatureProgress = advanceSignatureMarks(model, roster, stage, isChampionship);
-      // The near-miss ledger folds off the same win (a banked moment is a hit,
-      // never an attempt): the summary's "CLOSEST THIS RUN" read.
-      const signatureAttempts = recordSignatureAttempts(model, roster, stage, signatureProgress);
+      // The near-miss ledger folds off the same win (a banked moment reads
+      // gap.met, a hit, never an attempt): the summary's "CLOSEST THIS RUN" read.
+      const signatureAttempts = recordSignatureAttempts(model, roster, stage);
       if (isBoss) {
         if (isChampionship) {
           // The championship clear bonus banks with the final win's coins (as-earned,

@@ -5,7 +5,6 @@ import {
   SHOWCASE_CALL_COPY,
   SHOWCASE_CALL_DETAIL,
   activeShowcase,
-  momentGap,
   momentOddsLadder,
   momentOddsWord,
   showcaseBias,
@@ -14,14 +13,18 @@ import {
 } from '@/game/showcase';
 import {
   allSignatureChallenges,
+  momentGap,
   momentMet,
   signatureFor,
   type SignatureChallenge,
   type SignatureTemplateId,
 } from '@/game/signature';
 import { NBA_LEGENDS } from '@/data/nba';
+import { computeUsageWeights } from '@/game/lineup';
+import { createRNG } from '@/game/rng';
 import { DEFAULT_GAME_PLAN, type GamePlan } from '@/types/tactics';
-import type { RosterPlayer } from '@/types/roster';
+import { POSITIONS, POSITION_ARCHETYPE, type RosterPlayer } from '@/types/roster';
+import { createPlayer } from '@/types/player';
 import type { BoxLine, SimEvent } from '@/types/sim';
 
 const TEMPLATES: SignatureTemplateId[] = [
@@ -129,6 +132,54 @@ describe('activeShowcase (the on-court gate)', () => {
   });
 });
 
+describe('the showcase usage lever under a star coach', () => {
+  const five = (): RosterPlayer[] =>
+    POSITIONS.map((position, i) => ({
+      player: createPlayer(`P${i}`, POSITION_ARCHETYPE[position], createRNG(`sc-five-${i}`).int),
+      position,
+    }));
+
+  it('an up-call never demotes the star coach feature on the same player', () => {
+    const players = five();
+    // The coach stars slot 2; the takeover call (1.2x) lands on the same player.
+    const coachOnly: GamePlan = { ...DEFAULT_GAME_PLAN, starPlayerIndex: 2 };
+    const both: GamePlan = {
+      ...coachOnly,
+      showcase: { playerName: players[2].player.name, templateId: 'takeover' },
+    };
+    const coachShare = computeUsageWeights(players, coachOnly)[2];
+    const bothShare = computeUsageWeights(players, both)[2];
+    // The call keeps the coach's 1.6x (never a demotion to 1.2x, which would
+    // make arming strictly worse for the chase it advertises helping).
+    expect(bothShare).toBeCloseTo(coachShare, 10);
+  });
+
+  it("the table-setter's down-call keeps its deliberate inversion", () => {
+    const players = five();
+    const coachOnly: GamePlan = { ...DEFAULT_GAME_PLAN, starPlayerIndex: 2 };
+    const maestro: GamePlan = {
+      ...coachOnly,
+      showcase: { playerName: players[2].player.name, templateId: 'maestro' },
+    };
+    expect(computeUsageWeights(players, maestro)[2]).toBeLessThan(
+      computeUsageWeights(players, coachOnly)[2]
+    );
+  });
+
+  it('a star coach aiming a DIFFERENT player keeps both features', () => {
+    const players = five();
+    const plan: GamePlan = {
+      ...DEFAULT_GAME_PLAN,
+      starPlayerIndex: 1,
+      showcase: { playerName: players[3].player.name, templateId: 'takeover' },
+    };
+    const base = computeUsageWeights(players, DEFAULT_GAME_PLAN);
+    const withPlan = computeUsageWeights(players, plan);
+    expect(withPlan[1]).toBeGreaterThan(base[1]);
+    expect(withPlan[3]).toBeGreaterThan(base[3]);
+  });
+});
+
 describe('showcaseEligibility (qualification with reasons)', () => {
   const pantheon = { floor: 'insane', stage: 'boss' } as const;
   const great = { floor: 'medium', stage: 'any' } as const;
@@ -193,7 +244,7 @@ describe('momentGap (the quantitative near-miss read)', () => {
   it('shows the exact gap: 22/24 PTS on a takeover card', () => {
     const ch = challengeOf('takeover');
     const target = ch.params.pts!;
-    const gap = momentGap(ch, line({ name: ch.legendName, pts: target - 2 }));
+    const gap = momentGap(ch, line({ name: ch.legendName, pts: target - 2 }), []);
     expect(gap!.parts).toEqual([
       { unit: 'PTS', actual: target - 2, target, kind: 'atLeast', ok: false },
     ]);
@@ -203,25 +254,26 @@ describe('momentGap (the quantitative near-miss read)', () => {
     const ch = challengeOf('maestro');
     const gap = momentGap(
       ch,
-      line({ name: ch.legendName, ast: ch.params.ast!, tov: (ch.params.maxTov ?? 0) + 1 })
+      line({ name: ch.legendName, ast: ch.params.ast!, tov: (ch.params.maxTov ?? 0) + 1 }),
+      []
     );
     expect(gap!.met).toBe(false);
     expect(gap!.parts.find((p) => p.unit === 'AST')?.ok).toBe(true);
     expect(gap!.parts.find((p) => p.unit === 'TOV')?.ok).toBe(false);
   });
 
-  it('clutch reads the play-by-play, and returns null without one', () => {
+  it('clutch reads the play-by-play; an empty timeline reads zero, never met', () => {
     const ch = challengeOf('clutch');
     const target = ch.params.q4pts!;
     const events = Array.from({ length: target }, () => q4Event(ch.legendName, 1));
     expect(momentGap(ch, line({ name: ch.legendName }), events)!.met).toBe(true);
-    expect(momentGap(ch, line({ name: ch.legendName }))).toBeNull();
+    expect(momentGap(ch, line({ name: ch.legendName }), [])!.met).toBe(false);
   });
 
   it('never checked in (no line / zero seconds) reads null', () => {
     const ch = challengeOf('takeover');
-    expect(momentGap(ch, undefined)).toBeNull();
-    expect(momentGap(ch, line({ name: ch.legendName, seconds: 0 }))).toBeNull();
+    expect(momentGap(ch, undefined, [])).toBeNull();
+    expect(momentGap(ch, line({ name: ch.legendName, seconds: 0 }), [])).toBeNull();
   });
 });
 

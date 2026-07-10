@@ -25,7 +25,7 @@ import {
   ACTION_DEF,
   SHOT_PROFILE,
 } from './sim-resolution';
-import { computeUsageWeights, computeTeamStats } from './lineup';
+import { addDeltaToStats, computeUsageWeights, computeTeamStats } from './lineup';
 import { computeSynergy } from './synergy';
 import type { StatDelta } from './effects';
 import { deriveArchetype, counterDelta } from './team-archetype';
@@ -516,14 +516,6 @@ function showcaseOnCourt(side: SideState): boolean {
 
 /** Interior-D aggregate at which a post threat is considered "doubled". */
 const DOUBLE_INTERIOR_THRESHOLD = 16;
-
-/** Add a stat delta to a team stat line in place (no clamp; q() tolerates any value). */
-function addDeltaToStats(stats: TeamStats, delta: StatDelta): void {
-  for (const k in delta) {
-    const key = k as keyof StatDelta;
-    stats[key] = stats[key] + (delta[key] ?? 0);
-  }
-}
 
 /** Whether any on-court player has dipped below an energy threshold. */
 function anyOnCourtTired(side: SideState, energyBelow: number): boolean {
